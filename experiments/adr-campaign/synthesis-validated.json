@@ -1,0 +1,532 @@
+{
+ "kept": [
+  {
+   "adr_id": "adr_append_rule_is_an_invariant",
+   "decision": "The append rule is stated as a vendor-neutral invariant: session entries must be added at the physical end of their file, in chronological order, never inserted above existing content. The mechanism to achieve this—whether shell append (>>), Python append mode, or editor-based with an anchor—is left to each agent's available tooling.",
+   "why": "Mandating a specific tool like >> or Python append mode assumed shell or Python access and was platform-unsafe; Windows PowerShell's heredoc example fails or misencodes, making such requirements unsuitable for a cross-platform agent contract. The durable rule is the invariant itself; the property that actually matters is that nothing is inserted above existing content and chronological order is preserved, while the mechanism belongs to each agent's tools.",
+   "evolution": "Initially instituted as a requirement for >> or Python append mode because append operations write unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on editor care. Later recognized as platform-dependent and reframed to state the invariant itself, demoting the specific tool to an optional shell tip so any file-reading agent can satisfy it with whatever writing surface it has.",
+   "covered": [
+    "ms-d15e8a03:d1",
+    "ms-e30b9c47:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-0.json"
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "decision": "Before replacing versioned artifacts during a release, prior control-plane snapshots must be archived under .memory-seed/archive/<version>/ as a required procedure step.",
+   "why": "Version bumps affect reusable procedure files across many control-plane documents, and archiving prior snapshots preserves the historical record and enables rollback or auditing of changes across versions. This precondition was mentioned informally but lacked an owned procedure step.",
+   "evolution": "First implemented during the 2.5→2.6 version bump by archiving the true 2.5 reusable procedure files to .memory-seed/archive/2.5/ before replacement. Later formalized into release_publishing.md as a required step in the full version-bump and release procedure.",
+   "covered": [
+    "ms-757053d4:d4",
+    "mse_903jqy9v4pr8g388:d2"
+   ],
+   "note": "",
+   "batch": "synth-result-0.json"
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "decision": "The memory-seed session fuse --branch <branch> command is an explicit Memory Seed-aware integration command, not a Git union merge driver or automatic notes mechanism. It validates that imported entries are branch-only, chronological, immutable relative to the base, and carry branch: <branch> metadata.",
+   "why": "Git can merge text and preserve branch topology, but it cannot validate entry_id uniqueness, branch: provenance, append-only and session-order semantics, diagram sidecars, or immutability of existing entries. These semantic constraints are essential to the integrity of session logs and cannot be enforced by Git's text merge alone.",
+   "evolution": "Established as a Memory Seed-aware command with explicit validation to add session-order and immutability semantics that Git's standard merge driver cannot provide.",
+   "covered": [
+    "mse_9c151e4gbkkv1w5v:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-0.json"
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "decision": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance, strictly separated from `docs/` which holds product specification and lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than copied; each document has one canonical home. The area is documented in the runtime index's Topology section with its dossier-versus-provenance convention, three areas, move-not-copy rule, and validation scope.",
+   "why": "The `business/` area exists as maintained source of truth for commercial strategy with an established move-not-copy convention. Docs README treats a document's folder as its lifecycle state, so duplicates create ambiguity. The area needed visibility in the index so anyone orienting from there would learn of the whole commercial-strategy tree, which is load-bearing for active work.",
+   "evolution": "The first member instituted the move-not-copy policy, establishing `business/` as authoritative for commercial materials and rejecting copying which violates the area's convention. The second member extended this by making the area discoverable through the runtime index, documenting its structure, dossier-versus-provenance split, and validation boundaries.",
+   "covered": [
+    "mse_08nhq28nkm2ecpt4:d1",
+    "mse_5y962348e85x7grr:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-1.json"
+  },
+  {
+   "adr_id": "adr_derived_precedence",
+   "decision": "Sidecar precedence across families is source rank first, then recency within a source class. A `derived` block may never implicitly override a `write-time` block on the same subject—it may only fill a gap where no write-time value exists. An explicit override is possible but requires an explicit `retracts:` naming the block it supersedes, reviewed by a human before writing. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+   "why": "Once write-time values live in the sidecar, a most-recent-wins sort orders first-hand and reconstructed blocks against each other, contradicting Constitution which holds them not equal evidence. A sweep appending later would supersede a first-hand value by recency alone, contradicting the sweep's stated purpose: 'for items which did not receive them at write time.' The rule's two halves preserve that reconstructed values never displace first-hand ones silently. Human review is correct because write-time agents can be wrong, but the burden sits on the reconstructed side to state what it retracts.",
+   "evolution": "The initial decision established precedence as source rank then recency, with the core rule that derived never implicitly supersedes write-time. A subsequent correction added the second half, permitting explicit override through a named `retracts:` field reviewed by a human, recognizing that first-hand values can be wrong while maintaining that silent displacement is not allowed.",
+   "covered": [
+    "mse_x1ha2e26md3q83zv:d1",
+    "mse_dqwvb8gxnn88ch3b:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-1.json"
+  },
+  {
+   "adr_id": "adr_diagram_sidecar_structure",
+   "decision": "Diagram sidecars live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` with one file per date. Each diagram is a heading block with timestamp and title, containing a YAML block with `entry_id` and one or more Mermaid blocks. Multiple diagrams logged on the same date append to the same file in ascending time order, mirroring the session-log convention. Validation is deterministic and covers frontmatter integrity, required `entry_id` presence, mermaid fence balance, filename-date matching, and orphan-reference detection.",
+   "why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together. Keying blocks by `entry_id` inside the file keeps the association exact while letting the filesystem structure mirror the session-log convention. Deterministic validation in a single validator prevents the sidecar family from drifting from rules other families follow and ensures the graph-edge contract has new artifact validation where it belongs.",
+   "evolution": "The first member established deterministic validation rules for diagram sidecars within a single validator, covering frontmatter, `entry_id` presence, fence balance, and reference resolution. The second member redesigned the file structure from per-entry_id files to one dated file per day with multiple diagram blocks, matching session-log conventions and enabling day-wide diagram browsing. Validation rules were adapted to the new structure.",
+   "covered": [
+    "mse_m677wfhvq7s8b1x8:d1",
+    "mse_0vbj4zdcc11s3ggj:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-1.json"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "decision": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/` (with archived material in `archived/`), and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The folder itself is the single visible source of truth for a document's state. YAML fields carry only what a folder cannot express: priority, next_action, blocked_by, superseded_by, split_into, extracted_into, and spec_binding. A generated per-lane README index and front-door roll-up provide the human read surface.",
+   "why": "A folder makes lifecycle state easier for humans to find and distinguish—humans cannot scan YAML tags effectively. Making the folder the single source of truth eliminates the status-versus-folder drift class, where earlier documents carried both a YAML status field and a lifecycle folder, creating ambiguity about which was authoritative. A generated index provides human-readable discovery without duplicating YAML fields.",
+   "evolution": "A single decision reworked the document-lifecycle system from a machine-first design with status fields as truth to a human-discoverable, folder-first approach. This decision promoted terminal and parked states from abstract tags to top-level folders and added versioning subdirectories (draft for specs, archived for reference) to keep the folder count manageable while preserving human-visible state encoding.",
+   "covered": [
+    "mse_yfsrahvq87hxkcv9:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-1.json"
+  },
+  {
+   "adr_id": "adr_documentation_lane_structure",
+   "decision": "Documentation is organized into lifecycle-based folders where folder location indicates the proposal's status. Active proposals remain in the root planning directory; completed proposals move to a `completed/` folder. Cross-references are maintained across moves to preserve the reference graph and keep the overall documentation coherent.",
+   "why": "Comprehensive documentation of system functionality requires regular refresh to remain authoritative as features ship. Organizing proposals by completion status and fixing their cross-references maintains discoverability, prevents duplicate planning work on shipped items, and makes the active roadmap readable at a glance. The practice ensures that documentation stays current and that stale references don't mislead.",
+   "evolution": "The audit documentation was authored to provide comprehensive system specification with data-flow diagrams. It was then maintained across multiple release cycles to keep it current with new features and API changes. The documentation organization was systematized by creating a `completed/` folder for proposals of shipped features and repairing stale cross-references to preserve the reference graph. This pattern continues as the system evolves.",
+   "covered": [
+    "ms-a939b6b4:d2",
+    "ms-4e1b8a07:d1",
+    "mse_21d4kcx6g1vxt0ky:d1",
+    "mse_djvwtfx02kjr5j1n:d2"
+   ],
+   "note": "Current summary mentions a `proposal_lifecycle` skill not evident in the chain; synthesis reflects the actual organizational practices documented in chain members.",
+   "batch": "synth-result-2.json"
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "decision": "Decision records use compact labels: D (Decision), R (Rationale), A (Alternatives), F (Files/artifacts/behaviors), and T (Tests/validation). D and R are mandatory; A, F, T are optional. For multi-decision entries, use numbered #### Dn headings as the canonical form.",
+   "why": "Compact labels reduce token count and semantic-search noise compared to verbose labels like 'Decision:' and 'Alternatives considered:', while preserving all necessary information categories. The DRAFT label vocabulary standardizes decision notation across all session entries, keeping records efficient without sacrificing clarity or the function of decisions as the primary documentation mechanism.",
+   "evolution": "Established the DRAFT label vocabulary as the standard for compact, consistent decision notation.",
+   "covered": [
+    "ms-db2d715c:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-2.json"
+  },
+  {
+   "adr_id": "adr_edge_confidence",
+   "decision": "Machine-suggested edges carry a structured `edge_confidence` field containing YAML with confidence scores and tiers. Rendering consumers fade low-confidence edges by opacity—low confidence (<0.7) at opacity 0.28, mid (0.7–0.9) at 0.5, high/authored at full 0.85—so unverified suggestions never read as settled fact. Authored edges (no confidence attribute) render at full strength. Hovered or selected edges are never dimmed.",
+   "why": "The edge campaign preserves paid-for low-confidence suggestions rather than discarding them, but must prevent them from masquerading as fact. Storing confidence as structured YAML lets graph rendering weight them appropriately without parser changes or breaking existing validation. Fading by opacity in the actual rendering where users look delivers this distinction: a low-confidence edge at 0.28 is visually negligible, mid at 0.5 is noticeable but provisional, and authored edges at full strength convey certainty.",
+   "evolution": "Structured confidence storage was introduced to preserve low-confidence edges and enable later consumption without parser changes. Client rendering then implemented opacity-based fading across both GraphWorkspace and TrailWorkspace, with special handling to avoid incorrectly fading authored edges by omitting (rather than nulling) their confidence attribute.",
+   "covered": [
+    "mse_p4xd3wqf214nqtmv:d2",
+    "mse_7a6wgm62nty5ynkh:d1"
+   ],
+   "note": "Head is marked d2 but d1 is the newer live member; synthesis accounts for both members' contributions.",
+   "batch": "synth-result-2.json"
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "decision": "Lifecycle edges comprise three kinds: `related` (thematic association), `supersedes` (replacement), and `evolves` (extension). Edges are forward-only and acyclic by design. Topic edges are not included in the default edge type set, though topic remains offered.",
+   "why": "The chain construction in the codebase groups entries by topic naturally through sorting logic, so a topic edge would assert only that nothing else carrying that tag occurred between two entries—a statement about sort order, not about the entries themselves. Since topology is already visible through node coloring and community naming, topic edges would render the same fact twice. The three core edge types capture genuine authored claims about specific entry pairs; topic membership is already represented through graph community structure.",
+   "evolution": "Established DEFAULT_GRAPH_EDGE_TYPES as `related`, `supersedes`, and `evolves` after analyzing the codebase construction. Removed topic from the default types because it duplicates information already conveyed by entry sort order and community coloring, and its presence was even suppressing legitimate edge types in pair-precedence logic.",
+   "covered": [
+    "mse_0qycwt519qdggrpe:d1"
+   ],
+   "note": "Current summary names different edge types (replaces, evolved_by) than the chain member discusses (supersedes); synthesis reflects the actual implementation described in the chain.",
+   "batch": "synth-result-2.json"
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "decision": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace. Check tooling is in place for validation, and automatic repair of mojibake is rejected because the original characters cannot be safely inferred. Memory Trace depends on Seed and relies on its single source of truth for encoding enforcement.",
+   "why": "Central ownership by Seed prevents inconsistency and duplication across the system. The dependency relationship (Trace depends on Seed core) means one authoritative source suffices. Automatic repair was rejected as unsafe—when text is corrupted, the original intended characters cannot be recovered without human judgment.",
+   "evolution": "Infrastructure and central helpers were established first, adding shared utilities and repository-level configuration. The check command was then added to provide explicit validation of the UTF-8/LF/no-BOM contract. The architectural decision finalized that Seed alone owns encoding policy, with Trace relying on it rather than duplicating the surface.",
+   "covered": [
+    "mse_76r59d5yxcqy0kb8:d2",
+    "mse_2rvggg1jy6y4m1g3:d2",
+    "mse_74ddxsena9nj2afk:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-3.json"
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "decision": "Experimental fixtures achieve isolation through structural design using nearest-runtime discovery. Each fixture is generated as a standalone git repository by running the real init_project with documented per-level strips applied. The MCP server is pinned to the local working tree via absolute interpreter path and PYTHONPATH. Hand-written index.md, policy.md, and vocabulary files remain byte-identical across fixture levels. Each fixture's .memory-seed/sessions/ directory serves as the experiment readout, while generated templates/ and runs/ directories are gitignored.",
+   "why": "Running real init_project on actual installations ensures results generalize beyond hand-assembled approximations. Standalone git repositories and identical stubs address verified hazards: the commit hook installs into the nearest git common directory, the parent's prepare-commit-msg globs nested session stores, and resolve_runtime walks upward without a boundary guard. Using the generator as provenance avoids complexity from tracking nested git repos in the parent.",
+   "evolution": "The architecture was designed as a single integrated system encompassing isolation topology, fixture generation methodology, runtime pinning, stub handling, and experiment readout location.",
+   "covered": [
+    "mse_gbc4m5m71dqmen75:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-3.json"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "decision": "The four routing destinations (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md) follow a single four-way ownership branch applied by both init and update. Absent files trigger a full seed write. Files carrying our memory-system-version frontmatter are archived before version-gated replacement. Foreign files bearing our marker delimiters have their managed block re-synced in place. Foreign files without markers receive an injected marker-delimited block at the end. Under all circumstances, foreign files are never overwritten, even under --force.",
+   "why": "Ownership is determined by frontmatter presence, a fail-safe marker requiring no guessing. When ownership cannot be proven, appending a block is non-destructive, whereas overwriting is the bug being removed. This preserves the host file's content while enabling the routing system to maintain its state across init and update operations without forcing re-writes of uncontrolled user content.",
+   "evolution": "The complete four-way ownership mechanism was designed as an integrated system handling the full lifecycle of foreign file routing across both init and update operations, replacing the earlier practice of archiving and clobbering unknown files.",
+   "covered": [
+    "ms-7c2f1d90:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-3.json"
+  },
+  {
+   "adr_id": "adr_forward_only_edges",
+   "decision": "Related-entry edges are authored forward-only in the writing entry's own YAML frontmatter. The bidirectional graph is assembled at read time, with inbound backlinks computed only from resolvable outbound references. The `link suggest` command provides read-only suggestions, and `link add` is constrained to adding edges from the current or newest entry only. Backfilling edges between pre-existing entries is deferred; no historical entry is ever edited to record an inbound link.",
+   "why": "An edge lives in its source entry's YAML, so generating one from an existing entry would rewrite history, colliding with append-only chronology. Forward-only authoring plus bidirectional read-time traversal captures relationships without editing history. Derived edges already populate the graph, so explicit links are a curated overlay. Keeping edges in Markdown preserves it as the single source of truth.",
+   "evolution": "The complete approach was established as a single decision encompassing forward-only authoring, read-time bidirectional traversal, and the constraint that links can only be added from current or newest entries.",
+   "covered": [
+    "mse_dvzh6fkn4d98cd6y:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-3.json"
+  },
+  {
+   "adr_id": "adr_hook_merge_framework",
+   "decision": "Hook configuration is merged per agent across their dedicated config files, with idempotent updates based on script filename matching rather than full command strings. The system supports five agents (Claude, Codex, Gemini, Cursor, Copilot), each with agent-specific configuration locations, and unconditionally installs hooks for selected agents.",
+   "why": "Merging preserves existing project configuration that copying would destroy. Script filename matching survives version bumps where full command comparison would leave stale entries beside new ones. The sessionStart hook injection point was chosen because beforeSubmitPrompt hooks cannot inject context. Unconditional installation keeps the system model-agnostic rather than betting on which agent a contributor uses. Copilot receives a static prompt-type hook rather than a command hook due to its architectural constraints around stdout handling.",
+   "evolution": "Started with sessionStart as the reliable context-injection point for Cursor, replacing beforeSubmitPrompt which lacked injection capability (ms-5e1a9d44:d1). Established script filename as the stable update key to survive version changes and flag additions (ms-7b3f1e92:d1). Generalized the merge framework to multiple agents by wiring through core.py's existing merge functions, adding Copilot as a fifth agent with different hook constraints (ms-5e366ef4:d2).",
+   "covered": [
+    "ms-5e1a9d44:d1",
+    "ms-7b3f1e92:d1",
+    "ms-5e366ef4:d2"
+   ],
+   "note": "",
+   "batch": "synth-result-4.json"
+  },
+  {
+   "adr_id": "adr_inbox_promotion_workflow",
+   "decision": "Inbox items are promoted conservatively based on evidence of actionability; overlapping proposals are consolidated into a single capability crosswalk that supersedes individual sources, with every workstream assigned exactly one owner to prevent competing contracts. Assessment artifacts are classified as reference material, not inbox items, because the inbox holds untriaged captures while reference holds source material that feeds active work.",
+   "why": "The inbox accumulated stale, overlapping proposals drafted against outdated assumptions. A distilled crosswalk proved more accurate than the sources, which systematically understated shipped capability. One active owner per workstream prevents duplicate lifecycle tracking, makes dependencies explicit, and renders the roadmap trustworthy. Moving assessment documents to reference removes inbox ambiguity: documents fully evaluated against project lanes belong to reference, while only raw, untriaged captures belong to inbox.",
+   "evolution": "Established conservative triage criteria, promoting only actionable items with evidence (mse_d2daxtnv8eqx4vqr:d1). Sequenced platform ideas with explicit gates after React Trail parity (mse_mazbt6cek8m8a6st:d1). Unified workstream ownership to prevent competing contracts and explicit dependencies (mse_ddba1ztxqhasfbwf:d2). Rewrote the roadmap document against live code and CHANGELOG, introducing the capability crosswalk as the surviving record and retiring overlapping proposals (mse_wjntbg88n3m0qjss:d1, mse_tx1c338ca1ybr666:d1). Answered Living Archive proposal section 14 selectively, deferring naming and commercialisation questions (mse_y9q4bnv2yckk6w74:d1). Moved triaged assessment artifacts to reference lane, leaving inbox empty (mse_2geqfa8tg182a77p:d1).",
+   "covered": [
+    "mse_d2daxtnv8eqx4vqr:d1",
+    "mse_mazbt6cek8m8a6st:d1",
+    "mse_ddba1ztxqhasfbwf:d2",
+    "mse_wjntbg88n3m0qjss:d1",
+    "mse_y9q4bnv2yckk6w74:d1",
+    "mse_2geqfa8tg182a77p:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-4.json"
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "decision": "integration_mode is a project-local configuration setting read from .memory-seed/project.yaml as a scalar field, determining whether changes integrate via local-merge or PR. The default is local-merge, applied fail-open when the file, field, or value is absent or unrecognised.",
+   "why": "Fail-open behavior keeps every legacy or unconfigured project unchanged, making the setting purely additive. Surfacing the active mode in ESR preflights makes it visible which integration flow is in effect. The setting is foundation for downstream features like OpenSSF PR-flow requirements and agent contracts that honor the chosen mode.",
+   "evolution": "Implemented the feature in a single tranche (mse_t388apx6evvmmd1r:d1) with core reader using the same fail-open stdlib line-scanner style as existing project metadata readers, DEFAULT_INTEGRATION_MODE constant, and ESR surfacing in a new Integration mode section.",
+   "covered": [
+    "mse_t388apx6evvmmd1r:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-4.json"
+  },
+  {
+   "adr_id": "adr_lifecycle_link_audit_workflow",
+   "decision": "The link audit writes inert stubs with machine-detected candidate edges, classified but not yet live. Only explicit human approval converts a stub into an actual edge. Negative verdicts—entries whose candidates were all judged unrelated—are recorded rather than left unexamined.",
+   "why": "A mechanical candidate generator should not author lineage; that remains a deliberate human act. Keeping stubs inert separates the cheap claim \"might be related\" from the graph claim \"IS related.\" Recording negative verdicts distinguishes \"looked and found nothing\" from \"never looked,\" both important states for maintenance and completeness.",
+   "evolution": "Proposed the lifecycle-link authoring assist scaffold with inert stubs containing entry_id and commented candidate evidence that authors would resolve into real edges (mse_jg33a730vpr4085a:d1). Implemented and executed the audit for two dates, creating inert stub files with classified candidates and flagging five cases where the evolves litmus read clearly, withholding approval conversion pending user decision (mse_63qcaab119xmyx0b:d2).",
+   "covered": [
+    "mse_jg33a730vpr4085a:d1",
+    "mse_63qcaab119xmyx0b:d2"
+   ],
+   "note": "",
+   "batch": "synth-result-4.json"
+  },
+  {
+   "adr_id": "adr_link_retraction",
+   "decision": "Published lifecycle edges are never edited in place. A downgrade or removal is expressed by appending a new sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates violations. A downgrade combines a retract of the old kind with a fresh edge of the new kind in a single authored block.",
+   "why": "The session's fuse forbids reopening published blocks, so correction must append rather than edit. The retraction mechanism makes the change non-destructive and auditable—the history shows both the original edge and the correction. The twin-retract fix ensures that multi-form edges (arrow-prefixed refs appearing as both entry-level and decision-level) are completely removed. The conversion of five hand-audited downgrades from in-place edits restored constitutional compliance with Invariant #2 (append-only).",
+   "evolution": "The initial mechanism allowed retracting edges by kind and ref, optionally pinned by the original declaration date. Then the mechanism was applied retroactively to fix five published sidecar edits that violated the append-only invariant, surfacing and fixing a bug where arrow-prefixed bare refs survived as decision-level edges even when their entry-level twins were retracted.",
+   "covered": [
+    "mse_c3a4z35t4m4rjf1n:d1",
+    "mse_fsdq53qa5ak68xqh:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-5.json"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "decision": "The memory core is encoded in plain Markdown throughout all tiers. All critical files—session logs, decision records, control policies—are human-editable Markdown. Even in future collaborative or hosted implementations, Markdown remains the authoritative source of truth; any database, cache, or index is a derived, rebuildable projection, never a second source of truth.",
+   "why": "Markdown is readable for file-reading agents and human maintainers, directly supporting the core differentiation. The open-core, layered-implementation model allows optional accelerators (DuckDB, vector indices, hosted backends) without splitting the truth model. Keeping Markdown authoritative everywhere simplifies the invariant landscape—one source of truth across core, derived-local, and optional-hosted tiers—and preserves the ability for any tier to re-derive all databases from the Markdown source.",
+   "evolution": "Reframed Markdown within the Constitution's derived-layer/optional-tier model as Invariant #6, making the source-of-truth principle explicit and extending it to all implementation tiers. This resolved a design fork about whether collaborative or hosted tiers could make a server database authoritative; the answer is no, to maintain the unified truth model.",
+   "covered": [
+    "mse_gn2kmdenk0p4cn7z:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-5.json"
+  },
+  {
+   "adr_id": "adr_mcp_integration_surface",
+   "decision": "Each agent's MCP config is written to where that agent discovers it: Claude in project-root `.mcp.json`, Codex in `.codex/config.toml`. Config is written unconditionally at init time without PATH probes. On merge, if the key exists with a matching command, the entry is overwritten; if it exists with a different command, it is left alone. MCP authoring over the network is gated: only `memory_session_append` can author entries, inheriting the CLI's write-time guards, and this is the sole allowed path.",
+   "why": "Each vendor discovers MCP servers from different file types and locations; writing to the wrong place fails silently. Unconditional writes avoid fragile, timing-dependent PATH probes. Upsert-on-matching-command protects a user's own `memory-seed` server (if any) while keeping our config current. Gating the MCP write surface closes a bypass where ungated tools previously bypassed the CLI's guards; write-surface parity ensures all authoring paths enforce the same invariants.",
+   "evolution": "Started with unconditional writes and upsert logic. Discovered vendor-specific file and format requirements (Claude → `.mcp.json`, Codex → `.codex/config.toml` in TOML format), requiring separate merge handlers. Addressed Codex's silent-failure trap (config written but never loaded on untrusted directories) by adding status classification and warnings. Unified MCP authoring under a single gated path with dry-run support, removing two ungated tools that had previously bypassed guards.",
+   "covered": [
+    "ms-4c8e2a17:d1",
+    "ms-7b3f1e92:d3",
+    "ms-a3f91c2b:d1",
+    "ms-6a09aea8:d1",
+    "ms-2cd452e4:d1",
+    "ms-2cd452e4:d2",
+    "ms-6eeb512f:d1",
+    "mse_vzsef0fmpsde2jh4:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-5.json"
+  },
+  {
+   "adr_id": "adr_mcp_metadata_and_filters",
+   "decision": "The memory retrieval API exposes per-entry metadata: user, session date, path, and file hash as read-only fields. Filters (user, date range, exclude_superseded) are applied before ranking. The exclude_superseded flag is opt-in and defaults to false; no filter influences ranking weights.",
+   "why": "Applying filters before ranking keeps retrieval deterministic and each constraint independent, so clients can compose them without the ranker silently reinterpreting the result set. exclude_superseded must default off because retrieval should never hide live history by default, even as an optimization. Pre-ranking filtering preserves the full result set size for stable top-k pagination.",
+   "evolution": "Metadata fields were added to support future multi-user and criteria-based exploration; then service routes integrated filtering for user, tag, and date-range criteria. The exclude_superseded filter was implemented last per the completed plan, applying the filter pre-ranking to maintain result-set integrity.",
+   "covered": [
+    "mse_77cn2v0rg9na3w0v:d2",
+    "mse_ztcsrx4hw0b6kxdv:d2",
+    "mse_dbt6c32kk5dk55xs:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-5.json"
+  },
+  {
+   "adr_id": "adr_proposal_completion_moves_lane",
+   "decision": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record. This applies to individual plan documents, collections of related documents, and source reports whose actionable recommendations have all been split into their own plans and completed. Completed documents remain in place even when newer active proposals cite them, maintaining clarity between shipped work and current planning.",
+   "why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can distinguish an open question from shipped work without reading either. Leaving a completed document in place because something references it prevents historical research from being mistaken for current planning. The acceptance criteria recognize that a source report's completion depends on its recommendations being implemented as separate plans.",
+   "evolution": "The decision began with moving NEXT_STEPS.md to docs/todo/ and establishing the pattern of fixing references when documents relocate. It then evolved to moving completed individual plan documents into a docs/todo/completed/ subfolder with updated roadmap language. Finally it clarified the rule applies to source reports whose actionable recommendations have all been split into now-completed plans.",
+   "covered": [
+    "mse_bqc8am1yq8sv5s92:d1",
+    "mse_r1ey59bbv1jsseth:d1",
+    "mse_9m2jk06hgx7ctrm1:d3"
+   ],
+   "note": "",
+   "batch": "synth-result-6.json"
+  },
+  {
+   "adr_id": "adr_retrieval_entry_granularity",
+   "decision": "The memory-retrieval service uses session entries delimited by ## headings as the default coherent chunk boundary, with entry_id as the chunk id. Section-level granularity is optional for querying long or multi-topic entries. Entry-level results are collapsed into rollups where section matches drive an entry's score but never appear as separate selectable records. The retrieval service is extracted from the MCP implementation with both running the same service code, and parity is proven by tests.",
+   "why": "A ## entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation together - separating a decision from its rationale loses too much context. Heading-level chunking was rejected because it fragments this coherence. Service extraction lets retrieval and MCP evolve independently without drift, with parity tests locking down the contract. Rollup grouping preserves section highlights as metadata while keeping results organized around entries.",
+   "evolution": "The decision began with establishing ## entries as the default chunk boundary and rejecting heading-level chunking. It then evolved to extract retrieval service logic into its own module with MCP as a thin wrapper, proven identical by parity tests. Finally it added rollup logic to collapse ranked section results into entry-level rollups with section matches preserved as highlight metadata.",
+   "covered": [
+    "ms-845042c7:d1",
+    "mse_3n3mp35ekz08t4zb:d2",
+    "mse_pwwz3ys324ght2qs:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-6.json"
+  },
+  {
+   "adr_id": "adr_safe_process_and_upgrade_workflow",
+   "decision": "Process discovery is conservative and shared, exposed through processes, shutdown --dry-run and upgrade --dry-run with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the memory-seed[trace] extra so upgrade is coordinated through the core package. Each worktree owns its own Trace process state, and memory-trace upgrade targets the owning memory-seed package while process matching still targets active memory-trace UI processes.",
+   "why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection must precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step. Per-worktree process ownership stops one worktree's upgrade from killing another's running UI. Confirmation-gating with explicit manager execution and failed-shutdown blocking ensure safe destructive operations.",
+   "evolution": "The decision began with conservative process discovery and dry-run commands for both shutdown and upgrade. It then evolved to implement confirmation-gating with default-no behavior, --yes flag, failed-shutdown blocking, and explicit package-manager execution. Finally it resolved process ownership by routing memory-trace upgrade through the owning memory-seed package.",
+   "covered": [
+    "mse_2rvggg1jy6y4m1g3:d1",
+    "mse_zx704zcr1sd3k91n:d1",
+    "mse_etm5m5682sseasgm:d3"
+   ],
+   "note": "",
+   "batch": "synth-result-6.json"
+  },
+  {
+   "adr_id": "adr_session_layout",
+   "decision": "Session document discovery reads legacy flat session files at sessions/YYYY-MM-DD.md, new month-grouped flat files at sessions/YYYY-MM/YYYY-MM-DD.md, and new month-grouped per-user files at sessions/YYYY-MM/YYYY-MM-DD/<user>.md. Per-user file layout activates only when two or more participants are registered. The new month-grouped structure with optional per-user files is the canonical write target, while discovery still supports reading legacy flat files for backward compatibility.",
+   "why": "Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. Per-user layout in multi-participant projects avoids conflicts and improves navigation. The migration path is explicit and auditable with backups preventing data loss. Removal of migrated flat sources prevents duplicate entry IDs when dual-read is in effect, while keeping the legacy discovery path open for historical repositories.",
+   "evolution": "The decision began with a conservative migration API that maps legacy flat-file sessions through the participants registry and writes to per-user files with backup and cleanup. It then established month-grouped structure as the canonical write target with per-user files gated on 2+ participants, while discovery patterns adapted to read from both legacy and new locations.",
+   "covered": [
+    "mse_ed8zaf52k3eyaxqv:d1",
+    "mse_k2188xq5evwmdny9:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-6.json"
+  },
+  {
+   "adr_id": "adr_session_layout_participant_gating",
+   "decision": "Per-user session files are written only when a user identity is explicitly configured via .memory-seed/local.yaml, MEMORY_SEED_USER environment variable, or command-line argument. Installs without user configuration remain on the flat session file. The split is a write-time change with no migration; reads discover both layouts, and an explicit --user flag bypasses the opt-in gate.",
+   "why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author exists. A single configured user represents deliberate intent rather than an active multi-user state, so waiting for explicit user configuration makes the layout change explicit and mechanical. Dual-read capability ensures reversibility without touching history.",
+   "evolution": "An initial proposal refined the multi-user approach for future implementation. Phase 1 added read-side compatibility for both file layouts without changing write targets. The final member implemented the write-side decision: opt-in user identity enables per-user files, while no-user installs stay on the legacy flat file.",
+   "covered": [
+    "ms-41f4f32a:d1",
+    "ms-3cad2a35:d2",
+    "ms-38098d7a:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-7.json"
+  },
+  {
+   "adr_id": "adr_skill_registry_and_generic_skills",
+   "decision": "Skills route through a deterministic registry at .memory-seed/skills/index.md so fresh agents evaluate one map rather than loading all runbooks. Trigger logic lives in the registry, not scattered as prose. Skills shipped in the seed are written generic: no hardcoded output paths, no machine-specific tool locations, command patterns shown portably. Local skill registries can carry project-local entries like developer persona skills, but those are not exported to the seed.",
+   "why": "Reading every skill to evaluate triggers is expensive; the registry removes that cost. Moving all triggers to agent-rules.md was rejected for making the operating contract too large and less extensible. Generic skill content applies the same principle to bodies: a runbook with hardcoded paths only runs on one machine. Shipping skills in the seed requires them to work on any project.",
+   "evolution": "A registry was instituted as the deterministic skill trigger map. UI debugging checks were added to the developer persona and local registry. A skill was then generalized from project-local source code, establishing the pattern of stripping machine-specific paths and locations. The latest member unified diagram questions through the same registry without adding parallel logic.",
+   "covered": [
+    "ms-0bd3d8b2:d1",
+    "mse_vexkm8da35zj856x:d1",
+    "mse_fp32yxbxy3k3r5x1:d1",
+    "mse_542z3qn0azma9mmx:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-7.json"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "decision": "A sub-project is a normal folder carrying its own nested .memory-seed/ runtime scoped to its containing folder. Detailed session logs remain in the nearest active runtime; parent/root memory receives only coordination summaries addressing root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. Parent policy and skills are inherited by default; local skill files exist only to override parent behavior or hold genuinely local runbooks.",
+   "why": "Localized context is preserved while root awareness of cross-project consequences is maintained. Mirroring sub-project sessions into root memory would duplicate noise and weaken runtime isolation. Each runtime's nearest folder is read first, allowing inheritance while keeping detailed logs local.",
+   "evolution": "Operational guardrails were restored in v2 language, including sub-project inheritance conflict guidance. This was then distilled into the scoping rule: detailed logs stay in the nearest active runtime, and parent gets only coordination summaries for cross-project visibility.",
+   "covered": [
+    "ms-f776aff0:d1",
+    "ms-0bd3d8b2:d2"
+   ],
+   "note": "",
+   "batch": "synth-result-7.json"
+  },
+  {
+   "adr_id": "adr_topic_authority",
+   "decision": "Topic sidecars are the sole topic authority. Entry topics come from authored topic sidecars when present, with fallback to the authored topics: field, then hashtag and heading axes. Later refinement narrowed this: topics come only from authored sidecars; other sources are not consulted. Nothing authored is edited on disk; only which reading consumers see changes, preserving reversibility. Untagged decisions remain neutral.",
+   "why": "Link structure explains relationships, not semantic classification. Inferring topics from linked entries made untagged content appear authored and obscured which decision actually carried each topic. Sidecars are the authoritative topic truth; authored sources are not edited or contradicted, only which reader sees changes.",
+   "evolution": "Strict topic precedence was established with sidecars taking priority over authored topics and hashtag axes, with the change applied only to reader output, not disk state. A second refinement removed all sources except authored sidecars, eliminating link-neighbour inference and other topic derivation methods.",
+   "covered": [
+    "mse_8qmv0m07sy95vjm9:d1",
+    "mse_ypmrtzfmw4qwtbnn:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-7.json"
+  },
+  {
+   "adr_id": "adr_topic_vocabulary_controlled",
+   "decision": "The project maintains a controlled topic vocabulary in `.memory-seed/topics.yaml` as a deploy-once project-local file. Authored entries use 1-3 slugs validated against the canonical list; unknown historical slugs resolve as aliases at read time, preserving every observed variation. The cap for inferred topics is 4, matching the corpus-authored maximum.",
+   "why": "Usage-derived vocabulary was necessary because sprawl had materialized before a formal schema existed. Deriving from 62 real-world slugs and aliasing ensured the entire live corpus validated with zero errors immediately. The 4-topic cap reflects the highest authored reach: a genuinely four-facet entry should not be rejected for inferring a fourth topic, which would hold inference to a stricter standard than the human author. The cap is kept rather than removed because universal labels distinguish nothing; bounded at 4, nothing in the corpus exceeds it.",
+   "evolution": "The decision started by consolidating observed 62 slugs into 19 canonical ones with aliases (2026-07-10). Two later extensions added `ui-design` and `memory-seed`, then `security` (with openssf/supply-chain aliases) and `performance` (with perf/profiling aliases), growing the vocabulary to 23 by reflecting real entry usage rather than retroactively constraining historical corpus. Finally, the inferred-topic cap rose from 3 to 4 to treat the machine and author equally.",
+   "covered": [
+    "mse_ehm67mqpmsqm00md:d1",
+    "mse_vy8tq90rr4br8a0z:d1",
+    "mse_ke0f6x2v8zmd3yrf:d1",
+    "mse_jz0pwv0ngzzxr484:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_boundary",
+   "decision": "Memory Trace ships as an optional extra in the root `memory-seed` package, not as a separate PyPI project. The `memory-trace` command, FastAPI web stack, and static assets live in `memory-trace/` as a separate source tree. Core `memory_seed` carries no web framework; Trace consumes the public retrieval API.",
+   "why": "Separating Trace as its own distribution cleanly extracted presentation and web concerns from core, with Trace importing only public API symbols. Bundling back into the root package as an optional extra resolved practical constraints: PyPI rejected the standalone `memory-trace` project name, and the commercial strategy no longer required installation-layer separation. The release path changed to fold Trace into the root install rather than maintain separate distribution coordination.",
+   "evolution": "The decision first extracted Trace into a separate distribution with its own `pyproject.toml`, package, command, and assets, moving `lense.py` and static files out of core (2026-07-06). Seven days later, when PyPI naming barriers emerged and commercialisation strategy shifted, the decision bundled Trace back into the root package as an optional `trace` extra while retaining the source-tree separation (2026-07-12).",
+   "covered": [
+    "mse_fcecj9hpq4qj16ay:d1",
+    "mse_etm5m5682sseasgm:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "decision": "Memory Trace startup is incremental. Immutable git derivations—fork points, commit parents, and changed-path trees—are computed once per commit and persisted in the SQLite projection to carry across rebuilds. History harvesting uses bulk single-pass git log operations rather than per-item subprocess spawns.",
+   "why": "Direct profiling showed the prior design spawned 990 git subprocesses on a full rebuild, with 17.4 seconds spent on fork reconstruction and 15.2 seconds on file-entry indexing alone. Profiling revealed per-historical-item subprocess calls at 50–90 ms each on Windows were the entire bottleneck. Persisting immutable facts to the SQLite schema (the same contract that requires derived projections to stay rebuildable) eliminates recomputation on server restart, while bulk-read git history passes (fork-point resolution via maximal-common-ancestor and changed paths via single `git log --diff-merges=first-parent` passes) drop subprocess overhead from 990 to 7 calls.",
+   "evolution": "This decision consolidated startup performance in one session (2026-07-21), with no prior chain members. The work built a profiling harness first to confirm subprocess overhead was the root cause, then implemented immutable derivation caching and bulk-read patterns simultaneously.",
+   "covered": [
+    "mse_gtn504wfjt3c34p6:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_trail_first_ui",
+   "decision": "Trail is the primary chronological evidence surface; Graph is secondary for exploration. The generic timeline is retired. Search is a function over the open view rather than a destination, returning ranked results and in-place highlighting. A React client ships additively at `/next` and `/assets/react/*` against stable v1 API contracts while the vanilla client continues serving the root.",
+   "why": "Trail reads chronology without the temporal noise a generic timeline introduces, making it the better default surface for evidence work. Keeping search as an overlay function on the active view preserves reader attention rather than redirecting to a third place. Shipping React additively proves offline wheel delivery and stable API consumption without requiring parity or migration claims for the existing Trace UI, letting the vanilla client remain current.",
+   "evolution": "The decision unfolded across three moves: first, planning documents for Trail-first architecture and Evidence Pack provenance work were elevated to active material (2026-07-11). Next, a graph/workspace proposal package was promoted from review to active `2_Todo` work, detailing Shell, Graph, Workspace, and Inspector components (2026-07-15). Finally, the React client was shipped additively at its own route, consuming only the v1 API while vanilla stayed at root (2026-07-16).",
+   "covered": [
+    "mse_loe4c3vbaeeq22dt:d1",
+    "mse_rsjbgk4qnyrtvv09:d1",
+    "mse_rqkgatgt5eh55yb8:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-8.json"
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "decision": "Trail generates display lanes derived from lifecycle edges and branch intervals without requiring authored graph edges. Each branch receives the lowest available lane via greedy interval packing, with lanes freed when the branch's visible lifecycle ends.",
+   "why": "The design implements a git-graph timeline format (vertical orientation, straight lanes, fixed row height) based on research of conventional git-graph tools. User direction called for an interactive gitgraph appearance reminiscent of GitKraken and similar tools, with recent-window focus and minimal UI chrome to support dense, readable git history.",
+   "evolution": "The single decision rebuilt Memory Trace's Trail view from a shared force-layout graph into a vertical git-graph timeline, establishing the lane-assignment algorithm and visual encoding: lifecycle arcs in a left gutter, branch tip chips marking each branch's timeline, day separators for temporal scoping, and a 60-entry bounded window with client-side loading.",
+   "covered": [
+    "mse_37fpco0vvunilz5k:d1"
+   ],
+   "note": "",
+   "batch": "synth-result-9.json"
+  },
+  {
+   "adr_id": "adr_trail_lifecycle_visualization",
+   "decision": "The Trail displays lifecycle edges (supersedes, evolves, related) at full visibility by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision—an anchor row holding entry metadata and full branch colour, plus one pastel-coloured subheading row for each decision D1 through DN—with edge selection and grouping scoped to the entry so clicking any row in a set lights the entire entry's lineage.",
+   "why": "Decision-level and entry-level lifecycle edges were recorded but invisible; evolves edges drew only on select, so the finest links were hidden until clicked. The three-class weighting lets opacity and weight carry hierarchy, allowing a screen of 200+ arcs to read as quiet background rather than an overwhelming wall. Multi-decision rows resolve the ambiguity where entry titles doubled as decision labels: by rendering the anchor separately from D1..DN, each row can display its actual title (entry summary vs. decision name), and grouping under entry identity keeps selection and filtering coherent.",
+   "evolution": "The chain began with a full timeline and layout model (mse_74fb71s2cdrwqrqp:d1), extended through scroll stabilization with distance-eased band movement and corpus resets (mse_dgc0zvchsqpvjpe7:d1, d2), then introduced decision-level granularity by surfacing the structured decision identity reusing chunks already computed at write time (mse_9wsn23n3k8txnm2m:d1), and culminated in full-visibility lifecycle edge rendering with three-class precision weighting (mse_zm2h343r4shfre3j:d2). Each step extended rendering: scroll added smooth movement with stability bands, decision rows exposed the D1/DN structure, and edge visibility completed the lineage signal by drawing all precision classes simultaneously.",
+   "covered": [
+    "mse_74fb71s2cdrwqrqp:d1",
+    "mse_dgc0zvchsqpvjpe7:d1",
+    "mse_dgc0zvchsqpvjpe7:d2",
+    "mse_9wsn23n3k8txnm2m:d1",
+    "mse_zm2h343r4shfre3j:d2"
+   ],
+   "note": "",
+   "batch": "synth-result-9.json"
+  }
+ ],
+ "drops": [
+  {
+   "adr_id": "adr_agent_config_merge",
+   "reason": "no live chain member - the concern's decisions are all replaced; re-head first",
+   "batch": "synth-result-0.json"
+  }
+ ],
+ "coverage_gaps": [
+  {
+   "adr_id": "adr_inbox_promotion_workflow",
+   "uncovered": [
+    "mse_tx1c338ca1ybr666:d1"
+   ],
+   "live": 7
+  },
+  {
+   "adr_id": "adr_trail_lifecycle_visualization",
+   "uncovered": [
+    "mse_t5bbdstgmqzagn2y:d1"
+   ],
+   "live": 6
+  }
+ ],
+ "overlong": [
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "over": {
+    "decision": 720
+   }
+  },
+  {
+   "adr_id": "adr_hook_merge_framework",
+   "over": {
+    "evolution": 462
+   }
+  },
+  {
+   "adr_id": "adr_inbox_promotion_workflow",
+   "over": {
+    "evolution": 768
+   }
+  },
+  {
+   "adr_id": "adr_mcp_integration_surface",
+   "over": {
+    "evolution": 488
+   }
+  },
+  {
+   "adr_id": "adr_topic_vocabulary_controlled",
+   "over": {
+    "evolution": 472
+   }
+  },
+  {
+   "adr_id": "adr_trace_trail_first_ui",
+   "over": {
+    "evolution": 478
+   }
+  },
+  {
+   "adr_id": "adr_trail_lifecycle_visualization",
+   "over": {
+    "evolution": 708
+   }
+  }
+ ],
+ "unanswered": []
+}

@@ -19,27 +19,23 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L171`
+Authoritative decision: `mse_0qycwt519qdggrpe:d1`
 
 ### Decision
 
-Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.
+Lifecycle edges comprise three kinds: `related` (thematic association), `supersedes` (replacement), and `evolves` (extension). Edges are forward-only and acyclic by design. Topic edges are not included in the default edge type set, though topic remains offered.
 
 ### Why
 
-Four independent relationship claims deserve distinct semantic labels. Forward-only and acyclic structure ensures the edge graph is append-only and prevents cycles in artifact lineage.
+The chain construction in the codebase groups entries by topic naturally through sorting logic, so a topic edge would assert only that nothing else carrying that tag occurred between two entries—a statement about sort order, not about the entries themselves. Since topology is already visible through node coloring and community naming, topic edges would render the same fact twice. The three core edge types capture genuine authored claims about specific entry pairs; topic membership is already represented through graph community structure.
 
 ### How it evolved
 
-Founded from the control file; no session lineage attached yet.
+Established DEFAULT_GRAPH_EDGE_TYPES as `related`, `supersedes`, and `evolves` after analyzing the codebase construction. Removed topic from the default types because it duplicates information already conveyed by entry sort order and community coloring, and its presence was even suppressing legitimate edge types in pair-precedence logic.
 
 ### Constitution
 
 - `constitution:v1#edge-kinds` (governing)
-
-### Awaiting review
-
-- `mse_0qycwt519qdggrpe:d1` - Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by`...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -116,3 +112,59 @@ Rests on the session decision that instituted it: "`DEFAULT_GRAPH_EDGE_TYPES` be
 #### Evolution
 
 Founded from .memory-seed/index.md#L171; this revision moves the concern off that control-file line onto mse_0qycwt519qdggrpe:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:05:00Z
+
+```json
+{
+  "decision_ref": "mse_0qycwt519qdggrpe:d1",
+  "event_id": "adre_669c525b8eba1e936734",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+### revision-proposed - 2026-08-08T23:05:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#edge-kinds",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_0qycwt519qdggrpe:d1",
+  "event_id": "adre_7227a01138d6a2300a5b",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Lifecycle edges comprise three kinds: `related` (thematic association), `supersedes` (replacement), and `evolves` (extension). Edges are forward-only and acyclic by design. Topic edges are not included in the default edge type set, though topic remains offered.
+
+#### Why
+
+The chain construction in the codebase groups entries by topic naturally through sorting logic, so a topic edge would assert only that nothing else carrying that tag occurred between two entries—a statement about sort order, not about the entries themselves. Since topology is already visible through node coloring and community naming, topic edges would render the same fact twice. The three core edge types capture genuine authored claims about specific entry pairs; topic membership is already represented through graph community structure.
+
+#### Evolution
+
+Established DEFAULT_GRAPH_EDGE_TYPES as `related`, `supersedes`, and `evolves` after analyzing the codebase construction. Removed topic from the default types because it duplicates information already conveyed by entry sort order and community coloring, and its presence was even suppressing legitimate edge types in pair-precedence logic.
+
+### revision-accepted - 2026-08-08T23:05:40Z
+
+```json
+{
+  "decision_ref": "mse_0qycwt519qdggrpe:d1",
+  "event_id": "adre_a7c9a40667d45a190452",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L171",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

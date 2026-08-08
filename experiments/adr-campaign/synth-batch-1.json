@@ -1,0 +1,99 @@
+[
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "head": "mse_08nhq28nkm2ecpt4:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance reports, deliberately separated from `docs/` which holds product specification and implementation lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than being copied; a document has one canonical home.",
+  "current_why": "Rests on the session decision that instituted it: \"move rather than copy them out of `docs/4_Reference/`\" (mse_08nhq28nkm2ecpt4:d1). Explicitly institutes the policy requiring documents to move rather than be copied between business/ and docs/.",
+  "live_chain": [
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-01T18:16:00",
+    "body": "- D: Place all seven programme reports under `business/research/` with a folder README indexing them, move rather than copy them out of `docs/4_Reference/`, and write every cross-link to the location the target file occupies on main rather than the location it occupies on this branch. - R: `business/` already exists on main as the maintained source of truth for Memory Seed as a business, with a market/wedges split and an established move-not-copy convention - the market-fit, GitLens, Memory Trail and strategic-synthesis reports were moved there wholesale and left no duplicates behind. Writing links against this branch's stale view of `docs/4_Reference/` would have produced four broken references the moment the branch merged. - A: Copying rather than moving was rejected because the business area's own convention leaves no duplicates and `docs/README.md` treats the folder a document lives in as its lifecycle state, so two homes would make the state ambiguous. Merging main into this branch to get `business/README.md` before editing it was rejected on the recorded hazard that `sessions/** -merge` marks a conflict but silently keeps OURS with no markers, which has dropped entries before; the branch stays behind and lands through `session merge-branch`, whose fuse handles session chronology correctly. - F: `business/research/README.md`, `business/research/standards-and-regulatory-landscape-report.md`, `business/research/decision-governance-evidence-spine-report.md`, `business/research/memory-seed-strategic-fit-report.md`. - T: `python -m memory_seed.cli docs check` passed (194 files, 15 pre-existing unrelated warnings) after the move, confirming no `docs/` lane or link broke.",
+    "is_head": true
+   },
+   {
+    "ref": "mse_5y962348e85x7grr:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-03T14:55:00",
+    "body": "- D: Add `business/` to the runtime index's Topology section, describing its dossier-versus-provenance convention, its three areas, its move-not-copy rule, and the fact that `docs check` does not validate it. - R: The index contained no mention of `business/` at all, despite the area holding the market, wedge and pricing dossiers plus a seven-report research programme. An agent orienting from the index would not learn that a whole commercial-strategy tree exists, which is the restricted-update criterion of topology having changed and the immediate-update exception of stale content misleading active work. It is also the precise failure the research programme spent seven reports arguing about, so leaving it would have been an awkward thing to defend. - A: Leaving the gap for the session that created `business/` was rejected because that session has ended and the omission is now load-bearing for anyone orienting. Updating `docs/2_Todo/0_NEXT_STEPS.md` with the programme's recommendations was rejected as out of scope: Report 7's actions are proposals awaiting JNL's approval, and promoting them unilaterally would contradict the plan's own rule that findings are not silently promoted. - F: `.memory-seed/index.md`. - T: `memory-seed esr --date 2026-08-02` reported integrity, topics, and docs lifecycle all OK; `links check` passed across 150 files.",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "head": "mse_x1ha2e26md3q83zv:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+  "current_why": "Rests on the session decision that instituted it: \"A `derived` block may **never** supersede a `write-time` block for the same subject\" (mse_x1ha2e26md3q83zv:d1). Explicitly sets the precedence rule preventing derived blocks from overriding write-time values.",
+  "live_chain": [
+   {
+    "ref": "mse_x1ha2e26md3q83zv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26T19:33:00",
+    "body": "- D: Sidecar precedence becomes `(source rank, then recency)` rather than recency alone. A `derived` block may **never** supersede a `write-time` block for the same subject; it may only fill a gap where no write-time value exists. Within a source class, most-recent-wins is unchanged. - R: Found while aligning the ADR contract — an agent flagged that once write-time values live in the sidecar, the existing most-recent-wins sort orders first-hand and reconstructed blocks *against each other*, so a sweep appending later would supersede the write-time value on recency alone. That directly contradicts Constitution v1.6, ratified hours earlier, which holds the two are **not equal evidence**. It is also already answered by JNL's stated intent — the sweep exists \"for items which did not receive them at write time\" — so a sweep able to overwrite a first-hand value would be a *source*, which the measured 0.583/0.613 reconstruction quality says it should not be. Leaving the hole open in an accepted proposal was the worse option: the read path is written against this rule. Useful side effect: it bounds the sweep's candidate set to subjects with no write-time value, which is what makes it cheap — it never re-judges what the write-time agent already answered. - A: Leave it as an open question for JNL — rejected: the answer follows from a ratified invariant plus an explicit instruction, and an accepted proposal with a hole in its precedence rule invites whoever builds step 1 to guess. Allow `derived` to win after human approval — not adopted, but flagged in the proposal as the one rule worth correcting before step 1, since a human-approved correction is the plausible case where recency *should* win. - F: `docs/2_Todo/write-time-sidecar-consolidation-proposal.md`, plus the ADR-alignment work merged from `claude/docs/adr-sidecar-provenance`. - T: `docs check` OK (180 files); `links check` OK (92 files). Docs-only.",
+    "is_head": true
+   },
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26T19:37:00",
+    "body": "- D: The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time` block — precedence is `(source rank, then recency)`, so a sweep cannot win by being newer. (2) It may override one through an explicit `retracts:` naming it, **reviewed by a human before writing**. - R: My first draft stopped at half 1, which made write-time values permanently uncorrectable. JNL corrected it, and the correction is right: a write-time agent *can* be wrong, and a sweep reading the finished record sometimes has the better view, so freezing first-hand values would forfeit exactly the corrections worth having. What both halves together preserve is that a reconstructed value never displaces a first-hand one **silently** — it must state what it retracts, and a person must agree. This also reads Constitution v1.6 correctly: \"not equal evidence\" does not mean \"reconstructed is never right\", it means the burden sits on the reconstructed side — which is exactly what an explicit, reviewed retraction expresses. The human gate is not new machinery either; swarm output is already suggest-only and human-approved. - A: Keep half 1 alone (derived can only fill gaps) — rejected by JNL, and rightly: it optimises against one failure (silent override) by guaranteeing another (uncorrectable first-hand error). Allow implicit override once a human approves the sweep batch — rejected: approval of a batch is not approval of a specific displacement, and the read path could not tell the two apart. - F: `docs/2_Todo/write-time-sidecar-consolidation-proposal.md`, `docs/3_Spec/draft/sidecar-supersession-model.md`. - T: `docs check` OK (180 files); `links check` OK (92 files). Docs-only.",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_diagram_sidecar_structure",
+  "title": "Diagram sidecars: one dated file per day, keyed by entry, deterministically validated",
+  "head": "mse_0vbj4zdcc11s3ggj:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Diagram sidecars are one dated file per day rather than one file per entry, with multiple diagram blocks appended and each block keyed by `entry_id` inside. Validation is deterministic and lives in the single sidecar validator, covering frontmatter integrity, block shape and orphan references.",
+  "current_why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together; keying the block by entry_id inside the file keeps the association exact while letting the filesystem mirror the session-log convention. Deterministic validation in one validator is what stops the sidecar family drifting from the rules the other families already follow.",
+  "live_chain": [
+   {
+    "ref": "mse_m677wfhvq7s8b1x8:d1",
+    "title": "D1 - Deterministic sidecar validation inside the single validator",
+    "date": "2026-07-05T13:10:00",
+    "body": "- D: `check_session_links()` now scans `sessions/diagrams/*.md` after the entry-ID pass: no/invalid frontmatter or missing `entry_id` or no ```mermaid block or unbalanced fence -> `malformed-diagram`; filename stem != frontmatter `entry_id` -> `diagram-filename-mismatch`; `entry_id` resolving to no known entry -> `orphan-diagram`. Sidecars stay optional (no issue for entries without one), the fence check is purely lexical (no Mermaid semantic parsing), and sidecar files count toward `files_checked`. `iter_session_documents` needed no change - `diagrams/` is skipped naturally because only date-named directories match the per-user-day pattern. - R: The graph-edge contract requires new artifact validation to live in the one validator, reusing its scan; the plan requires deterministic checks only.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_0vbj4zdcc11s3ggj:d1",
+    "title": "D1 - One dated file per day, multiple diagram blocks appended, each keyed by entry_id inside",
+    "date": "2026-07-05T14:40:00",
+    "body": "- D: Sidecars now live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` - one file per date. Each diagram is a heading block shaped exactly like a session entry: `## <timestamp> - <title>` + fenced ```yaml block naming `entry_id` + fenced ```mermaid block(s). Multiple diagrams logged the same day append to the same file, ascending time order, exactly like session logs. `check_session_links()` reuses the existing `_ENTRY_TS_YAML_RE`/`_ENTRY_ID_RE` regexes (the same ones that parse session entries) rather than forking a new pattern. Issue kinds changed: `diagram-filename-mismatch` (stem vs frontmatter) no longer makes sense once multiple entries share one file, replaced by `diagram-date-mismatch` (the entry's real session date, read from the same `entry_timestamps` map the supersedes-postdates check already builds, must equal the diagrams filename date). `malformed-diagram` widened to also cover a non-date filename and \"no heading+yaml block found.\" `retrieval.entry_diagram_sidecars()` rewritten in parallel with its own local regex (kept separate from core.py's validator per the original design: the retrieval-side reader stays lenient/best-effort and skips malformed blocks silently, while `links check` owns strict reporting). - R: Direct user design instruction, with a clear stated rationale (filesystem-visual traversal parity with session logs) that the original per-entry_id-file design didn't serve as well. - A: Considered keeping per-entry_id frontmatter as a secondary field inside the new format - rejected; entry_id inside the yaml fence is the single link, matching how the plan's Phase 1 design note already insisted on \"one link source.\" - F: `memory_seed/core.py` (validator rewritten + docstring), `memory_seed/retrieval.py` (entry_diagram_sidecars rewritten, `re` import added), `.memory-seed/skills/session_logging.md` + seed twin (Decision Diagram Sidecars section rewritten), `.memory-seed/skills/end_of_turn.md` + seed twin (step 3 path reference), `tests/test_retrieval.py` (rewrote 3 diagram tests, added a multi-entry-per-file test), `tests/test_lense.py` (diagram test path/format), `.memory-seed/sessions/diagrams/2026-07-05.md` (renamed via `git mv` from `mse_3n3mp35ekz08t4zb.md` and reformatted to the new shape), `docs/todo/session-decision-diagrams-plan.md`, `docs/todo/memory-seed-explorer-distribution-plan.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md` (all path/issue-kind references updated). - T: Full suite 257/257 (was 256; +1 multi-entry-per-file test). `links check` clean (26 files). `doctor` healthy. Real-repo smoke: `entry_diagram_sidecars('.')` resolves the renamed/reformatted sidecar correctly.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "head": "mse_yfsrahvq87hxkcv9:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/`, and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+  "current_why": "Rests on the session decision that instituted it: \"The FOLDER is now the single visible source of truth for a doc's lifecycle state\" (mse_yfsrahvq87hxkcv9:d1). This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields.",
+  "live_chain": [
+   {
+    "ref": "mse_yfsrahvq87hxkcv9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-13T20:21:00",
+    "body": "- D: Reworked the document-lifecycle plan to be folder-primary and human-discoverable. The FOLDER is now the single visible source of truth for a doc's lifecycle state (no `status:` field mirroring it); YAML carries only what a folder can't (priority, next_action, blocked_by, superseded_by/split_into, extracted_into, spec_binding); and a generated per-lane `README.md` index + a front-door roll-up is the human read surface (`memory-seed docs index`). Terminal/parked states are promoted to TOP-LEVEL lanes - `5_Completed`, `6_Rejected`, `7_Superseded`, `8_Deferred`; draft/candidate specs go to `3_Spec/draft/` and reference archive to `4_Reference/archived/`; blocked stays index-only inside `2_Todo`. `3_Spec` and `4_Reference` keep their numbers for path stability. `docs check` validates required-YAML-per-lane and pointer resolution (no folder-vs-status rule needed). Migration is phased: P1 small (create lanes + front door + move the 3 drifts + 2 draft specs), P2 bulk-move the 43 completed + update references. - R: User: a `rejected/` FOLDER makes it easier for a human to find live/applied vs dead work, and \"the approach must be human discoverable too\" - humans can't scan YAML tags. That flips my earlier machine-first design (status-field-as-truth) to folder-as-truth, which also deletes the status-vs-folder drift class entirely (the LANDED-in-Todo / PROPOSED-but-shipped drifts I'd found can't happen when the folder is the only state). User's three calls: draft subfolder, promote terminal states to top level, blocked index-only. - A: Chose folder = primary state + a generated index over more YAML, because a folder is human-visible and a file browser sorts it; kept multi-axis attributes (priority, blocked) in YAML+index since a folder is single-axis. Kept `3_Spec`/`4_Reference` numbers (renumbering would break dozens of path references - anti-discoverable). Blocked stays index-only (transient; a folder would churn on the flaky OneDrive `git mv`). Execution deferred; P1 is the small structural pass, pending approval. - F: docs/1_Inbox/document-lifecycle-system-plan.md - T: Docs only; no code or tests. `links check` green.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

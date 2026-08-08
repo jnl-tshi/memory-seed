@@ -19,28 +19,24 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/policy.md#L43`
+Authoritative decision: `mse_fsdq53qa5ak68xqh:d1`
 
 ### Decision
 
-A published lifecycle edge is never edited in place. A downgrade or removal is expressed by appending a NEW sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates malformed, dangling and forward-only violations. A downgrade is a retract of the old kind plus a fresh edge of the new kind, authored together. `session merge-branch` refuses in-place edits to published link sidecars, and that guard is not to be bypassed.
+Published lifecycle edges are never edited in place. A downgrade or removal is expressed by appending a new sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates violations. A downgrade combines a retract of the old kind with a fresh edge of the new kind in a single authored block.
 
 ### Why
 
-Append-only is the corpus invariant, so a correction must be an addition rather than a rewrite: the evidence that an edge was once asserted is itself worth keeping. The gap surfaced when the fuse correctly refused hand-audit edits and the only way through was bypassing the guard. Editing blocks in place was rejected for defeating that guard and deleting them for destroying evidence; a combined shorthand was deferred as less legible than an explicit retract-plus-readd pair.
+The session's fuse forbids reopening published blocks, so correction must append rather than edit. The retraction mechanism makes the change non-destructive and auditable—the history shows both the original edge and the correction. The twin-retract fix ensures that multi-form edges (arrow-prefixed refs appearing as both entry-level and decision-level) are completely removed. The conversion of five hand-audited downgrades from in-place edits restored constitutional compliance with Invariant #2 (append-only).
 
 ### How it evolved
 
-Built 2026-07-25 as the sanctioned correction path after the fuse refused in-place sidecar edits, then exercised the same evening by converting five hand-audit downgrades back to append-only retracts, which also exposed and fixed the arrow-bare twin-edge reader bug.
+The initial mechanism allowed retracting edges by kind and ref, optionally pinned by the original declaration date. Then the mechanism was applied retroactively to fix five published sidecar edits that violated the append-only invariant, surfacing and fixing a bug where arrow-prefixed bare refs survived as decision-level edges even when their entry-level twins were retracted.
 
 ### Constitution
 
 - `constitution:v1#link-corrections` (governing)
 - `constitution:v1#append-only` (supporting)
-
-### Awaiting review
-
-- `mse_c3a4z35t4m4rjf1n:d1` - A published lifecycle edge is never edited in place.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -129,3 +125,66 @@ Rests on the session decision that instituted it: "Added an append-only `retract
 #### Evolution
 
 Founded from .memory-seed/policy.md#L43; this revision moves the concern off that control-file line onto mse_c3a4z35t4m4rjf1n:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:28:00Z
+
+```json
+{
+  "decision_ref": "mse_c3a4z35t4m4rjf1n:d1",
+  "event_id": "adre_e1b2fb1fdfcb66ac55e9",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired and the anchor moved. This revision rested on mse_c3a4z35t4m4rjf1n:d1, but mse_fsdq53qa5ak68xqh:d1 is a later decision in the same chain that had already moved the concern past it. A shift in the most recent authoritative decision triggers a regenerated summary, so both land together.
+
+### revision-proposed - 2026-08-08T23:28:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#link-corrections",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_fsdq53qa5ak68xqh:d1",
+  "event_id": "adre_1eca97b427ba9d13218d",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_c3a4z35t4m4rjf1n:d1"
+  ],
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Published lifecycle edges are never edited in place. A downgrade or removal is expressed by appending a new sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates violations. A downgrade combines a retract of the old kind with a fresh edge of the new kind in a single authored block.
+
+#### Why
+
+The session's fuse forbids reopening published blocks, so correction must append rather than edit. The retraction mechanism makes the change non-destructive and auditable—the history shows both the original edge and the correction. The twin-retract fix ensures that multi-form edges (arrow-prefixed refs appearing as both entry-level and decision-level) are completely removed. The conversion of five hand-audited downgrades from in-place edits restored constitutional compliance with Invariant #2 (append-only).
+
+#### Evolution
+
+The initial mechanism allowed retracting edges by kind and ref, optionally pinned by the original declaration date. Then the mechanism was applied retroactively to fix five published sidecar edits that violated the append-only invariant, surfacing and fixing a bug where arrow-prefixed bare refs survived as decision-level edges even when their entry-level twins were retracted.
+
+### revision-accepted - 2026-08-08T23:28:40Z
+
+```json
+{
+  "decision_ref": "mse_fsdq53qa5ak68xqh:d1",
+  "event_id": "adre_7fcd9d718d484950871d",
+  "expected_authoritative_decision": "founding:.memory-seed/policy.md#L43",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

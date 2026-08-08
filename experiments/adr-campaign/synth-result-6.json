@@ -1,0 +1,34 @@
+[
+  {
+    "adr_id": "adr_proposal_completion_moves_lane",
+    "decision": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record. This applies to individual plan documents, collections of related documents, and source reports whose actionable recommendations have all been split into their own plans and completed. Completed documents remain in place even when newer active proposals cite them, maintaining clarity between shipped work and current planning.",
+    "why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can distinguish an open question from shipped work without reading either. Leaving a completed document in place because something references it prevents historical research from being mistaken for current planning. The acceptance criteria recognize that a source report's completion depends on its recommendations being implemented as separate plans.",
+    "evolution": "The decision began with moving NEXT_STEPS.md to docs/todo/ and establishing the pattern of fixing references when documents relocate. It then evolved to moving completed individual plan documents into a docs/todo/completed/ subfolder with updated roadmap language. Finally it clarified the rule applies to source reports whose actionable recommendations have all been split into now-completed plans.",
+    "covered": ["mse_bqc8am1yq8sv5s92:d1", "mse_r1ey59bbv1jsseth:d1", "mse_9m2jk06hgx7ctrm1:d3"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_retrieval_entry_granularity",
+    "decision": "The memory-retrieval service uses session entries delimited by ## headings as the default coherent chunk boundary, with entry_id as the chunk id. Section-level granularity is optional for querying long or multi-topic entries. Entry-level results are collapsed into rollups where section matches drive an entry's score but never appear as separate selectable records. The retrieval service is extracted from the MCP implementation with both running the same service code, and parity is proven by tests.",
+    "why": "A ## entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation together - separating a decision from its rationale loses too much context. Heading-level chunking was rejected because it fragments this coherence. Service extraction lets retrieval and MCP evolve independently without drift, with parity tests locking down the contract. Rollup grouping preserves section highlights as metadata while keeping results organized around entries.",
+    "evolution": "The decision began with establishing ## entries as the default chunk boundary and rejecting heading-level chunking. It then evolved to extract retrieval service logic into its own module with MCP as a thin wrapper, proven identical by parity tests. Finally it added rollup logic to collapse ranked section results into entry-level rollups with section matches preserved as highlight metadata.",
+    "covered": ["ms-845042c7:d1", "mse_3n3mp35ekz08t4zb:d2", "mse_pwwz3ys324ght2qs:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_safe_process_and_upgrade_workflow",
+    "decision": "Process discovery is conservative and shared, exposed through processes, shutdown --dry-run and upgrade --dry-run with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the memory-seed[trace] extra so upgrade is coordinated through the core package. Each worktree owns its own Trace process state, and memory-trace upgrade targets the owning memory-seed package while process matching still targets active memory-trace UI processes.",
+    "why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection must precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step. Per-worktree process ownership stops one worktree's upgrade from killing another's running UI. Confirmation-gating with explicit manager execution and failed-shutdown blocking ensure safe destructive operations.",
+    "evolution": "The decision began with conservative process discovery and dry-run commands for both shutdown and upgrade. It then evolved to implement confirmation-gating with default-no behavior, --yes flag, failed-shutdown blocking, and explicit package-manager execution. Finally it resolved process ownership by routing memory-trace upgrade through the owning memory-seed package.",
+    "covered": ["mse_2rvggg1jy6y4m1g3:d1", "mse_zx704zcr1sd3k91n:d1", "mse_etm5m5682sseasgm:d3"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_session_layout",
+    "decision": "Session document discovery reads legacy flat session files at sessions/YYYY-MM-DD.md, new month-grouped flat files at sessions/YYYY-MM/YYYY-MM-DD.md, and new month-grouped per-user files at sessions/YYYY-MM/YYYY-MM-DD/<user>.md. Per-user file layout activates only when two or more participants are registered. The new month-grouped structure with optional per-user files is the canonical write target, while discovery still supports reading legacy flat files for backward compatibility.",
+    "why": "Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. Per-user layout in multi-participant projects avoids conflicts and improves navigation. The migration path is explicit and auditable with backups preventing data loss. Removal of migrated flat sources prevents duplicate entry IDs when dual-read is in effect, while keeping the legacy discovery path open for historical repositories.",
+    "evolution": "The decision began with a conservative migration API that maps legacy flat-file sessions through the participants registry and writes to per-user files with backup and cleanup. It then established month-grouped structure as the canonical write target with per-user files gated on 2+ participants, while discovery patterns adapted to read from both legacy and new locations.",
+    "covered": ["mse_ed8zaf52k3eyaxqv:d1", "mse_k2188xq5evwmdny9:d1"],
+    "note": ""
+  }
+]

@@ -1,0 +1,127 @@
+[
+ {
+  "adr_id": "adr_session_layout_participant_gating",
+  "title": "Per-user session files activate only at two or more participants",
+  "head": "ms-38098d7a:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Per-user session files are written only when two or more participants are registered. A single configured user stays on the flat file, preserving the solo-first design. Reads discover both layouts, so the split is a write-time change rather than a migration, and an explicit `--user` bypasses the gate.",
+  "current_why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author actually exists. One configured user is declarative intent, not yet multi-user, so waiting for the second participant makes the layout move explicit and mechanical rather than a surprise. Dual-read means the change is reversible without touching history.",
+  "live_chain": [
+   {
+    "ref": "ms-41f4f32a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-13T15:08:00",
+    "body": "- D: Authored `docs/todo/multi-user-session-memory-proposal.md` (refined, gap-fixed), cleaned the research report's citation artifacts, and recorded a Deferred-3.0 entry in `NEXT_STEPS.md`. - R: Proposal is well-engineered but a core-data-model change + product pivot (solo-first -> team-capable). User confirmed team-capable is worth exploring but chose to refine-then-hold until 2.6.0 ships and 2.7.0 lands. Refining now (while the analysis is fresh) makes it execution-ready later without committing to the high-blast-radius build. - A: Full implementation now (rejected: 2.6.0 uncommitted, high risk); decline outright (rejected: team-capable is a wanted direction). - F: `docs/todo/multi-user-session-memory-proposal.md` (new), `docs/todo/multi-user-deep-research-report.md` (citation cleanup), `NEXT_STEPS.md` (deferral entry).",
+    "is_head": false
+   },
+   {
+    "ref": "ms-3cad2a35:d2",
+    "title": "D2 - 2.9.0 read-only dual discovery",
+    "date": "2026-06-14T16:52:00",
+    "body": "- D: Added `SessionDocument` / `iter_session_documents()` and routed package readers (`extract_memory_chunks()` / MCP and `compact_sessions()`) through it so both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` are read. Per-user filenames use the bare slug form (for example `jean.md`). Writes, hooks, active-user resolution, migration, and `session_path()` remain deferred. - R: This is the safe Phase 1 foundation: additive read compatibility with no file movement or write-target change. - A: Updating hooks in Phase 1 was deferred because `session-log-check.py` requires active-user identity and `session-start-context.py` semantics should be defined with the write/user-resolution phase. - F: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, tests, README, CHANGELOG, NEXT_STEPS, `.memory-seed/index.md`, `docs/todo/multi-user-session-memory-proposal.md`, version bumps to control-plane `2.9` / package `2.9.0`, and seed/live control-plane frontmatter sync. - T: New tests were written first and failed for missing discovery/MCP behavior; after implementation, targeted parser/compact/MCP tests passed. Full suite passed 139 tests; repo `doctor` healthy; version reports `2.9`. Manual temp-runtime check: search returned `ms-jean-manual` + `ms-flat-manual`, `memory_get_chunk` fetched `.memory-seed/sessions/2026-06-21/jean.md`, and compact listed `2026-06-20.md` + `2026-06-21/jean.md`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14T18:18:00",
+    "body": "- D: Added opt-in local user identity, per-user session target creation, and user-aware hooks while keeping no-user installs on the legacy flat session file. - R: This advances the multi-user roadmap without silently moving existing users' write targets; a clone must opt in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or an explicit CLI/user argument. - A: Automatic user inference was not added; guessing would risk writing to the wrong contributor file. - F: `memory_seed/core.py`, `memory_seed/cli.py`, hook seed/live twins, tests, README, CHANGELOG, NEXT_STEPS, proposal docs, control-plane frontmatter/version files, and runtime index/rules. - T: Wrote failing tests first for target resolution, local user CLI, per-user file initialization, and hook scoping. `python -m unittest discover -s tests` passed 147 tests; `python -m memory_seed.cli doctor` healthy; `python -m memory_seed.cli version` reported `2.10`. Manual temp-project smoke confirmed `session target --create` writes `.memory-seed/sessions/2026-06-21/jean.md` with schema/user/hash frontmatter and hooks resolve the per-user path.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_skill_registry_and_generic_skills",
+  "title": "Skills route through a deterministic registry, and seeded skills are written generic",
+  "head": "mse_542z3qn0azma9mmx:d1",
+  "head_is_newest_live": true,
+  "current_summary": "`.memory-seed/skills/index.md` is the deterministic trigger registry: a fresh agent evaluates one map rather than loading every runbook, and new capabilities are routed by adding a registry entry rather than by prose scattered across skills. A skill shipped in the seed is written generic - no hardcoded paths, no machine-specific locations - so it is reusable in any project that installs it.",
+  "current_why": "Trigger prose inside each skill cannot be evaluated without reading every skill, which is the cost the registry removes; moving trigger logic into `agent-rules.md` was rejected for making the operating contract too large and less extensible. Generic seed content is the same principle applied to the skill body: a runbook carrying one machine's paths is a runbook only that machine can run.",
+  "live_chain": [
+   {
+    "ref": "ms-0bd3d8b2:d1",
+    "title": "D1 - Use a seeded trigger registry instead of only prose triggers",
+    "date": "2026-05-26T22:09:00",
+    "body": "- D: Add `.memory-seed/skills/index.md` and seed/package it as the deterministic trigger registry for bundled universal skills. - R: The user wanted a hook-like, one-stop skill trigger map that a fresh agent can evaluate predictably without loading every skill runbook. - A: Rejected moving all trigger logic into `agent-rules.md` because it would make the operating contract too large and less extensible for local skill overrides. - F: `.memory-seed/skills/index.md`, `memory_seed/seed/.memory-seed/skills/index.md`, `.memory-seed/agent-rules.md`, seed copy, `memory_seed/core.py`, `pyproject.toml`, tests. - T: `python -m unittest tests.test_session_schema`; `python -m unittest tests.test_memory_seed`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_vexkm8da35zj856x:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-29T21:37:00",
+    "body": "- D: Add rendered UI debugging checks to the developer persona and local skill registry. - R: Memory Lense graph/timeline fixes showed tests alone missed stale asset and hit-target issues; future rendered UI work needs browser asset and target verification. - F: `.agents/developer.md`, `.memory-seed/skills/developer-rendered-ui-debugging.md`, `.memory-seed/skills/index.md`, `.memory-seed/sessions/2026-06-29.md`. - T: `python -m memory_seed.cli doctor` reported healthy/bootstrap complete; `python -m memory_seed.cli links check` passed for 19 files after this entry. - Signed: user approved 2026-06-29 21:37.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_fp32yxbxy3k3r5x1:d1",
+    "title": "D1 - Generic skill content, project specifics stripped",
+    "date": "2026-07-05T02:23:00",
+    "body": "- D: Wrote `.memory-seed/skills/docx_render_windows.md` (+ seed twin) from the source runtime's project-local skill and `render_docx_windows_safe.py`, but generalized: no hardcoded output paths, no machine-specific Poppler location, command pattern shown as inline Python with `Path(profile).as_uri()`, bounded per-step timeouts, and exists-and-non-empty output checks. Registered in the trigger registry (live + seed) with the proposal's Lesson-7 deterministic triggers; cross-referenced from `office_document_editing.md` (live + seed); wired into `SEED_FILES` (`core.py`), `pyproject.toml` package-data, and the seed-destinations test. - R: The proposal explicitly asked for a universal lazy skill, and seeded skills must work on any project — the source skill's paths were runtime-local. - A: Caught and reverted a blind live→seed copy of `skills/index.md` that would have leaked the project-local `developer-rendered-ui-debugging.md` persona entry into the seed registry (fresh installs would reference a skill file the seed does not ship). The seed twin got only the new `docx_render_windows.md` block. Standing lesson: live and seed `skills/index.md` are NOT identical twins — the live registry legitimately carries project-local persona entries; sync per-block, not per-file. - F: `.memory-seed/skills/docx_render_windows.md` (new), seed twin (new), `.memory-seed/skills/index.md` + seed twin, `.memory-seed/skills/office_document_editing.md` + seed twin, `memory_seed/core.py`, `pyproject.toml`, `tests/test_memory_seed.py`, `docs/todo/completed/docx-render-windows-seed-lessons.md` (moved + status), `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md`. - T: Full `unittest discover tests` 243/243 OK. `links check` clean (25 files). `doctor` healthy — which also confirms no orphan-skill warning for the new registry pairing.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_542z3qn0azma9mmx:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-07T12:52:00",
+    "body": "- D: Update `compact_mermaid_diagrams.md` in live and seed runtime files, route Mermaid-vs-D2 and D2 architecture diagram questions through the same skill registry entry, update the diagramming profile description, and move the evaluation proposal to completed. - R: This captures the useful D2 decision rule without creating a parallel diagram skill, adding a dependency, or expanding the current Mermaid-only session sidecar/rendering contract. - A: Did not rename the skill or add D2 sidecar validation/rendering; those remain future Memory Trace/export scope if explicitly accepted later. - F: `.memory-seed/skills/compact_mermaid_diagrams.md`, `memory_seed/seed/.memory-seed/skills/compact_mermaid_diagrams.md`, `.memory-seed/skills/index.md`, `memory_seed/seed/.memory-seed/skills/index.md`, `memory_seed/core.py`, `docs/functionality-audit.md`, `docs/todo/completed/structured-mermaid-d2-diagrams-skill-evaluation.md`, `docs/inbox/structured-mermaid-d2-diagrams-skill-evaluation.md`, `.memory-seed/sessions/2026-07-07.md`. - T: `python -m unittest tests.test_memory_seed`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli links check`; `git diff --check`; `git diff --check origin/main...HEAD`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "head": "ms-0bd3d8b2:d2",
+  "head_is_newest_live": true,
+  "current_summary": "A sub-project is a normal folder carrying its own nested `.memory-seed/` runtime, never a folder nested inside the root runtime. The nested runtime scopes work under its containing folder: active state is local by default, detailed session logs stay in the nearest runtime, and parent active state is not read unless the sub-project index explicitly links to it. Parent policy and parent skills are inherited by default; local skill files exist only to override parent behaviour or to hold genuinely local runbooks.",
+  "current_why": "Rests on the session decision that instituted it: \"Detailed session logs remain in the nearest active runtime; parent/root memory gets only\" (ms-0bd3d8b2:d2). This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.",
+  "live_chain": [
+   {
+    "ref": "ms-f776aff0:d1",
+    "title": "D1 - Restore operational guardrails in v2 language",
+    "date": "2026-05-26T21:49:00",
+    "body": "- D: Add public memory hygiene, explicit locked structure-change rules, immediate durable-memory update exception, skill trigger quick starts, stricter supersession criteria, sub-project inheritance conflict guidance, and target bootstrap boundaries. - R: The v2 architecture is cleaner, but the archived v1.4 rules had stronger safety and operational clarity for fresh agents. - A: Rejected copying v1.4 verbatim because it would reintroduce obsolete `.AGENTS` paths and old generated-file ownership. - F: `.memory-seed/agent-rules.md`, `memory_seed/seed/.memory-seed/agent-rules.md`, `tests/test_session_schema.py`. - T: `python -m unittest tests.test_session_schema`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.mcp_validate \"Restored v1.4 guardrails in v2 rules\" --cwd \".\" --top-k 2`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes",
+    "date": "2026-05-26T22:09:00",
+    "body": "- D: Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries for root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. - R: This preserves localized context while keeping the root aware of cross-project consequences. - A: Rejected mirroring sub-project sessions into root memory because that would duplicate noise and weaken runtime isolation. - F: `.memory-seed/agent-rules.md`, seed copy, tests. - T: `python -m unittest tests.test_session_schema`; `python -m unittest tests.test_memory_seed`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "head": "mse_8qmv0m07sy95vjm9:d1",
+  "head_is_newest_live": false,
+  "current_summary": "The topic sidecar is the topic authority, not a derived overlay. Topic resolution follows strict precedence - sidecar attributions first, then the entry's authored `topics:` field, then hashtag and heading axes - instead of unioning sidecar and authored topics. Where an entry has sidecar attributions, those are its topics. Nothing authored is edited or deleted on disk; only which reading a consumer is shown changes, which is what keeps the switch reversible.",
+  "current_why": "Rests on the session decision that instituted it: \"`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes.\" (mse_8qmv0m07sy95vjm9:d1). This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.",
+  "live_chain": [
+   {
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-27T19:10:00",
+    "body": "- D: `_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes. It unioned the first two until today. - R: JNL's call, and the union stopped being right the moment the two-axis campaign finished. A union is correct while sidecars are sparse ENRICHMENT - an entry tagged `memory-trace` gaining `trail` really is both. It is wrong once the sidecar carries a COMPLETE reading of every decision on two declared axes, because unioning then re-admits the coarse pre-axis label the sweep exists to supersede: an entry reads as `memory-seed` AND `topic-vocabulary` with nothing to say which the corpus currently believes. Measured after the switch: the facet drops `memory-trace` from 204 entries to 76, because entries now answer with the specific slug rather than the root they were parked on. The root is still reachable - `expand_topic_filter` derives it from the child - so nothing lost reach, only false breadth. **Nothing authored is edited, deleted or contradicted on disk.** The entry's own YAML is untouched and still readable as what its author wrote. Only which of the two a READER is shown changed, and that is exactly what makes this reversible. - A: Union and mark provenance in the UI - rejected: it keeps the ambiguity and moves the cost to every consumer. Union only where the sidecar has no area/activity pair - rejected as a rule nobody could predict from the outside. - F: `memory-trace/memory_trace/service.py` (`_topics`), `memory-trace/tests/test_topic_sidecars.py` (assertions inverted, 2 tests added). - T: 225 Trace tests pass. Live facets rebuild to 68 slugs led by `feature-build` 222, `bugfix` 99, `ui-design` 84 - the two-axis reading, not the old one.",
+    "is_head": true
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d1",
+    "title": "D1 - Use authored sidecars as the only Trace topic truth",
+    "date": "2026-07-31T20:59:00",
+    "body": "- D: Project entry and decision topics only from their authored topic sidecars; remove link-neighbour topic inference, keep untagged decisions neutral, and let the parent entry expose the deduplicated union of its authored decision topics. - R: Link structure explains relationships, not semantic classification. Inferring colour or community from linked entries made untagged content look authored and obscured which decision actually carried each topic. - A: Retaining inferred linked context as a secondary colour or fallback was rejected because it would continue to present unauthored classification as topic truth. No diagram was added because this is an authority and projection rule without a new spatial or lifecycle topology. - F: `memory-trace/memory_trace/service.py`, `memory-trace/memory_trace/models.py`, `memory-trace/memory_trace/graph_projection.py`, `memory-trace/client/src/App.tsx`, `memory-trace/client/src/graphCommunities.ts`, API contracts, and the authored topic sidecar for `mse_d06t9bccm3yykfqs`. - T: Live Inspector and Graph checks confirmed exact D1/D2 topic attribution and authored communities; untagged decisions remain neutral.",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

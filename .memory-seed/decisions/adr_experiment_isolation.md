@@ -20,28 +20,24 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L107`
+Authoritative decision: `mse_gbc4m5m71dqmen75:d1`
 
 ### Decision
 
-Experimental fixtures achieve isolation through structural design via nearest-runtime discovery. Each generated fixture is a standalone git repository with its own `.memory-seed/` runtime. Fixture runtimes are throwaway sub-project runtimes deliberately not individually registered in the parent index.
+Experimental fixtures achieve isolation through structural design using nearest-runtime discovery. Each fixture is generated as a standalone git repository by running the real init_project with documented per-level strips applied. The MCP server is pinned to the local working tree via absolute interpreter path and PYTHONPATH. Hand-written index.md, policy.md, and vocabulary files remain byte-identical across fixture levels. Each fixture's .memory-seed/sessions/ directory serves as the experiment readout, while generated templates/ and runs/ directories are gitignored.
 
 ### Why
 
-Isolation is structural and was proven at build time: a fixture write left the parent corpus counts unchanged. Nearest-runtime discovery provides automatic, predictable fixture isolation without requiring manual registration or explicit isolation machinery.
+Running real init_project on actual installations ensures results generalize beyond hand-assembled approximations. Standalone git repositories and identical stubs address verified hazards: the commit hook installs into the nearest git common directory, the parent's prepare-commit-msg globs nested session stores, and resolve_runtime walks upward without a boundary guard. Using the generator as provenance avoids complexity from tracking nested git repos in the parent.
 
 ### How it evolved
 
-Founded from the control file; outlined in the agent-capture experiment specification. Session decision mse_vaz9d3h7x4bcmd1t:d1 (2026-08-04) narrowed isolation assertion to the parent session store specifically, refining the validation claim while preserving structural isolation.
+The architecture was designed as a single integrated system encompassing isolation topology, fixture generation methodology, runtime pinning, stub handling, and experiment readout location.
 
 ### Constitution
 
 - `constitution:v1#authority` (governing)
 - `constitution:v1#prove-automation` (supporting)
-
-### Awaiting review
-
-- `mse_gbc4m5m71dqmen75:d1` - Experimental fixtures achieve isolation through structural design via nearest-runtime discovery.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -126,3 +122,63 @@ Rests on the session decision that instituted it: "treat each fixture's own `.me
 #### Evolution
 
 Founded from .memory-seed/index.md#L107; this revision moves the concern off that control-file line onto mse_gbc4m5m71dqmen75:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:07:00Z
+
+```json
+{
+  "decision_ref": "mse_gbc4m5m71dqmen75:d1",
+  "event_id": "adre_1a0e5903842cb03466fb",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+### revision-proposed - 2026-08-08T23:07:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#authority",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#prove-automation",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_gbc4m5m71dqmen75:d1",
+  "event_id": "adre_8eaa920489274ce78ee8",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Experimental fixtures achieve isolation through structural design using nearest-runtime discovery. Each fixture is generated as a standalone git repository by running the real init_project with documented per-level strips applied. The MCP server is pinned to the local working tree via absolute interpreter path and PYTHONPATH. Hand-written index.md, policy.md, and vocabulary files remain byte-identical across fixture levels. Each fixture's .memory-seed/sessions/ directory serves as the experiment readout, while generated templates/ and runs/ directories are gitignored.
+
+#### Why
+
+Running real init_project on actual installations ensures results generalize beyond hand-assembled approximations. Standalone git repositories and identical stubs address verified hazards: the commit hook installs into the nearest git common directory, the parent's prepare-commit-msg globs nested session stores, and resolve_runtime walks upward without a boundary guard. Using the generator as provenance avoids complexity from tracking nested git repos in the parent.
+
+#### Evolution
+
+The architecture was designed as a single integrated system encompassing isolation topology, fixture generation methodology, runtime pinning, stub handling, and experiment readout location.
+
+### revision-accepted - 2026-08-08T23:07:40Z
+
+```json
+{
+  "decision_ref": "mse_gbc4m5m71dqmen75:d1",
+  "event_id": "adre_e0aa0ee607d240a6a5e7",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L107",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

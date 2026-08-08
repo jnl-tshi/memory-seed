@@ -1,0 +1,34 @@
+[
+  {
+    "adr_id": "adr_business_separation",
+    "decision": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance, strictly separated from `docs/` which holds product specification and lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than copied; each document has one canonical home. The area is documented in the runtime index's Topology section with its dossier-versus-provenance convention, three areas, move-not-copy rule, and validation scope.",
+    "why": "The `business/` area exists as maintained source of truth for commercial strategy with an established move-not-copy convention. Docs README treats a document's folder as its lifecycle state, so duplicates create ambiguity. The area needed visibility in the index so anyone orienting from there would learn of the whole commercial-strategy tree, which is load-bearing for active work.",
+    "evolution": "The first member instituted the move-not-copy policy, establishing `business/` as authoritative for commercial materials and rejecting copying which violates the area's convention. The second member extended this by making the area discoverable through the runtime index, documenting its structure, dossier-versus-provenance split, and validation boundaries.",
+    "covered": ["mse_08nhq28nkm2ecpt4:d1", "mse_5y962348e85x7grr:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_derived_precedence",
+    "decision": "Sidecar precedence across families is source rank first, then recency within a source class. A `derived` block may never implicitly override a `write-time` block on the same subject—it may only fill a gap where no write-time value exists. An explicit override is possible but requires an explicit `retracts:` naming the block it supersedes, reviewed by a human before writing. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+    "why": "Once write-time values live in the sidecar, a most-recent-wins sort orders first-hand and reconstructed blocks against each other, contradicting Constitution which holds them not equal evidence. A sweep appending later would supersede a first-hand value by recency alone, contradicting the sweep's stated purpose: 'for items which did not receive them at write time.' The rule's two halves preserve that reconstructed values never displace first-hand ones silently. Human review is correct because write-time agents can be wrong, but the burden sits on the reconstructed side to state what it retracts.",
+    "evolution": "The initial decision established precedence as source rank then recency, with the core rule that derived never implicitly supersedes write-time. A subsequent correction added the second half, permitting explicit override through a named `retracts:` field reviewed by a human, recognizing that first-hand values can be wrong while maintaining that silent displacement is not allowed.",
+    "covered": ["mse_x1ha2e26md3q83zv:d1", "mse_dqwvb8gxnn88ch3b:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_diagram_sidecar_structure",
+    "decision": "Diagram sidecars live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` with one file per date. Each diagram is a heading block with timestamp and title, containing a YAML block with `entry_id` and one or more Mermaid blocks. Multiple diagrams logged on the same date append to the same file in ascending time order, mirroring the session-log convention. Validation is deterministic and covers frontmatter integrity, required `entry_id` presence, mermaid fence balance, filename-date matching, and orphan-reference detection.",
+    "why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together. Keying blocks by `entry_id` inside the file keeps the association exact while letting the filesystem structure mirror the session-log convention. Deterministic validation in a single validator prevents the sidecar family from drifting from rules other families follow and ensures the graph-edge contract has new artifact validation where it belongs.",
+    "evolution": "The first member established deterministic validation rules for diagram sidecars within a single validator, covering frontmatter, `entry_id` presence, fence balance, and reference resolution. The second member redesigned the file structure from per-entry_id files to one dated file per day with multiple diagram blocks, matching session-log conventions and enabling day-wide diagram browsing. Validation rules were adapted to the new structure.",
+    "covered": ["mse_m677wfhvq7s8b1x8:d1", "mse_0vbj4zdcc11s3ggj:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "decision": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/` (with archived material in `archived/`), and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The folder itself is the single visible source of truth for a document's state. YAML fields carry only what a folder cannot express: priority, next_action, blocked_by, superseded_by, split_into, extracted_into, and spec_binding. A generated per-lane README index and front-door roll-up provide the human read surface.",
+    "why": "A folder makes lifecycle state easier for humans to find and distinguish—humans cannot scan YAML tags effectively. Making the folder the single source of truth eliminates the status-versus-folder drift class, where earlier documents carried both a YAML status field and a lifecycle folder, creating ambiguity about which was authoritative. A generated index provides human-readable discovery without duplicating YAML fields.",
+    "evolution": "A single decision reworked the document-lifecycle system from a machine-first design with status fields as truth to a human-discoverable, folder-first approach. This decision promoted terminal and parked states from abstract tags to top-level folders and added versioning subdirectories (draft for specs, archived for reference) to keep the folder count manageable while preserving human-visible state encoding.",
+    "covered": ["mse_yfsrahvq87hxkcv9:d1"],
+    "note": ""
+  }
+]

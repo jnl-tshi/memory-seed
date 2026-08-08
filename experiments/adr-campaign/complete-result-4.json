@@ -1,0 +1,39 @@
+[
+  {
+    "adr_id": "adr_markdown_substrate",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "The single member (mse_gn2kmdenk0p4cn7z:d1) is fully present. Summary captures the refined Constitution model, derived-layer/optional-tier structure, Markdown as authoritative everywhere, databases as derived projections, and resolution of the collaboration fork."
+  },
+  {
+    "adr_id": "adr_mcp_integration_surface",
+    "verdict": "incomplete",
+    "missing": [
+      "ms-a3f91c2b:d1"
+    ],
+    "contradicted": [],
+    "reason": "The uvx command change (ms-a3f91c2b:d1) is absent. Summary says \"without PATH probes\" (rationale) but does not name the decision itself: changing from memory-seed-mcp to uvx. Evolution also skips this member, jumping directly from unconditional writes to vendor-specific requirements."
+  },
+  {
+    "adr_id": "adr_mcp_metadata_and_filters",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "All three members are present or correctly accounted for. Metadata addition and pre-ranking filters in decision; service routes and exclude_superseded filter detailed in evolution; chain walks chronologically from metadata through service routes to final filter implementation."
+  },
+  {
+    "adr_id": "adr_proposal_completion_moves_lane",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "All three members accounted for across decision and evolution. Summary correctly captures the pattern of moving NEXT_STEPS, then completed plans, then source reports with completed recommendations. Evolution walks the chain from initial relocation through folder organization to source-report clarification."
+  },
+  {
+    "adr_id": "adr_retrieval_entry_granularity",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "All three members present and walked chronologically. Default entry-chunk boundary in decision; service extraction and parity tests in decision and evolution; rollup logic with section highlights in decision and evolution. Chain walks from entry granularity decision through service extraction through rollup implementation."
+  }
+]

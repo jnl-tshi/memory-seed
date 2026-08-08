@@ -1,0 +1,37 @@
+[
+  {
+    "adr_id": "adr_append_rule_is_an_invariant",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both live members are present. The initial decision to mandate >> / Python append mode is correctly subsumed by the later reframing to a vendor-neutral invariant. Evolution walks the chain clearly from mechanism to invariant."
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both live members are present in the summary. First implements archiving during version bump; second formalizes it into release_publishing.md procedure. Evolution walks the chain."
+  },
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "verdict": "incomplete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Evolution is generic and does not reflect the single chain member's context; it does not acknowledge the 'pending final design questions' stated in d1's body. Diagram sidecars validation concern from d1's rationale is absent from summary."
+  },
+  {
+    "adr_id": "adr_business_separation",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both live members present. First establishes move-not-copy separation; second adds index documentation. Evolution walks the chain from institution to extension."
+  },
+  {
+    "adr_id": "adr_derived_precedence",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both live members present. First establishes source-rank precedence with implicit-never rule; second adds explicit-override via retracts: with human review. Evolution walks the chain through correction and refinement."
+  }
+]

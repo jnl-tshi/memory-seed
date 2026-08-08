@@ -38,7 +38,14 @@ from memory_seed.retrieval import get_chunk  # noqa: E402
 
 from audit_link_topic_join import normalised_lineage_edges  # noqa: E402
 
-BODY_CHARS = 420
+# NO TRUNCATION. JNL's rule: a payload never truncates context - if the section you want the
+# worker to read is the decision, the whole decision is in the payload.
+#
+# What a cap actually cost here, measured: an earlier 420-char cap delivered 30% of the text (the
+# 92 live bodies run to a median of 1264 chars and a max of 3810), and BOTH the synthesis pass and
+# the pass that checks it read that same 30% - so "complete" was a claim about an excerpt, not
+# about the decision. The whole corpus is ~129k chars, roughly 13k per worker across the batches,
+# so the cap was never buying anything either.
 PER_BATCH = 4
 
 
@@ -54,25 +61,34 @@ def members_of(record) -> set[str]:
 
 
 def chain_order(live: list[str], evolves: dict[str, set[str]], dated: dict[str, str]) -> list[str]:
-    """Oldest to newest: topological along `evolves`, date as the tie-break and the fallback."""
+    """Oldest to newest: topological along `evolves`, timestamp as tie-break and fallback.
+
+    The sort key is TOTAL - `(timestamp, ref)` - and every iteration source is a sorted list, not a
+    set. That is load-bearing, not tidiness: an earlier version keyed on the day-granular date
+    alone and iterated a set, so members sharing a date were ordered by set-iteration order, which
+    Python randomises per process. Two runs over an unchanged corpus produced different orders for
+    6 of the 38 chains. The whole point of this function is the sequence the summary's `evolution`
+    narrates, so an unstable order is a wrong answer, not a cosmetic one.
+    """
     live_set = set(live)
+    key = lambda ref: (dated.get(ref, ""), ref)  # noqa: E731 - total order, no ties possible
     indegree = {ref: 0 for ref in live}
     for older, newers in evolves.items():
         if older not in live_set:
             continue
-        for newer in newers & live_set:
+        for newer in sorted(newers & live_set):
             indegree[newer] += 1
-    ordered, ready = [], sorted((r for r in live if not indegree[r]), key=lambda r: dated.get(r, ""))
+    ordered, ready = [], sorted((r for r in live if not indegree[r]), key=key)
     while ready:
         ref = ready.pop(0)
         ordered.append(ref)
-        for newer in sorted(evolves.get(ref, set()) & live_set, key=lambda r: dated.get(r, "")):
+        for newer in sorted(evolves.get(ref, set()) & live_set, key=key):
             indegree[newer] -= 1
             if not indegree[newer]:
                 ready.append(newer)
-        ready.sort(key=lambda r: dated.get(r, ""))
+        ready.sort(key=key)
     # A cycle would strand members; the graph is acyclic by contract, but never drop silently.
-    ordered.extend(sorted(set(live) - set(ordered), key=lambda r: dated.get(r, "")))
+    ordered.extend(sorted(set(live) - set(ordered), key=key))
     return ordered
 
 
@@ -99,7 +115,7 @@ def main() -> int:
             except Exception:
                 continue
             chunks[member] = chunk
-            dated[member] = str(chunk.get("date") or chunk.get("timestamp") or "")
+            dated[member] = str(chunk.get("entry_datetime") or chunk.get("date") or "")
 
         dead = {m: sorted(replaced_by.get(m, set())) for m in refs if replaced_by.get(m)}
         live = chain_order([m for m in refs if m not in dead], evolves, dated)
@@ -113,7 +129,7 @@ def main() -> int:
             elif title:
                 body = body.replace(title, " ").strip()
             return {"ref": member, "title": title, "date": dated.get(member, ""),
-                    "body": body[:BODY_CHARS], "is_head": member == ref}
+                    "body": body, "is_head": member == ref}
 
         payload.append({
             "adr_id": record.adr_id,

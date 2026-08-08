@@ -1,0 +1,37 @@
+[
+  {
+    "adr_id": "adr_diagram_sidecar_structure",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both chain members present: first member's deterministic validator work and issue-type definitions are captured in the summary's validation requirements; second member's file-structure redesign from per-entry_id to dated-per-day is fully described. Evolution walks the chain correctly."
+  },
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Single member's work is fully present: folder-as-truth design, YAML field constraints, terminal-state promotion, and per-lane index generation are all accounted for. Evolution correctly describes the transformation from machine-first to human-discoverable."
+  },
+  {
+    "adr_id": "adr_documentation_lane_structure",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "All four chain members accounted for: initial audit authoring, multiple refresh cycles, completed-folder systematization, and ongoing pattern are all present or correctly subsumed. Evolution traces the progression from initial authoring through maintenance through systematization."
+  },
+  {
+    "adr_id": "adr_draft_format",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Single member's substance is present: D/R/A/F/T label vocabulary and rationale for compact notation are fully captured. Evolution correctly identifies establishment of the standard."
+  },
+  {
+    "adr_id": "adr_edge_confidence",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both chain members present: first member's structured confidence storage in YAML format is described; second member's client-side opacity-based rendering with special null-handling for authored edges is fully accounted for. Evolution traces storage→rendering progression."
+  }
+]

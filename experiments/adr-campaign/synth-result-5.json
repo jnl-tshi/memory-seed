@@ -1,0 +1,34 @@
+[
+  {
+    "adr_id": "adr_link_retraction",
+    "decision": "Published lifecycle edges are never edited in place. A downgrade or removal is expressed by appending a new sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates violations. A downgrade combines a retract of the old kind with a fresh edge of the new kind in a single authored block.",
+    "why": "The session's fuse forbids reopening published blocks, so correction must append rather than edit. The retraction mechanism makes the change non-destructive and auditable—the history shows both the original edge and the correction. The twin-retract fix ensures that multi-form edges (arrow-prefixed refs appearing as both entry-level and decision-level) are completely removed. The conversion of five hand-audited downgrades from in-place edits restored constitutional compliance with Invariant #2 (append-only).",
+    "evolution": "The initial mechanism allowed retracting edges by kind and ref, optionally pinned by the original declaration date. Then the mechanism was applied retroactively to fix five published sidecar edits that violated the append-only invariant, surfacing and fixing a bug where arrow-prefixed bare refs survived as decision-level edges even when their entry-level twins were retracted.",
+    "covered": ["mse_c3a4z35t4m4rjf1n:d1", "mse_fsdq53qa5ak68xqh:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_markdown_substrate",
+    "decision": "The memory core is encoded in plain Markdown throughout all tiers. All critical files—session logs, decision records, control policies—are human-editable Markdown. Even in future collaborative or hosted implementations, Markdown remains the authoritative source of truth; any database, cache, or index is a derived, rebuildable projection, never a second source of truth.",
+    "why": "Markdown is readable for file-reading agents and human maintainers, directly supporting the core differentiation. The open-core, layered-implementation model allows optional accelerators (DuckDB, vector indices, hosted backends) without splitting the truth model. Keeping Markdown authoritative everywhere simplifies the invariant landscape—one source of truth across core, derived-local, and optional-hosted tiers—and preserves the ability for any tier to re-derive all databases from the Markdown source.",
+    "evolution": "Reframed Markdown within the Constitution's derived-layer/optional-tier model as Invariant #6, making the source-of-truth principle explicit and extending it to all implementation tiers. This resolved a design fork about whether collaborative or hosted tiers could make a server database authoritative; the answer is no, to maintain the unified truth model.",
+    "covered": ["mse_gn2kmdenk0p4cn7z:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_mcp_integration_surface",
+    "decision": "Each agent's MCP config is written to where that agent discovers it: Claude in project-root `.mcp.json`, Codex in `.codex/config.toml`. Config is written unconditionally at init time without PATH probes. On merge, if the key exists with a matching command, the entry is overwritten; if it exists with a different command, it is left alone. MCP authoring over the network is gated: only `memory_session_append` can author entries, inheriting the CLI's write-time guards, and this is the sole allowed path.",
+    "why": "Each vendor discovers MCP servers from different file types and locations; writing to the wrong place fails silently. Unconditional writes avoid fragile, timing-dependent PATH probes. Upsert-on-matching-command protects a user's own `memory-seed` server (if any) while keeping our config current. Gating the MCP write surface closes a bypass where ungated tools previously bypassed the CLI's guards; write-surface parity ensures all authoring paths enforce the same invariants.",
+    "evolution": "Started with unconditional writes and upsert logic. Discovered vendor-specific file and format requirements (Claude → `.mcp.json`, Codex → `.codex/config.toml` in TOML format), requiring separate merge handlers. Addressed Codex's silent-failure trap (config written but never loaded on untrusted directories) by adding status classification and warnings. Unified MCP authoring under a single gated path with dry-run support, removing two ungated tools that had previously bypassed guards.",
+    "covered": ["ms-4c8e2a17:d1", "ms-7b3f1e92:d3", "ms-a3f91c2b:d1", "ms-6a09aea8:d1", "ms-2cd452e4:d1", "ms-2cd452e4:d2", "ms-6eeb512f:d1", "mse_vzsef0fmpsde2jh4:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_mcp_metadata_and_filters",
+    "decision": "The memory retrieval API exposes per-entry metadata: user, session date, path, and file hash as read-only fields. Filters (user, date range, exclude_superseded) are applied before ranking. The exclude_superseded flag is opt-in and defaults to false; no filter influences ranking weights.",
+    "why": "Applying filters before ranking keeps retrieval deterministic and each constraint independent, so clients can compose them without the ranker silently reinterpreting the result set. exclude_superseded must default off because retrieval should never hide live history by default, even as an optimization. Pre-ranking filtering preserves the full result set size for stable top-k pagination.",
+    "evolution": "Metadata fields were added to support future multi-user and criteria-based exploration; then service routes integrated filtering for user, tag, and date-range criteria. The exclude_superseded filter was implemented last per the completed plan, applying the filter pre-ranking to maintain result-set integrity.",
+    "covered": ["mse_77cn2v0rg9na3w0v:d2", "mse_ztcsrx4hw0b6kxdv:d2", "mse_dbt6c32kk5dk55xs:d1"],
+    "note": ""
+  }
+]

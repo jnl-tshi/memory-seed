@@ -20,27 +20,23 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/policy.md#L74`
+Authoritative decision: `mse_903jqy9v4pr8g388:d2`
 
 ### Decision
 
-Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.
+Before replacing versioned artifacts during a release, prior control-plane snapshots must be archived under .memory-seed/archive/<version>/ as a required procedure step.
 
 ### Why
 
-Preserves audit trail of control-plane evolution and enables recovery if a replacement is found to be incorrect or incomplete.
+Version bumps affect reusable procedure files across many control-plane documents, and archiving prior snapshots preserves the historical record and enables rollback or auditing of changes across versions. This precondition was mentioned informally but lacked an owned procedure step.
 
 ### How it evolved
 
-Founded from the control file; no session lineage attached yet.
+First implemented during the 2.5→2.6 version bump by archiving the true 2.5 reusable procedure files to .memory-seed/archive/2.5/ before replacement. Later formalized into release_publishing.md as a required step in the full version-bump and release procedure.
 
 ### Constitution
 
 - `constitution:v1#append-only` (governing)
-
-### Awaiting review
-
-- `mse_903jqy9v4pr8g388:d2` - Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -134,3 +130,62 @@ Rests on the session decision that instituted it: "the operator-owned archive sn
 #### Evolution
 
 Founded from .memory-seed/policy.md#L74; this revision moves the concern off that control-file line onto mse_903jqy9v4pr8g388:d2, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:01:00Z
+
+```json
+{
+  "decision_ref": "mse_903jqy9v4pr8g388:d2",
+  "event_id": "adre_90ad3319c38d461805ab",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+### revision-proposed - 2026-08-08T23:01:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_903jqy9v4pr8g388:d2",
+  "event_id": "adre_83d73517693d82b25ea0",
+  "source": "derived",
+  "supporting_decisions": [
+    "ms-757053d4:d4"
+  ],
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Before replacing versioned artifacts during a release, prior control-plane snapshots must be archived under .memory-seed/archive/<version>/ as a required procedure step.
+
+#### Why
+
+Version bumps affect reusable procedure files across many control-plane documents, and archiving prior snapshots preserves the historical record and enables rollback or auditing of changes across versions. This precondition was mentioned informally but lacked an owned procedure step.
+
+#### Evolution
+
+First implemented during the 2.5→2.6 version bump by archiving the true 2.5 reusable procedure files to .memory-seed/archive/2.5/ before replacement. Later formalized into release_publishing.md as a required step in the full version-bump and release procedure.
+
+### revision-accepted - 2026-08-08T23:01:40Z
+
+```json
+{
+  "decision_ref": "mse_903jqy9v4pr8g388:d2",
+  "event_id": "adre_d2b707293f4e3303e720",
+  "expected_authoritative_decision": "founding:.memory-seed/policy.md#L74",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

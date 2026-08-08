@@ -1,0 +1,130 @@
+[
+ {
+  "adr_id": "adr_append_rule_is_an_invariant",
+  "title": "The append rule is stated as an invariant, not as a mechanism",
+  "live_chain": [
+   {
+    "ref": "ms-d15e8a03:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29T15:36:00",
+    "body": "- D: Use `>>` / Python append mode as the required method for writing session entries. - R: Editor replace/insert requires an anchor line that may not be at the true end of the file if a prior edit added content after it. Append mode writes unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on care. - F: `.memory-seed/agent-rules.md`, `memory_seed/seed/.memory-seed/agent-rules.md`, both `session-log-check.py` copies, `core.py`, `pyproject.toml`, `CHANGELOG.md`, `README.md`, `tests/test_memory_seed.py`, all 13 seed `.md` frontmatter files. - T: 86 tests OK."
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "title": "D1 - Reframe append rule as invariant, not mechanism",
+    "date": "2026-05-29T16:26:00",
+    "body": "- D: State the append invariant + vendor-neutral mitigation; demote `>>` to optional shell tip. - R: `agent-rules.md` is a contract for any file-reading agent. Mandating `>>` assumed shell/Python access and was platform-unsafe (the heredoc example fails / mis-encodes on Windows PowerShell, this repo's own platform). The durable rule is the invariant; the mechanism belongs to each agent's tooling. - F: `agent-rules.md` (both copies), `session-log-check.py` (both copies)."
+   }
+  ],
+  "summary": {
+   "decision": "The append rule is stated as a vendor-neutral invariant: session entries must be added at the physical end of their file, in chronological order, never inserted above existing content. The mechanism to achieve this—whether shell append (>>), Python append mode, or editor-based with an anchor—is left to each agent's available tooling.",
+   "why": "Mandating a specific tool like >> or Python append mode assumed shell or Python access and was platform-unsafe; Windows PowerShell's heredoc example fails or misencodes, making such requirements unsuitable for a cross-platform agent contract. The durable rule is the invariant itself; the property that actually matters is that nothing is inserted above existing content and chronological order is preserved, while the mechanism belongs to each agent's tools.",
+   "evolution": "Initially instituted as a requirement for >> or Python append mode because append operations write unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on editor care. Later recognized as platform-dependent and reframed to state the invariant itself, demoting the specific tool to an optional shell tip so any file-reading agent can satisfy it with whatever writing surface it has.",
+   "covered": [
+    "ms-d15e8a03:d1",
+    "ms-e30b9c47:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_archive_before_replace",
+  "title": "Archive control-plane snapshots before replacing versioned artifacts",
+  "live_chain": [
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "date": "2026-06-13T14:25:00",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from git HEAD since the bump was in place). - R: Incremental release cadence chosen by user (2.6.0 now). The version-bump trap (repo-root + index Active State) is covered, guarded by `test_repo_root_control_plane_files_match_version`. - T: Full suite 116 OK (updated the one canonical `get_version()` pin to 2.6); `doctor` healthy; `version` reports 2.6."
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d2",
+    "title": "D2 - Runbook fold/archive steps (approved)",
+    "date": "2026-07-10T15:25:00",
+    "body": "- D: `release_publishing.md` (live + seed, byte-identical) procedure now includes the full version-bump surface (naming the root-routing-file trap and its guard test), the CHANGELOG fold with the standing empty Unreleased header, the operator-owned archive snapshot step, and the irreversible-PyPI-gate note. - R: Preconditions mentioned fold/archive but no procedure step owned them - S4 would have relied on an incomplete runbook."
+   }
+  ],
+  "summary": {
+   "decision": "Before replacing versioned artifacts during a release, prior control-plane snapshots must be archived under .memory-seed/archive/<version>/ as a required procedure step.",
+   "why": "Version bumps affect reusable procedure files across many control-plane documents, and archiving prior snapshots preserves the historical record and enables rollback or auditing of changes across versions. This precondition was mentioned informally but lacked an owned procedure step.",
+   "evolution": "First implemented during the 2.5→2.6 version bump by archiving the true 2.5 reusable procedure files to .memory-seed/archive/2.5/ before replacement. Later formalized into release_publishing.md as a required step in the full version-bump and release procedure.",
+   "covered": [
+    "ms-757053d4:d4",
+    "mse_903jqy9v4pr8g388:d2"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "live_chain": [
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-10T04:02:00",
+    "body": "- D: Treat session fuse as an explicit Memory Seed-aware integration command, not as a Git union merge driver or automatic notes mechanism. - R: Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability. - A: Recommended defaulting fuse to dry-run with an explicit apply mode, requiring source entries to carry a non-main `branch:` value matching the source branch, normalizing target paths into the current grouped layout, and blocking any existing-entry edits. - F: `.memory-seed/sessions/2026-07/2026-07-10.md`. - T: Pending final design questions before implementation."
+   }
+  ],
+  "summary": {
+   "decision": "The memory-seed session fuse --branch <branch> command is an explicit Memory Seed-aware integration command, not a Git union merge driver or automatic notes mechanism. It validates that imported entries are branch-only, chronological, immutable relative to the base, and carry branch: <branch> metadata.",
+   "why": "Git can merge text and preserve branch topology, but it cannot validate entry_id uniqueness, branch: provenance, append-only and session-order semantics, diagram sidecars, or immutability of existing entries. These semantic constraints are essential to the integrity of session logs and cannot be enforced by Git's text merge alone.",
+   "evolution": "Established as a Memory Seed-aware command with explicit validation to add session-order and immutability semantics that Git's standard merge driver cannot provide.",
+   "covered": [
+    "mse_9c151e4gbkkv1w5v:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "live_chain": [
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-01T18:16:00",
+    "body": "- D: Place all seven programme reports under `business/research/` with a folder README indexing them, move rather than copy them out of `docs/4_Reference/`, and write every cross-link to the location the target file occupies on main rather than the location it occupies on this branch. - R: `business/` already exists on main as the maintained source of truth for Memory Seed as a business, with a market/wedges split and an established move-not-copy convention - the market-fit, GitLens, Memory Trail and strategic-synthesis reports were moved there wholesale and left no duplicates behind. Writing links against this branch's stale view of `docs/4_Reference/` would have produced four broken references the moment the branch merged. - A: Copying rather than moving was rejected because the business area's own convention leaves no duplicates and `docs/README.md` treats the folder a document lives in as its lifecycle state, so two homes would make the state ambiguous. Merging main into this branch to get `business/README.md` before editing it was rejected on the recorded hazard that `sessions/** -merge` marks a conflict but silently keeps OURS with no markers, which has dropped entries before; the branch stays behind and lands through `session merge-branch`, whose fuse handles session chronology correctly. - F: `business/research/README.md`, `business/research/standards-and-regulatory-landscape-report.md`, `business/research/decision-governance-evidence-spine-report.md`, `business/research/memory-seed-strategic-fit-report.md`. - T: `python -m memory_seed.cli docs check` passed (194 files, 15 pre-existing unrelated warnings) after the move, confirming no `docs/` lane or link broke."
+   },
+   {
+    "ref": "mse_5y962348e85x7grr:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-03T14:55:00",
+    "body": "- D: Add `business/` to the runtime index's Topology section, describing its dossier-versus-provenance convention, its three areas, its move-not-copy rule, and the fact that `docs check` does not validate it. - R: The index contained no mention of `business/` at all, despite the area holding the market, wedge and pricing dossiers plus a seven-report research programme. An agent orienting from the index would not learn that a whole commercial-strategy tree exists, which is the restricted-update criterion of topology having changed and the immediate-update exception of stale content misleading active work. It is also the precise failure the research programme spent seven reports arguing about, so leaving it would have been an awkward thing to defend. - A: Leaving the gap for the session that created `business/` was rejected because that session has ended and the omission is now load-bearing for anyone orienting. Updating `docs/2_Todo/0_NEXT_STEPS.md` with the programme's recommendations was rejected as out of scope: Report 7's actions are proposals awaiting JNL's approval, and promoting them unilaterally would contradict the plan's own rule that findings are not silently promoted. - F: `.memory-seed/index.md`. - T: `memory-seed esr --date 2026-08-02` reported integrity, topics, and docs lifecycle all OK; `links check` passed across 150 files."
+   }
+  ],
+  "summary": {
+   "decision": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance, strictly separated from `docs/` which holds product specification and lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than copied; each document has one canonical home. The area is documented in the runtime index's Topology section with its dossier-versus-provenance convention, three areas, move-not-copy rule, and validation scope.",
+   "why": "The `business/` area exists as maintained source of truth for commercial strategy with an established move-not-copy convention. Docs README treats a document's folder as its lifecycle state, so duplicates create ambiguity. The area needed visibility in the index so anyone orienting from there would learn of the whole commercial-strategy tree, which is load-bearing for active work.",
+   "evolution": "The first member instituted the move-not-copy policy, establishing `business/` as authoritative for commercial materials and rejecting copying which violates the area's convention. The second member extended this by making the area discoverable through the runtime index, documenting its structure, dossier-versus-provenance split, and validation boundaries.",
+   "covered": [
+    "mse_08nhq28nkm2ecpt4:d1",
+    "mse_5y962348e85x7grr:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "live_chain": [
+   {
+    "ref": "mse_x1ha2e26md3q83zv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26T19:33:00",
+    "body": "- D: Sidecar precedence becomes `(source rank, then recency)` rather than recency alone. A `derived` block may **never** supersede a `write-time` block for the same subject; it may only fill a gap where no write-time value exists. Within a source class, most-recent-wins is unchanged. - R: Found while aligning the ADR contract — an agent flagged that once write-time values live in the sidecar, the existing most-recent-wins sort orders first-hand and reconstructed blocks *against each other*, so a sweep appending later would supersede the write-time value on recency alone. That directly contradicts Constitution v1.6, ratified hours earlier, which holds the two are **not equal evidence**. It is also already answered by JNL's stated intent — the sweep exists \"for items which did not receive them at write time\" — so a sweep able to overwrite a first-hand value would be a *source*, which the measured 0.583/0.613 reconstruction quality says it should not be. Leaving the hole open in an accepted proposal was the worse option: the read path is written against this rule. Useful side effect: it bounds the sweep's candidate set to subjects with no write-time value, which is what makes it cheap — it never re-judges what the write-time agent already answered. - A: Leave it as an open question for JNL — rejected: the answer follows from a ratified invariant plus an explicit instruction, and an accepted proposal with a hole in its precedence rule invites whoever builds step 1 to guess. Allow `derived` to win after human approval — not adopted, but flagged in the proposal as the one rule worth correcting before step 1, since a human-approved correction is the plausible case where recency *should* win. - F: `docs/2_Todo/write-time-sidecar-consolidation-proposal.md`, plus the ADR-alignment work merged from `claude/docs/adr-sidecar-provenance`. - T: `docs check` OK (180 files); `links check` OK (92 files). Docs-only."
+   },
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26T19:37:00",
+    "body": "- D: The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time` block — precedence is `(source rank, then recency)`, so a sweep cannot win by being newer. (2) It may override one through an explicit `retracts:` naming it, **reviewed by a human before writing**. - R: My first draft stopped at half 1, which made write-time values permanently uncorrectable. JNL corrected it, and the correction is right: a write-time agent *can* be wrong, and a sweep reading the finished record sometimes has the better view, so freezing first-hand values would forfeit exactly the corrections worth having. What both halves together preserve is that a reconstructed value never displaces a first-hand one **silently** — it must state what it retracts, and a person must agree. This also reads Constitution v1.6 correctly: \"not equal evidence\" does not mean \"reconstructed is never right\", it means the burden sits on the reconstructed side — which is exactly what an explicit, reviewed retraction expresses. The human gate is not new machinery either; swarm output is already suggest-only and human-approved. - A: Keep half 1 alone (derived can only fill gaps) — rejected by JNL, and rightly: it optimises against one failure (silent override) by guaranteeing another (uncorrectable first-hand error). Allow implicit override once a human approves the sweep batch — rejected: approval of a batch is not approval of a specific displacement, and the read path could not tell the two apart. - F: `docs/2_Todo/write-time-sidecar-consolidation-proposal.md`, `docs/3_Spec/draft/sidecar-supersession-model.md`. - T: `docs check` OK (180 files); `links check` OK (92 files). Docs-only."
+   }
+  ],
+  "summary": {
+   "decision": "Sidecar precedence across families is source rank first, then recency within a source class. A `derived` block may never implicitly override a `write-time` block on the same subject—it may only fill a gap where no write-time value exists. An explicit override is possible but requires an explicit `retracts:` naming the block it supersedes, reviewed by a human before writing. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+   "why": "Once write-time values live in the sidecar, a most-recent-wins sort orders first-hand and reconstructed blocks against each other, contradicting Constitution which holds them not equal evidence. A sweep appending later would supersede a first-hand value by recency alone, contradicting the sweep's stated purpose: 'for items which did not receive them at write time.' The rule's two halves preserve that reconstructed values never displace first-hand ones silently. Human review is correct because write-time agents can be wrong, but the burden sits on the reconstructed side to state what it retracts.",
+   "evolution": "The initial decision established precedence as source rank then recency, with the core rule that derived never implicitly supersedes write-time. A subsequent correction added the second half, permitting explicit override through a named `retracts:` field reviewed by a human, recognizing that first-hand values can be wrong while maintaining that silent displacement is not allowed.",
+   "covered": [
+    "mse_x1ha2e26md3q83zv:d1",
+    "mse_dqwvb8gxnn88ch3b:d1"
+   ]
+  }
+ }
+]

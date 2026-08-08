@@ -1,0 +1,7 @@
+[
+ {"adr_id": "adr_edge_kinds", "verdict": "complete", "missing": [], "contradicted": [], "reason": "All live chain substance present: the three edge kinds and topic exclusion rationale are stated in decision/why."},
+ {"adr_id": "adr_encoding_policy", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Evolution walks the chain: infrastructure established, check command added, then architectural decision finalizing Seed ownership."},
+ {"adr_id": "adr_experiment_isolation", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Single member; decision and why capture the full structural approach, verified hazards, and the rationale for nearest-runtime discovery."},
+ {"adr_id": "adr_foreign_file_routing", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Single member; decision restates the four-way mechanism precisely; why explains the fail-safe principle."},
+ {"adr_id": "adr_forward_only_edges", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Single member; decision captures forward-only authoring, bidirectional read-time traversal, and accurate statement that backfilling is deferred."}
+]

@@ -1,0 +1,48 @@
+{
+ "A": [
+  "adr_append_rule_is_an_invariant",
+  "adr_archive_before_replace",
+  "adr_diagram_sidecar_structure",
+  "adr_docs_lifecycle_folders",
+  "adr_documentation_lane_structure",
+  "adr_edge_kinds",
+  "adr_encoding_policy",
+  "adr_experiment_isolation",
+  "adr_foreign_file_routing",
+  "adr_forward_only_edges",
+  "adr_integration_mode",
+  "adr_lifecycle_link_audit_workflow",
+  "adr_markdown_substrate",
+  "adr_mcp_metadata_and_filters",
+  "adr_proposal_completion_moves_lane",
+  "adr_retrieval_entry_granularity",
+  "adr_safe_process_and_upgrade_workflow",
+  "adr_session_layout",
+  "adr_session_layout_participant_gating",
+  "adr_skill_registry_and_generic_skills",
+  "adr_subproject_scoping",
+  "adr_topic_vocabulary_controlled",
+  "adr_trace_boundary",
+  "adr_trace_incremental_startup",
+  "adr_trail_derived_lanes"
+ ],
+ "B": [
+  "adr_business_separation",
+  "adr_derived_precedence",
+  "adr_edge_confidence",
+  "adr_link_retraction",
+  "adr_topic_authority"
+ ],
+ "C": [
+  "adr_agent_config_merge",
+  "adr_branch_session_fuse",
+  "adr_hook_merge_framework"
+ ],
+ "D": [
+  "adr_draft_format",
+  "adr_inbox_promotion_workflow",
+  "adr_mcp_integration_surface",
+  "adr_trace_trail_first_ui",
+  "adr_trail_lifecycle_visualization"
+ ]
+}

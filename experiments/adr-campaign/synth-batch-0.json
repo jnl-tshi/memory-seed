@@ -1,0 +1,91 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "head": "ms-7c4e1f9a:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.",
+  "current_why": "Rests on the session decision that instituted it: \"Handle `.claude/settings.json` as a JSON merge rather than a seed file copy.\" (ms-7c4e1f9a:d1). Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.",
+  "live_chain": [],
+  "replaced": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "replaced_by": [
+     "ms-6a09aea8:d1"
+    ]
+   }
+  ],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_append_rule_is_an_invariant",
+  "title": "The append rule is stated as an invariant, not as a mechanism",
+  "head": "ms-e30b9c47:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The agent contract states the append INVARIANT - an entry is added at the physical end of its file, never inserted above existing content, and chronological order holds - and does not mandate the tool that achieves it. Shell append and Python append mode are optional tips, not requirements.",
+  "current_why": "The contract is read by any file-reading agent, so mandating `>>` assumed shell or Python access and was platform-unsafe: the shell example simply fails for an agent that edits files directly. Stating the invariant lets each agent satisfy it with whatever writing surface it has, while the property that actually matters - nothing is inserted above existing content - is unchanged. This is distinct from Constitution Invariant #2, which says the past IS append-only; this concern is about how that rule is expressed to the agents bound by it.",
+  "live_chain": [
+   {
+    "ref": "ms-d15e8a03:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29T15:36:00",
+    "body": "- D: Use `>>` / Python append mode as the required method for writing session entries. - R: Editor replace/insert requires an anchor line that may not be at the true end of the file if a prior edit added content after it. Append mode writes unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on care. - F: `.memory-seed/agent-rules.md`, `memory_seed/seed/.memory-seed/agent-rules.md`, both `session-log-check.py` copies, `core.py`, `pyproject.toml`, `CHANGELOG.md`, `README.md`, `tests/test_memory_seed.py`, all 13 seed `.md` frontmatter files. - T: 86 tests OK.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "title": "D1 - Reframe append rule as invariant, not mechanism",
+    "date": "2026-05-29T16:26:00",
+    "body": "- D: State the append invariant + vendor-neutral mitigation; demote `>>` to optional shell tip. - R: `agent-rules.md` is a contract for any file-reading agent. Mandating `>>` assumed shell/Python access and was platform-unsafe (the heredoc example fails / mis-encodes on Windows PowerShell, this repo's own platform). The durable rule is the invariant; the mechanism belongs to each agent's tooling. - F: `agent-rules.md` (both copies), `session-log-check.py` (both copies).",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_archive_before_replace",
+  "title": "Archive control-plane snapshots before replacing versioned artifacts",
+  "head": "mse_903jqy9v4pr8g388:d2",
+  "head_is_newest_live": true,
+  "current_summary": "Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.",
+  "current_why": "Rests on the session decision that instituted it: \"the operator-owned archive snapshot step\" (mse_903jqy9v4pr8g388:d2). Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.",
+  "live_chain": [
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "date": "2026-06-13T14:25:00",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from git HEAD since the bump was in place). - R: Incremental release cadence chosen by user (2.6.0 now). The version-bump trap (repo-root + index Active State) is covered, guarded by `test_repo_root_control_plane_files_match_version`. - T: Full suite 116 OK (updated the one canonical `get_version()` pin to 2.6); `doctor` healthy; `version` reports 2.6.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d2",
+    "title": "D2 - Runbook fold/archive steps (approved)",
+    "date": "2026-07-10T15:25:00",
+    "body": "- D: `release_publishing.md` (live + seed, byte-identical) procedure now includes the full version-bump surface (naming the root-routing-file trap and its guard test), the CHANGELOG fold with the standing empty Unreleased header, the operator-owned archive snapshot step, and the irreversible-PyPI-gate note. - R: Preconditions mentioned fold/archive but no procedure step owned them - S4 would have relied on an incomplete runbook.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "head": "mse_9c151e4gbkkv1w5v:d1",
+  "head_is_newest_live": true,
+  "current_summary": "memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram sidecars. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>` metadata.",
+  "current_why": "Rests on the session decision that instituted it: \"Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability.\" (mse_9c151e4gbkkv1w5v:d1). Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.",
+  "live_chain": [
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-10T04:02:00",
+    "body": "- D: Treat session fuse as an explicit Memory Seed-aware integration command, not as a Git union merge driver or automatic notes mechanism. - R: Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability. - A: Recommended defaulting fuse to dry-run with an explicit apply mode, requiring source entries to carry a non-main `branch:` value matching the source branch, normalizing target paths into the current grouped layout, and blocking any existing-entry edits. - F: `.memory-seed/sessions/2026-07/2026-07-10.md`. - T: Pending final design questions before implementation.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

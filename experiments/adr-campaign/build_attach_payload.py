@@ -37,7 +37,10 @@ from memory_seed.retrieval import get_chunk, search_memory  # noqa: E402
 from recall_probe import concern_query  # noqa: E402
 
 TOP_K = 25
-BODY_CHARS = 420
+# NO TRUNCATION - a payload never truncates context. An earlier 420-char cap here delivered about
+# 30% of a typical decision body, so a worker chose between candidates on excerpts. Grounding was
+# unaffected (`validate_attach.py` checks quotes against the FULL body via `get_chunk`), but the
+# SELECTION was made on partial evidence, which is the more consequential half.
 PER_BATCH = 3
 
 
@@ -45,7 +48,7 @@ def norm(text: str) -> str:
     return " ".join(text.split())
 
 
-def body_excerpt(ref: str) -> tuple[str, str]:
+def decision_body(ref: str) -> tuple[str, str]:
     """(title, body-only excerpt). The title is stripped so a worker cannot copy it as a quote."""
     chunk = get_chunk(ref, REPO)
     title = norm(chunk.get("title") or "")
@@ -54,7 +57,7 @@ def body_excerpt(ref: str) -> tuple[str, str]:
         body = body[len(title):].strip()
     elif title:
         body = body.replace(title, " ").strip()
-    return title, body[:BODY_CHARS]
+    return title, body
 
 
 def main() -> int:
@@ -81,7 +84,7 @@ def main() -> int:
             if ":d" not in ref:  # ADR refs are always <entry>:dN; never offer a bare entry
                 continue
             try:
-                title, body = body_excerpt(ref)
+                title, body = decision_body(ref)
             except Exception:
                 continue
             candidates.append({
