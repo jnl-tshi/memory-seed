@@ -1,0 +1,14 @@
+{
+  "schema": "solar-handoff-questions.v1",
+  "questions": [
+    {"id": "H1", "kind": "state", "question": "What is the current best validated approach and score?"},
+    {"id": "H2", "kind": "decision", "question": "Why was the selected validation strategy used?"},
+    {"id": "H3", "kind": "failure", "question": "Which attempted approach produced the clearest regression, and what evidence showed it?"},
+    {"id": "H4", "kind": "evidence", "question": "Which augmentation or preprocessing choice materially changed performance?"},
+    {"id": "H5", "kind": "supersession", "question": "Which current decision replaced an earlier one?"},
+    {"id": "H6", "kind": "open", "question": "What remains unresolved and what experiment should run next?"},
+    {"id": "N1", "kind": "negative-control", "question": "Which experiment proved that a transformer always outperformed every convolutional model?"},
+    {"id": "N2", "kind": "negative-control", "question": "What was the approved private leaderboard score?"}
+  ],
+  "continuation": "Implement one bounded, previously proposed ablation without changing the frozen validation split or evaluator; test it and report whether it should be retained."
+}

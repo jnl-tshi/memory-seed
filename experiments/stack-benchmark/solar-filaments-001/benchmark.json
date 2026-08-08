@@ -1,0 +1,39 @@
+{
+  "schema": "solar-stack-benchmark.v1",
+  "status": "DRAFT",
+  "experiment_id": "solar-filaments-001",
+  "competition": {
+    "slug": "filament-segmentation-2026",
+    "url": "https://www.kaggle.com/competitions/filament-segmentation-2026",
+    "deadline": "2026-11-15",
+    "rules_accepted": false,
+    "metric": "frozen-local-dice",
+    "submission_columns": ["filament_id", "segmentation_rle"],
+    "mask_size": [2048, 2048]
+  },
+  "freeze": {
+    "source_commit": null,
+    "data_manifest_sha256": null,
+    "validation_manifest_sha256": null,
+    "prompt_sha256": null,
+    "claude_model": null,
+    "claude_cli_version": null,
+    "python_version": null,
+    "dependency_lock_sha256": null,
+    "icm_commit": null,
+    "memory_seed_version": "2.19.0",
+    "graphify_version": null,
+    "graphify_backend": "claude-cli",
+    "graphify_model": null,
+    "semble_version": null,
+    "semble_model": null,
+    "capability_envelope": null
+  },
+  "arms": [
+    "baseline", "icm", "memory-seed", "graphify", "semble",
+    "memory-seed-icm", "memory-seed-graphify", "memory-seed-semble"
+  ],
+  "pilot_repetitions": 1,
+  "safety_timeout_seconds": 21600,
+  "no_output_watchdog_seconds": 1200
+}

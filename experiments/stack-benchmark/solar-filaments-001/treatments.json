@@ -1,0 +1,23 @@
+{
+  "schema": "solar-treatment-registry.v1",
+  "baseline": {"tools": [], "setup": []},
+  "icm": {
+    "tools": [],
+    "setup": ["copy pinned icm-architect skill", "generate workspace", "walk-test workspace"]
+  },
+  "memory-seed": {
+    "tools": ["memory-seed"],
+    "setup": ["initialize pinned stock runtime", "pin MCP cwd to run workspace", "run doctor"]
+  },
+  "graphify": {
+    "tools": ["graphify"],
+    "setup": ["extract code deterministically", "extract docs/notebooks/config through pinned Claude backend", "validate graph fingerprint", "start graph MCP"]
+  },
+  "semble": {
+    "tools": ["semble"],
+    "setup": ["set run-local SEMBLE_CACHE_LOCATION", "build code-only index", "validate index fingerprint", "start Semble MCP"]
+  },
+  "memory-seed-icm": {"compose": ["memory-seed", "icm"]},
+  "memory-seed-graphify": {"compose": ["memory-seed", "graphify"]},
+  "memory-seed-semble": {"compose": ["memory-seed", "semble"]}
+}

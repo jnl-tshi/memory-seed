@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solar-colab-result.v1",
+  "type": "object",
+  "required": ["schema", "job_id", "config_sha256", "started_at", "finished_at", "compute_seconds", "exit_code", "interrupted", "environment", "artifacts"],
+  "properties": {
+    "schema": {"const": "solar-colab-result.v1"},
+    "compute_seconds": {"type": "number", "minimum": 0},
+    "exit_code": {"type": "integer"},
+    "interrupted": {"type": "boolean"},
+    "artifacts": {"type": "array"}
+  }
+}

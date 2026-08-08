@@ -72,6 +72,10 @@ experiments/context-derivation/runs/
 experiments/context-derivation/shards/
 experiments/context-derivation/packs/
 experiments/context-derivation/judgements/
+experiments/stack-benchmark/solar-filaments-001/generated/
+experiments/stack-benchmark/solar-filaments-001/runs/
+experiments/stack-benchmark/solar-filaments-001/data/
+experiments/stack-benchmark/solar-filaments-001/cache/
 experiments/decision-retrieval-scale/scale-report.json
 # band-calibration: results-*.json ARE tracked - they are the evidence behind FINDINGS.md
 # and small enough to read. Only the raw run log is noise.
