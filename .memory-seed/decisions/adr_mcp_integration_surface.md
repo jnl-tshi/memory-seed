@@ -84,3 +84,21 @@ Config placement is per-agent because each vendor discovers servers differently,
 #### Evolution
 
 Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05-29 to 2026-07-19: unconditional write and hook-time detection, then upsert semantics, then per-vendor placement for Claude and Codex, then the gated write surface.
+
+### context-added - 2026-08-08T04:00:00Z
+
+```json
+{
+  "event_id": "adre_c402b1b822ac3cf585e7",
+  "source": "derived",
+  "supporting_decisions": [
+    "ms-6eeb512f:d1",
+    "ms-a3f91c2b:d1"
+  ],
+  "update_entry_id": "mse_g9xegd9ct9sns5s4"
+}
+```
+
+#### Reason
+
+Attaching two chain members omitted when the supporting list was written by hand. The growth check found them: the chain carries 11 decisions and the ADR named 9.

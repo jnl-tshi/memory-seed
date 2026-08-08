@@ -1,0 +1,131 @@
+[
+ {
+  "suggested_head": "ms-2d8b4c7e:d1",
+  "architectural": false,
+  "note": "Two routine implementation choices about building a single hook script, not a standing architectural concern."
+ },
+ {
+  "suggested_head": "mse_0vbj4zdcc11s3ggj:d1",
+  "architectural": true,
+  "adr_id": "adr_diagram_sidecar_structure",
+  "title": "Diagram sidecar structure and validation: one dated file per day with deterministic validation",
+  "topics": [
+   "mermaid",
+   "session-logging",
+   "documentation"
+  ],
+  "decision": "Sidecars moved from per-entry files to one dated file per day, each diagram block keyed by entry_id inside. Validation is deterministic and built into the single validator, checking frontmatter integrity, entry_id presence, fence matching, and date consistency.",
+  "why": "Centralizing sidecars by date reduces file proliferation while keeping diagrams logically tied to entries. Deterministic validation ensures every diagram block is parseable and properly associated with its entry, preventing orphan diagrams or structural corruption.",
+  "evolution": "The design establishes diagram sidecars as first-class session artifacts. Future work will expand validation to other sidecar families (topic and link sidecars) using the same structure and validator patterns.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#markdown-authority",
+    "role": "supporting"
+   }
+  ],
+  "quote": "One dated file per day, multiple diagram blocks appended, each keyed by entry_id inside",
+  "quote_ref": "mse_0vbj4zdcc11s3ggj:d1"
+ },
+ {
+  "suggested_head": "mse_wzr3rh9cjce924vf:d1",
+  "architectural": false,
+  "note": "Two documentation-planning decisions (phase ordering and docs folder reorganization) are routine housekeeping, not architectural policy."
+ },
+ {
+  "suggested_head": "mse_m6amd5db4c7s8sfw:d2",
+  "architectural": true,
+  "adr_id": "adr_sidecar_positive_triggers",
+  "title": "Decision-diagram sidecar triggers: from optional consideration to positive requirement",
+  "topics": [
+   "mermaid",
+   "decision-harvest",
+   "documentation"
+  ],
+  "decision": "Sidecar guidance strengthened from optional consideration to positive-trigger behavior for branch/merge topology, migrations, schema/layout compatibility flows, multi-agent concurrency, command lifecycles, and retrieval/data pipelines.",
+  "why": "The prior wording correctly discouraged decorative diagrams but was too easy to interpret as 'skip diagrams unless forced.' These decision categories genuinely benefit from visual flow documentation; explicit positive triggers ensure diagrams are created for high-value decisions without requiring repeated judgment calls.",
+  "evolution": "Sidecar triggers are now part of control-plane guidance for when to create diagrams. Future refinement may add domain-specific triggers or adjust the trigger list based on field experience with which decisions benefit most from visual documentation.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#evidence-first",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#markdown-authority",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Change decision-diagram guidance from optional consideration to positive-trigger behavior for branch/merge topology, migrations, schema/layout compatibility flows, multi-agent concurrency, command lifecycles, and retrieval/data pipelines.",
+  "quote_ref": "mse_m6amd5db4c7s8sfw:d2"
+ },
+ {
+  "suggested_head": "mse_1cabc5sw1g4hkb25:d1",
+  "architectural": true,
+  "adr_id": "adr_append_only_link_authoring",
+  "title": "Forward-only link authoring with append-only protection: link add refuses any non-newest source",
+  "topics": [
+   "related-entries",
+   "lifecycle-edges",
+   "memory-repair"
+  ],
+  "decision": "The link add command enforces forward-only edges: it writes one related_entries edge from the newest entry to an older one, and refuses any source that is not the newest entry at write time. This is enforced in the library, not just the CLI, making the guard impossible to bypass.",
+  "why": "Adding to a pre-existing entry would require rewriting history, which collides with the Append-Only Chronology and the prohibition on editing old entries. Forward-only authoring from the current entry preserves append-only semantics while still allowing graph connections. Enforcing in the library prevents circumvention by future callers.",
+  "evolution": "This establishes a constitutional constraint on link editing: only the newest entry can author new edges pointing backward in time. Future graph authoring mechanisms (automated suggestion, backfill-on-approval flows) must respect this rule or explicitly amend Invariant #2.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#append-only",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#link-corrections",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Implement `memory-seed link add <target> [--from]` writing one `related_entries` edge from the newest entry to an older one. Forward-only, idempotent, YAML-only",
+  "quote_ref": "mse_1cabc5sw1g4hkb25:d1"
+ },
+ {
+  "suggested_head": "mse_qkvkd8qkza7kk4y8:d1",
+  "architectural": false,
+  "note": "Two related documentation-reconciliation tasks (roadmap wording, NEXT_STEPS drift) are housekeeping work, not architectural policy."
+ },
+ {
+  "suggested_head": "mse_skcmezqbxxh5dtp6:d2",
+  "architectural": false,
+  "note": "Bug fix in session-log entry body extraction and one-off repair of an affected entry are routine bugfixes, not architectural concerns."
+ },
+ {
+  "suggested_head": "mse_63qcaab119xmyx0b:d2",
+  "architectural": true,
+  "adr_id": "adr_lifecycle_link_audit_workflow",
+  "title": "Lifecycle-link audit workflow: stubs, approval gates, and supervised edge conversion",
+  "topics": [
+   "lifecycle-edges",
+   "related-entries",
+   "session-fuse"
+  ],
+  "decision": "The lifecycle link workflow creates classified stub files for lifecycle edges (evolves, supersedes, continuity) detected during the daily link audit sweep. These stubs remain unresolved until explicitly approved by the user and converted to live edges via dedicated session-sidecar authoring.",
+  "why": "Automated edge suggestion can detect related decisions but cannot judge whether a relationship is architectural or coincidental. Stubs provide a middle ground: they surface candidates for human review without polluting the graph with false edges. The approval gate ensures only meaningful relationships become part of the durable graph.",
+  "evolution": "The stub-to-live conversion mechanism is now the canonical path for lifecycle edges discovered outside the immediate authoring moment. It establishes a human-in-the-loop precedent for edge curation that future automated link suggestion will use.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#evidence-first",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#link-corrections",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Link-audit stubs created for 2026-07-28 (missed) and 2026-07-29 (today); five upgrade candidates flagged for JNL, none applied without approval",
+  "quote_ref": "mse_63qcaab119xmyx0b:d2"
+ },
+ {
+  "suggested_head": "mse_r32k8mk46ky8rdtv:d3",
+  "architectural": false,
+  "note": "Both decisions are about refining an agent-capture testing experiment and closing a specific confound; not architectural governance."
+ }
+]

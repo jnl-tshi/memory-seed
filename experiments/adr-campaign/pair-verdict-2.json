@@ -1,0 +1,42 @@
+[
+  {
+    "suggested_head": "ms-8d2f4a1e:d1",
+    "architectural": false,
+    "note": "Routine fix applying established hook-output pattern (systemMessage) across agents; fixing a JSON schema error."
+  },
+  {
+    "suggested_head": "mse_kandgwtqkcydhvq7:d1",
+    "architectural": false,
+    "note": "Two instances of product naming/branding analysis; coincidental same-area decisions (naming) with unrelated discovery findings (competitor artifact levels)."
+  },
+  {
+    "suggested_head": "mse_4670mpw532yec14w:d1",
+    "architectural": false,
+    "note": "Type-system refinement decision followed by immediate implementation of that decision; no standing concern beyond 'evolves is better named than stretching supersedes'."
+  },
+  {
+    "suggested_head": "mse_7g027mnv9xbmh5j7:d1",
+    "architectural": false,
+    "note": "Documentation reconciliation after an implementation run; audit baseline update, not a standing architectural concern."
+  },
+  {
+    "suggested_head": "mse_b1q6bjqv5w1zyn2k:d1",
+    "architectural": false,
+    "note": "Two shipping decisions for metrics work (one adding gates/quality checks, one measuring two metrics shipped v0); tight implementation pair governed by existing validation/measurement frameworks."
+  },
+  {
+    "suggested_head": "mse_aja6sm9019315yh1:d1",
+    "architectural": false,
+    "note": "UI/UX implementation pair: one designs bounded graph scope, the second implements it; not a standing architectural pattern, just tight feature iteration."
+  },
+  {
+    "suggested_head": "mse_cdndmm2p0dmbkbq9:d1",
+    "architectural": false,
+    "note": "Two graph UX refinements (filter behavior, edge visibility); narrow interaction improvements, not standing architectural concerns."
+  },
+  {
+    "suggested_head": "mse_5trzymn43k92ky7z:d4",
+    "architectural": false,
+    "note": "Skill authoring governance added and then documented in its canonical location; implementation of a specific governance need, not a standing architectural pattern."
+  }
+]

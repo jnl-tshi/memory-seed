@@ -1,0 +1,55 @@
+[
+  {
+    "suggested_head": "ms-db2d715c:d1",
+    "architectural": false,
+    "note": "Two instances of formalizing session-logging conventions (rationale requirements and DRAFT format labels), not a standing architectural concern."
+  },
+  {
+    "suggested_head": "ms-e30b9c47:d1",
+    "architectural": true,
+    "adr_id": "adr_append_only_invariant",
+    "title": "Append-only entry invariant, not mechanism",
+    "topics": ["session-logging", "git-workflow", "governance-profile"],
+    "decision": "State the append invariant: entries are added at the physical end of their file, never inserted above existing content, and maintain chronological order. The durable rule is the invariant; specific tools (>>, Python append mode) are optional implementation details.",
+    "why": "Session logs are the audit trail and source of truth. The entire memory system depends on append-only semantics to preserve chronology, prevent accidental rewrites, and guarantee that older entries remain unchanged. Establishing this as a vendor-neutral invariant means any future tooling (shell, Python, editor) must preserve it.",
+    "evolution": "Future session logging systems and tools must maintain this invariant. Changes to authoring guidance, session-merge logic, or entry-validation rules must not violate append-only ordering.",
+    "constitution_refs": [{"ref": "constitution:v1#append-only", "role": "governing"}],
+    "quote": "Use `>>` / Python append mode as the required method for writing session entries.",
+    "quote_ref": "ms-d15e8a03:d1"
+  },
+  {
+    "suggested_head": "mse_38mmhbyvxyta2wgd:d1",
+    "architectural": false,
+    "note": "Routine implementation applying an already-decided naming choice across documentation."
+  },
+  {
+    "suggested_head": "mse_903jqy9v4pr8g388:d3",
+    "architectural": false,
+    "note": "Formalizing a derived classification list by approving a proposed vocabulary, not establishing a new architectural concern."
+  },
+  {
+    "suggested_head": "mse_fdt9nfjrtfep0d7z:d1",
+    "architectural": false,
+    "note": "Unrelated pair: one is a diagram-renderer technical feature, the other is a placeholder entry with no decision content."
+  },
+  {
+    "suggested_head": "mse_ntkt6m0pqd0g8c9j:d1",
+    "architectural": false,
+    "note": "Routine tool shipping (docs-check command) paired with a placeholder entry lacking decision substance."
+  },
+  {
+    "suggested_head": "mse_2pgcs90wcbhhk2kc:d1",
+    "architectural": false,
+    "note": "A placeholder entry paired with a routine UI improvement (displaying DRAFT format guidance in reader)."
+  },
+  {
+    "suggested_head": "mse_cdndmm2p0dmbkbq9:d2",
+    "architectural": false,
+    "note": "Placeholder entry paired with a routine UX principle (links never disturb workspace state)."
+  },
+  {
+    "suggested_head": "mse_84hmbf34tw8mm9qe:d1",
+    "architectural": false,
+    "note": "Configuration choice of session-fuse mode paired with a placeholder entry lacking substantive content."
+  }
+]

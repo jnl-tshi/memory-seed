@@ -1,0 +1,470 @@
+[
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "ms-db2d715c:d1",
+  "members": [
+   {
+    "ref": "ms-f83a27d3:d1",
+    "when": "2026-05-26 19:59",
+    "title": "D1 - Rationale is required only when it matters"
+   },
+   {
+    "ref": "ms-db2d715c:d1",
+    "when": "2026-05-26 20:40",
+    "title": "D1 - Use DRAFT for compact decision records"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "hooks"
+  ],
+  "suggested_head": "ms-2d8b4c7e:d1",
+  "members": [
+   {
+    "ref": "ms-9f3a2b1c:d2",
+    "when": "2026-05-27 01:30",
+    "title": "D2 - Python for cross-platform compatibility"
+   },
+   {
+    "ref": "ms-2d8b4c7e:d1",
+    "when": "2026-05-27 02:00",
+    "title": "D1 - Shared script with --codex flag, not two separate scripts"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "hooks"
+  ],
+  "suggested_head": "ms-8d2f4a1e:d1",
+  "members": [
+   {
+    "ref": "ms-2d8b4c7e:d2",
+    "when": "2026-05-27 02:00",
+    "title": "D2 - systemMessage for Codex (not additionalContext)"
+   },
+   {
+    "ref": "ms-8d2f4a1e:d1",
+    "when": "2026-05-27 14:10",
+    "title": "D1 - Use systemMessage for Stop hook output"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "ms-e30b9c47:d1",
+  "members": [
+   {
+    "ref": "ms-d15e8a03:d1",
+    "when": "2026-05-29 15:36",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "when": "2026-05-29 16:26",
+    "title": "D1 - Reframe append rule as invariant, not mechanism"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "mermaid"
+  ],
+  "suggested_head": "mse_0vbj4zdcc11s3ggj:d1",
+  "members": [
+   {
+    "ref": "mse_m677wfhvq7s8b1x8:d1",
+    "when": "2026-07-05 13:10",
+    "title": "D1 - Deterministic sidecar validation inside the single validator"
+   },
+   {
+    "ref": "mse_0vbj4zdcc11s3ggj:d1",
+    "when": "2026-07-05 14:40",
+    "title": "D1 - One dated file per day, multiple diagram blocks appended, each keyed by ent"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "package"
+  ],
+  "suggested_head": "mse_kandgwtqkcydhvq7:d1",
+  "members": [
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d1",
+    "when": "2026-07-05 12:20",
+    "title": "D1 - memory-seed-trail availability: package free, but \"Memory Trail\" is a live "
+   },
+   {
+    "ref": "mse_kandgwtqkcydhvq7:d1",
+    "when": "2026-07-05 14:05",
+    "title": "D1 - Distinguish the inert PyPI stub from the real GitHub \"skill\"; refine, don't"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "package"
+  ],
+  "suggested_head": "mse_38mmhbyvxyta2wgd:d1",
+  "members": [
+   {
+    "ref": "mse_x82bptzravde7h4x:d1",
+    "when": "2026-07-05 23:47",
+    "title": "D1 - Memory Trace name is clear; findings recorded in the Trace plan"
+   },
+   {
+    "ref": "mse_38mmhbyvxyta2wgd:d1",
+    "when": "2026-07-06 00:04",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_wzr3rh9cjce924vf:d1",
+  "members": [
+   {
+    "ref": "mse_8e7e78fx4hspcfta:d1",
+    "when": "2026-07-05 11:31",
+    "title": "D1 - Next goal pass is Phase 1 retrieval plus decision diagrams, not package ext"
+   },
+   {
+    "ref": "mse_wzr3rh9cjce924vf:d1",
+    "when": "2026-07-07 13:33",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "schema"
+  ],
+  "suggested_head": "mse_4670mpw532yec14w:d1",
+  "members": [
+   {
+    "ref": "mse_t22wn997q5005zjp:d1",
+    "when": "2026-07-10 12:34",
+    "title": "D1 - Propose a typed `evolves` edge rather than stretching `supersedes`"
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "when": "2026-07-10 12:38",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "topic-vocabulary"
+  ],
+  "suggested_head": "mse_903jqy9v4pr8g388:d3",
+  "members": [
+   {
+    "ref": "mse_dpf02qvaymr40nm7:d3",
+    "when": "2026-07-10 15:05",
+    "title": "D3 - Topics starter vocabulary derived from existing slugs"
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d3",
+    "when": "2026-07-10 15:25",
+    "title": "D3 - Topics slug contract pinned (approved)"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "mermaid"
+  ],
+  "suggested_head": "mse_m6amd5db4c7s8sfw:d2",
+  "members": [
+   {
+    "ref": "mse_4f8g7h2j9k3m5n6p:d1",
+    "when": "2026-07-07 11:35",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_m6amd5db4c7s8sfw:d2",
+    "when": "2026-07-10 03:28",
+    "title": "D2 - Strengthen sidecar triggers"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_7g027mnv9xbmh5j7:d1",
+  "members": [
+   {
+    "ref": "mse_dpf02qvaymr40nm7:d5",
+    "when": "2026-07-10 15:05",
+    "title": "D5 - Alignment repairs applied (Phase 2 consolidation)"
+   },
+   {
+    "ref": "mse_7g027mnv9xbmh5j7:d1",
+    "when": "2026-07-16 07:29",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "diagram-view"
+  ],
+  "suggested_head": "mse_fdt9nfjrtfep0d7z:d1",
+  "members": [
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "when": "2026-07-13 07:46",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_fdt9nfjrtfep0d7z:d1",
+    "when": "2026-07-16 20:20",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "related-entries"
+  ],
+  "suggested_head": "mse_1cabc5sw1g4hkb25:d1",
+  "members": [
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "when": "2026-06-15 22:57",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d1",
+    "when": "2026-07-17 02:05",
+    "title": "D1 - Ship `link add`, refuse any non-newest source"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "seed-core"
+  ],
+  "suggested_head": "mse_b1q6bjqv5w1zyn2k:d1",
+  "members": [
+   {
+    "ref": "mse_a0bxp5n1wcnsjxvw:d3",
+    "when": "2026-07-15 18:05",
+    "title": "D3 - Add narrow provenance/authority and quality gates"
+   },
+   {
+    "ref": "mse_b1q6bjqv5w1zyn2k:d1",
+    "when": "2026-07-17 02:45",
+    "title": "D1 - Ship v0 with two metrics measured and three honestly unmeasured"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_ntkt6m0pqd0g8c9j:d1",
+  "members": [
+   {
+    "ref": "mse_5nr2pvjyrs92bvj2:d1",
+    "when": "2026-07-17 05:00",
+    "title": "D1 - Ship `docs check`; the missing gate was proven by the migration that preced"
+   },
+   {
+    "ref": "mse_ntkt6m0pqd0g8c9j:d1",
+    "when": "2026-07-17 14:10",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_qkvkd8qkza7kk4y8:d1",
+  "members": [
+   {
+    "ref": "mse_fyz3rdhky8pyem0s:d1",
+    "when": "2026-07-08 07:25",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_qkvkd8qkza7kk4y8:d1",
+    "when": "2026-07-17 01:05",
+    "title": "D1 - Surface the Trace distribution plan in NEXT_STEPS rather than relane it"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "diagram-view"
+  ],
+  "suggested_head": "mse_aja6sm9019315yh1:d1",
+  "members": [
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d2",
+    "when": "2026-07-16 14:14",
+    "title": "D2 - Keep the first Cytoscape graph bounded and explicitly incomplete"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "when": "2026-07-18 19:30",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "inspector"
+  ],
+  "suggested_head": "mse_2pgcs90wcbhhk2kc:d1",
+  "members": [
+   {
+    "ref": "mse_wv9pzg6ayy0wa61j:d1",
+    "when": "2026-07-17 17:35",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_2pgcs90wcbhhk2kc:d1",
+    "when": "2026-07-19 13:47",
+    "title": "D1 - Spell the DRAFT grammar out in the reader, with files as pills"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "mse_skcmezqbxxh5dtp6:d2",
+  "members": [
+   {
+    "ref": "mse_2b1bthj8x03nfe91:d1",
+    "when": "2026-07-13 14:07",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_skcmezqbxxh5dtp6:d2",
+    "when": "2026-07-19 22:12",
+    "title": "D2 - Fix the body-extraction bug and repair the one entry it exposed"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "memory-trace"
+  ],
+  "suggested_head": "mse_cdndmm2p0dmbkbq9:d1",
+  "members": [
+   {
+    "ref": "mse_7qfd6tx63txn9v3v:d1",
+    "when": "2026-07-21 10:58",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d1",
+    "when": "2026-07-21 19:25",
+    "title": "D1 - One line per pair, taken by the strongest relationship"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "inspector"
+  ],
+  "suggested_head": "mse_cdndmm2p0dmbkbq9:d2",
+  "members": [
+   {
+    "ref": "mse_9xfpvhqrm44jedce:d1",
+    "when": "2026-07-17 18:25",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d2",
+    "when": "2026-07-21 19:25",
+    "title": "D2 - Following a link never disturbs the workspace"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "lifecycle-edges"
+  ],
+  "suggested_head": "mse_63qcaab119xmyx0b:d2",
+  "members": [
+   {
+    "ref": "mse_jg33a730vpr4085a:d1",
+    "when": "2026-07-13 17:19",
+    "title": "D1 - Lifecycle-link authoring assist"
+   },
+   {
+    "ref": "mse_63qcaab119xmyx0b:d2",
+    "when": "2026-07-29 10:13",
+    "title": "D2 - Link-audit stubs created for 2026-07-28 (missed) and 2026-07-29 (today); fi"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "skill-architecture"
+  ],
+  "suggested_head": "mse_5trzymn43k92ky7z:d4",
+  "members": [
+   {
+    "ref": "mse_nyk16t2d8xexetgv:d1",
+    "when": "2026-07-09 19:43",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "when": "2026-07-29 12:34",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural gov"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-fuse"
+  ],
+  "suggested_head": "mse_84hmbf34tw8mm9qe:d1",
+  "members": [
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "when": "2026-07-24 12:35",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`"
+   },
+   {
+    "ref": "mse_84hmbf34tw8mm9qe:d1",
+    "when": "2026-07-30 12:39",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "test-suite"
+  ],
+  "suggested_head": "mse_r32k8mk46ky8rdtv:d3",
+  "members": [
+   {
+    "ref": "mse_gvq7xhvgekts00at:d3",
+    "when": "2026-08-04 02:05",
+    "title": "D3 - Pin the Claude arm to the fixture's own MCP config"
+   },
+   {
+    "ref": "mse_r32k8mk46ky8rdtv:d3",
+    "when": "2026-08-04 11:33",
+    "title": "D3 - Retire the worktree-guard confound as measured and absent"
+   }
+  ]
+ }
+]

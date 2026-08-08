@@ -129,3 +129,26 @@ Re-anchored from the control-file founding onto its session decision; related de
 #### Reason
 
 Approved by JNL 2026-08-07: attach the related integration decision; head converges onto the ADR's own decision.
+
+### context-added - 2026-08-08T04:01:00Z
+
+```json
+{
+  "event_id": "adre_2cd4d88a99201691eeda",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_81v7vk4x5ys3k2n0:d1",
+    "mse_azn6bejpd9xpmh3f:d2",
+    "mse_kq3ba0cy9nkpqkm0:d1",
+    "mse_vm7trfd4dbd5yvnn:d1",
+    "mse_w2fk7qnx4t9b3vmh:d1",
+    "mse_x6qgkg61dnq26bk4:d1",
+    "mse_znfnyxssvhz5srz9:d1"
+  ],
+  "update_entry_id": "mse_g9xegd9ct9sns5s4"
+}
+```
+
+#### Reason
+
+Attaching the seven session-fuse chain members this concern was never given. Founded from a lineage pass that carried only one related decision, so it named 1 of its chain's 8 members.

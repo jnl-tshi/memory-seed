@@ -89,7 +89,24 @@ def main() -> int:
         (o, n) for _k, o, n, _c in edges
         if area.get(o) and area.get(n) and area[o] & area[n]
     ]
-    chains = [c for c in components(same_area) if len(c) >= 3]
+    every_chain = components(same_area)
+    chains = [c for c in every_chain if len(c) >= 3]
+    # A pair is a candidate too (JNL, 2026-08-08) - two linked decisions in one area can be a
+    # concern - but a pair is far weaker evidence than a chain: two decisions touching the same
+    # area may simply be two decisions. Pairs are reported separately and want an architectural
+    # judgement, not automatic founding.
+    pairs = [c for c in every_chain if len(c) == 2]
+    # GROWTH: a chain some ADR claims, carrying members that ADR does not name. The concern was
+    # reviewed at one size and has since grown, so the review is stale - it may want the new
+    # decisions attached, or it may have grown into a second concern that deserves splitting off.
+    grown = []
+    for chain in every_chain:
+        owners = sorted({a for r in chain for a in claims.get(r, [])})
+        if not owners:
+            continue
+        unnamed = [r for r in chain if not claims.get(r)]
+        if unnamed:
+            grown.append((owners, chain, unnamed))
 
     lines = [
         "# Lineage chains (same-area segmentation)", "",
@@ -139,6 +156,40 @@ def main() -> int:
         "answer, not eleven.",
         "",
     ]
+    # --- Re-review: chains that have grown past the size their ADR was reviewed at ---
+    lines += [
+        "## Chains that have grown since review", "",
+        f"{len(grown)} chains carry decisions the claiming ADR does not name. The concern was "
+        "reviewed at one size and the lineage has since extended, so the review is stale in one of "
+        "two ways: the new decisions belong to the concern and should be attached, or the chain "
+        "has grown into a SECOND concern that should be split off into its own ADR. Either way it "
+        "wants a look.", "",
+    ]
+    for owners, chain, unnamed in sorted(grown, key=lambda g: -len(g[2])):
+        members = sorted(chain, key=lambda r: (when(r), r))
+        lines.append(f"- {', '.join(f'`{a}`' for a in owners)} — "
+                     f"{len(unnamed)} of {len(members)} members unnamed")
+        for ref in sorted(unnamed, key=lambda r: (when(r), r)):
+            lines.append(f"    - `{ref}`  {when(ref)}  {titles.get(ref, '?')[:66]}")
+    lines.append("")
+
+    # --- Pairs: candidates, but weaker evidence than a chain ---
+    unclaimed_pairs = [c for c in pairs if not any(claims.get(r) for r in c)]
+    lines += [
+        "## Candidate pairs (two linked decisions)", "",
+        f"{len(unclaimed_pairs)} of {len(pairs)} pairs are unclaimed. A pair is a candidate, not a "
+        "chain: two decisions sharing an area and one edge may be a concern, or may just be two "
+        "decisions. Each needs an architectural judgement before it is founded - read both, and "
+        "found only what a reader would expect to find recorded as a standing concern.", "",
+    ]
+    for chain in sorted(unclaimed_pairs, key=lambda c: sorted(c)):
+        members = sorted(chain, key=lambda r: (when(r), r))
+        areas = sorted({a for r in members for a in area.get(r, ())})
+        lines.append(f"- **{'/'.join(areas)}**")
+        for ref in members:
+            lines.append(f"    - `{ref}`  {when(ref)}  {titles.get(ref, '?')[:66]}")
+    lines.append("")
+
     (HERE / "LINEAGE-CHAINS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"lineage edges: {len(edges)} | same-area edges: {len(same_area)}")
@@ -146,6 +197,10 @@ def main() -> int:
     print(f"UNCLAIMED chains: {len(unclaimed)} | diagram answers they would owe: {len(unclaimed)} (one per ADR)")
     for label, members, area_name in unclaimed[:8]:
         print(f"   {area_name:<20} {len(members):>2} decisions   ({label})")
+    print(f"GROWN since review: {len(grown)} chains carry members their ADR does not name")
+    for owners, chain, unnamed in sorted(grown, key=lambda g: -len(g[2])):
+        print(f"   {','.join(owners):<44} +{len(unnamed)} unnamed of {len(chain)}")
+    print(f"CANDIDATE PAIRS: {len(unclaimed_pairs)} unclaimed of {len(pairs)}")
     print("\nwrote LINEAGE-CHAINS.md")
     return 0
 

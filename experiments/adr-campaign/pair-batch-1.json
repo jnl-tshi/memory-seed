@@ -1,0 +1,164 @@
+[
+ {
+  "areas": [
+   "hooks"
+  ],
+  "suggested_head": "ms-2d8b4c7e:d1",
+  "members": [
+   {
+    "ref": "ms-9f3a2b1c:d2",
+    "when": "2026-05-27 01:30",
+    "title": "D2 - Python for cross-platform compatibility"
+   },
+   {
+    "ref": "ms-2d8b4c7e:d1",
+    "when": "2026-05-27 02:00",
+    "title": "D1 - Shared script with --codex flag, not two separate scripts"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "mermaid"
+  ],
+  "suggested_head": "mse_0vbj4zdcc11s3ggj:d1",
+  "members": [
+   {
+    "ref": "mse_m677wfhvq7s8b1x8:d1",
+    "when": "2026-07-05 13:10",
+    "title": "D1 - Deterministic sidecar validation inside the single validator"
+   },
+   {
+    "ref": "mse_0vbj4zdcc11s3ggj:d1",
+    "when": "2026-07-05 14:40",
+    "title": "D1 - One dated file per day, multiple diagram blocks appended, each keyed by ent"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_wzr3rh9cjce924vf:d1",
+  "members": [
+   {
+    "ref": "mse_8e7e78fx4hspcfta:d1",
+    "when": "2026-07-05 11:31",
+    "title": "D1 - Next goal pass is Phase 1 retrieval plus decision diagrams, not package ext"
+   },
+   {
+    "ref": "mse_wzr3rh9cjce924vf:d1",
+    "when": "2026-07-07 13:33",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "mermaid"
+  ],
+  "suggested_head": "mse_m6amd5db4c7s8sfw:d2",
+  "members": [
+   {
+    "ref": "mse_4f8g7h2j9k3m5n6p:d1",
+    "when": "2026-07-07 11:35",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_m6amd5db4c7s8sfw:d2",
+    "when": "2026-07-10 03:28",
+    "title": "D2 - Strengthen sidecar triggers"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "related-entries"
+  ],
+  "suggested_head": "mse_1cabc5sw1g4hkb25:d1",
+  "members": [
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "when": "2026-06-15 22:57",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d1",
+    "when": "2026-07-17 02:05",
+    "title": "D1 - Ship `link add`, refuse any non-newest source"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_qkvkd8qkza7kk4y8:d1",
+  "members": [
+   {
+    "ref": "mse_fyz3rdhky8pyem0s:d1",
+    "when": "2026-07-08 07:25",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_qkvkd8qkza7kk4y8:d1",
+    "when": "2026-07-17 01:05",
+    "title": "D1 - Surface the Trace distribution plan in NEXT_STEPS rather than relane it"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "mse_skcmezqbxxh5dtp6:d2",
+  "members": [
+   {
+    "ref": "mse_2b1bthj8x03nfe91:d1",
+    "when": "2026-07-13 14:07",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_skcmezqbxxh5dtp6:d2",
+    "when": "2026-07-19 22:12",
+    "title": "D2 - Fix the body-extraction bug and repair the one entry it exposed"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "lifecycle-edges"
+  ],
+  "suggested_head": "mse_63qcaab119xmyx0b:d2",
+  "members": [
+   {
+    "ref": "mse_jg33a730vpr4085a:d1",
+    "when": "2026-07-13 17:19",
+    "title": "D1 - Lifecycle-link authoring assist"
+   },
+   {
+    "ref": "mse_63qcaab119xmyx0b:d2",
+    "when": "2026-07-29 10:13",
+    "title": "D2 - Link-audit stubs created for 2026-07-28 (missed) and 2026-07-29 (today); fi"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "test-suite"
+  ],
+  "suggested_head": "mse_r32k8mk46ky8rdtv:d3",
+  "members": [
+   {
+    "ref": "mse_gvq7xhvgekts00at:d3",
+    "when": "2026-08-04 02:05",
+    "title": "D3 - Pin the Claude arm to the fixture's own MCP config"
+   },
+   {
+    "ref": "mse_r32k8mk46ky8rdtv:d3",
+    "when": "2026-08-04 11:33",
+    "title": "D3 - Retire the worktree-guard confound as measured and absent"
+   }
+  ]
+ }
+]

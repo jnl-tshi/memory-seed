@@ -41,8 +41,12 @@ def norm(text: str) -> str:
 
 def main() -> int:
     commit = "--commit" in sys.argv
-    chains = {c["suggested_head"]: c for c in
-              json.loads((HERE / "found-payload.json").read_text(encoding="utf-8"))}
+    chains = {}
+    for source in ("found-payload.json", "pair-payload.json"):
+        path = HERE / source
+        if path.exists():
+            chains.update({c["suggested_head"]: c for c in
+                           json.loads(path.read_text(encoding="utf-8"))})
     anchors = _constitution_anchors(REPO)
     canonical = {v for v in load_topic_index(REPO).resolution().values()}
     existing = {r.adr_id for r in iter_adrs(REPO)}

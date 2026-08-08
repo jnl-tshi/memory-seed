@@ -1,0 +1,146 @@
+[
+ {
+  "areas": [
+   "hooks"
+  ],
+  "suggested_head": "ms-8d2f4a1e:d1",
+  "members": [
+   {
+    "ref": "ms-2d8b4c7e:d2",
+    "when": "2026-05-27 02:00",
+    "title": "D2 - systemMessage for Codex (not additionalContext)"
+   },
+   {
+    "ref": "ms-8d2f4a1e:d1",
+    "when": "2026-05-27 14:10",
+    "title": "D1 - Use systemMessage for Stop hook output"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "package"
+  ],
+  "suggested_head": "mse_kandgwtqkcydhvq7:d1",
+  "members": [
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d1",
+    "when": "2026-07-05 12:20",
+    "title": "D1 - memory-seed-trail availability: package free, but \"Memory Trail\" is a live "
+   },
+   {
+    "ref": "mse_kandgwtqkcydhvq7:d1",
+    "when": "2026-07-05 14:05",
+    "title": "D1 - Distinguish the inert PyPI stub from the real GitHub \"skill\"; refine, don't"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "schema"
+  ],
+  "suggested_head": "mse_4670mpw532yec14w:d1",
+  "members": [
+   {
+    "ref": "mse_t22wn997q5005zjp:d1",
+    "when": "2026-07-10 12:34",
+    "title": "D1 - Propose a typed `evolves` edge rather than stretching `supersedes`"
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "when": "2026-07-10 12:38",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_7g027mnv9xbmh5j7:d1",
+  "members": [
+   {
+    "ref": "mse_dpf02qvaymr40nm7:d5",
+    "when": "2026-07-10 15:05",
+    "title": "D5 - Alignment repairs applied (Phase 2 consolidation)"
+   },
+   {
+    "ref": "mse_7g027mnv9xbmh5j7:d1",
+    "when": "2026-07-16 07:29",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "seed-core"
+  ],
+  "suggested_head": "mse_b1q6bjqv5w1zyn2k:d1",
+  "members": [
+   {
+    "ref": "mse_a0bxp5n1wcnsjxvw:d3",
+    "when": "2026-07-15 18:05",
+    "title": "D3 - Add narrow provenance/authority and quality gates"
+   },
+   {
+    "ref": "mse_b1q6bjqv5w1zyn2k:d1",
+    "when": "2026-07-17 02:45",
+    "title": "D1 - Ship v0 with two metrics measured and three honestly unmeasured"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "diagram-view"
+  ],
+  "suggested_head": "mse_aja6sm9019315yh1:d1",
+  "members": [
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d2",
+    "when": "2026-07-16 14:14",
+    "title": "D2 - Keep the first Cytoscape graph bounded and explicitly incomplete"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "when": "2026-07-18 19:30",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "memory-trace"
+  ],
+  "suggested_head": "mse_cdndmm2p0dmbkbq9:d1",
+  "members": [
+   {
+    "ref": "mse_7qfd6tx63txn9v3v:d1",
+    "when": "2026-07-21 10:58",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d1",
+    "when": "2026-07-21 19:25",
+    "title": "D1 - One line per pair, taken by the strongest relationship"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "skill-architecture"
+  ],
+  "suggested_head": "mse_5trzymn43k92ky7z:d4",
+  "members": [
+   {
+    "ref": "mse_nyk16t2d8xexetgv:d1",
+    "when": "2026-07-09 19:43",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "when": "2026-07-29 12:34",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural gov"
+   }
+  ]
+ }
+]
