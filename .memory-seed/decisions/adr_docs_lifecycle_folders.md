@@ -2,7 +2,7 @@
 format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_docs_lifecycle_folders
-title: Docs taxonomy: folder is lifecycle state
+title: "Docs taxonomy: folder is lifecycle state"
 topics:
   - documentation
   - docs-lifecycle

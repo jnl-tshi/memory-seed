@@ -2,7 +2,7 @@
 format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_integration_mode
-title: Configurable integration_mode: local-merge vs PR
+title: "Configurable integration_mode: local-merge vs PR"
 topics:
   - control-plane
   - git-workflow

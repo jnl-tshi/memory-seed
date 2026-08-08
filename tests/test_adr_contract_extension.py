@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 from memory_seed.adr import (
+    frontmatter_issues,
     unknown_event_kinds,
     reconcile_adr_records,
     replay_adr,
@@ -454,3 +455,53 @@ class UnknownEventKindGuardTests(unittest.TestCase):
     def test_every_live_adr_parses_under_this_build(self):
         for path in LIVE_ADRS:
             self.assertEqual(unknown_event_kinds(read_text_file(path)), (), path.name)
+
+
+class FrontmatterLintTests(ProjectFixture):
+    """A title containing ': ' is valid to our regex reader and invalid to every YAML parser.
+
+    Five ADRs sat in the corpus that way until the Trace UI, which parses properly, failed on them.
+    """
+
+    def test_a_risky_title_is_quoted_on_write_and_round_trips(self):
+        root = self.make_project()
+        title = "MCP integration: placement, upsert, and a gated surface"
+        result = promote_decision(
+            root, adr_id="adr_colon", source_entry_id="mse_extension0000001",
+            source_decision="d1", title=title, topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            timestamp="2026-08-08T01:00:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        rendered = read_text_file(result.path)
+        self.assertIn(f'title: "{title}"', rendered)
+        self.assertEqual(parse_adr(result.path).title, title)      # quotes stripped on read
+        self.assertEqual(render_adr(parse_adr(result.path)), rendered)  # byte-stable
+        self.assertEqual(frontmatter_issues(rendered), [])
+
+    def test_titles_that_need_no_quoting_stay_bare(self):
+        """The reason the corpus written before this fix is byte-unchanged."""
+        root = self.make_project()
+        result = promote_decision(
+            root, adr_id="adr_plain", source_entry_id="mse_extension0000001",
+            source_decision="d1", title="Parent-first recoverable sidecar transaction",
+            topics=(), user_initials="JNL", agent_type="claude", source="derived",
+            decision="D.", why="W.", timestamp="2026-08-08T01:01:00Z",
+        )
+        self.assertIn("title: Parent-first recoverable sidecar transaction\n", read_text_file(result.path))
+
+    def test_the_linter_names_the_cause(self):
+        for raw, expect in (
+            ("---\ntitle: A: B\n---\n", "nested mapping"),
+            ("---\ntitle: trailing:\n---\n", "mapping key"),
+            ("---\ntitle: has # a comment\n---\n", "comment"),
+            ("---\ntitle: -leading\n---\n", "indicator"),
+            ("---\ntitle: a\ntitle: b\n---\n", "more than once"),
+        ):
+            found = frontmatter_issues(raw)
+            self.assertTrue(found, raw)
+            self.assertTrue(any(expect in i for i in found), (raw, found))
+
+    def test_every_live_adr_passes_the_linter(self):
+        for path in LIVE_ADRS:
+            self.assertEqual(frontmatter_issues(read_text_file(path)), [], path.name)
