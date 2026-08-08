@@ -1059,6 +1059,14 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/diagrams/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/links/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/topics/2026-07/2026-07-10.md"))
+        # ADRs are the fifth fused family and the only one outside sessions/. They were the "next
+        # gap" this test was written to catch: `_changed_session_paths` has always scoped
+        # decisions/ and the apply step has always written reconciled records back, but the
+        # recognizer did not know the tree - so a branch that MODIFIED an existing ADR was refused
+        # at the base-reset guard while one that only ADDED files passed, because an added path is
+        # never in base_paths and so never reaches the reset loop.
+        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/decisions/adr_edge_kinds.md"))
+        self.assertFalse(_is_recognized_session_tree_path(".memory-seed/decisions/notes.txt"))
         self.assertFalse(_is_recognized_session_tree_path(".memory-seed/sessions/decisions/2026-07-10.md"))
         self.assertFalse(_is_recognized_session_tree_path("notes.txt"))
 

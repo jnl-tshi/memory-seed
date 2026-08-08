@@ -4674,7 +4674,7 @@ def _topic_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | Non
 def _unfusable_session_path_reason(rel_path: str) -> str:
     """Why the fuse will not touch this path, in words an operator can act on."""
     return (
-        "changed under .memory-seed/sessions but is not recognized by any session/diagram/link/topic "
+        "changed under .memory-seed/ but is not recognized by any session/diagram/link/topic/ADR "
         "classifier."
     )
 
@@ -4694,7 +4694,22 @@ def _is_recognized_session_tree_path(rel_path: str) -> bool:
         or _diagram_doc_from_relative_path(rel_path) is not None
         or _link_doc_from_relative_path(rel_path) is not None
         or _topic_doc_from_relative_path(rel_path) is not None
+        or _is_adr_relative_path(rel_path)
     )
+
+
+def _is_adr_relative_path(rel_path: str) -> bool:
+    """True for an ADR record, which the fuse rebuilds through ``reconcile_adr_records``.
+
+    ADRs are the fifth family the fuse handles and the only one outside ``sessions/``.
+    ``_changed_session_paths`` has always scoped ``decisions/`` and the apply step has always
+    written reconciled records back, but this recognizer did not know the tree - so a branch that
+    MODIFIED an existing ADR was refused at the base-reset guard, while one that only ADDED files
+    sailed through (an added path is not in ``base_paths``, so it never reaches the reset loop).
+    That asymmetry is why 12 new ADRs merged cleanly and two revised ones did not.
+    """
+    prefix = f"{MEMORY_DIR_NAME}/decisions/"
+    return rel_path.startswith(prefix) and rel_path.endswith(".md")
 
 
 def _session_target_relative_path(date_str: str, user: str | None = None) -> str:
