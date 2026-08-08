@@ -498,7 +498,13 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
         # others); the founding extension updated those two and missed this one.
         key = event.revision_key
         if event.kind == "revision-proposed" and key:
-            if key in states:
+            # Same rule as `validate_adr`: only a LIVE ref cannot be re-proposed. A rejected one
+            # reopens, which is how a summary written from bad evidence gets corrected at all.
+            # Keeping the two in step is the whole point of the warning above - the 2026-08-08
+            # relaxation updated `validate_adr` and missed this copy, so `adr check` went green on
+            # the branch while `merge-branch`, which validates with main's reconciler, refused 25
+            # ADRs at once.
+            if states.get(key) in {"proposed", "accepted"}:
                 issues.append(f"ADR {base.adr_id} has duplicate revision {key}")
             states[key] = "proposed"
         elif event.kind in {"revision-accepted", "revision-rejected"}:
