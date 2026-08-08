@@ -650,6 +650,36 @@ class ReproposeAfterRejectTests(ProjectFixture):
         self.assertFalse(after.ok)
         self.assertTrue(any("duplicates revision" in issue for issue in after.issues), after.issues)
 
+    def test_reconcile_accepts_a_reproposal_the_same_way_validate_does(self):
+        """The third copy of the replay rules must agree with the other two.
+
+        `reconcile_adr_records` keeps its own replay loop, and its own comment records that the
+        founding extension updated `replay_adr` and `validate_adr` and missed it. The 2026-08-08
+        relaxation did exactly that again: `adr check` passed on the branch while `session
+        merge-branch` - which validates with main's reconciler - refused 25 ADRs for duplicate
+        revisions. This pins the two together.
+        """
+        import copy
+
+        root = self.make_project()
+        path = self._founded(root, adr_id="adr_reconcile")
+        self.assertTrue(self._propose(root, "First wording.", "2026-08-08T11:00:00Z",
+                                      adr_id="adr_reconcile").ok)
+        transition_adr(
+            root, adr_id="adr_reconcile", status="rejected",
+            decision_ref="mse_extension0000001:d1", update_entry_id="mse_extension0000001",
+            source="derived", reason="Superseded wording.", timestamp="2026-08-08T11:01:00Z",
+        )
+        self.assertTrue(self._propose(root, "Corrected wording.", "2026-08-08T11:02:00Z",
+                                      adr_id="adr_reconcile").ok)
+        record = parse_adr(path)
+        # Reconciling a record against itself is the merge the fuse performs when only one side
+        # moved - it must not invent a conflict.
+        merged, issues = reconcile_adr_records(copy.deepcopy(record), copy.deepcopy(record))
+        self.assertEqual(issues, [])
+        self.assertIsNotNone(merged)
+        self.assertEqual(replay_adr(merged).pending_decisions, ("mse_extension0000001:d1",))
+
     def test_the_live_corpus_is_untouched_by_this_relaxation(self):
         """No live ADR has two proposals for one ref, so first-match and last-match agree."""
         for path in LIVE_ADRS:
