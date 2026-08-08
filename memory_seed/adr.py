@@ -228,25 +228,90 @@ def proposal_for(record: AdrRecord, decision_ref: str | None) -> AdrEvent | None
     return matches[-1] if matches else None
 
 
-def replay_adr(record: AdrRecord) -> AdrState:
-    statuses: dict[str, str] = {}
+@dataclass
+class _Replay:
+    """Mutable cursor for one pass of the ADR state machine."""
+
+    statuses: dict[str, str] = field(default_factory=dict)
     authoritative: str | None = None
     superseded_by: str | None = None
+
+
+def _replay_step(cursor: _Replay, event: AdrEvent, record: AdrRecord, phrase: Any) -> list[str]:
+    """Advance the state machine by ONE event, reporting any state violation.
+
+    **This is the only copy of the replay rules.** `replay_adr`, `validate_adr` and
+    `reconcile_adr_records` all drive this cursor rather than keeping their own loops. They used to
+    keep three, and the divergence bit twice with the same signature both times: a rule changed in
+    one copy, the checks that run it went green, and the copy nobody remembered refused the work
+    later. The founding extension missed this loop first; the 2026-08-08 re-proposal relaxation
+    missed it again and `session merge-branch` - which validates with the RECONCILER - refused 25
+    ADRs that `adr check` had just passed.
+
+    Wording still differs per caller, and legitimately: `validate_adr` reports against one file's
+    event list ("event 4 (revision-proposed) ..."), the reconciler against a merge of two branches
+    ("ADR x has competing acceptance ..."). So `phrase(code, **kw)` renders each violation in the
+    caller's voice, and returning None opts a caller out of reporting that code at all. What must
+    never diverge again is the TRANSITIONS, and those live here.
+    """
+    issues: list[str] = []
+
+    def report(code: str, **kwargs: Any) -> None:
+        text = phrase(code, **kwargs)
+        if text:
+            issues.append(text)
+
+    key = event.revision_key
+    ref = key or ""
+    if event.kind == "revision-proposed":
+        # Only a LIVE ref is a duplicate. A rejected one reopens, which is the only way to correct
+        # a revision's wording: the text is fixed at proposal time and the ledger is append-only.
+        if cursor.statuses.get(ref) in {"proposed", "accepted"}:
+            report("duplicate", ref=ref)
+        if key:
+            cursor.statuses[ref] = "proposed"
+    elif event.kind in {"revision-accepted", "revision-rejected"}:
+        if cursor.statuses.get(ref) != "proposed":
+            report("non_pending", ref=ref, state=cursor.statuses.get(ref))
+        elif event.kind == "revision-accepted":
+            if event.expected_authoritative_decision != cursor.authoritative:
+                report("stale_expected", ref=ref,
+                       expected=event.expected_authoritative_decision)
+            # A founding head is a PLACEHOLDER for "this concern as recorded in the control file",
+            # not a decision in the lineage graph - so nothing can descend from it, and requiring
+            # descent would strand every founded ADR at its founding head forever. Descent is still
+            # required between two real decisions.
+            elif (cursor.authoritative and not cursor.authoritative.startswith("founding:")
+                    and cursor.authoritative not in ancestors(record, ref)):
+                report("no_descent", ref=ref, authoritative=cursor.authoritative)
+            cursor.authoritative = ref
+            cursor.statuses[ref] = "accepted"
+        else:
+            cursor.statuses[ref] = "rejected"
+    elif event.kind == "adr-superseded":
+        if (cursor.superseded_by or not cursor.authoritative or not event.replacement_adr
+                or not ADR_ID_RE.fullmatch(event.replacement_adr or "")):
+            report("bad_supersession")
+        if event.expected_authoritative_decision != cursor.authoritative:
+            report("stale_expected_supersede", expected=event.expected_authoritative_decision)
+        cursor.superseded_by = event.replacement_adr
+    return issues
+
+
+def _silent(_code: str, **_kwargs: Any) -> None:
+    """Phrase renderer for callers that want the state machine but none of its complaints."""
+    return None
+
+
+def replay_adr(record: AdrRecord) -> AdrState:
+    cursor = _Replay()
     for event in record.events:
-        key = event.revision_key
-        if event.kind == "revision-proposed" and key:
-            statuses[key] = "proposed"
-        elif event.kind == "revision-accepted" and key:
-            statuses[key] = "accepted"
-            authoritative = key
-        elif event.kind == "revision-rejected" and key:
-            statuses[key] = "rejected"
-        elif event.kind == "adr-superseded":
-            superseded_by = event.replacement_adr
+        _replay_step(cursor, event, record, _silent)
+    statuses = cursor.statuses
     pending = tuple(ref for ref, status in statuses.items() if status == "proposed")
     rejected = tuple(ref for ref, status in statuses.items() if status == "rejected")
-    status = "superseded" if superseded_by else "accepted" if authoritative else "proposed" if pending else "rejected" if statuses else "invalid"
-    return AdrState(status, authoritative, statuses, pending, rejected, superseded_by)
+    status = "superseded" if cursor.superseded_by else "accepted" if cursor.authoritative else "proposed" if pending else "rejected" if statuses else "invalid"
+    return AdrState(status, cursor.authoritative, statuses, pending, rejected, cursor.superseded_by)
 
 
 def current_proposal(record: AdrRecord) -> AdrEvent | None:
@@ -488,43 +553,30 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
         sorted(events.values(), key=lambda event: (event.timestamp, event.event_id)),
         base.path,
     )
-    states: dict[str, str] = {}
-    authority: str | None = None
+    # The rules themselves live in `_replay_step`; this only says them in the reconciler's voice.
+    # `revision_key`, not `decision_ref`: a founding revision carries no decision_ref, and keying on
+    # decision_ref silently skipped it - its acceptance then looked like a transition against a
+    # non-pending revision and every later acceptance looked like a competing one.
+    def phrase(code: str, **kw: Any) -> str | None:
+        adr = base.adr_id
+        if code == "duplicate":
+            return f"ADR {adr} has duplicate revision {kw['ref']}"
+        if code == "non_pending":
+            return f"ADR {adr} transition targets non-pending revision {kw['ref']}"
+        if code == "stale_expected":
+            return (f"ADR {adr} has competing acceptance for {kw['ref']}; "
+                    f"expected {kw['expected'] or 'no head'}, replay has "
+                    f"{cursor.authoritative or 'no head'}")
+        if code == "no_descent":
+            return f"ADR {adr} acceptance {kw['ref']} does not descend from {kw['authoritative']}"
+        # Supersession is validated by `validate_adr` against the single file. A merge only has to
+        # agree that the two branches' event sets compose, so the reconciler stays silent here
+        # rather than newly refusing merges it has always allowed.
+        return None
+
+    cursor = _Replay()
     for event in merged.events:
-        # revision_key, not decision_ref: a founding revision carries no decision_ref, and keying
-        # on decision_ref silently skipped it - so its acceptance then looked like a transition
-        # against a non-pending revision and every later acceptance looked like a competing one.
-        # This loop is a third copy of the replay rules (replay_adr and validate_adr hold the
-        # others); the founding extension updated those two and missed this one.
-        key = event.revision_key
-        if event.kind == "revision-proposed" and key:
-            # Same rule as `validate_adr`: only a LIVE ref cannot be re-proposed. A rejected one
-            # reopens, which is how a summary written from bad evidence gets corrected at all.
-            # Keeping the two in step is the whole point of the warning above - the 2026-08-08
-            # relaxation updated `validate_adr` and missed this copy, so `adr check` went green on
-            # the branch while `merge-branch`, which validates with main's reconciler, refused 25
-            # ADRs at once.
-            if states.get(key) in {"proposed", "accepted"}:
-                issues.append(f"ADR {base.adr_id} has duplicate revision {key}")
-            states[key] = "proposed"
-        elif event.kind in {"revision-accepted", "revision-rejected"}:
-            ref = key or ""
-            if states.get(ref) != "proposed":
-                issues.append(f"ADR {base.adr_id} transition targets non-pending revision {ref}")
-                continue
-            if event.kind == "revision-accepted":
-                if event.expected_authoritative_decision != authority:
-                    issues.append(
-                        f"ADR {base.adr_id} has competing acceptance for {ref}; "
-                        f"expected {event.expected_authoritative_decision or 'no head'}, replay has {authority or 'no head'}"
-                    )
-                # A founding head is a placeholder, not a graph node - nothing descends from it.
-                elif authority and not authority.startswith("founding:") and authority not in ancestors(merged, ref):
-                    issues.append(f"ADR {base.adr_id} acceptance {ref} does not descend from {authority}")
-                authority = ref
-                states[ref] = "accepted"
-            else:
-                states[ref] = "rejected"
+        issues.extend(_replay_step(cursor, event, merged, phrase))
     return (None, issues) if issues else (merged, [])
 
 
@@ -639,10 +691,27 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
     if not record.events:
         return [*issues, "ADR sidecar must contain at least one event"]
     ids: set[str] = set()
-    statuses: dict[str, str] = {}
-    authoritative: str | None = None
+    # State transitions come from `_replay_step` - the single copy - and are only WORDED here.
+    # `statuses` and `authoritative` below are read-only views onto that cursor, used by the
+    # structural checks that need to know what the replay has seen so far.
+    cursor = _Replay()
+    label = ""
+
+    def phrase(code: str, **kw: Any) -> str | None:
+        if code == "duplicate":
+            return f"{label} duplicates revision {kw['ref']}"
+        if code == "non_pending":
+            return f"{label} targets revision in state {kw['state'] or 'missing'}"
+        if code in {"stale_expected", "stale_expected_supersede"}:
+            return f"{label} has stale expected_authoritative_decision"
+        if code == "no_descent":
+            return f"{label} does not descend from authoritative decision {kw['authoritative']}"
+        if code == "bad_supersession":
+            return f"{label} is invalid ADR supersession"
+        return None
+
+    statuses = cursor.statuses
     last_timestamp: datetime | None = None
-    superseded = False
     for index, event in enumerate(record.events, 1):
         label = f"event {index} ({event.kind})"
         if event.kind not in EVENT_TYPES:
@@ -685,14 +754,7 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
                     issues.append(f"{label} founding events cannot assert predecessors (no decision to anchor the link grammar)")
             else:
                 issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
-            # A ref that is live - proposed or accepted - cannot be proposed twice; that would put
-            # two competing texts on one decision with no way to tell which the ADR rests on. A
-            # REJECTED ref may be proposed again, because the ledger is append-only and there is
-            # otherwise no way to correct a revision's wording: the text is fixed at proposal time
-            # and the same decision is the only honest thing to key the correction on.
-            if statuses.get(ref) in {"proposed", "accepted"}:
-                issues.append(f"{label} duplicates revision {ref}")
-            statuses[ref] = "proposed"
+            issues.extend(_replay_step(cursor, event, record, phrase))
             if not event.decision.strip() or not event.why.strip():
                 issues.append(f"{label} requires Decision and Why")
             for predecessor in event.predecessors:
@@ -708,23 +770,7 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
             ref = event.revision_key or ""
             if not ref.startswith("founding:"):
                 issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
-            if statuses.get(ref) != "proposed":
-                issues.append(f"{label} targets revision in state {statuses.get(ref) or 'missing'}")
-            elif event.kind == "revision-accepted":
-                if event.expected_authoritative_decision != authoritative:
-                    issues.append(f"{label} has stale expected_authoritative_decision")
-                # A founding head is a PLACEHOLDER for "this concern as recorded in the control
-                # file", not a decision in the lineage graph - so no real decision can ever descend
-                # from it, and requiring descent would strand every founded ADR at its founding
-                # head forever. A real session decision naming the concern supersedes the
-                # placeholder; that convergence is the whole point of founding sources. Descent is
-                # still required between two real decisions.
-                founding_head = bool(authoritative and authoritative.startswith("founding:"))
-                if authoritative and not founding_head and authoritative not in ancestors(record, ref):
-                    issues.append(f"{label} does not descend from authoritative decision {authoritative}")
-                authoritative, statuses[ref] = ref, "accepted"
-            else:
-                statuses[ref] = "rejected"
+            issues.extend(_replay_step(cursor, event, record, phrase))
         elif event.kind == "context-added":
             # Soft attachment: evidence only. No decision_ref, no predecessors, no status effect -
             # every ref must still resolve, so context cannot smuggle in an unverifiable claim.
@@ -743,11 +789,7 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
                 if matched not in adr_membership(record):
                     issues.append(f"{label} matched decision {matched} is not in ADR lineage")
         elif event.kind == "adr-superseded":
-            if superseded or not authoritative or not event.replacement_adr or not ADR_ID_RE.fullmatch(event.replacement_adr):
-                issues.append(f"{label} is invalid ADR supersession")
-            if event.expected_authoritative_decision != authoritative:
-                issues.append(f"{label} has stale expected_authoritative_decision")
-            superseded = True
+            issues.extend(_replay_step(cursor, event, record, phrase))
     if record.events[0].kind != "revision-proposed":
         issues.append("the first ADR event must be revision-proposed")
     return issues
@@ -843,9 +885,18 @@ def adr_review_context(cwd: str | Path, targets: Sequence[str]) -> list[dict[str
     for record, matched in matched_records:
         item = adr_to_dict(record)
         item["matched_decisions"] = matched
+        membership = sorted(adr_membership(record))
+        # `_excerpts` is a misnomer worth keeping in mind: it truncates nothing, it returns each
+        # decision's whole body. What it CAN do is fail to find one - it walks session documents
+        # and skips any it cannot read - and the old `excerpts.get(ref, "")` turned that miss into
+        # an empty string. The reviewing agent then saw evidence-shaped emptiness and could not
+        # tell "this decision has no body" from "this decision was never located", while still
+        # being required to return accept/revise/no-change for the ADR. Naming the miss is the
+        # whole fix: a gate may rule on absent evidence, but not without being told it is absent.
         item["source_excerpts"] = {
-            ref: excerpts.get(ref, "") for ref in sorted(adr_membership(record))
+            ref: excerpts[ref] for ref in membership if ref in excerpts
         }
+        item["unresolved_decisions"] = [ref for ref in membership if ref not in excerpts]
         contexts.append(item)
     return contexts
 
