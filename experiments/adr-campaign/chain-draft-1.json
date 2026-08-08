@@ -1,0 +1,109 @@
+[
+ {
+  "area": "trail",
+  "adr_id": "adr_trail_lifecycle_visualization",
+  "title": "Trail: lifecycle visualization and decision-level row rendering",
+  "head": "mse_zm2h343r4shfre3j:d2",
+  "topics": [
+   "memory-trace",
+   "ui-design",
+   "lifecycle-edges"
+  ],
+  "decision": "The Trail displays lifecycle edges (supersedes/evolves/related) between entries and decisions by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision, grouped under an anchor row, with edge selection scoped by entry so clicking any row in a group lights the entire entry's lineage.",
+  "why": "The decision-level edges were recorded but invisible - every decision-level edge drew only on select, so the finest lineage links in the corpus were dark until clicked, and 189 entry-level evolves were equally hidden. Draw all three classes and let weight and opacity carry hierarchy, so history links read as quiet background rather than a wall. Decision rows must compute visibility and grouping by entry identity because selection state is entry-scoped, which is what stops a group from splitting.",
+  "evolution": "2026-07-18 shipped the vanilla Trail as a B0b presentation mode; 2026-07-19 stabilised scroll and opened a new corpus at the top; 2026-07-21 surfaced decisions as Trail rows via section chunks, then made D1 a heading with D2..DN as subheadings; 2026-07-24 drew all lifecycle edges by default with three-class weighting.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#explainability",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#evidence-first",
+    "role": "supporting"
+   }
+  ],
+  "quote": "The default view draws every lifecycle edge, ranked by precision: decision->decision (class 1) and entry<->decision (class 2) solid and bold; entry->entry (class 3) dashed and light.",
+  "quote_ref": "mse_zm2h343r4shfre3j:d2",
+  "note": ""
+ },
+ {
+  "area": "topic-vocabulary",
+  "adr_id": "adr_topic_vocabulary_controlled",
+  "title": "Topic vocabulary: controlled, alias-preserving, canonicalised at read time",
+  "head": "mse_jz0pwv0ngzzxr484:d1",
+  "topics": [
+   "topic-vocabulary",
+   "graph",
+   "retrieval"
+  ],
+  "decision": "The project maintains a controlled canonical topic vocabulary in `.memory-seed/topics.yaml` as a deploy-once project-local file that update never overwrites. Authored entries carry 1-3 slugs validated against the canonical list; aliases resolve to canonical slugs at read time, preserving every observed historical slug in the alias table. The inferred-topic cap is 4, matching the corpus-authored maximum. Unknown topics are errors; overreach warns only.",
+  "why": "Usage-derived vocabulary was necessary because topic sprawl had already materialised - 62 slugs across 50 entries. Deriving from real usage plus alias preservation made the corpus validate with zero errors on day one, and deploy-once protects curation from update overwrites. Capping at 4 reflects the authored maximum: a genuinely four-facet entry should not be rejected for inferring a fourth topic, which would hold the inference path to a stricter standard than the author.",
+  "evolution": "2026-07-10 consolidated 62 observed slugs into 19 canonicals with alias preservation; 2026-07-12 added ui-design and memory-seed; 2026-07-19 added security and performance, growing to 23; 2026-07-25 raised the cap from 3 to 4 to match the corpus.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#topic-vocabulary",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#append-only",
+    "role": "supporting"
+   }
+  ],
+  "quote": "`MAX_INFERRED_TOPICS` goes from 3 to 4 — the corpus authored maximum.",
+  "quote_ref": "mse_jz0pwv0ngzzxr484:d1",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ },
+ {
+  "area": "retrieval",
+  "adr_id": "adr_retrieval_entry_granularity",
+  "title": "Retrieval: entry-level chunks as default, with optional section granularity",
+  "head": "mse_pwwz3ys324ght2qs:d1",
+  "topics": [
+   "retrieval",
+   "memory-trace",
+   "control-plane"
+  ],
+  "decision": "The memory-retrieval service uses session entries (delimited by `##` headings) as the default coherent chunk boundary, with `entry_id` as the chunk id. Section granularity is optional for querying long or multi-topic entries. Rollup and windowing live in the service; the MCP surface adapts presentation only. The retrieval service is extracted from the MCP implementation - both run the same service code, with parity proven by tests.",
+  "why": "A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation and validation - separating a decision from its rationale loses too much context, so entry-level retrieval is the normal agent-memory behaviour. The service extraction lets retrieval and MCP evolve without drift, and parity tests lock the contract down.",
+  "evolution": "2026-05-26 established entry chunks as the default MCP memory unit; 2026-07-05 extracted the retrieval service from MCP, making MCP a wrapper with proven parity, and placed rollup in the service with the UI adapting only.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#minimal-context",
+    "role": "supporting"
+   }
+  ],
+  "quote": "collapse ranked entry+section results to one rollup per session entry, ranker order preserved",
+  "quote_ref": "mse_pwwz3ys324ght2qs:d1",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ },
+ {
+  "area": "windows-encoding",
+  "adr_id": "adr_windows_encoding_policy",
+  "title": "Encoding policy is owned by Memory Seed, with explicit check and repair tooling",
+  "head": "mse_74ddxsena9nj2afk:d1",
+  "topics": [
+   "windows-encoding",
+   "seed-core"
+  ],
+  "decision": "Encoding policy - UTF-8, LF, NFC normalisation - is owned by Memory Seed and never duplicated in Memory Trace. Explicit check and repair tooling validates files and reports normalisations safely; invalid UTF-8 and likely mojibake stay blocked for manual review rather than being repaired automatically.",
+  "why": "Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NFC policy, exclusions and backup behaviour consistent rather than letting two copies drift. Automatic repair is rejected because the intended source characters cannot be inferred from corrupted bytes, so a repair would be a guess written as a correction.",
+  "evolution": "2026-07-07 implemented the encoding policy; 2026-07-08 added the encoding check slice, then confirmed Memory Seed as the single owner and added explicit check/repair tooling.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#prove-automation",
+    "role": "supporting"
+   }
+  ],
+  "quote": "One owner keeps UTF-8/LF/NFC policy, exclusions, backup behavior, and static enforcement consistent.",
+  "quote_ref": "mse_74ddxsena9nj2afk:d1",
+  "note": ""
+ }
+]

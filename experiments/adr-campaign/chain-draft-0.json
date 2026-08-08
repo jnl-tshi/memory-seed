@@ -1,0 +1,110 @@
+[
+ {
+  "area": "docs-lifecycle",
+  "adr_id": "adr_inbox_promotion_workflow",
+  "title": "Inbox promotion: conservative triage, one owner per workstream",
+  "head": "mse_2geqfa8tg182a77p:d1",
+  "topics": [
+   "proposal-lifecycle",
+   "documentation",
+   "decision-harvest"
+  ],
+  "decision": "Inbox items are promoted to the active roadmap only when evidence supports actionability. Where many proposals overlap, a distilled crosswalk becomes the surviving record and the individual sources are retired once their deltas are confirmed or merged into an active owner. Every workstream has exactly one owner.",
+  "why": "The inbox accumulated overlapping proposals drafted against stale assumptions, several of which read as missing capability only because they predated the code that shipped them. One distilled crosswalk plus deliberate ownership prevents competing contracts and duplicated lifecycle tracking, and keeps the roadmap something a reader can trust.",
+  "evolution": "2026-07-08 promoted actionable graph and topic ideas into the roadmap; 2026-07-16 rebaselined the platform review against shipped state and folded 14 inbox documents into owned roadmap items; 2026-07-20 retired both proposal sets, leaving the crosswalk as the surviving record.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#markdown-authority",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "supporting"
+   }
+  ],
+  "quote": "One active owner per workstream prevents competing contracts and makes dependencies explicit.",
+  "quote_ref": "mse_ddba1ztxqhasfbwf:d2",
+  "note": ""
+ },
+ {
+  "area": "docs-lifecycle",
+  "adr_id": "adr_documentation_lane_structure",
+  "title": "Documentation lanes: folder is lifecycle state, with a skill codifying the flow",
+  "head": "mse_djvwtfx02kjr5j1n:d2",
+  "topics": [
+   "documentation",
+   "proposal-lifecycle",
+   "session-logging"
+  ],
+  "decision": "Documentation folders are lifecycle lanes - intake, active planning, live spec, reference, and terminal outcomes. An active proposal carries a status block and completion criteria; a completed one moves lane with its supersession pointers intact. A seeded `proposal_lifecycle` skill codifies the flow and its gates.",
+  "why": "The lanes had been reorganised ad hoc across several sessions, leaving stale cross-references and unclear boundaries. Making the folder the state, and enforcing it through a reusable skill, keeps the roadmap discoverable, prevents duplicate work, and makes proposal status readable without opening every document.",
+  "evolution": "2026-07-02 separated completed work from active and fixed the cross-references it broke; 2026-07-03 reorganised placement and refreshed the audit; 2026-07-04 moved three implemented plans across; 2026-07-12 added the seeded `proposal_lifecycle` skill.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#folder-lifecycle",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "supporting"
+   }
+  ],
+  "quote": "documented the participant-count session-layout gate, the SessionStart identity-offer hook",
+  "quote_ref": "mse_djvwtfx02kjr5j1n:d2",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ },
+ {
+  "area": "retrieval",
+  "adr_id": "adr_mcp_metadata_and_filters",
+  "title": "MCP retrieval metadata and filters: read-only, applied before ranking",
+  "head": "mse_dbt6c32kk5dk55xs:d1",
+  "topics": [
+   "mcp-tools",
+   "multi-user-sessions",
+   "retrieval"
+  ],
+  "decision": "`memory_search` and `memory_get_chunk` expose per-entry user, session date, path and file hash as read-only metadata. `memory_search` accepts user and date-range filters, applied BEFORE ranking. `exclude_superseded` is opt-in and never defaults on. No ranking weight is derived from a filter.",
+  "why": "Filtering before ranking keeps retrieval deterministic and each constraint orthogonal, so a client can compose them without the ranker quietly reinterpreting the result. `exclude_superseded` stays opt-in because retrieval must never hide live history by default.",
+  "evolution": "2026-06-15 planned the metadata and filter surface and added user and date filters; the same day shipped the read-only filterable API over the session layout; 2026-07-04 completed the contract with the opt-in `exclude_superseded` filter.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#retrieval-transparency",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#evidence-first",
+    "role": "supporting"
+   }
+  ],
+  "quote": "it builds the related-entry graph, collects entry_ids with a non-empty `superseded_by`",
+  "quote_ref": "mse_dbt6c32kk5dk55xs:d1",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ },
+ {
+  "area": "upgrade-workflow",
+  "adr_id": "adr_safe_process_and_upgrade_workflow",
+  "title": "Safe process and upgrade workflow: discover, dry-run, then confirm",
+  "head": "mse_etm5m5682sseasgm:d3",
+  "topics": [
+   "upgrade-workflow",
+   "process-management",
+   "release-packaging"
+  ],
+  "decision": "Process discovery is conservative and shared, exposed through `processes`, `shutdown --dry-run` and `upgrade --dry-run` with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the `memory-seed[trace]` extra, so upgrade is coordinated through the core package, and each worktree owns its own Trace process state.",
+  "why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection has to precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step, and per-worktree ownership stops one worktree's upgrade from killing another's running UI.",
+  "evolution": "2026-07-08 implemented conservative process discovery with dry-run commands, then completed safe shutdown and upgrade behind a confirmation gate; 2026-07-12 pivoted to the `memory-seed[trace]` extra and resolved process ownership through the core package with per-worktree matching.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#prove-automation",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#immediate-value",
+    "role": "supporting"
+   }
+  ],
+  "quote": "`memory-trace upgrade` now upgrades the owning `memory-seed` package while process matching still targets active `memory-trace` UI processes.",
+  "quote_ref": "mse_etm5m5682sseasgm:d3",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ }
+]

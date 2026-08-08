@@ -1,0 +1,106 @@
+[
+ {
+  "area": "trail",
+  "suggested_head": "mse_zm2h343r4shfre3j:d2",
+  "members": [
+   {
+    "ref": "mse_74fb71s2cdrwqrqp:d1",
+    "when": "2026-07-18 10:30",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d1",
+    "when": "2026-07-19 13:11",
+    "title": "D1 - Middle-third stability band with distance-eased scrolling"
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d2",
+    "when": "2026-07-19 13:11",
+    "title": "D2 - A new corpus opens at the top"
+   },
+   {
+    "ref": "mse_9wsn23n3k8txnm2m:d1",
+    "when": "2026-07-21 16:50",
+    "title": "D1 - Surface decisions as Trail rows via the section chunks that already carry t"
+   },
+   {
+    "ref": "mse_t5bbdstgmqzagn2y:d1",
+    "when": "2026-07-21 19:47",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d2",
+    "when": "2026-07-24 21:06",
+    "title": "D2 - The Trail draws all lifecycle edges by default, weighted by a three-class g"
+   }
+  ]
+ },
+ {
+  "area": "topic-vocabulary",
+  "suggested_head": "mse_jz0pwv0ngzzxr484:d1",
+  "members": [
+   {
+    "ref": "mse_ehm67mqpmsqm00md:d1",
+    "when": "2026-07-10 16:13",
+    "title": "D1 - Vocabulary derived from usage, aliases preserve every observed slug"
+   },
+   {
+    "ref": "mse_vy8tq90rr4br8a0z:d1",
+    "when": "2026-07-12 11:49",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ke0f6x2v8zmd3yrf:d1",
+    "when": "2026-07-19 20:15",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_jz0pwv0ngzzxr484:d1",
+    "when": "2026-07-25 11:13",
+    "title": "D1 - Raise the inferred-topic cap to 4 to match the corpus, not hold the machine"
+   }
+  ]
+ },
+ {
+  "area": "retrieval",
+  "suggested_head": "mse_pwwz3ys324ght2qs:d1",
+  "members": [
+   {
+    "ref": "ms-845042c7:d1",
+    "when": "2026-05-26 21:26",
+    "title": "D1 - Make entry chunks the default MCP memory unit"
+   },
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d2",
+    "when": "2026-07-05 12:20",
+    "title": "D2 - Retrieval service extracted; MCP is a wrapper; parity proven by tests"
+   },
+   {
+    "ref": "mse_pwwz3ys324ght2qs:d1",
+    "when": "2026-07-05 12:45",
+    "title": "D1 - Rollup lives in the service (EntryRollup), Lense adapts presentation only"
+   }
+  ]
+ },
+ {
+  "area": "windows-encoding",
+  "suggested_head": "mse_74ddxsena9nj2afk:d1",
+  "members": [
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d2",
+    "when": "2026-07-07 23:18",
+    "title": "D2 - Encoding policy implementation"
+   },
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d2",
+    "when": "2026-07-08 07:49",
+    "title": "D2 - Encoding check slice"
+   },
+   {
+    "ref": "mse_74ddxsena9nj2afk:d1",
+    "when": "2026-07-08 18:40",
+    "title": "D1 - Decision"
+   }
+  ]
+ }
+]
