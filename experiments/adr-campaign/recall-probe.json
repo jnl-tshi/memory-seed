@@ -1,0 +1,74 @@
+[
+ {
+  "adr_id": "adr_decision_identity",
+  "truth": "mse_kdhw53hzp4nh8wwm:d1",
+  "query_chars": 784,
+  "leak_free_chars": 48,
+  "damped": 1,
+  "undamped": 1,
+  "leakfree": 6
+ },
+ {
+  "adr_id": "adr_entry_id_scheme",
+  "truth": "ms-a4282580:d2",
+  "query_chars": 984,
+  "leak_free_chars": 260,
+  "damped": null,
+  "undamped": 1,
+  "leakfree": 2
+ },
+ {
+  "adr_id": "adr_mcp_decision_envelope_review",
+  "truth": "mse_17d0qqh34a07qp5b:d1",
+  "query_chars": 484,
+  "leak_free_chars": 63,
+  "damped": 2,
+  "undamped": 2,
+  "leakfree": 1
+ },
+ {
+  "adr_id": "adr_merge_branch_primitive",
+  "truth": "mse_dr5eprnhrctqeeg3:d1",
+  "query_chars": 1401,
+  "leak_free_chars": 166,
+  "damped": 1,
+  "undamped": 1,
+  "leakfree": 1
+ },
+ {
+  "adr_id": "adr_parent_first_sidecar_transaction",
+  "truth": "mse_17d0qqh34a07qp5b:d2",
+  "query_chars": 543,
+  "leak_free_chars": 71,
+  "damped": 1,
+  "undamped": 1,
+  "leakfree": 3
+ },
+ {
+  "adr_id": "adr_session_decision_authority",
+  "truth": "mse_17d0qqh34a07qp5b:d1",
+  "query_chars": 587,
+  "leak_free_chars": 58,
+  "damped": 2,
+  "undamped": 2,
+  "leakfree": 2
+ },
+ {
+  "adr_id": "adr_topic_backfill_rejected",
+  "truth": "mse_azhh0f71css624jc:d1",
+  "query_chars": 1465,
+  "leak_free_chars": 296,
+  "damped": 1,
+  "undamped": 1,
+  "leakfree": 10
+ },
+ {
+  "adr_id": "adr_topic_vocabulary",
+  "truth": "mse_25zzy3cmdjgrsf69:d1",
+  "query_chars": 1356,
+  "leak_free_chars": 319,
+  "damped": 2,
+  "undamped": 2,
+  "leakfree": 24
+ }
+]

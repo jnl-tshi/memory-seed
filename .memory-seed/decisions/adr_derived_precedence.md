@@ -37,6 +37,10 @@ Closed 2026-07-26 as a precedence hole in the accepted consolidation proposal, w
 - `constitution:v1#provenance` (governing)
 - `constitution:v1#append-only` (supporting)
 
+### Awaiting review
+
+- `mse_x1ha2e26md3q83zv:d1` - Sidecar precedence across families is source rank first, then recency.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -91,3 +95,36 @@ Closed 2026-07-26 as a precedence hole in the accepted consolidation proposal, w
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:31:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#provenance",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_x1ha2e26md3q83zv:d1",
+  "event_id": "adre_63cef7fc22d56c57e124",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.
+
+#### Why
+
+Rests on the session decision that instituted it: "A `derived` block may **never** supersede a `write-time` block for the same subject" (mse_x1ha2e26md3q83zv:d1). Explicitly sets the precedence rule preventing derived blocks from overriding write-time values.
+
+#### Evolution
+
+Founded from .memory-seed/policy.md#L44; this revision moves the concern off that control-file line onto mse_x1ha2e26md3q83zv:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

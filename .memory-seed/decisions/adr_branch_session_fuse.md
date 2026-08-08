@@ -37,6 +37,10 @@ Founded from the control file; implements the structural session merge capabilit
 
 - `constitution:v1#append-only` (governing)
 
+### Awaiting review
+
+- `mse_9c151e4gbkkv1w5v:d1` - memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -83,3 +87,32 @@ Founded from the control file; implements the structural session merge capabilit
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:02:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_9c151e4gbkkv1w5v:d1",
+  "event_id": "adre_982b43dd4057de3d794c",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram sidecars. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>` metadata.
+
+#### Why
+
+Rests on the session decision that instituted it: "Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability." (mse_9c151e4gbkkv1w5v:d1). Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L153; this revision moves the concern off that control-file line onto mse_9c151e4gbkkv1w5v:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

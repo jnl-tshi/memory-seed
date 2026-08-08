@@ -1,0 +1,362 @@
+[
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "concern": "founding:.memory-seed/policy.md#L21",
+  "founding_head": "founding:.memory-seed/policy.md#L21",
+  "candidates": [
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d1",
+    "title": "D1 - Partition Markdown authority by concern",
+    "body": "- D: Ratify Constitution v1.1 and make one append-only Markdown ADR sidecar authoritative for ADR promotion, stable identity, and lifecycle. Original and decision-update entries own rationale/evidence; current status, registries, indexes, databases, and Trace views are derived. - R: - Explicit promotion and a compact lifecycle ledger provide a higher-signal decision corpus than repeated semantic inference over chrono",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d2",
+    "title": "D2 - Make SessionStart AGENTS-first with five-entry recency context",
+    "body": "- D: Claude, Codex, Gemini, and Cursor now receive an `AGENTS.md`-first startup directive plus the five newest applicable session entries in chronological order, spanning recent files when needed; Copilot's static prompt carries the same instructions. Empty/new projects still receive the directive. - R: The old payload listed every heading but injected only one entry body. Five recent entries give bounded continuity ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3114hmpcsyz9ftp1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created a proposal to make the \"consult memory for the *why* before a design/change\" discipline a portable, all-agent control-plane behavior (`docs/2_Todo/proactive-history-retrieval-discipline-proposal.md`). Layered design: sharpen `agent-rules.md` Working Principles into a *proactive* trigger (folded within the line budget), add the before-design/change trigger + a why-vs-current-state note to `history_retriev",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7v4p692txy0a8nkr:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Verdict is adopt-with-refinements, parallel implementers deferred. Adopt: (1) an identity-verification step at worker spawn (confirm `pwd` + `git rev-parse HEAD` against the intended base) before a worker acts; (2) a bounded review→rework loop (cap N iterations, then escalate to a human checkpoint); (3) a validation/CI gate before the review stage, plus a named merge-conflict owner. Reject: rigid per-stage model",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "title": "D1 - Reframe append rule as invariant, not mechanism",
+    "body": "- D: State the append invariant + vendor-neutral mitigation; demote `>>` to optional shell tip. - R: `agent-rules.md` is a contract for any file-reading agent. Mandating `>>` assumed shell/Python access and was platform-unsafe (the heredoc example fails / mis-encodes on Windows PowerShell, this repo's own platform). The durable rule is the invariant; the mechanism belongs to each agent's tooling. - F: `agent-rules.md",
+    "claimed_by": [
+     "adr_append_rule_is_an_invariant"
+    ]
+   },
+   {
+    "ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the Constitution draft (`docs/CONSTITUTION.md`) after a design-conversation exploration of optional implementation layers. Widened the pending \"database\" edit into a general **derived-layer / optional-tier model** and RESOLVED the source-of-truth-under-collaboration fork: **Markdown is authoritative *everywhere*** (Invariant #6 reframed), including a future hosted/collaborative tier — every other store (",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_52cw7g10wmaha5h4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated `index.md` — folded the participant-count session-layout gate and the doctor local-user/participant-mismatch warning into the existing \"Participant registry parsing (current unreleased worktree)\" Design Decision bullet; added a new adjacent bullet for the one-time identity-offer hook (`.memory-seed/.identity-offer-stamp`); added a Topology bullet documenting the `docs/todo/` / `docs/todo/completed/` / `d",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d3",
+    "title": "D3 - Write all 696 mechanically-validated survivors, tier-marked",
+    "body": "- D: Of 838 non-none verdicts, 696 survived mechanical validation (142 quote-ungrounded dropped as the hallucination guard; 117 redundant ordinals normalised to bare rather than dropped). Wrote all 696 as decision-level lifecycle edges - 309 blocks across 36 source-date sidecar files: 166 blocks validator-approved (all edges >=0.7), 143 machine-suggested/unverified (carry a sub-0.7 edge). - R: The user chose to keep ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural governing home, and mirrored to seed",
+    "body": "- D: `.memory-seed/skills/skill_architecture.md`'s \"Startup Contract Boundary\" section - previously stating the qualitative rule with no number at all - gained two sentences naming the enforced 280-line ceiling, the exact test that enforces it, and the principle for what headroom is for (a thin, easy-to-skip, unhooked step over a new feature). `docs/2_Todo/branch-field-provenance.md`'s stale \"~260-line... documented ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ytzf3n0g6gtze690:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created `docs/inbox/multi-agent-fanout-review-workflow-report.md` beside the source image. - R: The report preserves the useful recommendation in a vendor-neutral, local-first form: roles and capability tiers instead of model/provider names, Git worktrees and task packets instead of a hosted orchestration dependency. - F: Added the report file only. - T: Read the generated Markdown back and ran session-link vali",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_58rgfg4n8vfqbvfw:d1",
+    "title": "D1 - Fix the identity, not the immutability",
+    "body": "- D: The fuse's plan and apply phases key link-sidecar blocks by `(entry_id, timestamp)`. The same dated block remains immutable (\"existing link sidecar modified\" fires exactly as before); a new timestamp for a known entry imports as a later declaration; duplicate same-identity blocks are refused as authoring damage. - R: The collision cause was never append-only - it was the one-block-per-entry assumption baked into",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d2",
+    "title": "D2 - Root cause: persona loading is a buried, conditional checklist step with no automatic backstop, unlike session-state recall",
+    "body": "- D: No code change - a diagnosis, offered because JNL asked for one. - R: Traced the actual load path rather than guessing. `.agents/README.md` documents the intended behaviour (\"when an agent starts a session, it reads `_registry.yaml`... and applies those rules\"), and `.memory-seed/agent-rules.md` really does encode it - **step 10 of 10** in the startup checklist: \"If `.agents/_registry.yaml` exists... load all pe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_thggdmry7hf7etp2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Record in `business/wedges/developer-project-memory.md` that the wedge now assumes agents as the primary reader and writer, with four stated consequences - a single never-fragmented store whose concern-scoped views are derived projections, push-first agent consumption with token cost as the ergonomics, Memory Trace as the human surface designed for the rare high-stakes lookup rather than habitual reading, and wr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpjr3zv6wthje8sk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Use compositional ownership: invoke Superpowers directly for independent read-only diagnostic fan-out and multi-task same-session SDD/review, while Memory Seed retains guarded worktrees, parallel code-writing ownership, durable session memory, session-aware integration, consent gates, and cleanup. - R: Superpowers' plan-scoped ledger, file-based task handoffs, exact-range review packages, fix/re-review lifecycle",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_txvnzgxx1gkw0br1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat the long-horizon direction as Constitution-aligned in substance, but not yet fully certified at the document level. - R: The plan preserves local/offline core operation, append-only history, attribution, canonical Memory Seed semantics, model/provider independence, rebuildable projections, and down-rank-never-hide retrieval. However, the four new B0 proposals do not explicitly declare their five-question c",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d1",
+    "title": "D1 - All four flipped to `status: inactive` in `.agents/_registry.yaml`, files and entity names untouched",
+    "body": "- D: `solo-founder`, `developer`, `content-creator`, `copywriter` all changed `status: active` -> `status: inactive`. `entity_name`/`user_name`/`business_name` left in place on all four, matching `researcher`/`sales-rep`'s already-inactive shape being the exception (they were never activated, so never had entities assigned) rather than the rule to imitate. - R: `end_of_turn.md`'s Persona Usage Check is explicit that ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d3",
+    "title": "D3 - One stable order for same-minute entries, across fuse and reorder",
+    "body": "- D: The fuse writers sorted ties on `(timestamp, entry_id)` while `session reorder` sorted on original file order, and `_records_are_chronological` validated timestamps only. Both paths now break same-minute ties by input order (a stable sort over `[existing-file-order..., incoming...]`), so existing entries keep their positions and incoming ones append after same-minute neighbours. - R: The disagreement let a file ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jrakvf3j55prrshd:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Wrote `docs/inbox/agent-fanout-workflow-consolidated.md`. Took the 9-gate structure from the Codex parallel synthesis (it added a dedicated Worker Identity Gate with concrete preflight commands, a full per-stage capability-tier table, and a task-packet YAML schema diff — all more concrete than my own synthesis had), and folded in what only my synthesis had: explicit per-source attribution, and the connection bet",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Moved `NEXT_STEPS.md` to `docs/todo/NEXT_STEPS.md` (`git mv`), fixed the two live-file references (`.memory-seed/index.md` topology line, `docs/functionality-audit.md`) and all six now-relative internal links inside the file itself. Wrote five new plan docs — `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, `interaction-frequency-ranking-plan.md`, `mermaid-usage-guidance-plan.md`, `failed-approa",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memor",
+    "claimed_by": [
+     "adr_mcp_integration_surface"
+    ]
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_release_topology",
+  "title": "Publish via GitHub Release with manual PyPI gate",
+  "concern": "founding:.memory-seed/policy.md#L72",
+  "founding_head": "founding:.memory-seed/policy.md#L72",
+  "candidates": [
+   {
+    "ref": "mse_205vnae3pk91r1xn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Released via the established flow: `git push origin main` → `gh release create v2.14.0 --target main` → publish workflow `28683120449`. Build job (tests + `uv build`) passed in 10s; the run is now paused at the `pypi` environment's manual-approval gate, awaiting the maintainer's click — deliberately left to the user since the PyPI push is irreversible. - R: Repository publish process is release-driven through Gi",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-72aa01ec:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Published release records in ascending version order: `v2.8.0` first from existing tag `c7f9ec5`, then `v2.9.0` after creating/pushing the tag at `23fc06b`. - R: The `publish.yml` workflow triggers on GitHub Release publication, not tag push; the user wanted both versions visible in GitHub Actions/PyPI flow. - F: GitHub Releases created: `https://github.com/jnl-tshi/memory-seed/releases/tag/v2.8.0` and `https://",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-9d3a51c6:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Committed the functionality-audit refresh + session log as `docs: refresh functionality audit to 2.10` (`cd375a3`, explicit paths so the tracked `demo/.memory-seed/*` housekeeping stayed out). Pushed `main` (`52361e7..cd375a3`, carrying the previously-unpushed `ee49ce6`), tagged **`v2.10.0`** and pushed it, created the GitHub Release → triggered `publish.yml` (run `27516012644`). Build/test job passed; **approve",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-a8d0fc47:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Shipped 2.6.0 as three logical commits on `main` (`0249b0a` release product + control plane; `6a7efe9` docs/todo roadmap; `31bd1e6` dogfood configs + session logs), tagged `v2.6.0`, pushed, created the GitHub Release. `demo/` left untracked per convention. User approved the `pypi` manual-approval gate; PyPI went 2.5.0 → 2.6.0. - R: User chose \"2.6.0 (no bump)\" + \"split into logical commits\". The publish.yml `pyp",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4x6z8b1c3d5f7h9j:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created GitHub Release `v2.13.0` targeting `main` and approved the `pypi` environment deployment for the release workflow. - R: The repository publish process is release-driven through GitHub Actions and the PyPI trusted-publisher environment gate. - F: GitHub Release `https://github.com/jnl-tshi/memory-seed/releases/tag/v2.13.0`; workflow run `28487385607`; PyPI wheel and sdist for `memory-seed==2.13.0`. - T: P",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1n3351qgep3xwa6y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Prepared the 2.17.0 release per the repaired runbook: bumped every version surface (`pyproject.toml` 2.17.0, control-plane `VERSION` 2.17, `memory-system-version:` in 130 markdown files including the root routing files, the version-pin test); folded the CHANGELOG Unreleased section into `## 2.17.0 - 2026-07-10` keeping the standing empty Unreleased header; restored the `.memory-seed/archive/<version>/` snapshot ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_304mqvwvcz3rqq61:d1",
+    "title": "D1 - Decision",
+    "body": "- D: On explicit user approval, pushed the six release commits to origin (`b948495..20630fb`) and created GitHub Release v2.17.0 with CHANGELOG-derived notes; publish.yml run 29101112009 is at the `pypi` environment gate awaiting the maintainer's approval for the irreversible PyPI upload. - R: Goal-run S4 release gate, taken per the user's \"Push + create release\" choice; every commit was suite-green and links-clean a",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d2",
+    "title": "D2 - Retire standalone Trace publishing",
+    "body": "- D: Removed the standalone Memory Trace project metadata and PyPI workflow. - R: The main package is now the release artifact, so a second trusted-publishing workflow would be stale and dangerous. - F: Removed `memory-trace/pyproject.toml` and `.github/workflows/publish-memory-trace.yml`; updated `.github/workflows/publish.yml` to install `memory-seed[trace]` and run Trace tests before release builds.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ksp4agbh7rpn21wq:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Ship the OpenSSF in-repo slice, greenlit by JNL after the implementation-plan checkpoint: `SECURITY.md` (G0 + the Sigstore/SLSA \"Verifying a release\" documentation of Proposals 3-4), `CONTRIBUTING.md`, CodeQL and Scorecard workflows, README badges, and hardening of both existing workflows - every third-party action pinned to a full commit SHA at its **current major** (pinning, not upgrading), least-privilege tok",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ejpbz4qqsbdx0hvc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Stop before publishing a GitHub Release because the core package is still versioned as `2.16.0`. - R: The active roadmap calls for Memory Seed 2.17 before `memory-trace 0.1.0`; publishing from the current `pyproject.toml` would create a release/version mismatch. - A: Release creation remains gated for explicit approval after the version/changelog/tag prep is complete. - F: `.memory-seed/sessions/2026-07-08.md`, ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hvv1yxce344xex7k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Release 2.18.0 published end-to-end: 65 local commits pushed to origin, GitHub Release v2.18.0 created from the folded CHANGELOG section (runbook path - no workflow dispatch), and the Publish-to-PyPI workflow completed (build + publish both green); PyPI now serves 2.18.0 (wheel + sdist) as latest. During the push, origin was found one commit ahead: GitHub PR #1 had merged `codex-feature-memory-trace-extra` remot",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rn6fbgb7z90ng7jy:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fix `test_lense_command_is_a_deprecation_shim_to_memory_trace` to simulate the core-only environment deterministically (None-patch `memory_trace`/`memory_trace.service` in `sys.modules`) and broaden the shim's `except ModuleNotFoundError` to `except ImportError`. Delete and recreate the v2.19.0 tag/release on the fixed commit. - R: - The first-ever real run of `verify.yml` (added by codex today; my release push ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_sp421s7cxtrbfqha:d1",
+    "title": "D1 - Decision",
+    "body": "- **D:** Make `.github/workflows/verify.yml` the reusable source of truth for routine and release verification; `publish.yml` must call it before packaging. - **R:** This closes the audit gap where release publishing ran only a small root subset and ordinary pushes and pull requests had no equivalent gate. - **A:** The root suite runs before installing the Trace extra because the supported core-only `lense` compatibi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4tdzdds5v9jxje0r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Cut release 2.18.0 per the release_publishing runbook. Bumped every version surface together: `pyproject.toml` (2.18.0), `memory_seed/core.py` VERSION (2.18), the `memory-system-version:` frontmatter across 67 live+seed files (line-anchored replace; historical mentions untouched), the `get_version()` test pin, README version strings/pins, and index.md's Active State version lines. Folded CHANGELOG `## Unreleased",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Committed the ESR work as `Release 2.11.0: generalize ESR routine + seeded /esr command` (`09ab358`, explicit staging — `demo/.memory-seed/*` left out per convention) and the 3.0 plan as `docs: add 3.0 plan` (`878c5a6`). Pushed `main`, tagged **`v2.11.0`** at the release commit, created the GitHub Release → `publish.yml` (run `27517138907`); build/test ✓, **approved the `pypi` gate** via `gh api` (user-authorize",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_h4tfxhfzcm40em0x:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Confirm the release landed and reconcile the roadmap. Verified: GitHub release `v2.19.0` published (not draft), the `release`-triggered `Publish to PyPI` run succeeded, and PyPI now serves `memory-seed` 2.19.0 with both `memory_seed-2.19.0-py3-none-any.whl` and `memory_seed-2.19.0.tar.gz`. Updated `0_NEXT_STEPS.md` from \"Released: v2.18.0 / shipped-but-unreleased tranche\" to \"Released: v2.19.0 (2026-07-17)\", fli",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dpf02qvaymr40nm7:d1",
+    "title": "D1 - Release strategy: cut core 2.17 now, trace 0.1.0 later",
+    "body": "- D: This run prepares and cuts Memory Seed 2.17 (S4); memory-trace 0.1.0 publication is deferred until the user creates the PyPI project + trusted publisher for it (none exists), with a prepared publish workflow shipped in advance so it is one step later. - R: The 2.17 branch-field floor is a hard prerequisite the distribution plan already records, the Unreleased pile (~15 features) is becoming a monster release (su",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_runtime_discovery",
+  "title": "Runtime discovery walks to the nearest .memory-seed",
+  "concern": "founding:.memory-seed/index.md#L120",
+  "founding_head": "founding:.memory-seed/index.md#L120",
+  "candidates": [
+   {
+    "ref": "mse_gbc4m5m71dqmen75:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Generate each fixture by running the real `init_project()` and applying documented per-level strips inside a standalone git repo, pin the MCP server to the local working tree via absolute interpreter plus PYTHONPATH, keep hand-written `index.md`/`policy.md`/vocabulary byte-identical across levels, and treat each fixture's own `.memory-seed/sessions/` as the experiment readout, with `templates/` and `runs/` gener",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes",
+    "body": "- D: Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries for root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. - R: This preserves localized context while keeping the root aware of cross-project consequences. - A: Rejected mirroring sub-project sessions into root memory because that would duplicate noise",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": "D2 - Sub-project runtime created manually, not via memory-seed init",
+    "body": "- D: Create `demo/.memory-seed/` by hand rather than running `memory-seed init` in the demo folder. - R: HyperFrames generates its own AGENTS.md and CLAUDE.md with a required skill routing table. Running memory-seed init would overwrite them and lose that context. Per agent-rules, sub-projects opened non-independently don't need their own routing files. - A: `memory-seed init --force` then restore HyperFrames CLAUDE.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d2",
+    "title": "D2 - Root cause: persona loading is a buried, conditional checklist step with no automatic backstop, unlike session-state recall",
+    "body": "- D: No code change - a diagnosis, offered because JNL asked for one. - R: Traced the actual load path rather than guessing. `.agents/README.md` documents the intended behaviour (\"when an agent starts a session, it reads `_registry.yaml`... and applies those rules\"), and `.memory-seed/agent-rules.md` really does encode it - **step 10 of 10** in the startup checklist: \"If `.agents/_registry.yaml` exists... load all pe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3114hmpcsyz9ftp1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created a proposal to make the \"consult memory for the *why* before a design/change\" discipline a portable, all-agent control-plane behavior (`docs/2_Todo/proactive-history-retrieval-discipline-proposal.md`). Layered design: sharpen `agent-rules.md` Working Principles into a *proactive* trigger (folded within the line budget), add the before-design/change trigger + a why-vs-current-state note to `history_retriev",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_aqsfm061kmekm87m:d1",
+    "title": "D1 - Adopt four Codex harness constants, each forced by an observed failure",
+    "body": "- D: The Codex runner passes `-c projects={\"<run dir>\"={trust_level=\"trusted\"}}`, `--dangerously-bypass-approvals-and-sandbox`, `-c features.apps=false`, and pins the MCP server's `cwd` to the run directory per run rather than in the template. - R: None is cosmetic. Codex loads project-scoped `.codex/config.toml` and `.codex/hooks.json` only for trusted paths and every run directory is a fresh untrusted path, so with",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5ekvf2d0h5e2gw3y:d1",
+    "title": "D1 - Workers load packet + one persona + triggered skills; safety rails stay",
+    "body": "- D: Add the Worker Context Contract to `agent_collaboration.md` and two Task Packet fields (`persona:`, `context_load: packet|full`). A worker skips the full index read, the newest-session recency read, the whole skill registry, and load-all-active-personas. It still runs `base_sha`/preflight and the worktree guard. - R: - Operating Mode Start is written for the primary agent, which must establish current state itse",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added opt-in local user identity, per-user session target creation, and user-aware hooks while keeping no-user installs on the legacy flat session file. - R: This advances the multi-user roadmap without silently moving existing users' write targets; a clone must opt in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or an explicit CLI/user argument. - A: Automatic user inference was not added; guessing wo",
+    "claimed_by": [
+     "adr_session_layout_participant_gating"
+    ]
+   },
+   {
+    "ref": "mse_b2nfkj9yen3x4qvc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fold the proactive \"retrieve the prior reasoning before a design/change decision on non-obvious behavior\" rule into `agent-rules.md` Working Principles (an existing bullet, zero net lines), add the same trigger plus a files-vs-memory division-of-labor note to the `history_retrieval.md` skill, and restate it as a standing habit in the developer persona, all with synced seed twins. - R: The behavior was passive/re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2tfqhnx83p4qf453:d1",
+    "title": "D1 - No new detection; the guard already knew, it was just never asked",
+    "body": "- D: `Location` calls the existing `worktree_guard()` and reports its classification. No new path-inspection, no heuristic, no `.claude/worktrees` string matching. - R: I was about to write posture-detection code before checking whether it existed. Run from the phantom directory, `memory-seed worktree guard` already returns `root-checkout` / `block` / `Worktree path: <primary>` - correct, and correct for the right re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_66xwhhr3thp18d4p:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Record Memory Lense V1 as a current unreleased local UI/service path in the runtime index, including its backend module, static assets, source-of-truth boundary, and verified graph/timeline behavior. - R: The recent Memory Lense work changed durable project topology and active state; leaving it only in session logs would make future agents treat first-class files as an untracked experiment. - F: `.memory-seed/in",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-845042c7:d3",
+    "title": "D3 - Ask the user on unresolved history conflicts",
+    "body": "- D: Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale. If history conflicts with current files and no clear newer supersession boundary exists, agents must ask the user before changing durable behavior. - R: The user wanted ambiguity handled explicitly rather than inferred from partial or conflicting memory. - A: Rejected blindly f",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a0g1wacyk50jvsbd:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Extend ESR's Worktrees section beyond Git's registered set by comparing it with the physical Claude, Codex, Gemini, and Cursor worktree namespaces, surfacing mismatches as `ORPHAN RESIDUE CANDIDATE`, then require a fail-closed recovery, live-consent, exact-path removal, and verification pass in the ESR runbook. - R: Git can deregister a worktree while Windows, OneDrive, long generated paths, or open handles prev",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from g",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpjr3zv6wthje8sk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Use compositional ownership: invoke Superpowers directly for independent read-only diagnostic fan-out and multi-task same-session SDD/review, while Memory Seed retains guarded worktrees, parallel code-writing ownership, durable session memory, session-aware integration, consent gates, and cleanup. - R: Superpowers' plan-scoped ledger, file-based task handoffs, exact-range review packages, fix/re-review lifecycle",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-fbc65d3c:d1",
+    "title": "D1 - Make public and bootstrap docs match the active routing model",
+    "body": "- D: Update `AGENTS.md`, bootstrap docs, README, and CHANGELOG so agents and users see `.memory-seed/skills/index.md`, MCP `granularity`, entry-id chunking, section chunk ids, and sub-project parent/root summaries. - R: End-of-session review found the implementation and agent rules had advanced beyond public and bootstrap documentation. - A: Rejected leaving these as internal-only session facts because new projects a",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-3f7c08e2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Enriched the canonical End Of Turn routine in `agent-rules.md` (+ byte-identical seed twin) with a **consolidation** clause (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`, gated on the existing Consolidation Review Triggers) and a new **baseline-promotion check** step (flag generic adaptations for reuse, record in `.memory-seed/plans/`, create-if-needed). Shipped the routine as a seed",
+    "claimed_by": []
+   }
+  ]
+ }
+]

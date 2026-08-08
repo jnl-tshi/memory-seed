@@ -1,0 +1,47 @@
+[
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "verdict": "primary",
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "quote": "Created `docs/todo/completed/` and moved four fully-shipped planning docs into it",
+    "quote_ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "why": "Implemented lifecycle-folder pattern by creating completed subfolder for terminal docs.",
+    "runner_up": "mse_5hgxywp0n3qsz0dw:d1"
+  },
+  {
+    "adr_id": "adr_encoding_policy",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate addresses encoding policy ownership or enforcement in Memory Seed core.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_legacy_agents_compat",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate in batch addresses .AGENTS/ legacy compatibility mechanism.",
+    "runner_up": "ms-1bcfcc91:d2"
+  },
+  {
+    "adr_id": "adr_runtime_discovery",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate addresses nearest-ancestor .memory-seed/ directory discovery pattern.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_worktree_convention",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate establishes worktree=session or agent/kind/topic branch naming.",
+    "runner_up": "mse_27jbk0z5nkg4jabe:d2"
+  }
+]

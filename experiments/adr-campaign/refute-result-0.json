@@ -1,0 +1,32 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "Decision directly states 'Handle `.claude/settings.json` as a JSON merge rather than a seed file copy,' which institutes the exact rule claimed."
+  },
+  {
+    "adr_id": "adr_agent_selective_install",
+    "verdict": "refuted",
+    "better_ref": "",
+    "reason": "D2 establishes selective installation via project.yaml but does not address the 'remove strips only our entries' requirement; no single candidate fully institutes both aspects of the compound concern."
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "Decision explicitly mandates 'the operator-owned archive snapshot step' as required in release_publishing.md before replacement, instituting the archival requirement."
+  },
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "Decision establishes session fuse as Memory Seed-aware integration validating 'branch: provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability' - the core properties required by the concern."
+  },
+  {
+    "adr_id": "adr_business_separation",
+    "verdict": "refuted",
+    "better_ref": "mse_08nhq28nkm2ecpt4:d1",
+    "reason": "D1 establishes business/ separation from docs/ but does not explicitly mandate the 'documents move, never copy' policy. The better ref explicitly states 'move rather than copy them.'"
+  }
+]

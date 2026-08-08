@@ -1,0 +1,364 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "concern": "founding:.memory-seed/index.md#L124",
+  "founding_head": "founding:.memory-seed/index.md#L124",
+  "candidates": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "title": "D1 - Merge, don't clobber",
+    "body": "- D: Handle `.claude/settings.json` as a JSON merge rather than a seed file copy. - R: Most projects already have a `.claude/settings.json` with permissions, model, etc. Adding it to SEED_FILES would cause `init` to fail on those projects (FileExistsError) or silently wipe their config with `--force`. - A: Keep in SEED_FILES and document \"merge manually\" — rejected because it makes the hook opt-in work and defeats th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xhmnrwf8yxjcspeb:d2",
+    "title": "D2 - Build the file-touch trigger as the reversal-capture mechanism",
+    "body": "- D: New stdlib fail-open hook `.memory-seed/hooks/file-touch-decisions.py` (live + seed), registered as a Claude PostToolUse hook through init_project (_merge_claude_file_touch_hook via the existing _merge_grouped_hook shape), packaged in pyproject and SEED_FILES; per-(session,file) stamp rate-limit; surfaced ids logged to the retrieval log as weight-zero \"file_touch\" events. On editing a file named in an entry's F:",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_aqsfm061kmekm87m:d1",
+    "title": "D1 - Adopt four Codex harness constants, each forced by an observed failure",
+    "body": "- D: The Codex runner passes `-c projects={\"<run dir>\"={trust_level=\"trusted\"}}`, `--dangerously-bypass-approvals-and-sandbox`, `-c features.apps=false`, and pins the MCP server's `cwd` to the run directory per run rather than in the template. - R: None is cosmetic. Codex loads project-scoped `.codex/config.toml` and `.codex/hooks.json` only for trusted paths and every run directory is a fresh untrusted path, so with",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall",
+    "body": "- D: Added `add_agent`/`remove_agent` + `memory-seed agents list|add|remove`. Removal uses generic strippers (`_strip_grouped_hooks`/`_strip_cursor_hooks`/`_strip_mcp_entry`/`_strip_copilot_startup`/`_strip_codex_mcp`) that remove only our entries, delete a config file only when nothing of value remains, never delete shared dirs (`.github`/`.vscode`), back up everything first, and delete routing files by name. Warns ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-6a09aea8:d1",
+    "title": "D1 - Claude MCP server belongs in project-root .mcp.json, not settings.json",
+    "body": "- D: `_merge_claude_mcp` now writes `.mcp.json` at the project root (no `type` field); `.claude/settings.json` keeps hooks/permissions only. - R: Claude Code discovers project-scope MCP servers from `.mcp.json`, `~/.claude.json`, or `claude mcp add` - the `mcpServers` key in `settings.json` is the Cursor/generic format and is silently ignored. The bare {command,args} form (no type) was verified working in the issue r",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-5e366ef4:d2",
+    "title": "D2 - Multi-agent wiring reuses the existing merge framework; Copilot added as 5th agent",
+    "body": "- D: Wired the hook through `core.py` via the existing `_merge_grouped_hook` (Claude/Codex/Gemini `SessionStart`) and `_merge_cursor_event_hook` (Cursor `sessionStart`), registered in both init/update orchestration lists. Added Copilot: `_merge_copilot_mcp` writes repo-local `.github/mcp.json` (`type:local`, `tools:[\"*\"]`), `_merge_copilot_startup_hook` writes `.github/hooks/memory-seed.json` with a **static `prompt`",
+    "claimed_by": [
+     "adr_hook_merge_framework"
+    ]
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Te",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-757053d4:d2",
+    "title": "D2 - GitHub Copilot VS Code surface",
+    "body": "- D: Added `_merge_vscode_mcp` → `.vscode/mcp.json` (the **`servers`** key, not `mcpServers`) and a seeded thin router `.github/copilot-instructions.md` (new SeedFile + seed twin + live copy). Documented the coding-agent path (repo/org settings, manual). Reconciled docs/todo item 5 to reality. - R: Completes the Copilot story started in 2.6.0 (CLI shipped 2026-06-11); VS Code is the surface most users hit and uses a ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-6a09aea8:d2",
+    "title": "D2 - Strip the legacy settings.json block on init/update, ours-only",
+    "body": "- D: Added `_strip_claude_settings_mcp`; removes `mcpServers.memory-seed` from `.claude/settings.json` only when the entry is ours (command in `_OWN_MCP_COMMANDS` or args contain `memory-seed-mcp`), prunes an emptied `mcpServers`, and leaves a foreign server squatting the key untouched. - R: Leaving the dead block invites confusion (looks configured but does nothing). Ours-only deletion protects user customisation. W",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-2cd452e4:d2",
+    "title": "D2 - Surface the trust requirement (Codex's silent-failure trap)",
+    "body": "- D: Project `.codex/config.toml` loads only for *trusted* directories, so the trust step is surfaced in three places: a README caveat next to the Claude one, a one-line note appended in the `--codex` branch of `memory-retrieval-check.py` (live + seed copy), and a non-fatal `doctor` warning (new `DoctorResult.warnings`) when `.codex/hooks.json` exists but the MCP entry is missing. - R: This is the exact class of bug ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-9f3a2b1c:d1",
+    "title": "D1 - Project-scoped hook, not user-global",
+    "body": "- D: Install the Stop hook as `.claude/settings.json` (committed project file) rather than modifying the user's `~/.claude/settings.json`. - R: Project-scoped means every contributor using Claude Code on any memory-seed project gets the enforcement automatically. User-global only fixes one person's device. - A: User-global hook in `~/.claude/settings.json` — rejected because it doesn't ship with the product. - F: `me",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_sngrjb8vqmh3ap8q:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat the previous direct-main edit as a workflow miss to avoid repeating the same pattern. - R: `agent_collaboration.md` says distinct feature, fix, refactor, test, or documentation tasks should use their own task branch unless direct-main work is explicitly chosen; the previous task was a distinct control-plane behavior change. - A: The implicit rationale was proximity to an existing main-tree repair and low p",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jh2n9x7p5bq4r6cd:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat the current setup as subagent-capable but under-specified for efficient parallel subagent workflows. - R: The operating mode states the right orchestration model, but effective subagents need smaller context packets, explicit role assignment, bounded writable scope, and orchestrator-owned memory updates. - F: `.memory-seed/agent-rules.md`, `.memory-seed/index.md`, `.memory-seed/policy.md`, `.memory-seed/sk",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": "D2 - Sub-project runtime created manually, not via memory-seed init",
+    "body": "- D: Create `demo/.memory-seed/` by hand rather than running `memory-seed init` in the demo folder. - R: HyperFrames generates its own AGENTS.md and CLAUDE.md with a required skill routing table. Running memory-seed init would overwrite them and lose that context. Per agent-rules, sub-projects opened non-independently don't need their own routing files. - A: `memory-seed init --force` then restore HyperFrames CLAUDE.",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)",
+    "body": "- D: Cursor (like Codex) reads `AGENTS.md` natively (2026); routing files exist only for agents preferring their own filename (Claude/Gemini/Copilot). Cursor's per-agent artifacts are just `.cursor/hooks.json` + `.cursor/mcp.json`. - R: Confirmed via Cursor 2026 docs; `.cursor/rules/*.mdc` is only for glob-scoped overrides, which memory-seed doesn't need; `.cursorrules` is deprecated.",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-757053d4:d1",
+    "title": "D1 - Fix dead Gemini hook wiring (verified events)",
+    "body": "- D: Repointed Gemini session-log `Stop`→`AfterAgent` and retrieval `UserPromptSubmit`→`BeforeAgent`; added `_strip_gemini_dead_hooks` to remove the stale entries on `update`; aligned the `--gemini` hook output to `hookSpecificOutput.additionalContext`. - R: Verified via geminicli.com/docs/hooks/reference that Gemini exposes neither `Stop` nor `UserPromptSubmit` (turn-end is `AfterAgent`, prompt-submit is `BeforeAgen",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`",
+    "body": "- D: `read_merge_trigger` fail-opens to `automatic`; this repo declares `merge_trigger: manual` in `.memory-seed/project.yaml`. JNL's call, asked before writing. - R: The proposal left the default open (§6.1) and it is the breaking-change lever. Fail-open `manual` would make every seeded project's `session merge-branch` start refusing without a flag on their next update — a behaviour change for all downstream consume",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d2",
+    "title": "D2 - Make SessionStart AGENTS-first with five-entry recency context",
+    "body": "- D: Claude, Codex, Gemini, and Cursor now receive an `AGENTS.md`-first startup directive plus the five newest applicable session entries in chronological order, spanning recent files when needed; Copilot's static prompt carries the same instructions. Empty/new projects still receive the directive. - R: The old payload listed every heading but injected only one entry body. Five recent entries give bounded continuity ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s3t523yvtr39978k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated the control-plane skills to match the new folder-primary document lifecycle, with seed twins. Rewrote `.memory-seed/skills/proposal_lifecycle.md`: the folder IS the lifecycle state; distinct terminal lanes (completed/rejected/superseded/deferred) replace the old single mixed \"completed\"; rejected/superseded are kept, never `git rm`'d; the project's `docs/README.md` front door is the path authority; secon",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_agent_selective_install",
+  "title": "Agent-selective install driven by project.yaml; remove strips only our entries",
+  "concern": "founding:.memory-seed/index.md#L199",
+  "founding_head": "founding:.memory-seed/index.md#L199",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall",
+    "body": "- D: Added `add_agent`/`remove_agent` + `memory-seed agents list|add|remove`. Removal uses generic strippers (`_strip_grouped_hooks`/`_strip_cursor_hooks`/`_strip_mcp_entry`/`_strip_copilot_startup`/`_strip_codex_mcp`) that remove only our entries, delete a config file only when nothing of value remains, never delete shared dirs (`.github`/`.vscode`), back up everything first, and delete routing files by name. Warns ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d1",
+    "title": "D1 - Central AGENTS registry + per-agent tagging",
+    "body": "- D: Added `KNOWN_AGENTS` + `_AGENT_MERGES`/`_AGENT_UNINSTALLS` registries in `core.py`; tagged routing `SeedFile`s with `agent=`; made both init/update orchestration lists registry-driven (`_agent_merges(selected)`). - R: One source of truth for slug -> {routing file, merge ops, uninstall ops}; removes the duplicated 21-row merge tuples; makes filtering trivial. - F: `memory_seed/core.py`.",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)",
+    "body": "- D: `read_project_agents`/`selected_agents`/`write_project_agents` with a dependency-free YAML parser. `init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing). Absent/malformed/no-`agents:` -> None -> ALL. Present-but-empty `agents:` -> empty set (a real zero-agents state, distinct from unconfigured). - R: Keeps every existing project + test byte-identical (advisor's key point). ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d1",
+    "title": "D1 - All four flipped to `status: inactive` in `.agents/_registry.yaml`, files and entity names untouched",
+    "body": "- D: `solo-founder`, `developer`, `content-creator`, `copywriter` all changed `status: active` -> `status: inactive`. `entity_name`/`user_name`/`business_name` left in place on all four, matching `researcher`/`sales-rep`'s already-inactive shape being the exception (they were never activated, so never had entities assigned) rather than the rule to imitate. - R: `end_of_turn.md`'s Persona Usage Check is explicit that ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)",
+    "body": "- D: Cursor (like Codex) reads `AGENTS.md` natively (2026); routing files exist only for agents preferring their own filename (Claude/Gemini/Copilot). Cursor's per-agent artifacts are just `.cursor/hooks.json` + `.cursor/mcp.json`. - R: Confirmed via Cursor 2026 docs; `.cursor/rules/*.mdc` is only for glob-scoped overrides, which memory-seed doesn't need; `.cursorrules` is deprecated.",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-6a09aea8:d2",
+    "title": "D2 - Strip the legacy settings.json block on init/update, ours-only",
+    "body": "- D: Added `_strip_claude_settings_mcp`; removes `mcpServers.memory-seed` from `.claude/settings.json` only when the entry is ours (command in `_OWN_MCP_COMMANDS` or args contain `memory-seed-mcp`), prunes an emptied `mcpServers`, and leaves a foreign server squatting the key untouched. - R: Leaving the dead block invites confusion (looks configured but does nothing). Ours-only deletion protects user customisation. W",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3d80z4k6hb4rftq1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Phase 2c cull, file 3 of the queue: `test_project_lifecycle.py` (39 tests: init/update/doctor/ skills/packaging invariants). Read all 39. Verdict: 39 Keep, 0 changes — each targets a genuinely distinct edge case in a real config-management system (owned-vs-foreign routing files, force/backup/ archive semantics, version-ordering, idempotency). No duplication. - R: Continues the Phase 2c queue under \"Yes continue ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_57e1ek08qq9smwv3:d1",
+    "title": "D1 - Dogfood the local build through `uv run`, and pin the config against a silent revert",
+    "body": "- D: `.mcp.json` becomes `uv run --no-sync python -m memory_seed.mcp_server --stdio`. The published `uvx --from memory-seed` invocation stays as the constant `init` writes into user projects, so nothing changes for anyone downstream. `tests/test_mcp_local_build.py` pins that an update leaves a local-build entry alone. - R: The attention layer, its MCP instrumentation and its A/B gate all shipped today against a serve",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j4s82bgb07vb1vvz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Confirmed scope with the user first (ship as a real product feature; one-time offer, not a per-session nag; implement directly rather than spec-first). Then, per the advisor's flag, first repaired the immediate inconsistency it caught: this session's own `sessions/2026-07-02/jean.md` was folded back into the flat file (previous entry) before writing any new behavior, so the repo wasn't left violating the rule be",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zt6g7hd176qy1kfn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add a central skill catalog in `memory_seed/core.py`, persist skill selection in `.memory-seed/project.yaml`, filter `SEED_FILES` by selected optional skills during `init`/`update`/`doctor`, rewrite `.memory-seed/skills/index.md` from seed registry blocks, and expose `memory-seed skills list|ignored|add|remove` plus init skill flags in `memory_seed/cli.py`. - R: This keeps the package inventory complete while le",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_sdh0v1jsgxaamax5:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Retired `test_memory_seed.py` (6,533 lines, 287 tests across 8 unrelated `unittest.TestCase` classes) - the concentration the audit's own measurements flagged (45% of tests, 78% of wall time in one file). Split it into 12 files by an AST-driven script rather than by hand: the 7 already-cohesive classes moved verbatim (`test_hook_merge.py`, `test_session_log_ordering_hook.py`, `test_mcp_merge.py`, `test_retrieval",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xc3f1we7p4808mra:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `memory-seed` is relabelled \"Memory Seed (residual area)\" and redescribed as a RESIDUAL — use only when no narrower area applies, **never alongside another area slug** — with the narrower owners named explicitly (mcp-tools owns CLI/MCP, retrieval owns search, graph owns edges, session-fuse owns merge machinery, session-logging owns authoring, control-plane owns agent runtime files, release owns packaging). The s",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d2",
+    "title": "D2 - Make the agent-facing control plane say what is now true",
+    "body": "- D: Repaired the falsehoods and documented two rules that shipped without being written down. `functionality-audit.md` section 5 no longer claims \"Every MCP tool is read-only\" and now agrees with its own section 7; `index.md` says 23 topics rather than 19. `session_logging` gains `malformed-entry-yaml`; `agent_collaboration` gains a section on session files not line-merging, including the `links/**` sidecar trap. St",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s3t523yvtr39978k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated the control-plane skills to match the new folder-primary document lifecycle, with seed twins. Rewrote `.memory-seed/skills/proposal_lifecycle.md`: the folder IS the lifecycle state; distinct terminal lanes (completed/rejected/superseded/deferred) replace the old single mixed \"completed\"; rejected/superseded are kept, never `git rm`'d; the project's `docs/README.md` front door is the path authority; secon",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Te",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d3",
+    "title": "D3 - The Skill Loading section's per-skill description list is cut; `skills/index.md` already does that job with more precision",
+    "body": "- D: The 17-bullet, one-line-per-skill description list (23 lines) is replaced by a 3-sentence paragraph: a pointer to `skills/index.md` as the authoritative `load_when`/`do_not_load_when` map, naming only the two skills needed almost every turn (`session_logging.md`, `end_of_turn.md`), and a closing line that everything else routes through the registry. Net effect on the file: -18 lines, more than paying for D2's tw",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d1",
+    "title": "D1 - Bring the roadmap and the inbox back into truth",
+    "body": "- D: Rewrote `0_NEXT_STEPS.md` against `CHANGELOG.md` and code rather than its own prior claims: Constitution v1.2 → v1.3 in all three header positions, a new \"Shipped 2026-07-18/19\" block, and the B2 sentence split so Trail/search parity reads as substantially closed while Storybook, Playwright and accessibility stay open. Added an \"Unscoped discoveries\" section and a P1 entry for a verified data-loss bug. Triaged t",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wh13f4kfxwr083jc:d2",
+    "title": "D2 - The predicate fires only inside a source checkout, so no consumer and no CI run is impugned",
+    "body": "- D: The condition is: cwd or an ancestor holds `memory_seed/__init__.py`, **and** the imported package resolves outside that tree. Path comparison reuses the existing `_is_relative_to_casefold`. `version` and `help` stay runnable; `MEMORY_SEED_ALLOW_FOREIGN_PACKAGE=1` opens the gate for a deliberate cross-version run; falsey values (`0`/`false`/`no`/empty) do not. - R: A seeded consumer project has no `memory_seed/`",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_archive_before_replace",
+  "title": "Archive control-plane snapshots before replacing versioned artifacts",
+  "concern": "founding:.memory-seed/policy.md#L74",
+  "founding_head": "founding:.memory-seed/policy.md#L74",
+  "candidates": [
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from g",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d2",
+    "title": "D2 - Runbook fold/archive steps (approved)",
+    "body": "- D: `release_publishing.md` (live + seed, byte-identical) procedure now includes the full version-bump surface (naming the root-routing-file trap and its guard test), the CHANGELOG fold with the standing empty Unreleased header, the operator-owned archive snapshot step, and the irreversible-PyPI-gate note. - R: Preconditions mentioned fold/archive but no procedure step owned them - S4 would have relied on an incompl",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-a7d29f64:d1",
+    "title": "D1 - Forward-only update via numeric version comparison",
+    "body": "- D: Skip when local `memory-system-version` >= tool `VERSION`, using int-tuple comparison. - R: The old `== VERSION` check was symmetric and allowed downgrades. `>=` makes update forward-only; numeric tuples handle multi-digit ordering (`2.10` > `2.9`) that string compare would break. - A: `packaging.version` — rejected to avoid a new dependency for simple dotted versions. - F: `memory_seed/core.py` (`_version_tuple",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump",
+    "body": "- D: Ship the control-plane version bump as a separate patch release (2.2.1) rather than rolling it into 2.2.0. - R: 2.2.0 was already published. The version bump is a mechanical change with clear standalone value — it enables `memory-seed update` to propagate DRAFT improvements to existing projects. - F: `core.py` VERSION, all 26 seed/installed `.md` frontmatter files, `pyproject.toml`, `tests/test_memory_seed.py`.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dwstzzfnz5w2626v:d2",
+    "title": "D2 - Version bump 2.13 -> 2.14.0",
+    "body": "- D: Bumped `VERSION` in `core.py`, `version` in `pyproject.toml`, the literal test pin, `memory-system-version` frontmatter across 49 control-plane files (byte-level replace, skipping `archive/`, `sessions/`, `docs/`, `demo/`), `index.md` Active State, and folded CHANGELOG's Unreleased into a new `## 2.14.0 - 2026-07-03` section with an empty `## Unreleased` placeholder retained. - R: User chose \"bump once at the en",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_te4e7yvt571nkh16:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Cut 2.19.0 per JNL's explicit go, following `release_publishing.md` exactly: bump every version surface together (pyproject `2.19.0`, core `VERSION = \"2.19\"`, the guard-test literal, 63 `memory-system-version:` frontmatter files incl. root routing files and seed twins, `index.md` version lines), archive `agent-rules.md` + `project-bootstrap.md` under `.memory-seed/archive/2.19/`, and fold the CHANGELOG under `##",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_61bnt9ty6rfgpw1e:d2",
+    "title": "D2 - Left every version stamp alone",
+    "body": "- D: Did not reconcile the version spread - `index.md` says 2.0, `VERSION` says 2.19, the audit's frontmatter says 2.20 - despite editing all three files. - R: Tempting and wrong. The full 644-test suite passes with exactly that spread, so nothing pins doc frontmatter to `VERSION` and leaving it is provably safe. More to the point, 2.20 is plausibly intentional-in-transition rather than drift: the lense-shim removal ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3d80z4k6hb4rftq1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Phase 2c cull, file 3 of the queue: `test_project_lifecycle.py` (39 tests: init/update/doctor/ skills/packaging invariants). Read all 39. Verdict: 39 Keep, 0 changes — each targets a genuinely distinct edge case in a real config-management system (owned-vs-foreign routing files, force/backup/ archive semantics, version-ordering, idempotency). No duplication. - R: Continues the Phase 2c queue under \"Yes continue ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4tdzdds5v9jxje0r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Cut release 2.18.0 per the release_publishing runbook. Bumped every version surface together: `pyproject.toml` (2.18.0), `memory_seed/core.py` VERSION (2.18), the `memory-system-version:` frontmatter across 67 live+seed files (line-anchored replace; historical mentions untouched), the `get_version()` test pin, README version strings/pins, and index.md's Active State version lines. Folded CHANGELOG `## Unreleased",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-9066d377:d1",
+    "title": "D1 - 2.4.0 minor + control-plane 2.3 -> 2.4",
+    "body": "- D: Package 2.3.0 -> 2.4.0 (minor; Codex MCP is a new feature) and control-plane 2.3 -> 2.4. (mandatory) - R: Bumping the control-plane is what makes existing projects receive the reframed agent-rules.md + Codex changes via `memory-seed update` (forward-only skip is keyed on control-plane version). (mandatory) - F: pyproject, core.py VERSION, all live+seed control-plane .md frontmatter (excluded archive/tests/demo),",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Moved `NEXT_STEPS.md` to `docs/todo/NEXT_STEPS.md` (`git mv`), fixed the two live-file references (`.memory-seed/index.md` topology line, `docs/functionality-audit.md`) and all six now-relative internal links inside the file itself. Wrote five new plan docs — `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, `interaction-frequency-ranking-plan.md`, `mermaid-usage-guidance-plan.md`, `failed-approa",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_x82bptzravde7h4x:d2",
+    "title": "D2 - Cut 2.16.0",
+    "body": "- D: Bumped 2.15 -> 2.16 across 55 tracked control-plane .md files (git ls-files scoped - live runtime, seed twins, root AGENTS/CLAUDE/GEMINI routing files, .claude/commands, .github; docs/ deliberately excluded since doc frontmatter records creation-time version), `core.py` VERSION, `pyproject.toml` 2.16.0, the version-pin test, `index.md` state lines, and the audit header. CHANGELOG folded Unreleased into \"## 2.16.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-757053d4:d1",
+    "title": "D1 - Fix dead Gemini hook wiring (verified events)",
+    "body": "- D: Repointed Gemini session-log `Stop`→`AfterAgent` and retrieval `UserPromptSubmit`→`BeforeAgent`; added `_strip_gemini_dead_hooks` to remove the stale entries on `update`; aligned the `--gemini` hook output to `hookSpecificOutput.additionalContext`. - R: Verified via geminicli.com/docs/hooks/reference that Gemini exposes neither `Stop` nor `UserPromptSubmit` (turn-end is `AfterAgent`, prompt-submit is `BeforeAgen",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1n3351qgep3xwa6y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Prepared the 2.17.0 release per the repaired runbook: bumped every version surface (`pyproject.toml` 2.17.0, control-plane `VERSION` 2.17, `memory-system-version:` in 130 markdown files including the root routing files, the version-pin test); folded the CHANGELOG Unreleased section into `## 2.17.0 - 2026-07-10` keeping the standing empty Unreleased header; restored the `.memory-seed/archive/<version>/` snapshot ",
+    "claimed_by": []
+   }
+  ]
+ }
+]

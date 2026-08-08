@@ -1,0 +1,199 @@
+[
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "topics": [
+   "git-workflow",
+   "branch-history"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L153",
+  "candidates": [
+   {
+    "ref": "mse_2x8yysgezex3tbys",
+    "title": "2026-07-30 14:26 - Verify visible safe-merge worktree cleanup"
+   },
+   {
+    "ref": "mse_3x2d61jkn3jstpyg:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_4z9wcanedg82wp16",
+    "title": "2026-07-15 19:01 - Integrate ranking and long-horizon workstream into main"
+   },
+   {
+    "ref": "mse_5mv4dvxfp1tr8v16",
+    "title": "2026-07-10 15:35 - Lifecycle clarification: merge-branch evolves the fuse workfl"
+   },
+   {
+    "ref": "mse_a3wytbb3m7c4tj7w:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "topics": [
+   "lifecycle-edges",
+   "graph"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_07veztrwd4w9tfby:d1",
+    "title": "D1 - \"462 of 603\" was two faults sharing one number"
+   },
+   {
+    "ref": "mse_07vwfbgsk31ec7d6:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0842kjv76f4btrr8:d2",
+    "title": "D2 - Fixed Graph tab + efficiency"
+   },
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge"
+   },
+   {
+    "ref": "mse_0qycwt519qdggrpe:d2",
+    "title": "D2 - The measurement that justified it was wrong the first time"
+   },
+   {
+    "ref": "ms-8e44a1c7:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a4282580:d2",
+    "title": "D2 - Entry IDs and related links"
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5zg50mzrmtx80c80:d2",
+    "title": "D2 - Deterministic evidence score joins the edge-confidence spec as a derived re"
+   },
+   {
+    "ref": "mse_67y44fsj2srz0eyz:d2",
+    "title": "D2 - A decision-level edge suppresses its pair in link audit"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_integration_mode",
+  "title": "Configurable integration_mode: local-merge vs PR",
+  "topics": [
+   "control-plane",
+   "git-workflow"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L173",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6e1aadec:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-74475f71:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_release_topology",
+  "title": "Publish via GitHub Release with manual PyPI gate",
+  "topics": [
+   "release",
+   "release-packaging",
+   "git-publishing"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L72",
+  "candidates": [
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-72aa01ec:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5\u21922.6 (release content)"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "title": "Trail derives display lanes without authored graph edges",
+  "topics": [
+   "memory-trace",
+   "trail",
+   "graph"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_fadg58mgtypvypzt",
+    "title": "2026-07-16 09:18 - Integrate B0a renderer-neutral graph contract"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d1",
+    "title": "D1 - \"462 of 603\" was two faults sharing one number"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d2",
+    "title": "D2 - Edgeless entries get a computed halo, not a simulation"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d3",
+    "title": "D3 - Overflow was minZoom clamping the fit, not a missing fit"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d4",
+    "title": "D4 - Reheat uses d3-force; the global layout stays cose"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d2",
+    "title": "D2 - Zoomable diagram viewer (replaces the popover)"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_86mvcfdmcfjqmrvv:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d1",
+    "title": "D1 - Colour at the root, justified by slot stability rather than a count that do"
+   }
+  ]
+ }
+]

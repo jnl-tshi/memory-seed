@@ -38,6 +38,10 @@ Founded from the control file: Trace began as a separate distribution with its o
 - `constitution:v1#open-core` (governing)
 - `constitution:v1#ownership` (supporting)
 
+### Awaiting review
+
+- `mse_etm5m5682sseasgm:d1` - `memory-trace/` is a separate source package owning the `memory-trace` command, the web stack...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -91,3 +95,36 @@ Founded from the control file: Trace began as a separate distribution with its o
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:14:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#open-core",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#ownership",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_etm5m5682sseasgm:d1",
+  "event_id": "adre_630052ccaf7f6ba21ffe",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+`memory-trace/` is a separate source package owning the `memory-trace` command, the web stack (`fastapi`/`uvicorn`) and the static assets, consuming `memory_seed/retrieval.py` as a library. The release strategy folds Trace into the root `memory-seed[trace]` install path rather than shipping a separate PyPI project, and plain `memory-seed` must still ship no web framework.
+
+#### Why
+
+Rests on the session decision that instituted it: "Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra." (mse_etm5m5682sseasgm:d1). This decision made the concern: shipping Trace as an optional extra in the root package rather than a separate required distribution.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L101; this revision moves the concern off that control-file line onto mse_etm5m5682sseasgm:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

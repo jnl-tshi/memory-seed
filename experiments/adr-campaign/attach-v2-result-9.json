@@ -1,0 +1,20 @@
+[
+  {
+    "adr_id": "adr_trail_derived_lanes",
+    "verdict": "primary",
+    "ref": "mse_37fpco0vvunilz5k:d1",
+    "quote": "one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)",
+    "quote_ref": "mse_37fpco0vvunilz5k:d1",
+    "why": "This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.",
+    "runner_up": "mse_74fb71s2cdrwqrqp:d1"
+  },
+  {
+    "adr_id": "adr_worktree_convention",
+    "verdict": "primary",
+    "ref": "mse_t5ecqb0k0t8wv68n:d1",
+    "quote": "scope the worktree to the SESSION (not the task) and let branches own tasks",
+    "quote_ref": "mse_t5ecqb0k0t8wv68n:d1",
+    "why": "This decision explicitly established the worktree-to-session and branch-to-task binding and the agent-namespaced naming scheme.",
+    "runner_up": "mse_bzk370rfxdtta2bx:d1"
+  }
+]

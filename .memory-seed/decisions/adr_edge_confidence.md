@@ -38,6 +38,10 @@ Introduced 2026-07-25 during the 1,108-pair link campaign with consumption delib
 - `constitution:v1#provenance` (governing)
 - `constitution:v1#explainability` (supporting)
 
+### Awaiting review
+
+- `mse_p4xd3wqf214nqtmv:d2` - Every machine-suggested lifecycle edge carries a structured `edge_confidence` entry of `{ref, confidence,...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -92,3 +96,36 @@ Introduced 2026-07-25 during the 1,108-pair link campaign with consumption delib
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:04:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#provenance",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#explainability",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_p4xd3wqf214nqtmv:d2",
+  "event_id": "adre_1cad7090e743f3f16547",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Every machine-suggested lifecycle edge carries a structured `edge_confidence` entry of `{ref, confidence, tier}` keyed to the exact edge token, stored as YAML rather than prose. `links check` tolerates it as an unknown sibling key with no parser change. Consumers read it: the Trace graph and Trail fade low-confidence edges by opacity so an unverified suggestion never renders as settled fact, while authored edges carry no confidence attribute and render at full strength.
+
+#### Why
+
+Rests on the session decision that instituted it: "Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings" (mse_p4xd3wqf214nqtmv:d2). Created the structured edge_confidence field that the ADR governs.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L186; this revision moves the concern off that control-file line onto mse_p4xd3wqf214nqtmv:d2, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

@@ -38,6 +38,10 @@ Founded from the control file as the 4-way ownership branch shipped in 2.8.0, sh
 - `constitution:v1#ownership` (governing)
 - `constitution:v1#single-source` (supporting)
 
+### Awaiting review
+
+- `ms-7c2f1d90:d1` - The four routing destinations (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`)...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -91,3 +95,36 @@ Founded from the control file as the 4-way ownership branch shipped in 2.8.0, sh
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:07:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#ownership",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#single-source",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "ms-7c2f1d90:d1",
+  "event_id": "adre_663c9774715e56da26e7",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+The four routing destinations (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) follow one 4-way ownership branch shared by `init` and `update`: absent writes the full seed file; ours (carrying `memory-system-version` frontmatter) gets a version-gated archive-and-replace; foreign carrying our markers has the managed block re-synced in place; foreign without markers gets a marker-delimited routing block injected. A foreign file is never overwritten, even under `--force`.
+
+#### Why
+
+Rests on the session decision that instituted it: "Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS`" (ms-7c2f1d90:d1). This decision implemented the complete non-destructive routing mechanism for foreign entry-point files through structured ownership and version-gated handling.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L146; this revision moves the concern off that control-file line onto ms-7c2f1d90:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

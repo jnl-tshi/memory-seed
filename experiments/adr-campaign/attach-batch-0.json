@@ -1,0 +1,241 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "topics": [
+   "cli",
+   "control-plane",
+   "process-correction"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L124",
+  "candidates": [
+   {
+    "ref": "mse_kq3ba0cy9nkpqkm0:d4",
+    "title": "D4 - Defer local branch deletion after approval-gate block"
+   },
+   {
+    "ref": "mse_m6amd5db4c7s8sfw:d3",
+    "title": "D3 - Keep live and seed runtime behavior aligned"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "topics": [
+   "session-logging",
+   "schema"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L143",
+  "candidates": [
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes"
+   },
+   {
+    "ref": "ms-2e9c5f31:d2",
+    "title": "D2 - Embed DRAFT labels in the staleness hook reminder"
+   },
+   {
+    "ref": "ms-2e9c5f31:d3",
+    "title": "D3 - Add DRAFT reminder to retrieval hook too"
+   },
+   {
+    "ref": "ms-3a7c5f2b:d1",
+    "title": "D1 - Times are approximate for retroactively logged entries"
+   },
+   {
+    "ref": "ms-3a9a99a6:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d2",
+    "title": "D2 - The P2 historical backfill is blocked pending a constitutional ruling"
+   },
+   {
+    "ref": "mse_1wz44tdd04pt5yx4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d1",
+    "title": "D1 - Decision edges are a separate stream, computed after row expansion and outs"
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d3",
+    "title": "D3 - A dangling ordinal on an expanded entry draws nothing, rather than falling "
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d5",
+    "title": "D5 - Reverted the demonstration edge rather than bypassing the append-only guard"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "topics": [
+   "testing",
+   "seed-core",
+   "functionality-audit"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L107",
+  "candidates": [
+   {
+    "ref": "mse_aqsfm061kmekm87m:d1",
+    "title": "D1 - Adopt four Codex harness constants, each forced by an observed failure"
+   },
+   {
+    "ref": "mse_b1q6bjqv5w1zyn2k:d3",
+    "title": "D3 - Pinned the coupling to core's format parser with a test"
+   },
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0c9aj0p67px02wcf:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "topics": [
+   "documentation",
+   "seed-core",
+   "control-plane"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L21",
+  "candidates": [
+   {
+    "ref": "ms-a7d29f64:d2",
+    "title": "D2 - Restore two-step skill-registry wording in AGENTS.md"
+   },
+   {
+    "ref": "mse_03bwbpzck2qdkeh7:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_38hrm8xm2bx6y27t:d1",
+    "title": "D1 - Read the index as substrate validation with a governance-shaped gap, not as"
+   },
+   {
+    "ref": "mse_4ch29yqmw7426pfw:d1",
+    "title": "D1 - Treat tests-versus-records as the strongest standing challenge, and record "
+   },
+   {
+    "ref": "mse_4ch29yqmw7426pfw:d2",
+    "title": "D2 - Register the direct hit on the solo-developer ICP instead of absorbing it"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-fbc65d3c:d1",
+    "title": "D1 - Make public and bootstrap docs match the active routing model"
+   },
+   {
+    "ref": "mse_0c9aj0p67px02wcf:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "title": "Trace startup incremental; immutable git derivations persist",
+  "topics": [
+   "memory-trace",
+   "performance",
+   "seed-core"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L83",
+  "candidates": [
+   {
+    "ref": "mse_3yvakpxdshc95e68:d4",
+    "title": "D4 - Selection restyle memoised on its two real inputs"
+   },
+   {
+    "ref": "mse_5ezgxb11ssjzqjsr:d1",
+    "title": "D1 - The 150-node live-motion bound was withdrawn, with the measurement that bro"
+   },
+   {
+    "ref": "mse_74f1jkr8rv4b7hrp:d5",
+    "title": "D5 - The settle re-measures the camera 4x a second, and a warm mount stops early"
+   },
+   {
+    "ref": "mse_qerqhsqw8hfzp5d3:d2",
+    "title": "D2 - Share one parsed topic vocabulary per Trace request"
+   },
+   {
+    "ref": "mse_r5m6rdypd34dz9j0:d1",
+    "title": "D1 - Zonal settling is declined on measurement, not on taste"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d2",
+    "title": "D2 - Zoomable diagram viewer (replaces the popover)"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_86mvcfdmcfjqmrvv:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d1",
+    "title": "D1 - Colour at the root, justified by slot stability rather than a count that do"
+   }
+  ]
+ }
+]

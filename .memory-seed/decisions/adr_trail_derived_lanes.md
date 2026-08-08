@@ -38,6 +38,10 @@ Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan docume
 
 - `constitution:v1#markdown-authority` (governing)
 
+### Awaiting review
+
+- `mse_37fpco0vvunilz5k:d1` - Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -84,3 +88,32 @@ Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan docume
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:16:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#markdown-authority",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_37fpco0vvunilz5k:d1",
+  "event_id": "adre_37f3190fa60d1a7a4c7b",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.
+
+#### Why
+
+Rests on the session decision that instituted it: "one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)" (mse_37fpco0vvunilz5k:d1). This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L171; this revision moves the concern off that control-file line onto mse_37fpco0vvunilz5k:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

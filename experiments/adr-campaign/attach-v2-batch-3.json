@@ -1,0 +1,480 @@
+[
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "concern": "founding:.memory-seed/index.md#L186",
+  "founding_head": "founding:.memory-seed/index.md#L186",
+  "candidates": [
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+    "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wast",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Client render for edge confidence (stage 2, completing \"teach the graph and Trail to read the confidence\"). GraphWorkspace fades machine-suggested edges by confidence via cytoscape data-driven styles - low (<0.7) -> opacity 0.28 + thin, mid (0.7-0.9) -> 0.5, high/authored -> full 0.85; TrailWorkspace folds a confidence factor into arc opacity (low x0.5, mid x0.75). Authored edges (no confidence) render full stre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hdfv52yz74wk9js1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Threaded the structured `edge_confidence` sidecar field through to the graph payload (the backend half of \"teach the graph to read the confidence\"). The reader (`entry_link_sidecars`) parses the `edge_confidence` list into a kind-agnostic `(source_ordinal, target, target_ordinal) -> confidence` map on each sidecar; the Trace service attaches `confidence` to entry-level edges (in `graph()`, bare identity) and to ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d3",
+    "title": "D3 - Write all 696 mechanically-validated survivors, tier-marked",
+    "body": "- D: Of 838 non-none verdicts, 696 survived mechanical validation (142 quote-ungrounded dropped as the hallucination guard; 117 redundant ordinals normalised to bare rather than dropped). Wrote all 696 as decision-level lifecycle edges - 309 blocks across 36 source-date sidecar files: 166 blocks validator-approved (all edges >=0.7), 143 machine-suggested/unverified (carry a sub-0.7 edge). - R: The user chose to keep ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qyp5p2w8z1gtmb37:d1",
+    "title": "D1 - Decision",
+    "body": "- D: A three-step control in the graph filter bar — **All / ≥0.7 / ≥0.9** — hiding machine-suggested edges below the chosen score. Defaults to All and persists with the other graph settings. Human-authored edges are never hidden by it. A filtered edge is also removed from the per-pair outranking input, not merely hidden. - R: The thresholds reuse the tiers the sidecar already stores (`low` <0.7, `review` ≥0.7, `high`",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_10m885gx6bery1ew:d2",
+    "title": "D2 - Closed answer lists, and every edge lands carrying its confidence",
+    "body": "- D: Ran the swarm over all 67 open stubs, one worker per source entry (~5 pairs each), and wrote all 131 surviving verdicts with `edge_confidence` and a tier on the corpus's own thresholds (`low < 0.70 <= review < 0.90 <= high`, derived from 33 authored pairs with no contradictions). Worker payloads address the SOURCE by bare `dN` and every TARGET by a fully-qualified `mse_x:dN` - candidate decision bodies carry `re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mw03g9n22yk2z9st:d2",
+    "title": "D2 - Using a field is not completing the decision that created it",
+    "body": "- D: `mse_7c5hj34hjwkdbhpw:d1 evolves mse_tyj5wy264y84rhnf:d2` is downgraded to `related` through a `retracts:` block plus a re-authored `related_entries`, carrying no `edge_confidence` because a hand audit is authored rather than machine-scored. The other two flagged verdicts stand. - R: Constitution v1.6 D2 accepted the write-time sidecar consolidation proposal and fixed its build order; the ADR campaign applied th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zhsqw4nn1dwgevqb:d1",
+    "title": "D1 - Wrote the Trace/Trail proposal; confirmed no branch/worktree field exists anywhere in the schema",
+    "body": "- D: Wrote `docs/inbox/memory-trace-trail-feature-proposal.md`. Part 1 recommends Trace as the product name (defuses the positioning-collision risk from the competitor analysis; \"Trail\" keeps its metaphor exactly where it fits best). Part 2 scopes Trail as a dedicated graph view combining a new `branch` data axis with the already-computed-but-unrendered `supersedes` edge (Lense's `_graph_edges()` currently only build",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d1",
+    "title": "D1 - Decision edges are a separate stream, computed after row expansion and outside the visibility filter",
+    "body": "- D: Build decision edges in `_decision_edges_for_rows`, called only from the `include_decisions` branch after `_expand_decision_rows`, and append them to `visible_edges` after the `limited_ids` filter rather than through it. - R: Two independent reasons converged on the same placement. The ratified draft forbids projecting a decision edge into entry-level `supersedes`/`evolves` - \"D2 of B supersedes D1 of A\" does no",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ex5216t2hn30s5wx:d2",
+    "title": "D2 - Only an authored edge may move an ADR head; machine-scored edges go to a review queue",
+    "body": "- D: Head changes are applied only when every step of the chain is authored (no `edge_confidence` entry). Machine-scored edges are written to `LINEAGE-REVIEW.md` with BOTH decision titles, and `reconcile_lineage.py` applies nothing unless the ADR is named with `--approve`. Batch mode was removed. - R: Measured, not assumed. The first pass applied the map wholesale under a confidence floor of 0.7 and moved `adr_subpro",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d2",
+    "title": "D2 - The Trail draws all lifecycle edges by default, weighted by a three-class granularity model",
+    "body": "- D: The default view draws every lifecycle edge, ranked by precision: decision->decision (class 1) and entry<->decision (class 2) solid and bold; entry->entry (class 3) dashed and light. An entry can evolve another entry, so class-3 history links and the swarm-era edges are real lineage and stay visible, not hidden. A three-state setting (On select / Decision / All) keeps the de-crowded views available; All is defau",
+    "claimed_by": [
+     "adr_trail_lifecycle_visualization"
+    ]
+   },
+   {
+    "ref": "mse_ad6fgzpnqe10j91c:d1",
+    "title": "D1 - Withdraw the ordinal-as-clock reasoning; decision edges must cross entries",
+    "body": "- D: Intra-entry lifecycle edges are forbidden - both endpoints must belong to different entries, at any granularity, reported as `intra-entry-decision-ref`. This withdraws [[mse_j55kt6mq230zj2p4]]'s D3, which allowed `mse_x:d3 evolves mse_x:d1` and broke the resulting timestamp tie with the ordinal. - R: JNL challenged the stated justification - \"within an entry, lower ordinal is older, sound because entries are app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpqy4kxjevdd8ehj:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The cached-chunk loader no longer trusts the stored shape blindly. A renamed field is canonicalised (`supersedes` → `replaces`, merged without duplicates) so its edges survive; any other unknown key is dropped rather than passed to `MemoryChunk(**data)`. A stale cache therefore degrades to a rebuild, never a hard crash. - R: A pre-rename cache carrying `supersedes` raised `unexpected keyword argument` and took t",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7r60st50e977pjz7:d1",
+    "title": "D1 - Name the cause at the guard, and state the ordering rule where agents read it",
+    "body": "- D: `unknown_event_kinds()` scans a branch's ADR text for `### <kind> - <stamp>` headings whose kind this build does not know, and the fuse checks it BEFORE parsing, failing with \"uses ADR event kind(s) X that this build does not understand. Land the parser change as its own merge first, then merge the ledger data.\" Policy states the same rule generally, covering sidecar fields as well as ADR event kinds. - R: `EVEN",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wp102zrccfjqwt95:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add `branch: str | None` to `MemoryChunk` (parsed via `_metadata_value` at all three construction sites), surface it read-only in the shared retrieval service (`ranked_to_dict`/`chunk_to_dict`) and the Lense API mapper (`_chunk_to_api`), document it in `session_logging.md` (solo capture via `git rev-parse --abbrev-ref HEAD`) and `agent_collaboration.md` Final Handoff Gate (orchestrated backfill from Task Packet ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_r0r8kpbcj5meb2rm:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Node size is `22 + min(20, sqrt(degree) * 5)`, where degree counts every edge kind present in the graph payload. Position is untouched. `connectivity` stays on the node as the server computes it. - R: Item 7 called for degree to drive visual weight, and the note added to it on 2026-07-26 warned that the input must be chosen deliberately, because `connectivity` and the inspector's `Links` had become different num",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Per user direction, the evolution-edges proposal now states as a hard constraint that `evolved_by` exists only in the derived read layer (canonical graph reader consumed by CLI/MCP/Trace) and is never written to any entry file by anyone - declaring `evolves:` on a new entry changes zero bytes of the target. Added an `authored-inverse-field` `links check` guard to the proposal scope so a stored `evolved_by:`/`sup",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5zg50mzrmtx80c80:d2",
+    "title": "D2 - Deterministic evidence score joins the edge-confidence spec as a derived read-time projection",
+    "body": "- D: Extracted Residue 1 into `edge-confidence-metadata.md`: a future deterministic evidence score (shared F: files, shared topics, explicit in-prose reference, human authorship) computed at read time as a derived projection - never stored, never model-derived, inspectable per component, sitting alongside the advisory model confidence rather than replacing it. Also fixed the spec's stale status: consumption shipped 2",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d5",
+    "title": "D5 - An authored colour wins over a borrowed one",
+    "body": "- D: Decide the node fill and rim on whether the node HAS an authored colour, not on whether its community qualifies. - R: Live verification caught the render path discarding the change. The fill was gated on `hasAuthoredCommunity`, and grouping still applies the floor per slug, so an entry tagged with nothing but child slugs is named `unassigned` by the server despite plainly having authored topics. Those entries we",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_25zzy3cmdjgrsf69:d3",
+    "title": "D3 - Flag three aliases as wrong in place rather than rehome them",
+    "body": "- D: `append-only`, `windows-worktree-hazard` and `topics` keep resolving where they do, each with a comment recording the evidence and why the obvious rehoming is also wrong. `append-only` is a cross-cutting invariant, and its one authored use (\"Constraint: evolved_by is read-time inferred only, never stored\") is about the graph, not session logging - but re-pointing it at `graph` is just as arbitrary, since the app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d1",
+    "title": "D1 - One line per pair, taken by the strongest relationship",
+    "body": "- D: When two entries carry several relationships at once, the graph now draws only the most consequential: `replaces` > `evolves` > `related` > `topic` (with `branch`/`agent`/`day` below). The pair key is undirected, so A->B and B->A compete for the same line rather than stacking two. Crucially the winner is chosen among the types currently switched ON in the Edges row, so switching a type off PROMOTES whatever it w",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c7fk4wq9xrn2tvhb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Closed the entry-YAML half of the strict-charset blind spot: `check_session_links` now extracts `related_entries`/`supersedes`/`evolves` refs with `_TRAILER_ENTRY_ID_RE` (mse_[0-9a-z]{8,32} | legacy hex) at all three sites - the fenced-yaml dangling pass, the heading-anchored forward-only pass, and per-user file frontmatter - matching what the sidecar path already does. Previously a ref to a real id containing o",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Settled the four open decisions (bidirectional read-time traversal of directed forward edges; backfill between pre-existing entries out of 3.0 scope; raw `entry_id` selection; `link add` held) and shipped the read-only core: `build_related_entry_graph()` in `semantic_cache.py` (stored outbound + inbound computed only from resolvable refs), `memory-seed link suggest` (ranks **older** candidates only, excludes sel",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_10m885gx6bery1ew:d1",
+    "title": "D1 - A stub is resolved by a later sibling block, not never",
+    "body": "- D: `sidecar-unclassified-stub` is now an ENTRY-level question, decided after every block is read. A stub survives only when no LATER block for that entry authors an edge or declares `edge_status: not_applicable`. Ordering is `(heading timestamp, block index)` - the same later-and-more-specific precedence `edge_status` already used - so a resolution written BEFORE a stub correctly leaves it standing, because a fresh",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ptcadyekn3j2ga9r:d3",
+    "title": "D3 - Treat the harness as failing silently toward success",
+    "body": "- D: Record both mid-run measurement bugs in E5 as a standing warning about this instrument. - R: Each produced a complete, internally consistent, plausible table that was wrong. The DRAFT-heading counter scored prose captures as silence and invented an L2 dip; argv-truncated judge prompts left 56 of 60 blind judgements answering a fragment while the keyed stage, obliged by its schema to emit one verdict per seeded k",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "concern": "founding:.memory-seed/index.md#L171",
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_t22wn997q5005zjp:d1",
+    "title": "D1 - Propose a typed `evolves` edge rather than stretching `supersedes`",
+    "body": "- D: Draft a proposal for a fourth authored edge kind `evolves:` with computed `evolved_by` inverse, forward-only with the same four guards as `supersedes`, and explicitly **no** importance dampener on the target. - R: `supersedes` means retired (x0.25 dampener, `exclude_superseded`), so using it for evolution would falsely deprioritize still-load-bearing decisions - which is precisely why `mse_dr5eprnhrctqeeg3` corr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cbexvsnxenvy08fh:d2",
+    "title": "D2 - Held the strict co-occurrence bar: 6 true edges (ranking x3 + Trail x3), zero supersedes, evolution-edges x0",
+    "body": "- D: Upgraded only refinements-of-the-same-artifact. Ranking chain (3): P1a related_degree exposure -> connectivity rename -> P1b supersession-aware importance_score -> exclude_superseded filter. Trail relationship-rendering (3): relationship-lanes -> relationship-zone; adjacency-bracket -> two-rule related model -> related-innermost-lane. Dropped the hot-file siblings sharing `app.js` (typography, force-directed gra",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Per user direction, the evolution-edges proposal now states as a hard constraint that `evolved_by` exists only in the derived read layer (canonical graph reader consumed by CLI/MCP/Trace) and is never written to any entry file by anyone - declaring `evolves:` on a new entry changes zero bytes of the target. Added an `authored-inverse-field` `links check` guard to the proposal scope so a stored `evolved_by:`/`sup",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ktw9r3nq5bvx2plm:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built Phases 1-2 of the lifecycle-edge linking hardening (see `docs/3_Spec/lifecycle-edge-linking-sidecars.md`). Root problem: `supersedes`/`evolves` are opt-in typed edges declared in an entry's own YAML at write time, and in practice almost nobody stamps them (across 312 entries they appear in ONE file); genuine supersessions get logged as generic `related_entries`, so the Trail's replaces/evolves lines nearly",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ws2prm8b5ec525ye:d4",
+    "title": "D4 - The inspector separates edge direction, and `Links` counts rendered lines",
+    "body": "- D: Replaces / Evolves / Related each get their own row with per-item direction (outgoing marked with an arrow and accent border, incoming dashed). `Links` now counts edges rendered for that node under the current edge-type filter. - R: Three independent never-merged edge kinds deserve three rows — \"retires\", \"refines\" and \"also see\" are different claims. Direction rides on the item rather than splitting into six ro",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xr6vav82parmbfh0:d1",
+    "title": "D1 - Fold three opportunities into the proposal",
+    "body": "- D: Added D7 (computed `superseded_by`/`evolved_by` on `memory_search` result payloads - surfaces status, never re-ranks, reuses the search's extracted corpus via `build_related_entry_graph(chunks=...)` so the hot path never re-parses), a named post-P1 user-reviewed lineage seeding pass (new clarification entries typing known history: merge-branch evolves fuse, Explorer -> Lense -> Trace renames, .AGENTS/layout migr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ft7874jfnxxdevrz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Rewrote the evolution-edges proposal's D6 per user review: rename/migration/removal events are recorded as a structured optional entry-YAML field `continuity:` (items of kind/from/to; `to` forbidden on removal) instead of seeded core topics plus an `F:` both-paths prose convention. Values are historical labels like `branch:` (never validated against live filesystem/git). `links check` gains `malformed-continuity",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_r7s0ge30y84n2acz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add lifecycle-edge arrows to the Trail. `trailModel` now also emits `lifecycle` (supersedes/evolves/ related edges with both endpoints visible); `TrailWorkspace` renders them as dashed arrows routed through the reserved relationship zone with rounded elbows, pair precedence (only the strongest edge per pair draws: replaces > evolves > related), soft/pastel stroke+marker variants, and an adjacent-`supersedes` bow",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mk82r25x7mvb1aqa:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `MemoryChunk` gained a `supersedes` tuple parsed from entry YAML by the existing generic metadata scan (`_metadata_list`); `RelatedEntryNode`/`build_related_entry_graph()` gained `supersedes` (stored) and `superseded_by` (computed inverse, built exactly like `inbound`, resolvable refs only, never merged with relatedness edges). `check_session_links()` validates four new issue kinds: `dangling-supersedes` (any fe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_h5trfwg2yjyjadpp:d2",
+    "title": "D2 - Documentation and skill surfaces in the same change",
+    "body": "- D: Updated `session_logging.md`/`end_of_turn.md` (live + seed, byte-identical) with the evolves/continuity schema paragraphs, the three-way rule of thumb, the backtick-quoted F nudge, and harvest steps 7-8; updated `graph-edge-contract.md` (four edge kinds, per-kind guards, authored-inverse-field, continuity as a label family, read-surface rows), README, functionality audit, runtime index, and CHANGELOG. - R: The e",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rrf3kh583sk3zhye:d1",
+    "title": "D1 - `related` is a second kind-group, tried only over nodes lifecycle chains did not already claim",
+    "body": "- D: `RELATED_CHAIN_KINDS = {\"related\"}`, tried after `LIFECYCLE_CHAIN_KINDS` in `CHAIN_KIND_GROUPS`. New entry point `allSpiralAssignments(nodes, edges, options)` runs each group over only the nodes earlier groups left unclaimed, and merges the seats. `spiralChains`/`spiralAssignments` both gained a `kinds` option (default lifecycle, unchanged), so every existing call site and all 202 prior tests kept working with z",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cbexvsnxenvy08fh:d1",
+    "title": "D1 - Additive sidecar-evolves, never an in-place related->evolves move",
+    "body": "- D: Recorded each upgrade as an append-only `evolves` block in a date-scoped link sidecar and KEPT the successor's existing `related_entries`. Did not rewrite any entry YAML. - R: `importance_score` counts only related-inbound and `evolves` deliberately never dampens, so an in-place move would strip the predecessor's inbound count and make a still-live evolution root read as *less* referenced - contradicting the fre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Wrote `docs/todo/related-entries-generation-plan.md` and pointed NEXT_STEPS at it. The recommended shippable core (P1) is **write-time only, zero append-only tension**: `memory-seed link suggest` (read-only, reuses `rank_session_memory`) + `memory-seed link add` constrained to the current/newest entry + **bidirectional read-time traversal** as the canonical graph-read model. Backfilling edges between two pre-exi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c6wdkt2zr9x0p5ba:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Reworked Trail's relationship rendering per user testing feedback. Three always-dotted relationship lanes now sit left of main - related | evolves | replaces (strongest lifecycle signal closest to the trunk) - while lanes right of main remain the solid spawned git branches. Relationship edges route orthogonally through their type's lane (out from the source dot, along the lane, back in to the target dot, rounded",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_g6gfnchzyn2tsftf:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Ran a full link pass on the session entries. Integrity (`links check`) is clean across all files. The gap audit (`link audit --date 2026-07-13`) surfaced 38 today-entries with structural neighbours, but they are overwhelmingly broad topic/file co-occurrence (documentation, git-workflow, release, memory-trace, shared `app.js`) rather than lifecycle relationships - and today's genuine work-chains (freshness, doc-l",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rnjcg0d1k8a2a9gn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added D5 to the evolution-edges proposal per user direction: `F:` file-path overlap between entries is a first-class precision signal when ranking `evolves`/`supersedes` candidates in `link suggest`/`memory_link_suggest`, with four binding constraints - boost-never-gate (F is optional), rarity-weighted (hub files like CHANGELOG/README/session logs are stopword-like and contribute ~nothing), conservative backtick",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_h5trfwg2yjyjadpp:d1",
+    "title": "D1 - Ship all seven plan decisions as one P1",
+    "body": "- D: Implemented D1-D7 (edge + inverse, no-dampener rule, removal-under-supersedes convention, harvest prompts, F-overlap boost with shared-file evidence, continuity blocks + alias table, search freshness fields) in a single branch rather than splitting. - R: The pieces interlock - the alias table consumes continuity, the harvest prompt leans on the boosted suggest output, and the search fields expose the inverse the",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge",
+    "body": "- D: `DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`. Topic remains offered. - R: The construction settles it. `chain()` in service.py groups entries by topic, sorts by time and joins CONSECUTIVE pairs, so a topic edge asserts \"nothing else carrying this tag happened between these two\" - a fact about sort order, not about the two entries. `related`/`supersedes`/`evolves` are authored claims about a ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_nzxacbsfes6q72be:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Stage S3 executed with three user-reviewed seeded entries: E1 artifact lineage (six continuity blocks), E2 evolves clarification (merge-branch extends fuse), E3 retirement record (Explorer packaging + Lense naming superseded by the Trace decisions). - R: The corpus carried zero lifecycle data, leaving the alias table, freshness fields, and dampening inert; seeding gives every consumer real data. Verified live po",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Settled the four open decisions (bidirectional read-time traversal of directed forward edges; backfill between pre-existing entries out of 3.0 scope; raw `entry_id` selection; `link add` held) and shipped the read-only core: `build_related_entry_graph()` in `semantic_cache.py` (stored outbound + inbound computed only from resolvable refs), `memory-seed link suggest` (ranks **older** candidates only, excludes sel",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_msgs6qzn3mcnmkn5:d1",
+    "title": "D1 - Status verdicts from evidence, not self-report; move discriminator = \"any live tail?\"",
+    "body": "- D: Classified every top-level inbox (6) + todo (~20) doc by REAL status (CHANGELOG line / code symbol), not stated status. A doc moves to a terminal lane only with ZERO remaining work; anything with a tail stays in `2_Todo` with shipped parts marked. Key findings: the 5 sibling inbox proposals are each a genuine unbuilt gap (none redundant with shipped work — e.g. `superseding_head` is the unbuilt symmetric mirror ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xee3vdwckhh0smx8:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Shipped Evolution graph scope, the first of three designs JNL asked me to draft and review (\"you design it, I'll review\") for Phase 0's remaining undesigned B0b slices (file/evolution modes, topology communities). A third `GraphScope` value alongside the existing `overview`/`local`, showing only a selected entry's `evolves`/`supersedes` lifecycle chain rather than its full local neighborhood. - R: Started with E",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ay5tctkhx0218sn9:d1",
+    "title": "D1 - Graph-edge contract as a standalone reference doc",
+    "body": "- D: Wrote `docs/graph-edge-contract.md` — one reference for the edge kinds (`related_entries`/`supersedes`/`commits`), derived metrics (`inbound_relation_count`, `importance_score`, `connectivity`, `commit_reference_count`), the canonical reader (`build_related_entry_graph`), the validation authority (`links check`), the read surfaces, and four standing rules (read the canonical graph; keep git out of the hot path; ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8cz9th5s9z1wv9gp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `link show` now unions late-authored link-sidecar edges into the graph it prints (calls `augment_chunks_with_link_sidecars` on the extracted chunks before `build_related_entry_graph`), so its supersedes / superseded_by / evolves / evolved_by / inbound / importance_score reflect the same EFFECTIVE graph that retrieval, MCP, and the Trace UI read - not just the raw entry YAML. - R: The CLI `show` handler built the",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8wq2vnr5tkxm3jhc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Completed Phases 3-4 of the lifecycle-edge hardening (`docs/3_Spec/lifecycle-edge-linking-sidecars.md`). Phase 3: `memory-seed link audit` finds entry pairs sharing `F:` files or topics with no recorded edge - WITHOUT an all-pairs semantic scan (user's efficiency design: candidates = older entries sharing >=1 file OR >=1 topic; matching files override the lack of a topic link). File overlap surfaces a candidate ",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "concern": "founding:.memory-seed/index.md#L183",
+  "founding_head": "founding:.memory-seed/index.md#L183",
+  "candidates": [
+   {
+    "ref": "mse_74ddxsena9nj2afk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface in Memory Trace. - R: Memory Trace already depends on the core package. One owner keeps UTF-8/LF/NFC policy, exclusions, backup behavior, and static enforcement consistent. - A: Automatic mojibake repair was rejected because the intended source characters cannot be inferred safely. Invali",
+    "claimed_by": [
+     "adr_windows_encoding_policy"
+    ]
+   },
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d2",
+    "title": "D2 - Encoding policy implementation",
+    "body": "- D: Add a shared `memory_seed.text_files` helper, `.editorconfig`, `.gitattributes`, README/changelog/audit documentation, MCP Unicode-preserving JSON output, and non-ASCII round-trip tests. - R: Windows/default-code-page drift and BOMs were already observable in active files; central helpers plus repository config reduce future mojibake without adding the larger repair command yet. - A: Did not implement `memory-se",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d2",
+    "title": "D2 - Encoding check slice",
+    "body": "- D: Add `memory-seed encoding check [path] [--json]` backed by read-only scanner helpers in `memory_seed/text_files.py`. - R: The active P1 plan calls for explicit validation of the UTF-8/LF/no-BOM contract before adding any repair behavior. - A: Repair, backup policy, clean-worktree checks, and static implicit-I/O enforcement remain open in the active follow-up plan. - F: `memory_seed/text_files.py`, `memory_seed/c",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d1",
+    "title": "D1 - Proposal lifecycle movement",
+    "body": "- D: Move the safe shutdown/upgrade workflow into `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, move UTF-8 Phase 1 into `docs/2_Todo/completed/memory-seed-utf8-encoding-policy-phase-1.md`, and create `docs/2_Todo/utf8-encoding-doctor-and-static-check-plan.md` for non-quick follow-up work. - R: The shutdown/upgrade workflow is implementable but medium-sized across two CLIs and process safety boundaries; UT",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4yrmdvezk56ymaba:d2",
+    "title": "D2 - Also force PowerShell's own output encoding to UTF-8",
+    "body": "- D: Prepend `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;` to the `_iter_windows_processes` PowerShell `-Command` script, in addition to the Python-side `encoding=\"utf-8\"`. - R: Empirically verified (real `powershell`/WMI calls, not mocked) that Windows PowerShell 5.1 does **not** emit UTF-8 on redirected stdout by default — `ConvertTo-Json` output for a non-ASCII name came back as lone OEM-codepage byt",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_004tgff7q4hxrjg6:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fixed `session fuse` so changed branch session/diagram files that cannot decode as UTF-8 block with a named issue instead of being skipped. - R: Fuse is a promotion gate; silently omitting a branch-local memory file is worse than failing closed. `_git_show_text` now captures raw git-show bytes and decodes explicitly, letting missing blobs remain non-blocking while invalid UTF-8 returns a sentinel that branch-del",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5eq8n71dwdrxamyr:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `_file_fingerprint` now hashes a tracked document's canonical text form (`normalize_text`: NFC + LF - the same canonicalization every Memory Seed write applies) instead of raw bytes, falling back to raw bytes only for unreadable/binary content. Regenerated the committed snapshot fixture (8 fingerprint lines). Fourth cut of v2.19.0 follows. - R: - The third publish attempt failed at the Evidence Pack snapshot tes",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural governing home, and mirrored to seed",
+    "body": "- D: `.memory-seed/skills/skill_architecture.md`'s \"Startup Contract Boundary\" section - previously stating the qualitative rule with no number at all - gained two sentences naming the enforced 280-line ceiling, the exact test that enforces it, and the principle for what headroom is for (a thin, easy-to-skip, unhooked step over a new feature). `docs/2_Todo/branch-field-provenance.md`'s stale \"~260-line... documented ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_x3807z3xnjdddzzd:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Stage S2 of the goal run: the root README's Memory Trace section now states plainly that `memory-trace` is not yet on PyPI (publishes after core 2.17), with a working `pip install ./memory-trace` from-clone instruction until then; the same correction applied to `memory-trace/README.md`; and the line-16 demo link's mojibake (\"â–¶\") removed in favor of plain text. - R: Both defects were live on the public front do",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1n3351qgep3xwa6y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Prepared the 2.17.0 release per the repaired runbook: bumped every version surface (`pyproject.toml` 2.17.0, control-plane `VERSION` 2.17, `memory-system-version:` in 130 markdown files including the root routing files, the version-pin test); folded the CHANGELOG Unreleased section into `## 2.17.0 - 2026-07-10` keeping the standing empty Unreleased header; restored the `.memory-seed/archive/<version>/` snapshot ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4yrmdvezk56ymaba:d3",
+    "title": "D3 - Test with mocked wiring checks plus a real Windows integration test",
+    "body": "- D: Add mock-based tests asserting `encoding=\"utf-8\"` is passed and that a raised `UnicodeDecodeError` degrades gracefully (`[]`/`False`) at all three sites, plus a `sys.platform == \"win32\"`-gated integration test that spawns a real child process with a non-ASCII argv entry and reads it back through the real (non-mocked) `_iter_windows_processes()`. - R: A mocked `str` stdout return never exercises the actual bytes→",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_nbxa1eccvphjr83e:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built the three approved tooling proposals in dependency order. P4 `memory-seed esr` (new `memory_seed/esr.py`): one read-only preflight over every deterministic end-of-turn check - links check, topics check, `link audit` scoped to the session date, per-worktree posture (branch/ahead/dirty, merged+clean marked STALE CANDIDATE), and live-vs-seed skill twin drift (dev-repo only; `index.md` excluded - the registry ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_te4e7yvt571nkh16:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Cut 2.19.0 per JNL's explicit go, following `release_publishing.md` exactly: bump every version surface together (pyproject `2.19.0`, core `VERSION = \"2.19\"`, the guard-test literal, 63 `memory-system-version:` frontmatter files incl. root routing files and seed twins, `index.md` version lines), archive `agent-rules.md` + `project-bootstrap.md` under `.memory-seed/archive/2.19/`, and fold the CHANGELOG under `##",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_azn6bejpd9xpmh3f:d1",
+    "title": "D1 - Strict UTF-8 decode in the git subprocess helpers",
+    "body": "- D: Add `encoding=\"utf-8\"` to `_git_text`, `_git_show_text`, and `find_trailer_commits`, and catch `UnicodeDecodeError` alongside `OSError`/`TimeoutExpired`. - R: `subprocess.run(text=True)` without `encoding=` uses the Windows locale (cp1252), which crashed on non-ASCII session content; strict UTF-8 matches the codebase's `CANONICAL_ENCODING` convention, and the catch degrades a genuinely-corrupt file to the existi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_52cw7g10wmaha5h4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated `index.md` — folded the participant-count session-layout gate and the doctor local-user/participant-mismatch warning into the existing \"Participant registry parsing (current unreleased worktree)\" Design Decision bullet; added a new adjacent bullet for the one-time identity-offer hook (`.memory-seed/.identity-offer-stamp`); added a Topology bullet documenting the `docs/todo/` / `docs/todo/completed/` / `d",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_brt83hq9cmtmbqxq:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Triaged 4 strategy/research docs the user dropped into `docs/1_Inbox`. Routed by NATURE per the `proposal_lifecycle` protocol: the one actionable proposal (`memory-seed-architectural-discovery-proposal.md`) stayed in `1_Inbox` pending approval; the three source docs moved to `4_Reference` with `-report` kind names (`memory-seed-gitlens-competitor-report.md`, `memory-seed-strategic-synthesis-report.md`, `memory-s",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3d80z4k6hb4rftq1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Phase 2c cull, file 3 of the queue: `test_project_lifecycle.py` (39 tests: init/update/doctor/ skills/packaging invariants). Read all 39. Verdict: 39 Keep, 0 changes — each targets a genuinely distinct edge case in a real config-management system (owned-vs-foreign routing files, force/backup/ archive semantics, version-ordering, idempotency). No duplication. - R: Continues the Phase 2c queue under \"Yes continue ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_das03yy1zbyp991m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Reconciled rather than duplicated: read every diff Codex had applied, confirmed each of the 3 subagents' findings against Codex's actual changes, and applied only the remainder — items neither Codex's report nor its edits covered. Applied: (1) `agent-fanout-workflow-plan.md`'s Exploration Gate now states read-only Explorers must still satisfy `.memory-seed/policy.md`'s pwd/`git rev-parse HEAD` check (the actual ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j4s82bgb07vb1vvz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Confirmed scope with the user first (ship as a real product feature; one-time offer, not a per-session nag; implement directly rather than spec-first). Then, per the advisor's flag, first repaired the immediate inconsistency it caught: this session's own `sessions/2026-07-02/jean.md` was folded back into the flat file (previous entry) before writing any new behavior, so the repo wasn't left violating the rule be",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ch4371n97abaz77e:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Repair only active-tree `likely-mojibake` findings and leave nested `.claude/worktrees/` copies and `.memory-seed/archive/` snapshots untouched. - R: The user asked to fix mojibake in the current workspace; nested Claude worktrees are separate agent workspaces, and archive snapshots are historical records. Editing those would broaden the repair beyond the active tree and risk interfering with another agent's sta",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_y3gb93k466tcfdq8:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add a warning-only `memory-seed branch status [--json]` command and update the shared collaboration guidance so all supported agents get the same branch-history rule through the vendor-neutral runtime. - R: The recent graph looked linear because work landed directly or effectively linearly on `main`; worktrees alone only isolate files, while visible branch topology requires task-branch commits plus `git merge --",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dwstzzfnz5w2626v:d2",
+    "title": "D2 - Version bump 2.13 -> 2.14.0",
+    "body": "- D: Bumped `VERSION` in `core.py`, `version` in `pyproject.toml`, the literal test pin, `memory-system-version` frontmatter across 49 control-plane files (byte-level replace, skipping `archive/`, `sessions/`, `docs/`, `demo/`), `index.md` Active State, and folded CHANGELOG's Unreleased into a new `## 2.14.0 - 2026-07-03` section with an empty `## Unreleased` placeholder retained. - R: User chose \"bump once at the en",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2b1bthj8x03nfe91:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built a deterministic entry DRAFT-format lint and enforced it at write time and audit time. `core.entry_body_format_issues(body)` + `check_entry_format(text)` flag bare `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no `### Decision`/`### Summary` heading, several decisions crammed under a singular `### Decision`, and a `D:` with no `R:`. `session append` now rejects a malformed body before writ",
+    "claimed_by": []
+   }
+  ]
+ }
+]

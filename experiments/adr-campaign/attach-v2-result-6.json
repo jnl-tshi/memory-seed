@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_markdown_substrate",
+    "verdict": "primary",
+    "ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "quote": "**Markdown is authoritative *everywhere*** (Invariant #6 reframed)",
+    "quote_ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "why": "Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_release_topology",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "All candidates apply or describe an established flow; none establishes GitHub Release + manual PyPI gate as a new rule.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_runtime_discovery",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate establishes the walk-to-nearest .memory-seed pattern; likely a foundational design predating the session log.",
+    "runner_up": ""
+  }
+]

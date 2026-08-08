@@ -1,0 +1,29 @@
+[
+ {
+  "adr_id": "adr_integration_mode",
+  "verdict": "primary",
+  "ref": "mse_t388apx6evvmmd1r:d1",
+  "quote": "`INTEGRATION_MODES = (\"local-merge\", \"pr\")`",
+  "quote_ref": "mse_t388apx6evvmmd1r:d1",
+  "why": "Implemented the P0.1 configurable integration-mode feature with the core INTEGRATION_MODES setting.",
+  "runner_up": ""
+ },
+ {
+  "adr_id": "adr_legacy_agents_compat",
+  "verdict": "primary",
+  "ref": "ms-7c2f1d90:d1",
+  "quote": "Added a 4-way ownership branch over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`",
+  "quote_ref": "ms-7c2f1d90:d1",
+  "why": "Established the 4-way ownership mechanism for routing destinations including legacy AGENTS.md files.",
+  "runner_up": "ms-1bcfcc91:d2"
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "verdict": "primary",
+  "ref": "mse_c3a4z35t4m4rjf1n:d1",
+  "quote": "Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed",
+  "quote_ref": "mse_c3a4z35t4m4rjf1n:d1",
+  "why": "Introduced the append-only retracts mechanism enabling non-destructive correction of published lifecycle edges.",
+  "runner_up": ""
+ }
+]

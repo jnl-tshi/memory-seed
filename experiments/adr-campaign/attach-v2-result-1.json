@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "verdict": "primary",
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "quote": "Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability.",
+    "quote_ref": "mse_9c151e4gbkkv1w5v:d1",
+    "why": "Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_business_separation",
+    "verdict": "primary",
+    "ref": "mse_5hgxywp0n3qsz0dw:d1",
+    "quote": "Keep market, competitor, pricing, and wedge strategy in top-level living dossiers under `business/`, separate from the product implementation lifecycle in `docs/`.",
+    "quote_ref": "mse_5hgxywp0n3qsz0dw:d1",
+    "why": "Establishes the foundational separation of business/ from docs/ as the rule for organizing material.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_control_file_authority",
+    "verdict": "primary",
+    "ref": "ms-845042c7:d3",
+    "quote": "Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale.",
+    "quote_ref": "ms-845042c7:d3",
+    "why": "Directly establishes the partition between control files as authority and session history as evidence.",
+    "runner_up": ""
+  }
+]

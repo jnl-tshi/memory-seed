@@ -1,0 +1,446 @@
+[
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "concern": "founding:.memory-seed/index.md#L107",
+  "founding_head": "founding:.memory-seed/index.md#L107",
+  "candidates": [
+   {
+    "ref": "mse_gbc4m5m71dqmen75:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Generate each fixture by running the real `init_project()` and applying documented per-level strips inside a standalone git repo, pin the MCP server to the local working tree via absolute interpreter plus PYTHONPATH, keep hand-written `index.md`/`policy.md`/vocabulary byte-identical across levels, and treat each fixture's own `.memory-seed/sessions/` as the experiment readout, with `templates/` and `runs/` gener",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes",
+    "body": "- D: Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries for root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. - R: This preserves localized context while keeping the root aware of cross-project consequences. - A: Rejected mirroring sub-project sessions into root memory because that would duplicate noise",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_aqsfm061kmekm87m:d2",
+    "title": "D2 - Codex validates the instrument, not the hypothesis, and its results are never pooled",
+    "body": "- D: Record the Codex arm in PREREGISTRATION.md as a dated append with an explicit no-pooling rule, add a `--brief` probe override that `collect.py` excludes from every scored table, and fingerprint the parent repo before and after each run into `parent_isolated`. - R: JNL authorised Codex only because the Claude CLI's OAuth had expired, so these runs answer \"does the harness work\", not \"do agents capture decisions\".",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qv549zxf8wtmaamg:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Resolved the last item from the Phase 2c protection-value audit's review checkpoint. JNL: \"make a reasonable call\" on the deferred recommendation to structurally split `test_session_fuse_and_merge.py` (it bundled 69 tests: 41 genuine fuse/merge/prepare-pr/open-pr tests plus 28 covering five unrelated concerns that only shared its real-git fixture harness). Split into `test_integration_mode.py` (6), `test_branch_",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_aqsfm061kmekm87m:d1",
+    "title": "D1 - Adopt four Codex harness constants, each forced by an observed failure",
+    "body": "- D: The Codex runner passes `-c projects={\"<run dir>\"={trust_level=\"trusted\"}}`, `--dangerously-bypass-approvals-and-sandbox`, `-c features.apps=false`, and pins the MCP server's `cwd` to the run directory per run rather than in the template. - R: None is cosmetic. Codex loads project-scoped `.codex/config.toml` and `.codex/hooks.json` only for trusted paths and every run directory is a fresh untrusted path, so with",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`",
+    "body": "- D: `read_merge_trigger` fail-opens to `automatic`; this repo declares `merge_trigger: manual` in `.memory-seed/project.yaml`. JNL's call, asked before writing. - R: The proposal left the default open (§6.1) and it is the breaking-change lever. Fail-open `manual` would make every seeded project's `session merge-branch` start refusing without a flag on their next update — a behaviour change for all downstream consume",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_fh4sp1twn0w662jb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: First pass of a test-suite audit JNL requested (freeze uncontrolled growth, measure before culling, protection-value not headcount). Measured rather than guessed: total wall time ~135s/635 tests; the 40 slowest are all real-git-subprocess `session_fuse`/`merge_branch`/`prepare_pr`/`open_pr` workflows; `test_memory_seed.py` alone holds 287/635 tests (45%) and ~105/135s (78%) of wall time across 8 unrelated `unitt",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rg1ghmczrxxjwxcv:d2",
+    "title": "D2 - The picker is a modal folder browser reusing the worktree-switch choreography, not a new switching mechanism",
+    "body": "- D: New `FolderPicker.tsx` (modelled on `DiagramViewer`'s backdrop/Escape/outside-click pattern): browses via `GET /api/v1/browse`, marks folders with a `.memory-seed/` with a `FolderCheck` icon (a hint, not a promise - opening can still be refused), and either row has its own \"Open\" or the current folder has \"Open this folder\". A refusal shows the actual `doctor()` issues inline rather than just failing. On success",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2b1bthj8x03nfe91:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built a deterministic entry DRAFT-format lint and enforced it at write time and audit time. `core.entry_body_format_issues(body)` + `check_entry_format(text)` flag bare `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no `### Decision`/`### Summary` heading, several decisions crammed under a singular `### Decision`, and a `D:` with no `R:`. `session append` now rejects a malformed body before writ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1gcbzv5w9cgw7bga:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added two tests to `tests/test_session_schema.py` asserting seed-side consistency in both directions: every `- skill: <name>` in the seed trigger registry has both a file under `memory_seed/seed/.memory-seed/skills/` and a `SeedFile` destination in `core.SEED_FILES`; and every `.memory-seed/skills/*.md` destination in `SEED_FILES` (excluding `index.md`, which is the registry itself) is registered. Two module-lev",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_is0a3iw426g6v2zb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treated the repository as initialized operating mode (all reusable control files present, `index.md`/`policy.md` present - not seed-only), not bootstrap or repair mode. No lazy skill runbook loaded yet since no concrete task was specified beyond orientation. - R: `.memory-seed/index.md` confirms this is the root runtime with no parent to inherit policy from. Four personas are `status: active` in the registry wit",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpjr3zv6wthje8sk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Use compositional ownership: invoke Superpowers directly for independent read-only diagnostic fan-out and multi-task same-session SDD/review, while Memory Seed retains guarded worktrees, parallel code-writing ownership, durable session memory, session-aware integration, consent gates, and cleanup. - R: Superpowers' plan-scoped ledger, file-based task handoffs, exact-range review packages, fix/re-review lifecycle",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": "D2 - Sub-project runtime created manually, not via memory-seed init",
+    "body": "- D: Create `demo/.memory-seed/` by hand rather than running `memory-seed init` in the demo folder. - R: HyperFrames generates its own AGENTS.md and CLAUDE.md with a required skill routing table. Running memory-seed init would overwrite them and lose that context. Per agent-rules, sub-projects opened non-independently don't need their own routing files. - A: `memory-seed init --force` then restore HyperFrames CLAUDE.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_eaep9x4t50yesqb4:d1",
+    "title": "D1 - Omit `branch:` when the memory dir belongs to another working tree",
+    "body": "- D: When `rev-parse --show-toplevel` for the caller's directory differs from the same for `runtime.workspace_root`, omit `branch:` rather than stamping the enclosing checkout's HEAD. Extends the existing detached-HEAD / not-a-repository omission rule by one clause via a new `_auto_captured_branch` helper; no new flag, no advisory channel, no new machinery. - R: This layout produces a wrong durable value with **no co",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dr5eprnhrctqeeg3:d1",
+    "title": "D1 - Wrapper command, not a merge driver or blocking hook",
+    "body": "- D: Automate the ordering fix as an explicit CLI wrapper around the existing `session_fuse()` primitives, chosen by the user over a git merge driver and over an enforcement-only pre-commit gate. - R: Twice today the manual dry-run/apply dance was skipped and raw git line-merges landed session entries out of chronological order; the machinery to sort deterministically already existed in `session_fuse()` - the gap was",
+    "claimed_by": [
+     "adr_merge_branch_primitive"
+    ]
+   },
+   {
+    "ref": "mse_sqzm8bg83adw2nc7:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Shipped file graph mode, the second of the two remaining reviewed designs JNL approved (\"Yes build the two\"): a new backend `file_entry_index` (path -> entry_ids) exposed as a `path` param on `/api/v1/graph/projection`, a fourth `GraphScope` seeded by an exact entry-membership set rather than a neighborhood expansion, and clickable file pills in the reader's `F:` blocks that open it directly. - R: The first impl",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rg1ghmczrxxjwxcv:d1",
+    "title": "D1 - Opened folders join the SAME allowlist git worktrees use, so every existing endpoint serves them for free",
+    "body": "- D: `create_app()` gained a process-lifetime `external_projects: dict[Path, dict]` registry alongside the existing `worktree_services`/`worktree_lock`. `worktree_entries()` now returns git worktrees plus `external_projects.values()`; `service_for()`'s allowlist (`known = {...for entry in worktree_entries()}`) was untouched, because it already derives from `worktree_entries()`. Registering a folder there is therefore",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_n35t6pkz73cp59vc:d2",
+    "title": "D2 - Founding sources: an ADR may precede its decisions",
+    "body": "- D: `promote_decision` accepts `founding_source` (\".memory-seed/index.md#L120\" or \"bootstrap\") plus a verbatim `founding_quote` in place of `source_entry_id:source_decision`. The revision is tracked under a `founding:<source>` pseudo-ref through replay, acceptance and rejection; `decision_ref` keeps its `<entry_id>:dN` grammar exclusively. Founding events may not assert predecessors and require the quote; `update_en",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xhmnrwf8yxjcspeb:d2",
+    "title": "D2 - Build the file-touch trigger as the reversal-capture mechanism",
+    "body": "- D: New stdlib fail-open hook `.memory-seed/hooks/file-touch-decisions.py` (live + seed), registered as a Claude PostToolUse hook through init_project (_merge_claude_file_touch_hook via the existing _merge_grouped_hook shape), packaged in pyproject and SEED_FILES; per-(session,file) stamp rate-limit; surfaced ids logged to the retrieval log as weight-zero \"file_touch\" events. On editing a file named in an entry's F:",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_v3q8dwm2knzp61tr:d1",
+    "title": "D1 - Decision",
+    "body": "- D: First two units of the autonomous UI goal pass. (1) Scroll-reset bug class fixed: `captureCenterScroll` only preserved three center selectors, so left/right panes and the new Trail scroller reset on every re-render (the user-reported left-pane facet click bug). New `SCROLL_PRESERVE_SELECTORS` covers all six scrollable regions with a comment requiring new scroll containers to be registered; contract test pins the",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added opt-in local user identity, per-user session target creation, and user-aware hooks while keeping no-user installs on the legacy flat session file. - R: This advances the multi-user roadmap without silently moving existing users' write targets; a clone must opt in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or an explicit CLI/user argument. - A: Automatic user inference was not added; guessing wo",
+    "claimed_by": [
+     "adr_session_layout_participant_gating"
+    ]
+   },
+   {
+    "ref": "mse_p4fdqkjw62gtqabj:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Completed the cheap-tooling proposal set (P3, P6, P7, P8) and applied the approved chronology repair. P3: a repo-tracked standalone `prepare-commit-msg` hook (`.memory-seed/hooks/prepare-commit-msg.py`, seeded + in package-data) scans the staged diff for `+entry_id:` lines under session trees only and appends deduplicated `Memory-Entry:` trailers, never blocking a commit; `install_git_hooks` writes an sh shim in",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zhf4a0fsgwh47c9j:d1",
+    "title": "D1 - Ship one flat, two-axis, domain-neutral starter vocabulary",
+    "body": "- D: Replaced the shipped starter with `schema_version: 2`, `axis:` declared on every slug, and both axes present: 3 areas (`deliverable`, `research`, `operations`) and 5 activities (`planning`, `drafting`, `review`, `correction`, `publishing`). Shipped **flat** - no `parent:` anywhere. The header comment carries the teaching: the two axes, the alias-versus-parent distinction, that depth is earned by concentration, a",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_foreign_file_routing",
+  "title": "Non-destructive routing into foreign entry-point files",
+  "concern": "founding:.memory-seed/index.md#L146",
+  "founding_head": "founding:.memory-seed/index.md#L146",
+  "candidates": [
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall",
+    "body": "- D: Added `add_agent`/`remove_agent` + `memory-seed agents list|add|remove`. Removal uses generic strippers (`_strip_grouped_hooks`/`_strip_cursor_hooks`/`_strip_mcp_entry`/`_strip_copilot_startup`/`_strip_codex_mcp`) that remove only our entries, delete a config file only when nothing of value remains, never delete shared dirs (`.github`/`.vscode`), back up everything first, and delete routing files by name. Warns ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision",
+    "body": "- D: (1) **Refreshed `docs/functionality-audit.md` 2.7 → 2.10** — header/frontmatter, packaging footprint (wheel re-measured at 107,200 B for 2.10.0, up from 101,251 B at 2.7.0), `user`/`session target` CLI rows, the 2.8 foreign-routing 4-way ownership branch (§3E) + doctor route-presence warning (§3L), 2.9 dual-read + 2.10 user-aware session targets/hooks (§3D/H/J), interfaces (`local.yaml`, `MEMORY_SEED_USER`, per-",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4tdzdds5v9jxje0r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Cut release 2.18.0 per the release_publishing runbook. Bumped every version surface together: `pyproject.toml` (2.18.0), `memory_seed/core.py` VERSION (2.18), the `memory-system-version:` frontmatter across 67 live+seed files (line-anchored replace; historical mentions untouched), the `get_version()` test pin, README version strings/pins, and index.md's Active State version lines. Folded CHANGELOG `## Unreleased",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d2",
+    "title": "D2 - Make SessionStart AGENTS-first with five-entry recency context",
+    "body": "- D: Claude, Codex, Gemini, and Cursor now receive an `AGENTS.md`-first startup directive plus the five newest applicable session entries in chronological order, spanning recent files when needed; Copilot's static prompt carries the same instructions. Empty/new projects still receive the directive. - R: The old payload listed every heading but injected only one entry body. Five recent entries give bounded continuity ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-a9b5e1ae:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Scoped manual refresh — replaced `demo/.memory-seed/{agent-rules.md, project-bootstrap.md, skills/index.md}` from the 2.7 seed and version-bumped the generated `index.md`/`policy.md` (content preserved). Old 2.4 files snapshotted to `demo/.memory-seed/archive/2.4/`. - R: Root moved to 2.7 while the demo lagged at 2.4. A blanket `memory-seed update` would overwrite the demo's HyperFrames-owned `AGENTS.md`/`CLAUDE",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3d80z4k6hb4rftq1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Phase 2c cull, file 3 of the queue: `test_project_lifecycle.py` (39 tests: init/update/doctor/ skills/packaging invariants). Read all 39. Verdict: 39 Keep, 0 changes — each targets a genuinely distinct edge case in a real config-management system (owned-vs-foreign routing files, force/backup/ archive semantics, version-ordering, idempotency). No duplication. - R: Continues the Phase 2c queue under \"Yes continue ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_31m31wsrwe77jh78:d3",
+    "title": "D3 - Topic sidecars file under the ENTRY date, which reshapes the write and the correction path",
+    "body": "- D: The skill states as its sharpest divergence from `link_swarm` that a batch writes one file per distinct ENTRY date under `sessions/topics/YYYY-MM/YYYY-MM-DD.md` — a 40-entry batch touches ~40 files spread across every month the corpus covers — and that a wrong batch is corrected by appending a block with a strictly later heading time to that SAME file, never by editing the published block. - R: `topic-sidecar-da",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_skcmezqbxxh5dtp6:d1",
+    "title": "D1 - Close the false-anchor merge at its source with a `-merge` attribute",
+    "body": "- D: `.gitattributes` gains `.memory-seed/sessions/** -merge`, so git cannot line-merge session files; concurrent edits now conflict as a unit and the structural merge (`session merge-branch`) is the only way through. - R: Reproducing the 2026-07-19 incident in a scratch repo showed git does not merge these silently - it does something worse. It anchors on the `topics:`/`related_entries:` scaffolding that is byte-ide",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)",
+    "body": "- D: `read_project_agents`/`selected_agents`/`write_project_agents` with a dependency-free YAML parser. `init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing). Absent/malformed/no-`agents:` -> None -> ALL. Present-but-empty `agents:` -> empty set (a real zero-agents state, distinct from unconfigured). - R: Keeps every existing project + test byte-identical (advisor's key point). ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": "D2 - Sub-project runtime created manually, not via memory-seed init",
+    "body": "- D: Create `demo/.memory-seed/` by hand rather than running `memory-seed init` in the demo folder. - R: HyperFrames generates its own AGENTS.md and CLAUDE.md with a required skill routing table. Running memory-seed init would overwrite them and lose that context. Per agent-rules, sub-projects opened non-independently don't need their own routing files. - A: `memory-seed init --force` then restore HyperFrames CLAUDE.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s3t523yvtr39978k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated the control-plane skills to match the new folder-primary document lifecycle, with seed twins. Rewrote `.memory-seed/skills/proposal_lifecycle.md`: the folder IS the lifecycle state; distinct terminal lanes (completed/rejected/superseded/deferred) replace the old single mixed \"completed\"; rejected/superseded are kept, never `git rm`'d; the project's `docs/README.md` front door is the path authority; secon",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j23dvr3zehz8g7xh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Document the `--branch`/`--no-branch` workaround (A) in `.memory-seed/skills/session_logging.md`, appended to the prose that already defines the `branch` field, and cross-reference it from `README.md`'s `session append` command entry; record the standing convention (D) — a harness passes `--branch` unconditionally, sourced from the Task Packet's `working_branch` — as a bullet under \"Branch And Worktree Defaults\"",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jrakvf3j55prrshd:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Wrote `docs/inbox/agent-fanout-workflow-consolidated.md`. Took the 9-gate structure from the Codex parallel synthesis (it added a dedicated Worker Identity Gate with concrete preflight commands, a full per-stage capability-tier table, and a task-packet YAML schema diff — all more concrete than my own synthesis had), and folded in what only my synthesis had: explicit per-source attribution, and the connection bet",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ntkt6m0pqd0g8c9j:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Implement `memory-seed docs index [--check]`: per-lane README tables from frontmatter (Todo sorted by priority), a front-door counts + top-open-items roll-up, all generation strictly inside `<!-- docs-index:begin/end -->` markers. `--check` regenerates in memory and exits 1 on staleness without writing. Converted the front door's hand-written counts paragraph into the marker region and reconciled three front-doo",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hj0hh657j693rqzj:d2",
+    "title": "D2 - The sweep proposes an ADR; it never writes one",
+    "body": "- D: A swarm may **never** create an ADR sidecar or append a transition block. It may propose any movement — creation, accept, reject, supersede — as a candidate in the ordinary suggestion channel; human approval always commits, and the resulting file records `source: derived` so the reconstructed origin survives the approval. A four-row table enumerates every movement so no reader has to infer. - R: This is delibera",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Te",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9aggjnyaqrmb545d:d1",
+    "title": "D1 - A non-chronological link sidecar is sorted on write, not refused",
+    "body": "- D: `apply_link_gap_stubs` no longer raises `Existing link sidecar blocks are not chronological`. It re-sorts the whole block region on write with the same stable sort `_write_chronological_link_sidecar_file` already used for the fuse - existing blocks keep their relative order within a minute, new blocks land after them, block content is never touched. The four corpus files stuck in that state (`2026-07-03`, `-05`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from g",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5p94m2c3rwy7kbtj:d1",
+    "title": "D1 - `memory-seed situate`: network-free orientation preflight with full cross-agent parity",
+    "body": "- D: New `memory-seed situate` CLI (`situate.py`, mirroring `esr.py`) — a read-only report of LOCAL authoritative facts: git posture (branch / dirty / ahead-of-origin), `integration_mode`, the newest session entry (via the layout-aware `iter_session_documents` reader, not a re-derivation), worktree posture (reusing esr's helpers), and the local `pyproject` version + whether the CHANGELOG has a non-empty `## Unrelease",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "concern": "founding:.memory-seed/index.md#L174",
+  "founding_head": "founding:.memory-seed/index.md#L174",
+  "candidates": [
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Settled the four open decisions (bidirectional read-time traversal of directed forward edges; backfill between pre-existing entries out of 3.0 scope; raw `entry_id` selection; `link add` held) and shipped the read-only core: `build_related_entry_graph()` in `semantic_cache.py` (stored outbound + inbound computed only from resolvable refs), `memory-seed link suggest` (ranks **older** candidates only, excludes sel",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Wrote `docs/todo/related-entries-generation-plan.md` and pointed NEXT_STEPS at it. The recommended shippable core (P1) is **write-time only, zero append-only tension**: `memory-seed link suggest` (read-only, reuses `rank_session_memory`) + `memory-seed link add` constrained to the current/newest entry + **bidirectional read-time traversal** as the canonical graph-read model. Backfilling edges between two pre-exi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mk82r25x7mvb1aqa:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `MemoryChunk` gained a `supersedes` tuple parsed from entry YAML by the existing generic metadata scan (`_metadata_list`); `RelatedEntryNode`/`build_related_entry_graph()` gained `supersedes` (stored) and `superseded_by` (computed inverse, built exactly like `inbound`, resolvable refs only, never merged with relatedness edges). `check_session_links()` validates four new issue kinds: `dangling-supersedes` (any fe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it (which the fuse forbids). A new correction block declares `retracts: <kind> <ref> [(YYYY-MM-DD)]`; the reader (`entry_link_sidecars`) unions all edges then subtracts each retracted one (entry-level by `(kind, target)`, decision by the exact 4-tuple); ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0842kjv76f4btrr8:d1",
+    "title": "D1 - Timeline with related documents (explicit links only)",
+    "body": "- D: `get_timeline` now attaches `related = {outbound, inbound}` per entry, resolved from `build_related_entry_graph` (bidirectional). `renderTimeline` shows each entry's related docs inline (-> relates to / <- referenced by), clickable into the Reader via the existing `selectChunk` delegation. Explicit `related_entries` only (no derived same-day/tag in the timeline), per user choice. - R: This is the \"clear timeline",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_trt2tdzxw9jx6h2a:d1",
+    "title": "D1 - Correct the record instead of rebuilding, and fix the spec claim that was backwards",
+    "body": "- D: Marked item 3 **RESOLVED — stale as written**, citing `3deb9c2` and the existing dated retraction, and recorded that its figures were *superseded* rather than merely reproduced. Separately corrected the spec's \"the gain is in *reachability*, not reordering: median rank is 3 either way\" — it is the reverse. Added the re-measured table and the structural reason: cosine only ever adds to the score of a pair the lex",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d2",
+    "title": "D2 - The P2 historical backfill is blocked pending a constitutional ruling",
+    "body": "- D: Do not build `link backfill`. Record it in the plan as an open user decision with three options: reject it in favour of the shipped evolution-edges seeding pass, amend Invariant #2 for a metadata-only carve-out, or record a reading that YAML curation was never \"rewriting the past\". - R: - The plan was approved 2026-07-05; the Constitution was ratified 2026-07-14. The sign-off predates the invariant and cannot au",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d1",
+    "title": "D1 - Ship `link add`, refuse any non-newest source",
+    "body": "- D: Implement `memory-seed link add <target> [--from]` writing one `related_entries` edge from the newest entry to an older one. Forward-only, idempotent, YAML-only, `links check`-gated. Any source that is not the newest entry is refused at the writer, not just at the CLI. - R: - Adding to the entry being authored does not rewrite history, so it is clean under Invariant #2, and the plan itself calls this \"the normal",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jpfs9yy19bznh18y:d1",
+    "title": "D1 - Add three read-only authoring-support MCP tools",
+    "body": "- D: Add `memory_link_suggest`, `memory_link_show`, and `memory_session_target` to `mcp_server.py`, wrapping existing `suggest_related_entries` / `build_related_entry_graph` / `session_target`. - R: These are read-only, reuse the same ranking/graph engine as search, and serve the highest- frequency LLM authoring task (append a linked entry every turn); the plumbing (`entry_id`, `related_entries` already flow through ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d5",
+    "title": "D5 - Reverted the demonstration edge rather than bypassing the append-only guard",
+    "body": "- D: Restore `.memory-seed/sessions/links/2026-07/2026-07-21.md` to its published state and land the rest, instead of forcing the merge or authoring a substitute pair. - R: Two rejected alternatives make the reasoning: a plain `git merge` would bypass a guard that was correctly identifying a real rule violation, and inventing a fresh 2026-07-22 pair (this entry \"evolving\" some decision) to satisfy the exit criterion ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d1",
+    "title": "D1 - Decision edges are a separate stream, computed after row expansion and outside the visibility filter",
+    "body": "- D: Build decision edges in `_decision_edges_for_rows`, called only from the `include_decisions` branch after `_expand_decision_rows`, and append them to `visible_edges` after the `limited_ids` filter rather than through it. - R: Two independent reasons converged on the same placement. The ratified draft forbids projecting a decision edge into entry-level `supersedes`/`evolves` - \"D2 of B supersedes D1 of A\" does no",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+    "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wast",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a7zs346tqznzpexn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Implemented the grounding-provenance → write-time lifecycle-links proposal (approved same day). **Layer 2 (code):** `suggest_related_entries` + the `memory_link_suggest` MCP tool gained an optional `consulted: [ids]` axis — candidates whose id the caller retrieved while grounding are flagged `consulted` and sort ahead of shared-file candidates (the *memory* axis of candidacy, complementary to the structural file",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c9yz5c5bjj6cntdg:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Drafted a standalone inbox proposal `docs/1_Inbox/grounding-provenance-write-time-links-proposal.md`: feed the entries an agent *consulted while grounding* (the pre-work `memory_search`/`memory_get_chunk` retrieval mandated by `history_retrieval.md`) into **write-time** lifecycle-link candidates, instead of discarding them and re-deriving weaker candidates from structural file/topic overlap. Layered: (1) guidanc",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a0mbycf08bfp7p8x:d2",
+    "title": "D2 - No `link backfill` command, now or later",
+    "body": "- D: Do not build a backfill command. Document a hand procedure in the plan instead, and mark the plan's original \"Backfill Between Older Entries\" section (flags, backups, idempotency) as superseded. - R: - JNL's scope was explicit: *\"this should not be part of the core functionality, it's a one-off procedure that needs to be done with explicit user permission and gating of each item.\"* A standing command is core fun",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kdhw53hzp4nh8wwm:d3",
+    "title": "D3 - `links check` errors on wrong refs and only warns on coarse ones",
+    "body": "- D: A new error kind `dangling-source-decision` fires wherever an arrow names an ordinal the authoring entry lacks, in entry YAML and sidecar blocks alike. Coarseness gets two warning kinds instead - `unaddressed-target-decision`, `unattributed-source-decision` - and only on entries stamped after `2026-07-24 09:00`. - R: An error must be actionable. A published entry cannot be edited, so an error on a historical bar",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kdhw53hzp4nh8wwm:d1",
+    "title": "D1 - Both ends of a lifecycle edge must name their decision, enforced where the ref is still unwritten",
+    "body": "- D: A new `replaces:`/`evolves:` item names the decision on each end. Target side: `<entry_id>:dN`, explicitly `:d1` even when the target has exactly one decision, comma form `mse_x:d1,d4` expanding to one edge per ordinal; a bare id stays legal only where the target has no decision section at all. Source side: a `dN -> ` prefix naming which of the writing entry's own decisions authors the edge, required whenever th",
+    "claimed_by": [
+     "adr_decision_identity"
+    ]
+   },
+   {
+    "ref": "mse_wh33mc61swqx0vkv:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `memory-seed link show` now prints a `related_degree` line and `memory_get_chunk` returns a `related_degree` integer — both defined as `len(node.inbound)` from `build_related_entry_graph()` (inbound backlinks only), reusing the graph node already fetched for `superseded_by` so no extra graph build. Not blended into any ranking math. - R: As specced by P1a; the graph machinery from supersedes P1 made this a near-",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d1",
+    "title": "D1 - Topics get a third sidecar family, modelled on diagrams, not links",
+    "body": "- D: Backfilled topics live in `sessions/topics/YYYY-MM/YYYY-MM-DD.md`, a new sidecar family alongside diagrams and links. `links check` validates vocabulary membership (alias-canonicalizing), a 3-slug cap, orphan/date-mismatch/duplicate-block, and warns (never errors) when a sidecar restates a topic the author already wrote. - R: Append-only forbids reopening a published entry, so a topic learned later has nowhere e",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8cz9th5s9z1wv9gp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `link show` now unions late-authored link-sidecar edges into the graph it prints (calls `augment_chunks_with_link_sidecars` on the extracted chunks before `build_related_entry_graph`), so its supersedes / superseded_by / evolves / evolved_by / inbound / importance_score reflect the same EFFECTIVE graph that retrieval, MCP, and the Trace UI read - not just the raw entry YAML. - R: The CLI `show` handler built the",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_58rgfg4n8vfqbvfw:d1",
+    "title": "D1 - Fix the identity, not the immutability",
+    "body": "- D: The fuse's plan and apply phases key link-sidecar blocks by `(entry_id, timestamp)`. The same dated block remains immutable (\"existing link sidecar modified\" fires exactly as before); a new timestamp for a known entry imports as a later declaration; duplicate same-identity blocks are refused as authoring damage. - R: The collision cause was never append-only - it was the one-block-per-entry assumption baked into",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ktw9r3nq5bvx2plm:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built Phases 1-2 of the lifecycle-edge linking hardening (see `docs/3_Spec/lifecycle-edge-linking-sidecars.md`). Root problem: `supersedes`/`evolves` are opt-in typed edges declared in an entry's own YAML at write time, and in practice almost nobody stamps them (across 312 entries they appear in ONE file); genuine supersessions get logged as generic `related_entries`, so the Trail's replaces/evolves lines nearly",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m9kmrztj8kswee35:d1",
+    "title": "D1 - Root cause: converting an existing `classify_pending` stub in place is an EDIT to a file the base already has that entry_id in, and the fuse's base-reset loop does not import edits, only new blocks",
+    "body": "- D: Reapplied the five edges directly to `.memory-seed/sessions/links/2026-07/{2026-07-28,2026-07-29}.md` on `main`, bypassing `session merge-branch` a second time - replaying through another branch+merge cycle would hit the identical drop, since the mechanism that dropped it is unrelated to which branch carries the edit. - R: Reconstructed from observed behaviour, not from reading the fuse's source in this entry. T",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d2",
+    "title": "D2 - The focus view expands over a decision edge's two entries, as membership only",
+    "body": "- D: When an entry is focused, feed `_neighborhood` an extra entry-to-entry pair per decision edge so the far entry is displayed. The drawn edge still terminates on the decision row and nothing is added to entry-level edge lists. - R: Found by measuring rather than reasoning: after upgrading the real ref from `mse_2m56qnk1473vmjz1` to `:d2`, focusing the source entry made the target vanish entirely, because the neigh",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rnjcg0d1k8a2a9gn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added D5 to the evolution-edges proposal per user direction: `F:` file-path overlap between entries is a first-class precision signal when ranking `evolves`/`supersedes` candidates in `link suggest`/`memory_link_suggest`, with four binding constraints - boost-never-gate (F is optional), rarity-weighted (hub files like CHANGELOG/README/session logs are stopword-like and contribute ~nothing), conservative backtick",
+    "claimed_by": []
+   }
+  ]
+ }
+]

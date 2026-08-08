@@ -38,6 +38,10 @@ Founded from the control file with the write-time-only P1 scope chosen precisely
 - `constitution:v1#append-only` (governing)
 - `constitution:v1#edge-kinds` (supporting)
 
+### Awaiting review
+
+- `mse_dvzh6fkn4d98cd6y:d1` - Related-entry edges are authored forward-only in the writing entry's own YAML; the bidirectional graph is...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -91,3 +95,36 @@ Founded from the control file with the write-time-only P1 scope chosen precisely
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:34:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#edge-kinds",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_dvzh6fkn4d98cd6y:d1",
+  "event_id": "adre_2a61df9ff684a67c566f",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Related-entry edges are authored forward-only in the writing entry's own YAML; the bidirectional graph is assembled at READ time, with inbound backlinks computed only from resolvable outbound refs. `build_related_entry_graph()` owns that assembly, and the read-only `link suggest` / `link show` surfaces expose it. No historical entry is ever edited to record an inbound link.
+
+#### Why
+
+Rests on the session decision that instituted it: "**bidirectional read-time traversal** as the canonical graph-read model" (mse_dvzh6fkn4d98cd6y:d1). Institutes the forward-only authoring strategy with bidirectional read-time traversal.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L174; this revision moves the concern off that control-file line onto mse_dvzh6fkn4d98cd6y:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

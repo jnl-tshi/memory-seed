@@ -38,6 +38,10 @@ Founded from the control file. Session decision mse_5y962348e85x7grr (2026-08-03
 
 - `constitution:v1#single-source` (governing)
 
+### Awaiting review
+
+- `mse_08nhq28nkm2ecpt4:d1` - Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -87,3 +91,32 @@ Founded from the control file. Session decision mse_5y962348e85x7grr (2026-08-03
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:30:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#single-source",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_08nhq28nkm2ecpt4:d1",
+  "event_id": "adre_22f0248b4f3f13a935ce",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance reports, deliberately separated from `docs/` which holds product specification and implementation lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than being copied; a document has one canonical home.
+
+#### Why
+
+Rests on the session decision that instituted it: "move rather than copy them out of `docs/4_Reference/`" (mse_08nhq28nkm2ecpt4:d1). Explicitly institutes the policy requiring documents to move rather than be copied between business/ and docs/.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L106; this revision moves the concern off that control-file line onto mse_08nhq28nkm2ecpt4:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

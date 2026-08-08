@@ -37,6 +37,10 @@ Founded from the control file; no session lineage attached yet.
 
 - `constitution:v1#edge-kinds` (governing)
 
+### Awaiting review
+
+- `mse_0qycwt519qdggrpe:d1` - Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by`...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -83,3 +87,32 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:33:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#edge-kinds",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_0qycwt519qdggrpe:d1",
+  "event_id": "adre_14ff420e1e407cfd3cb8",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.
+
+#### Why
+
+Rests on the session decision that instituted it: "`DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`" (mse_0qycwt519qdggrpe:d1). Institutes the three core edge kinds system by defining DEFAULT_GRAPH_EDGE_TYPES.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L171; this revision moves the concern off that control-file line onto mse_0qycwt519qdggrpe:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

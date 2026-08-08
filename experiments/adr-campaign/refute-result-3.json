@@ -1,0 +1,32 @@
+[
+  {
+    "adr_id": "adr_link_retraction",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "The decision body explicitly establishes the append-only retracts mechanism as a founding feature: 'Added an append-only retracts: mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it.'"
+  },
+  {
+    "adr_id": "adr_markdown_substrate",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "The decision institutes the foundational rule: 'RESOLVED the source-of-truth-under-collaboration fork: Markdown is authoritative *everywhere* (Invariant #6 reframed), including a future hosted/collaborative tier.' This resolves the debate and establishes the principle."
+  },
+  {
+    "adr_id": "adr_semantic_provider",
+    "verdict": "refuted",
+    "better_ref": "",
+    "reason": "The decision body says 'Keep model2vec required' which applies/maintains an existing requirement rather than founding it. The concern encompasses three distinct aspects (default provider, silent lexical degrade, only required dep) but this decision only formalizes one pre-existing aspect through testing."
+  },
+  {
+    "adr_id": "adr_session_layout",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "The decision body explicitly establishes the new layout: 'Make .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md, .memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md, and .memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md the new canonical write targets.' This institutes the month-grouped structure."
+  },
+  {
+    "adr_id": "adr_subproject_scoping",
+    "verdict": "stands",
+    "better_ref": "",
+    "reason": "The decision institutes the scoping rule: 'Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries.' This establishes the foundational principle for sub-project memory organization."
+  }
+]

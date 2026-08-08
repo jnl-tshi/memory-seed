@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_experiment_isolation",
+    "verdict": "primary",
+    "ref": "mse_gbc4m5m71dqmen75:d1",
+    "quote": "treat each fixture's own `.memory-seed/sessions/` as the experiment readout",
+    "quote_ref": "mse_gbc4m5m71dqmen75:d1",
+    "why": "This decision directly established structural fixture isolation through isolated runtime environments with per-fixture session directories.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_foreign_file_routing",
+    "verdict": "primary",
+    "ref": "ms-7c2f1d90:d1",
+    "quote": "Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS`",
+    "quote_ref": "ms-7c2f1d90:d1",
+    "why": "This decision implemented the complete non-destructive routing mechanism for foreign entry-point files through structured ownership and version-gated handling.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_forward_only_edges",
+    "verdict": "primary",
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "quote": "bidirectional read-time traversal as the canonical graph-read model",
+    "quote_ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "why": "This decision proposed the core architectural design combining forward-only write-time authoring with read-time bidirectional graph traversal.",
+    "runner_up": ""
+  }
+]

@@ -1,0 +1,553 @@
+{
+ "picks": [
+  {
+   "adr_id": "adr_agent_config_merge",
+   "verdict": "primary",
+   "ref": "ms-7c4e1f9a:d1",
+   "quote": "Handle `.claude/settings.json` as a JSON merge rather than a seed file copy.",
+   "quote_ref": "ms-7c4e1f9a:d1",
+   "why": "Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.",
+   "runner_up": "",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_agent_selective_install",
+   "verdict": "primary",
+   "ref": "ms-1bcfcc91:d2",
+   "quote": "`init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing).",
+   "quote_ref": "ms-1bcfcc91:d2",
+   "why": "Directly establishes project.yaml as the persistent control mechanism for agent-selective installation with backward-compatible all-agents default.",
+   "runner_up": "ms-1bcfcc91:d3",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "verdict": "primary",
+   "ref": "mse_903jqy9v4pr8g388:d2",
+   "quote": "the operator-owned archive snapshot step",
+   "quote_ref": "mse_903jqy9v4pr8g388:d2",
+   "why": "Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.",
+   "runner_up": "ms-757053d4:d4",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "verdict": "primary",
+   "ref": "mse_9c151e4gbkkv1w5v:d1",
+   "quote": "Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability.",
+   "quote_ref": "mse_9c151e4gbkkv1w5v:d1",
+   "why": "Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "verdict": "primary",
+   "ref": "mse_5hgxywp0n3qsz0dw:d1",
+   "quote": "Keep market, competitor, pricing, and wedge strategy in top-level living dossiers under `business/`, separate from the product implementation lifecycle in `docs/`.",
+   "quote_ref": "mse_5hgxywp0n3qsz0dw:d1",
+   "why": "Establishes the foundational separation of business/ from docs/ as the rule for organizing material.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_control_file_authority",
+   "verdict": "primary",
+   "ref": "ms-845042c7:d3",
+   "quote": "Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale.",
+   "quote_ref": "ms-845042c7:d3",
+   "why": "Directly establishes the partition between control files as authority and session history as evidence.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_derived_precedence",
+   "verdict": "primary",
+   "ref": "mse_dqwvb8gxnn88ch3b:d1",
+   "quote": "A `derived` block never **implicitly** supersedes a `write-time` block",
+   "quote_ref": "mse_dqwvb8gxnn88ch3b:d1",
+   "why": "This decision established the rule that derived blocks cannot implicitly override write-time values.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "verdict": "primary",
+   "ref": "mse_yfsrahvq87hxkcv9:d1",
+   "quote": "The FOLDER is now the single visible source of truth for a doc's lifecycle state",
+   "quote_ref": "mse_yfsrahvq87hxkcv9:d1",
+   "why": "This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "verdict": "primary",
+   "ref": "ms-d5f3155e:d1",
+   "quote": "the single-decision DRAFT record is the baseline shape",
+   "quote_ref": "ms-d5f3155e:d1",
+   "why": "This decision reframed the session log to use DRAFT format as the baseline for single-decision entries.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_edge_confidence",
+   "verdict": "primary",
+   "ref": "mse_p4xd3wqf214nqtmv:d2",
+   "quote": "Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings",
+   "quote_ref": "mse_p4xd3wqf214nqtmv:d2",
+   "why": "Created the structured edge_confidence field that the ADR governs.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "verdict": "primary",
+   "ref": "mse_t22wn997q5005zjp:d1",
+   "quote": "Draft a proposal for a fourth authored edge kind `evolves:` with computed `evolved_by` inverse, forward-only",
+   "quote_ref": "mse_t22wn997q5005zjp:d1",
+   "why": "Proposed the fourth edge kind (evolves) that completes the four-kind system.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "verdict": "primary",
+   "ref": "mse_74ddxsena9nj2afk:d1",
+   "quote": "Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface",
+   "quote_ref": "mse_74ddxsena9nj2afk:d1",
+   "why": "Established Seed as the sole owner of encoding policy, preventing duplication in Trace.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "verdict": "primary",
+   "ref": "mse_gbc4m5m71dqmen75:d1",
+   "quote": "treat each fixture's own `.memory-seed/sessions/` as the experiment readout",
+   "quote_ref": "mse_gbc4m5m71dqmen75:d1",
+   "why": "This decision directly established structural fixture isolation through isolated runtime environments with per-fixture session directories.",
+   "runner_up": "",
+   "batch": "attach-v2-result-4.json"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "verdict": "primary",
+   "ref": "ms-7c2f1d90:d1",
+   "quote": "Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS`",
+   "quote_ref": "ms-7c2f1d90:d1",
+   "why": "This decision implemented the complete non-destructive routing mechanism for foreign entry-point files through structured ownership and version-gated handling.",
+   "runner_up": "",
+   "batch": "attach-v2-result-4.json"
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "verdict": "primary",
+   "ref": "mse_t388apx6evvmmd1r:d1",
+   "quote": "`INTEGRATION_MODES = (\"local-merge\", \"pr\")`",
+   "quote_ref": "mse_t388apx6evvmmd1r:d1",
+   "why": "Implemented the P0.1 configurable integration-mode feature with the core INTEGRATION_MODES setting.",
+   "runner_up": "",
+   "batch": "attach-v2-result-5.json"
+  },
+  {
+   "adr_id": "adr_link_retraction",
+   "verdict": "primary",
+   "ref": "mse_c3a4z35t4m4rjf1n:d1",
+   "quote": "Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed",
+   "quote_ref": "mse_c3a4z35t4m4rjf1n:d1",
+   "why": "Introduced the append-only retracts mechanism enabling non-destructive correction of published lifecycle edges.",
+   "runner_up": "",
+   "batch": "attach-v2-result-5.json"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "verdict": "primary",
+   "ref": "mse_gn2kmdenk0p4cn7z:d1",
+   "quote": "**Markdown is authoritative *everywhere*** (Invariant #6 reframed)",
+   "quote_ref": "mse_gn2kmdenk0p4cn7z:d1",
+   "why": "Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.",
+   "runner_up": "",
+   "batch": "attach-v2-result-6.json"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "verdict": "primary",
+   "ref": "mse_9r00krq403dsmdnq:d1",
+   "quote": "Keep `model2vec` required. Document `python -m pip install --no-deps memory-seed`",
+   "quote_ref": "mse_9r00krq403dsmdnq:d1",
+   "why": "This decision established model2vec as the only required dependency with documented lightweight install paths.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_session_layout",
+   "verdict": "primary",
+   "ref": "mse_k2188xq5evwmdny9:d1",
+   "quote": "Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`",
+   "quote_ref": "mse_k2188xq5evwmdny9:d1",
+   "why": "This decision established the month-grouped session layout with per-user files as canonical write targets.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "verdict": "primary",
+   "ref": "ms-0bd3d8b2:d2",
+   "quote": "Detailed session logs remain in the nearest active runtime; parent/root memory gets only",
+   "quote_ref": "ms-0bd3d8b2:d2",
+   "why": "This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_topic_authority",
+   "verdict": "primary",
+   "ref": "mse_8qmv0m07sy95vjm9:d1",
+   "quote": "`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes.",
+   "quote_ref": "mse_8qmv0m07sy95vjm9:d1",
+   "why": "This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_boundary",
+   "verdict": "primary",
+   "ref": "mse_etm5m5682sseasgm:d1",
+   "quote": "Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra.",
+   "quote_ref": "mse_etm5m5682sseasgm:d1",
+   "why": "This decision made the concern: shipping Trace as an optional extra in the root package rather than a separate required distribution.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "verdict": "primary",
+   "ref": "mse_gtn504wfjt3c34p6:d1",
+   "quote": "immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER",
+   "quote_ref": "mse_gtn504wfjt3c34p6:d1",
+   "why": "This decision established both architectural principles: persisting immutable git derivations and bulk-reading history in single passes.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "verdict": "primary",
+   "ref": "mse_37fpco0vvunilz5k:d1",
+   "quote": "one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)",
+   "quote_ref": "mse_37fpco0vvunilz5k:d1",
+   "why": "This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.",
+   "runner_up": "mse_74fb71s2cdrwqrqp:d1",
+   "batch": "attach-v2-result-9.json"
+  },
+  {
+   "adr_id": "adr_worktree_convention",
+   "verdict": "primary",
+   "ref": "mse_t5ecqb0k0t8wv68n:d1",
+   "quote": "scope the worktree to the SESSION (not the task) and let branches own tasks",
+   "quote_ref": "mse_t5ecqb0k0t8wv68n:d1",
+   "why": "This decision explicitly established the worktree-to-session and branch-to-task binding and the agent-namespaced naming scheme.",
+   "runner_up": "mse_bzk370rfxdtta2bx:d1",
+   "batch": "attach-v2-result-9.json"
+  }
+ ],
+ "kept": [
+  {
+   "adr_id": "adr_agent_config_merge",
+   "verdict": "primary",
+   "ref": "ms-7c4e1f9a:d1",
+   "quote": "Handle `.claude/settings.json` as a JSON merge rather than a seed file copy.",
+   "quote_ref": "ms-7c4e1f9a:d1",
+   "why": "Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.",
+   "runner_up": "",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_agent_selective_install",
+   "verdict": "primary",
+   "ref": "ms-1bcfcc91:d2",
+   "quote": "`init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing).",
+   "quote_ref": "ms-1bcfcc91:d2",
+   "why": "Directly establishes project.yaml as the persistent control mechanism for agent-selective installation with backward-compatible all-agents default.",
+   "runner_up": "ms-1bcfcc91:d3",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "verdict": "primary",
+   "ref": "mse_903jqy9v4pr8g388:d2",
+   "quote": "the operator-owned archive snapshot step",
+   "quote_ref": "mse_903jqy9v4pr8g388:d2",
+   "why": "Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.",
+   "runner_up": "ms-757053d4:d4",
+   "batch": "attach-v2-result-0.json"
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "verdict": "primary",
+   "ref": "mse_9c151e4gbkkv1w5v:d1",
+   "quote": "Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability.",
+   "quote_ref": "mse_9c151e4gbkkv1w5v:d1",
+   "why": "Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "verdict": "primary",
+   "ref": "mse_5hgxywp0n3qsz0dw:d1",
+   "quote": "Keep market, competitor, pricing, and wedge strategy in top-level living dossiers under `business/`, separate from the product implementation lifecycle in `docs/`.",
+   "quote_ref": "mse_5hgxywp0n3qsz0dw:d1",
+   "why": "Establishes the foundational separation of business/ from docs/ as the rule for organizing material.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_control_file_authority",
+   "verdict": "primary",
+   "ref": "ms-845042c7:d3",
+   "quote": "Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale.",
+   "quote_ref": "ms-845042c7:d3",
+   "why": "Directly establishes the partition between control files as authority and session history as evidence.",
+   "runner_up": "",
+   "batch": "attach-v2-result-1.json"
+  },
+  {
+   "adr_id": "adr_derived_precedence",
+   "verdict": "primary",
+   "ref": "mse_dqwvb8gxnn88ch3b:d1",
+   "quote": "A `derived` block never **implicitly** supersedes a `write-time` block",
+   "quote_ref": "mse_dqwvb8gxnn88ch3b:d1",
+   "why": "This decision established the rule that derived blocks cannot implicitly override write-time values.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "verdict": "primary",
+   "ref": "mse_yfsrahvq87hxkcv9:d1",
+   "quote": "The FOLDER is now the single visible source of truth for a doc's lifecycle state",
+   "quote_ref": "mse_yfsrahvq87hxkcv9:d1",
+   "why": "This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "verdict": "primary",
+   "ref": "ms-d5f3155e:d1",
+   "quote": "the single-decision DRAFT record is the baseline shape",
+   "quote_ref": "ms-d5f3155e:d1",
+   "why": "This decision reframed the session log to use DRAFT format as the baseline for single-decision entries.",
+   "runner_up": "",
+   "batch": "attach-v2-result-2.json"
+  },
+  {
+   "adr_id": "adr_edge_confidence",
+   "verdict": "primary",
+   "ref": "mse_p4xd3wqf214nqtmv:d2",
+   "quote": "Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings",
+   "quote_ref": "mse_p4xd3wqf214nqtmv:d2",
+   "why": "Created the structured edge_confidence field that the ADR governs.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "verdict": "primary",
+   "ref": "mse_t22wn997q5005zjp:d1",
+   "quote": "Draft a proposal for a fourth authored edge kind `evolves:` with computed `evolved_by` inverse, forward-only",
+   "quote_ref": "mse_t22wn997q5005zjp:d1",
+   "why": "Proposed the fourth edge kind (evolves) that completes the four-kind system.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "verdict": "primary",
+   "ref": "mse_74ddxsena9nj2afk:d1",
+   "quote": "Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface",
+   "quote_ref": "mse_74ddxsena9nj2afk:d1",
+   "why": "Established Seed as the sole owner of encoding policy, preventing duplication in Trace.",
+   "runner_up": "",
+   "batch": "attach-v2-result-3.json"
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "verdict": "primary",
+   "ref": "mse_gbc4m5m71dqmen75:d1",
+   "quote": "treat each fixture's own `.memory-seed/sessions/` as the experiment readout",
+   "quote_ref": "mse_gbc4m5m71dqmen75:d1",
+   "why": "This decision directly established structural fixture isolation through isolated runtime environments with per-fixture session directories.",
+   "runner_up": "",
+   "batch": "attach-v2-result-4.json"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "verdict": "primary",
+   "ref": "ms-7c2f1d90:d1",
+   "quote": "Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS`",
+   "quote_ref": "ms-7c2f1d90:d1",
+   "why": "This decision implemented the complete non-destructive routing mechanism for foreign entry-point files through structured ownership and version-gated handling.",
+   "runner_up": "",
+   "batch": "attach-v2-result-4.json"
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "verdict": "primary",
+   "ref": "mse_t388apx6evvmmd1r:d1",
+   "quote": "`INTEGRATION_MODES = (\"local-merge\", \"pr\")`",
+   "quote_ref": "mse_t388apx6evvmmd1r:d1",
+   "why": "Implemented the P0.1 configurable integration-mode feature with the core INTEGRATION_MODES setting.",
+   "runner_up": "",
+   "batch": "attach-v2-result-5.json"
+  },
+  {
+   "adr_id": "adr_link_retraction",
+   "verdict": "primary",
+   "ref": "mse_c3a4z35t4m4rjf1n:d1",
+   "quote": "Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed",
+   "quote_ref": "mse_c3a4z35t4m4rjf1n:d1",
+   "why": "Introduced the append-only retracts mechanism enabling non-destructive correction of published lifecycle edges.",
+   "runner_up": "",
+   "batch": "attach-v2-result-5.json"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "verdict": "primary",
+   "ref": "mse_gn2kmdenk0p4cn7z:d1",
+   "quote": "**Markdown is authoritative *everywhere*** (Invariant #6 reframed)",
+   "quote_ref": "mse_gn2kmdenk0p4cn7z:d1",
+   "why": "Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.",
+   "runner_up": "",
+   "batch": "attach-v2-result-6.json"
+  },
+  {
+   "adr_id": "adr_release_topology",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "quote_ref": "",
+   "why": "All candidates apply or describe an established flow; none establishes GitHub Release + manual PyPI gate as a new rule.",
+   "runner_up": "",
+   "batch": "attach-v2-result-6.json"
+  },
+  {
+   "adr_id": "adr_runtime_discovery",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "quote_ref": "",
+   "why": "No candidate establishes the walk-to-nearest .memory-seed pattern; likely a foundational design predating the session log.",
+   "runner_up": "",
+   "batch": "attach-v2-result-6.json"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "verdict": "primary",
+   "ref": "mse_9r00krq403dsmdnq:d1",
+   "quote": "Keep `model2vec` required. Document `python -m pip install --no-deps memory-seed`",
+   "quote_ref": "mse_9r00krq403dsmdnq:d1",
+   "why": "This decision established model2vec as the only required dependency with documented lightweight install paths.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_session_layout",
+   "verdict": "primary",
+   "ref": "mse_k2188xq5evwmdny9:d1",
+   "quote": "Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`",
+   "quote_ref": "mse_k2188xq5evwmdny9:d1",
+   "why": "This decision established the month-grouped session layout with per-user files as canonical write targets.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "verdict": "primary",
+   "ref": "ms-0bd3d8b2:d2",
+   "quote": "Detailed session logs remain in the nearest active runtime; parent/root memory gets only",
+   "quote_ref": "ms-0bd3d8b2:d2",
+   "why": "This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.",
+   "runner_up": "",
+   "batch": "attach-v2-result-7.json"
+  },
+  {
+   "adr_id": "adr_topic_authority",
+   "verdict": "primary",
+   "ref": "mse_8qmv0m07sy95vjm9:d1",
+   "quote": "`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes.",
+   "quote_ref": "mse_8qmv0m07sy95vjm9:d1",
+   "why": "This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_boundary",
+   "verdict": "primary",
+   "ref": "mse_etm5m5682sseasgm:d1",
+   "quote": "Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra.",
+   "quote_ref": "mse_etm5m5682sseasgm:d1",
+   "why": "This decision made the concern: shipping Trace as an optional extra in the root package rather than a separate required distribution.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "verdict": "primary",
+   "ref": "mse_gtn504wfjt3c34p6:d1",
+   "quote": "immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER",
+   "quote_ref": "mse_gtn504wfjt3c34p6:d1",
+   "why": "This decision established both architectural principles: persisting immutable git derivations and bulk-reading history in single passes.",
+   "runner_up": "",
+   "batch": "attach-v2-result-8.json"
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "verdict": "primary",
+   "ref": "mse_37fpco0vvunilz5k:d1",
+   "quote": "one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)",
+   "quote_ref": "mse_37fpco0vvunilz5k:d1",
+   "why": "This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.",
+   "runner_up": "mse_74fb71s2cdrwqrqp:d1",
+   "batch": "attach-v2-result-9.json"
+  },
+  {
+   "adr_id": "adr_worktree_convention",
+   "verdict": "primary",
+   "ref": "mse_t5ecqb0k0t8wv68n:d1",
+   "quote": "scope the worktree to the SESSION (not the task) and let branches own tasks",
+   "quote_ref": "mse_t5ecqb0k0t8wv68n:d1",
+   "why": "This decision explicitly established the worktree-to-session and branch-to-task binding and the agent-namespaced naming scheme.",
+   "runner_up": "mse_bzk370rfxdtta2bx:d1",
+   "batch": "attach-v2-result-9.json"
+  }
+ ],
+ "drops": [
+  {
+   "adr_id": "adr_forward_only_edges",
+   "ref": "mse_dvzh6fkn4d98cd6y:d1",
+   "reason": "quote not found in the cited decision",
+   "batch": "attach-v2-result-4.json"
+  },
+  {
+   "adr_id": "adr_legacy_agents_compat",
+   "ref": "ms-7c2f1d90:d1",
+   "reason": "quote not found in the cited decision",
+   "batch": "attach-v2-result-5.json"
+  }
+ ],
+ "length_outliers": [
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "ref": "mse_9c151e4gbkkv1w5v:d1",
+   "chars": 194
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "ref": "mse_5hgxywp0n3qsz0dw:d1",
+   "chars": 163
+  }
+ ],
+ "unanswered": []
+}
