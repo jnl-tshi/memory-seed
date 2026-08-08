@@ -2,7 +2,7 @@
 format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_link_retraction
-title: Append-only link retraction via retracts: blocks
+title: "Append-only link retraction via retracts: blocks"
 topics:
   - lifecycle-edges
   - graph

@@ -2,7 +2,7 @@
 format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_mcp_integration_surface
-title: MCP integration: per-agent config placement, upsert semantics, and a gated write surface
+title: "MCP integration: per-agent config placement, upsert semantics, and a gated write surface"
 topics:
   - mcp-tools
   - cli

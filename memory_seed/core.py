@@ -5656,6 +5656,7 @@ def _plan_session_fuse(
     # Source events may refer to session entries imported by this same plan;
     # admit those identities during validation but write sessions first.
     from .adr import (
+        frontmatter_issues,
         parse_adr_text,
         reconcile_adr_records,
         render_adr,
@@ -5691,6 +5692,10 @@ def _plan_session_fuse(
                 "does not understand. Land the parser change (memory_seed/adr.py) as its own merge "
                 "first, then merge the ledger data."
             )
+            continue
+        frontmatter_problems = frontmatter_issues(source_text)
+        if frontmatter_problems:
+            issues.extend(f"{rel_path}: {issue}" for issue in frontmatter_problems)
             continue
         try:
             incoming_adr = parse_adr_text(source_text, path=root / rel_path)

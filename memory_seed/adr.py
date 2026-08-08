@@ -281,10 +281,77 @@ def render_event(event: AdrEvent) -> str:
     return "\n".join(lines)
 
 
+# A plain YAML scalar cannot contain ": " (it reads as a nested mapping), end in a colon, carry
+# " #" (a comment), or open with an indicator character. Our own reader is a regex (`_scalar`) and
+# never noticed - but the Trace UI parses frontmatter with a real YAML parser, and five ADR titles
+# broke it. Quote only when needed, so every record written before this stays byte-identical.
+_YAML_INDICATORS = "-?:,[]{}#&*!|>'\"%@`"
+
+
+def _yaml_risk(value: str) -> str | None:
+    """Why `value` cannot be written as a bare YAML scalar, or None if it can."""
+    if not value:
+        return "is empty"
+    if ": " in value:
+        return "contains ': ', which YAML reads as a nested mapping"
+    if " #" in value:
+        return "contains ' #', which YAML reads as a comment"
+    if value.endswith(":"):
+        return "ends with ':', which YAML reads as a mapping key"
+    if value[0] in _YAML_INDICATORS:
+        return f"starts with the YAML indicator {value[0]!r}"
+    if value != value.strip():
+        return "has leading or trailing whitespace, which YAML strips"
+    return None
+
+
+def _yaml_scalar(value: str) -> str:
+    if _yaml_risk(value) is None:
+        return value
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def frontmatter_issues(text: str) -> list[str]:
+    """Lint RAW frontmatter for YAML that strict parsers downstream will reject.
+
+    `parse_adr_text` reads scalars with a regex, so it happily accepts frontmatter no YAML parser
+    would - and five ADR titles containing ': ' sat in the corpus unnoticed until the Trace UI,
+    which parses properly, failed on them. `adr check` did flag them once the writer began quoting,
+    but only as "derived Current view is stale", which names the symptom and not the cause. This
+    names the cause.
+
+    Deliberately hand-rolled: `model2vec` is the package's only dependency, so a YAML library is
+    not available to validate with.
+    """
+    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+        return ["frontmatter is not delimited by --- fences"]
+    issues: list[str] = []
+    seen: set[str] = set()
+    for line in text[4:text.find("\n---\n", 4)].splitlines():
+        if not line.strip() or line.startswith((" ", "\t", "-")):
+            continue  # nested list item or continuation - not a top-level scalar
+        if "\t" in line:
+            issues.append(f"frontmatter line uses a tab, which YAML forbids: {line.strip()[:60]}")
+            continue
+        key, _, raw = line.partition(":")
+        if not _:
+            continue
+        key, raw = key.strip(), raw.strip()
+        if key in seen:
+            issues.append(f"frontmatter key '{key}' appears more than once")
+        seen.add(key)
+        if not raw or (len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {'"', "'"}):
+            continue  # empty (a list follows) or already quoted
+        risk = _yaml_risk(raw)
+        if risk:
+            issues.append(f"frontmatter '{key}' must be quoted: it {risk}")
+    return issues
+
+
 def render_adr(record: AdrRecord) -> str:
     state, proposal = replay_adr(record), current_proposal(record)
     authority = f"`{state.authoritative_decision}`" if state.authoritative_decision else "not yet accepted"
-    front = ["---", "format: memory-seed-adr/1", f"schema_version: {record.schema_version}", f"adr_id: {record.adr_id}", f"title: {record.title}"]
+    front = ["---", "format: memory-seed-adr/1", f"schema_version: {record.schema_version}", f"adr_id: {record.adr_id}", f"title: {_yaml_scalar(record.title)}"]
     if record.topics:
         front.extend(["topics:", *(f"  - {topic}" for topic in record.topics)])
     front.extend([f"created_at: {record.created_at}", f"user_initials: {record.user_initials}", f"agent_type: {record.agent_type}", f"source: {record.source}", "---", ""])
@@ -882,6 +949,11 @@ def check_adrs(cwd: str | Path = ".") -> tuple[bool, list[str]]:
             issues.append(f"{path}: duplicate ADR id {record.adr_id}")
         seen.add(record.adr_id)
         issues.extend(f"{path}: {issue}" for issue in validate_adr(record, cwd))
-        if render_adr(record) != read_text_file(path):
+        source_text = read_text_file(path)
+        # Lint the RAW frontmatter before the canonical comparison: an unquoted risky scalar also
+        # trips that comparison, but only as "Current view is stale", which sends a reader looking
+        # at the wrong half of the file.
+        issues.extend(f"{path}: {issue}" for issue in frontmatter_issues(source_text))
+        if render_adr(record) != source_text:
             issues.append(f"{path}: derived Current view is stale")
     return not issues, issues

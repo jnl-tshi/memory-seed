@@ -2,7 +2,7 @@
 format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_branch_session_fuse
-title: Branch-session fuse: branch-only, chronological, immutable relative to base
+title: "Branch-session fuse: branch-only, chronological, immutable relative to base"
 topics:
   - git-workflow
   - branch-history
