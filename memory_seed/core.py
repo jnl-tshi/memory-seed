@@ -4674,9 +4674,25 @@ def _topic_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | Non
 def _unfusable_session_path_reason(rel_path: str) -> str:
     """Why the fuse will not touch this path, in words an operator can act on."""
     return (
-        "changed under .memory-seed/ but is not recognized by any session/diagram/link/topic "
+        "changed under .memory-seed/ but is not recognized by any session/diagram/link/topic/ADR "
         "classifier."
     )
+
+
+
+def _fuse_stage_pathspecs(root: Path) -> tuple[str, ...]:
+    """Trees the fuse stages after writing: sessions, plus decisions when the project has any.
+
+    ADR records were previously omitted, so the fuse wrote a reconciled record into the working
+    tree and `git commit` then took the INDEX - still base content from the reset - silently
+    dropping a branch's ADR event. `decisions/` is included only when it exists, because a pathspec
+    matching nothing makes `git add` fail, and most projects (and every fixture without ADRs) have
+    no such directory.
+    """
+    specs = [f"{MEMORY_DIR_NAME}/sessions"]
+    if (root / MEMORY_DIR_NAME / "decisions").is_dir():
+        specs.append(f"{MEMORY_DIR_NAME}/decisions")
+    return tuple(specs)
 
 
 def _is_recognized_session_tree_path(rel_path: str) -> bool:
@@ -4694,15 +4710,22 @@ def _is_recognized_session_tree_path(rel_path: str) -> bool:
         or _diagram_doc_from_relative_path(rel_path) is not None
         or _link_doc_from_relative_path(rel_path) is not None
         or _topic_doc_from_relative_path(rel_path) is not None
+        or _is_adr_relative_path(rel_path)
     )
-    # ADRs are deliberately NOT recognized here, and the omission is load-bearing. Recognizing a
-    # path asserts the fuse can REBUILD it from parsed records after the base reset. For a MODIFIED
-    # ADR that assertion is false: measured 2026-08-08, adding the family to this set let a merge
-    # reset a branch-modified ADR to base and never restore it - the branch's event was silently
-    # lost, which is precisely the data loss the guard exists to prevent. Refusing is the correct
-    # behaviour until the ADR apply path actually restores a reconciled record; only then may this
-    # recognizer claim the family. An ADDED ADR is unaffected either way: it is not in base_paths,
-    # so it never reaches the reset loop.
+
+
+def _is_adr_relative_path(rel_path: str) -> bool:
+    """True for an ADR record, the fifth family the fuse rebuilds and the only one outside sessions/.
+
+    Recognizing a path ASSERTS the fuse can rebuild it from parsed records after the base reset, so
+    this was reverted once (2026-08-08) when the assertion was false: the reconciled record was
+    written to the working tree but the staging step covered only ``sessions/``, so the commit took
+    the index - still base content from the reset - and the branch's ADR event was silently lost.
+    The staging fix makes the assertion true, and a probe that modifies an existing ADR now merges
+    with its event intact. Do not re-open this recognizer without that probe passing.
+    """
+    prefix = f"{MEMORY_DIR_NAME}/decisions/"
+    return rel_path.startswith(prefix) and rel_path.endswith(".md")
 
 
 def _session_target_relative_path(date_str: str, user: str | None = None) -> str:
@@ -6276,7 +6299,7 @@ def session_merge_branch(
 
     # The clean-tree precondition makes this sweep safe: the only changes under
     # sessions/ at this point are the merge itself plus fuse's writes/removals.
-    code, _ = _git_text(root, ("add", "-A", "--", f"{MEMORY_DIR_NAME}/sessions"))
+    code, _ = _git_text(root, ("add", "-A", "--", *_fuse_stage_pathspecs(root)))
     if code != 0:
         result.merge_in_progress = True
         result.issues.append("could not stage fused session files; merge left in progress")
@@ -6457,7 +6480,7 @@ def session_prepare_pr_branch(
     result.removed_sources = list(applied.removed_sources)
     result.already_present = list(applied.already_present)
 
-    code, _ = _git_text(root, ("add", "-A", "--", f"{MEMORY_DIR_NAME}/sessions"))
+    code, _ = _git_text(root, ("add", "-A", "--", *_fuse_stage_pathspecs(root)))
     if code != 0:
         result.merge_in_progress = True
         result.issues.append("could not stage prepared session files; merge left in progress")
