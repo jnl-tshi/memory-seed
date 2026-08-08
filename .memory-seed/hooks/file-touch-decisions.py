@@ -20,7 +20,8 @@ from pathlib import Path
 
 WATCHED_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 MAX_DECISIONS = 3
-ENTRY_CHAR_CAP = 420
+# No character cap: this hook asks the agent to judge whether its edit contradicts a decision, so
+# it shows whole decisions. MAX_DECISIONS is what bounds the payload.
 STAMP_PATH = Path(".memory-seed/.file-touch-stamp")
 LOG_PATH = Path(".memory-seed/.retrieval-log.jsonl")
 SESSIONS = Path(".memory-seed/sessions")
@@ -128,13 +129,30 @@ def replaces_map(all_entries):
     return replaced_by
 
 
-def excerpt(body):
-    keep = []
-    for line in body.splitlines():
-        if re.match(r"^\s*-\s+[DR]:", line):
-            keep.append(line.strip())
-    text = "\n".join(keep) if keep else "\n".join(body.splitlines()[1:6]).strip()
-    return text[:ENTRY_CHAR_CAP]
+def decision_text(body):
+    """The WHOLE decision content of an entry - never an excerpt.
+
+    This hook asks the agent to rule on whether its edit contradicts a recorded decision, so it
+    must not show a fragment. Two ways the old version broke that, both silently:
+
+    - it hard-cut at 420 characters with no ellipsis and no "read the source" pointer, so a
+      mid-sentence stop was indistinguishable from the end of the decision;
+    - it kept only `- D:` and `- R:` lines, dropping A/F/T even when the entry was well under the
+      cap - and `A:` is precisely where a decision records "we considered reversing this", which
+      is the most decision-relevant thing an agent about to reverse it could read.
+
+    The bound that keeps this affordable is MAX_DECISIONS, which caps how many decisions are
+    surfaced. Capping the middle of each one bought little and cost the evidence.
+    """
+    lines = [line.rstrip() for line in body.splitlines()]
+    # Drop the YAML metadata fence: it is provenance, not decision content, and the old fallback
+    # emitted exactly that when an entry had no D:/R: lines.
+    if lines and lines[0].strip().startswith("```"):
+        for index in range(1, len(lines)):
+            if lines[index].strip().startswith("```"):
+                lines = lines[index + 1:]
+                break
+    return "\n".join(lines).strip()
 
 
 def load_stamp():
@@ -220,7 +238,7 @@ def main():
         if entry_id:
             lines.append(f"entry_id: {entry_id}")
             surfaced.append(entry_id)
-        lines.append(excerpt(body))
+        lines.append(decision_text(body))
     lines.append(
         "\nIf your current change contradicts or retires any decision above, your session entry "
         "for this turn MUST declare a `replaces` or `evolves` edge to it (three-way rule in "

@@ -570,6 +570,38 @@ class AwaitingReviewViewTests(ProjectFixture):
             self.assertEqual(render_adr(parse_adr(path)), read_text_file(path), path.name)
 
 
+class SingleReplayTests(unittest.TestCase):
+    """The three callers of the replay rules must agree, because history says they drift.
+
+    `replay_adr`, `validate_adr` and `reconcile_adr_records` each kept their own copy of the ADR
+    state machine. The divergence bit twice with the same signature: a rule changed in one copy,
+    the checks that run it went green, and the copy nobody remembered refused the work later. The
+    founding extension missed the reconciler; so did the 2026-08-08 re-proposal relaxation, which
+    is how `adr check` passed 30 ADRs that `session merge-branch` then refused all at once.
+
+    They now share `_replay_step`. This asserts the agreement over the live corpus rather than
+    trusting a comment to hold - the comment was there both times, and correctly predicted its own
+    recurrence, which is what made the shared copy worth the churn.
+    """
+
+    def test_every_live_adr_validates_reconciles_and_replays_consistently(self):
+        import copy
+
+        for path in LIVE_ADRS:
+            record = parse_adr(path)
+            self.assertEqual(validate_adr(record, REPO), [], path.name)
+            # Reconciling a record with itself is the merge the fuse performs when one side moved;
+            # it must reach the same head the validator and the replay agree on.
+            merged, issues = reconcile_adr_records(copy.deepcopy(record), copy.deepcopy(record))
+            self.assertEqual(issues, [], path.name)
+            self.assertIsNotNone(merged, path.name)
+            self.assertEqual(
+                replay_adr(merged).authoritative_decision,
+                replay_adr(record).authoritative_decision,
+                path.name,
+            )
+
+
 class StaleAnchorTests(ProjectFixture):
     """An ADR anchored behind its own live chain is stale, and `links check` says so.
 
