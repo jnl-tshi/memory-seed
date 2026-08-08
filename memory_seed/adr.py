@@ -348,6 +348,15 @@ def frontmatter_issues(text: str) -> list[str]:
     return issues
 
 
+def _first_sentence(text: str, cap: int = 110) -> str:
+    """One-line gist of a proposal, for listing pending revisions in the Current view."""
+    flat = " ".join(text.split())
+    match = re.search(r"(?<=[a-z0-9)`])\.\s", flat)
+    if match:
+        flat = flat[:match.start() + 1]
+    return flat if len(flat) <= cap else flat[:cap].rsplit(" ", 1)[0] + "..."
+
+
 def render_adr(record: AdrRecord) -> str:
     state, proposal = replay_adr(record), current_proposal(record)
     authority = f"`{state.authoritative_decision}`" if state.authoritative_decision else "not yet accepted"
@@ -369,6 +378,21 @@ def render_adr(record: AdrRecord) -> str:
             "### Constitution", "",
             *(f"- `{item.ref}` ({item.role})" for item in proposal.constitution_refs), "",
         ])
+    # Revisions proposed but not yet accepted, other than the one shown above. Without this a
+    # reader of the summary sees only the accepted head: two branches can each append a proposal,
+    # reconcile cleanly, and the Current view still reports the old position with no sign that
+    # changes are waiting. Replay already knows the pending set; this surfaces it where the summary
+    # is actually read. Omit-empty, so an ADR whose only pending revision is the one on display -
+    # every ADR in the corpus today - renders byte-identically.
+    shown = proposal.revision_key if proposal else None
+    awaiting = [ref for ref in state.pending_decisions if ref != shown]
+    if awaiting:
+        view.extend(["### Awaiting review", ""])
+        for ref in awaiting:
+            pending = proposal_for(record, ref)
+            summary = _first_sentence(pending.decision) if pending else ""
+            view.append(f"- `{ref}`" + (f" - {summary}" if summary else ""))
+        view.append("")
     view.extend(["<!-- memory-seed-derived-current-view:end -->", "", "## Event ledger", "", ""])
     events = "\n\n".join(render_event(event) for event in record.events)
     return "\n".join(front + view) + events + "\n"

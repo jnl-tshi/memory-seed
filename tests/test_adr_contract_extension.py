@@ -505,3 +505,66 @@ class FrontmatterLintTests(ProjectFixture):
     def test_every_live_adr_passes_the_linter(self):
         for path in LIVE_ADRS:
             self.assertEqual(frontmatter_issues(read_text_file(path)), [], path.name)
+
+
+class AwaitingReviewViewTests(ProjectFixture):
+    """The summary must show revisions waiting, or two branches can update an ADR invisibly."""
+
+    def test_two_branches_proposing_both_appear_in_the_current_view(self):
+        import copy
+        from memory_seed.adr import AdrEvent, _event_id
+
+        root = self.make_project()
+        (root / ".memory-seed" / "sessions" / "2026-08-06.md").write_text(
+            ENTRY + "\n#### D2 - A second decision\n\n- D: Elsewhere.\n- R: Because.\n",
+            encoding="utf-8",
+        )
+        promote_decision(
+            root, adr_id="adr_two_branches", title="Concern", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="Founding position.", why="W.",
+            founding_source=".memory-seed/index.md#L1", founding_quote="A founding line.",
+            timestamp="2026-08-08T10:00:00Z",
+        )
+        transition_adr(
+            root, adr_id="adr_two_branches", status="accepted", update_entry_id=None,
+            source="derived", timestamp="2026-08-08T10:01:00Z",
+        )
+        base = parse_adr(root / ".memory-seed" / "decisions" / "adr_two_branches.md")
+
+        def branch(ref, stamp, decision):
+            record = copy.deepcopy(base)
+            record.events.append(AdrEvent(
+                "revision-proposed", _event_id("t", ref, stamp), stamp, "derived", ref,
+                "mse_extension0000001", decision=decision, why="W.", evolution="E.",
+            ))
+            return record
+
+        left = branch("mse_extension0000001:d1", "2026-08-08T11:00:00Z", "Branch A position.")
+        right = branch("mse_extension0000001:d2", "2026-08-08T11:05:00Z", "Branch B position.")
+        merged, issues = reconcile_adr_records(left, right)
+        self.assertEqual(issues, [])
+
+        view = render_adr(merged).split("## Event ledger")[0]
+        # The head is unchanged - neither branch was accepted - but BOTH are visible as waiting.
+        self.assertIn("Authoritative decision: `founding:.memory-seed/index.md#L1`", view)
+        self.assertIn("### Awaiting review", view)
+        self.assertIn("mse_extension0000001:d1", view)
+        self.assertIn("mse_extension0000001:d2", view)
+        self.assertIn("Branch A position.", view)
+        self.assertIn("Branch B position.", view)
+
+    def test_the_section_is_omitted_when_the_only_pending_revision_is_the_one_displayed(self):
+        """Why the whole live corpus renders byte-identically after this change."""
+        root = self.make_project()
+        result = promote_decision(
+            root, adr_id="adr_single", source_entry_id="mse_extension0000001",
+            source_decision="d1", title="Single", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            timestamp="2026-08-08T10:00:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        self.assertNotIn("### Awaiting review", read_text_file(result.path))
+
+    def test_every_live_adr_is_unchanged_by_this_view(self):
+        for path in LIVE_ADRS:
+            self.assertEqual(render_adr(parse_adr(path)), read_text_file(path), path.name)
