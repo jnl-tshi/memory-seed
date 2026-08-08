@@ -83,3 +83,20 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### context-added - 2026-08-08T18:00:00Z
+
+```json
+{
+  "event_id": "adre_e051b73e16bd58be0ae2",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_kdhw53hzp4nh8wwm:d1"
+  ],
+  "update_entry_id": "mse_9szn9geevrgdntng"
+}
+```
+
+#### Reason
+
+PROBE2: does a branch-modified ADR survive the merge now that writes are staged?
