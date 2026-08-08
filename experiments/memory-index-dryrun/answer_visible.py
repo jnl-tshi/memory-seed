@@ -150,9 +150,26 @@ def main() -> int:
         raise SystemExit(f"seeded workspace not found: {WORKSPACE}")
     from memory_seed.retrieval import load_corpus
 
+    served = load_corpus(WORKSPACE, "decision")
+    decisions = [c for c in served if c.granularity == "decision"]
+    previews = [c for c in served if c.granularity != "decision"]
     print(f"store: {len(load_corpus(WORKSPACE,'entry'))} entries / "
-          f"{len(load_corpus(WORKSPACE,'decision'))} decision chunks")
-    print("(BM25F was fitted on 842 entries - this is the small-corpus end)\n")
+          f"{len(served)} decision chunks")
+    print("(BM25F was fitted on 842 entries - this is the small-corpus end)")
+
+    # What this run can and cannot detect, printed BEFORE the numbers so nobody reads an
+    # unchanged score as evidence of no effect. A decision chunk is served whole, so a change to
+    # preview construction cannot move it; only the preview-served chunks below are in play. On
+    # 2026-08-09 that was 1 of 12, and "22/23 unchanged" was no-regression evidence rather than
+    # no-effect evidence - an instrument that cannot say which of those it measured is a trap.
+    print(f"sensitivity: {len(decisions)} chunks served WHOLE (decision), "
+          f"{len(previews)} served as a PREVIEW")
+    if not previews:
+        print("  -> this run is BLIND to preview construction: no chunk is served as one")
+    elif len(previews) * 4 < len(served):
+        print(f"  -> near-blind to preview construction: only {len(previews)}/{len(served)} "
+              "chunks could move, so an unchanged score says little either way")
+    print()
 
     out = {}
     for name, cfg in CONFIGS.items():

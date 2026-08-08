@@ -40,9 +40,9 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(HERE))
 
 from memory_seed.retrieval import (  # noqa: E402
-    DECISION_TEXT_LIMIT,
     RELEVANCE_FLOOR,
     RELEVANCE_STRONG_RATIO,
+    ranked_to_dict,
 )
 from memory_seed.semantic_cache import (  # noqa: E402
     _query_terms,
@@ -193,10 +193,19 @@ def rank(query: str, cwd: Path, chunks: list, k: int = TOP_K) -> list:
 def served_chars(ranked: list, k: int = TOP_K) -> int:
     """Payload size as the caller would actually receive it.
 
-    search_memory truncates each decision block at DECISION_TEXT_LIMIT, so summing raw chunk text
-    overstates the cost of exactly the long chunks that hit the cap.
+    ASKS the serialiser rather than restating its rule. This used to compute
+    `min(len(chunk.text), DECISION_TEXT_LIMIT)` - a private copy of a rule owned by
+    `retrieval.ranked_to_dict` - and a measurement script holding its own copy of a production rule
+    is worse than one that is simply wrong, because it cannot fail. It does not crash and no test
+    catches it; it keeps printing confident numbers that quietly stop describing the system.
+
+    That is exactly what happened on 2026-08-09: previews became a windowed span capped at 280
+    characters and decision blocks grew a truncation marker, so the local copy was wrong in both
+    directions at once - overstating entry chunks by up to 2220 characters each, understating
+    capped decisions by the marker's length. Same defect family as the three copies of the ADR
+    replay rules, which diverged twice before they were collapsed into one.
     """
-    return sum(min(len(r.chunk.text or ""), DECISION_TEXT_LIMIT) for r in ranked[:k])
+    return sum(len(ranked_to_dict(r).get("excerpt") or "") for r in ranked[:k])
 
 
 def stage_n_curve(cwd: Path, rows: list[dict], all_chunks: list, sizes: list[int]) -> dict:
