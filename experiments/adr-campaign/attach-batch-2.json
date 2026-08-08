@@ -1,0 +1,201 @@
+[
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "topics": [
+   "documentation",
+   "docs-lifecycle",
+   "governance-profile"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L105",
+  "candidates": [
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5hgxywp0n3qsz0dw:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_61bnt9ty6rfgpw1e:d1",
+    "title": "D1 - The refresh records open threads, not just completed boxes"
+   },
+   {
+    "ref": "ms-9066d377:d1",
+    "title": "D1 - 2.4.0 minor + control-plane 2.3 -> 2.4"
+   },
+   {
+    "ref": "ms-92f62f89:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a4282580:d1",
+    "title": "D1 - Explorer package split"
+   },
+   {
+    "ref": "ms-c0d56306:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0842kjv76f4btrr8:d4",
+    "title": "D4 - Naming reconciliation Explorer -> Memory Lense"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "topics": [
+   "control-plane",
+   "windows-encoding",
+   "seed-core"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L183",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-fbc65d3c:d1",
+    "title": "D1 - Make public and bootstrap docs match the active routing model"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_legacy_agents_compat",
+  "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+  "topics": [
+   "control-plane",
+   "agent-collaboration",
+   "memory-repair"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L22",
+  "candidates": [
+   {
+    "ref": "mse_sw54jn8k80g9t5mg:d1",
+    "title": "D1 - Ship Phase 1 only, move the plan to completed with deferred follow-ons note"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6e1aadec:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_runtime_discovery",
+  "title": "Runtime discovery walks to the nearest .memory-seed",
+  "topics": [
+   "control-plane",
+   "agent-rules"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L120",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d1",
+    "title": "D1 - Central AGENTS registry + per-agent tagging"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-2e9c5f31:d1",
+    "title": "D1 - Move Reason Rules before Entry Shapes"
+   },
+   {
+    "ref": "ms-3f7c08e2:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_worktree_convention",
+  "title": "Worktree=session, branch=task, agent-namespaced branch names",
+  "topics": [
+   "git-workflow",
+   "agent-collaboration",
+   "continuity"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L81",
+  "candidates": [
+   {
+    "ref": "mse_27jbk0z5nkg4jabe:d2",
+    "title": "D2 - A branch existing at all can contaminate a concurrent session's entries"
+   },
+   {
+    "ref": "mse_2x8yysgezex3tbys",
+    "title": "2026-07-30 14:26 - Verify visible safe-merge worktree cleanup"
+   },
+   {
+    "ref": "mse_3x2d61jkn3jstpyg:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_4z9wcanedg82wp16",
+    "title": "2026-07-15 19:01 - Integrate ranking and long-horizon workstream into main"
+   },
+   {
+    "ref": "mse_5mv4dvxfp1tr8v16",
+    "title": "2026-07-10 15:35 - Lifecycle clarification: merge-branch evolves the fuse workfl"
+   }
+  ]
+ }
+]

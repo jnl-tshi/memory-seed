@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_topic_authority",
+    "verdict": "primary",
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "quote": "`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes.",
+    "quote_ref": "mse_8qmv0m07sy95vjm9:d1",
+    "why": "This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trace_boundary",
+    "verdict": "primary",
+    "ref": "mse_etm5m5682sseasgm:d1",
+    "quote": "Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra.",
+    "quote_ref": "mse_etm5m5682sseasgm:d1",
+    "why": "This decision made the concern: shipping Trace as an optional extra in the root package rather than a separate required distribution.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trace_incremental_startup",
+    "verdict": "primary",
+    "ref": "mse_gtn504wfjt3c34p6:d1",
+    "quote": "immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER",
+    "quote_ref": "mse_gtn504wfjt3c34p6:d1",
+    "why": "This decision established both architectural principles: persisting immutable git derivations and bulk-reading history in single passes.",
+    "runner_up": ""
+  }
+]

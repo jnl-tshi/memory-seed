@@ -1,0 +1,462 @@
+[
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "concern": "founding:.memory-seed/index.md#L153",
+  "founding_head": "founding:.memory-seed/index.md#L153",
+  "candidates": [
+   {
+    "ref": "mse_81v7vk4x5ys3k2n0:d1",
+    "title": "D1 - Make fuse Memory Seed-aware",
+    "body": "- D: Add `session_fuse()` plus `memory-seed session fuse --branch <branch> [--base <ref>] [--apply]`. - R: Git merge mechanics do not know session-entry immutability, `branch:` provenance, grouped target paths, sidecar parent requirements, or chronological session ordering. - A: `--apply` stays gated to an in-progress `git merge --no-ff --no-commit <branch>`; dry-run is the default. - F: `memory_seed/core.py`, `memor",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mj4vwfbjdhkej485:d2",
+    "title": "D2 - Preserve chronological session history through merge recovery and retain safe Git cleanup boundaries",
+    "body": "- D: When a session-aware merge encounters a non-journal sidecar conflict, reconcile that sidecar manually, reset only conflicted session/diagram files to the integration commit, then apply the sanctioned fuse before committing the merge. Delete only clean branches and registered worktrees already merged into `main`. - R: This retains both workstreams' immutable session records in chronological order while avoiding u",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat session fuse as an explicit Memory Seed-aware integration command, not as a Git union merge driver or automatic notes mechanism. - R: Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability. - A: Recommended defaulting fuse to dry-run with an explicit apply mode, requiri",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kvej10464e4qb99r:d3",
+    "title": "D3 - Re-integrated onto current main after catching a 20-commit-stale worktree",
+    "body": "- D: On \"merge it\", found this worktree was 20 commits behind `main`, which had diverged on ALL THREE shared files I'd edited - incl. +456 lines in today's session log and a ratified `CONSTITUTION.md` v1.0 the branch never saw. Did NOT merge the stale branch. Instead: backed up working edits to scratch, restored the 3 files, `git merge --ff-only main` (branch had zero commits), then re-applied everything against main",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dr5eprnhrctqeeg3:d2",
+    "title": "D2 - Fail-closed semantics and base-content reset",
+    "body": "- D: Fuse issues abort before any merge state exists; non-session conflicts leave the merge in progress (never `merge --abort`); before the fuse apply, every branch-touched session path that exists on base is reset to base's committed content via `git checkout <base> -- <path>`; merge outcome is classified by MERGE_HEAD presence, not exit code; a clean working tree is required and refusals name the dirty paths. - R: ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dgrgwwf5n9pd082t:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Record the skipped fuse-preview step, and record what the retroactive dry-run actually revealed, so the \"harden or not\" decision rests on evidence rather than on the abstract workflow rule. - R: `agent_collaboration.md` says to dry-run `session fuse --branch <branch>` when branch-local entries or sidecars exist; my branch had both, so the step was technically owed. - A: The retroactive `session fuse --branch cla",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_azn6bejpd9xpmh3f:d2",
+    "title": "D2 - Scope branch-side validation to the branch delta",
+    "body": "- D: Add `_changed_session_paths()` using three-dot `git diff --name-only <base>...<branch>`, an `only_paths=` filter on `_entry_records_from_ref`/`_sidecar_records_from_ref`, and apply it to the branch-side enumeration in `session_fuse`; base-side stays full. - R: The branch commit contains the entire base corpus, so whole-tree enumeration flagged unchanged legacy pre-schema files (no `entry_id`) as branch problems.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dr5eprnhrctqeeg3:d1",
+    "title": "D1 - Wrapper command, not a merge driver or blocking hook",
+    "body": "- D: Automate the ordering fix as an explicit CLI wrapper around the existing `session_fuse()` primitives, chosen by the user over a git merge driver and over an enforcement-only pre-commit gate. - R: Twice today the manual dry-run/apply dance was skipped and raw git line-merges landed session entries out of chronological order; the machinery to sort deterministically already existed in `session_fuse()` - the gap was",
+    "claimed_by": [
+     "adr_merge_branch_primitive"
+    ]
+   },
+   {
+    "ref": "mse_8c5e4m97szmfj8tp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Integrate with `git merge --no-ff` and validate the merged tree. - R: Branch-history workflow expects discrete branch-and-merge topology; the fix branch validated cleanly and an independent review pass was addressed before merge. - A: Did not push — `main` is ahead of `origin/main` by 18 commits, left for the user to publish. - F: `main`, feature branch `claude-fix-session-fuse`, merge commit `c52237946835c4b38b",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s5bjy5c7tq43zxbs:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat topic sidecars as a first-class fused family keyed by `(entry_id, heading timestamp)`, with the same append-only comparison, parent-entry, date, parseability, chronology, and apply-time safeguards used by link and diagram sidecars. - R: Topic attributions can now travel through `session merge-branch` without manual conflict handling or silent base-reset loss. The whole-block approach preserves the nested `",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8jv73n6rqy9f3rp1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated the Codex session worktree by merging local `main` into `codex/session-2026-07-13`, producing merge commit `d703371`. - R: `main` had advanced by four commits after this worktree was created, including release/publication notes and paired goal-run prompts that this Codex branch needs before further work. - A: The merge produced one session-log append conflict in `.memory-seed/sessions/2026-07/2026-07-13.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9dkkddgb6zjxv4j9:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Merge the session-fuse CLI/MCP/skill workflow to `main` with an explicit merge commit. - R: The user approved proceeding, the feature branch validated cleanly, and preserving branch topology keeps this feature visible in the Git graph. - A: `memory-seed session fuse --branch codex-feature-session-fuse --base main` was dry-run before merge, but it blocked because this bootstrap branch also contained earlier main-",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_shsk32hbrd064ckp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Build the merge commit with `git merge-tree --write-tree` (compute the merge in-memory) + `git commit-tree` (two parents: `main` and the task branch) + `git update-ref refs/heads/main`, instead of `git checkout main && git merge --no-ff`. - R: `git checkout main` failed here (`'main' is already used by worktree at ...`) because this repo had a second live worktree with `main` checked out and genuine uncommitted ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_w2fk7qnx4t9b3vmh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `session_merge_branch()` now stamps one `Memory-Entry: <entry_id>` trailer per fused entry on the merge commit it creates, appended below git's prepared MERGE_MSG (located via _git_dir so linked worktrees work), making the forward commit<->entry channel authoritative at integration time. User-approved decisions: imported-only (realised as the fuse's planned_entries set directly - entries already on base never en",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a3wytbb3m7c4tj7w:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Reset local `main` to `origin/main`, preserve the dropped commit on a backup branch, and cherry-pick only the verified implementation commit onto `codex-feature-branch-history-guardrail-clean`. - R: The only content removed from `main` was the accidental `docs/superpowers/specs/2026-07-08-multi-user-session-diagram-design.md` file, and merging the original feature branch would have preserved that accidental pare",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_x6qgkg61dnq26bk4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fixed the P1 bug where `session merge-branch` silently discarded branch-side link sidecar edits. Generalized the fuse to treat link sidecars as a third first-class sidecar kind, mirroring diagram sidecars exactly: new `_LinkSidecarRecord` dataclass, `_link_doc_from_relative_path` classifier, ref extraction, working-tree read, chronological writer, and full plan/apply wiring (`import_link_sidecars`/`planned_link_",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d2",
+    "title": "D2 - Autonomous branch integration over MCP",
+    "body": "- D: Added `memory_session_integrate`, wrapping `session_merge_branch`, applying autonomously with no in-progress-merge precondition. On a non-session conflict it aborts the merge and restores a clean tree rather than leaving a half-merged repo an agent cannot reason about; it declines when `integration_mode` is `pr` (that path pushes and opens a PR) and hands back the CLI command. - R: JNL chose autonomous apply so ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m9kmrztj8kswee35:d1",
+    "title": "D1 - Root cause: converting an existing `classify_pending` stub in place is an EDIT to a file the base already has that entry_id in, and the fuse's base-reset loop does not import edits, only new blocks",
+    "body": "- D: Reapplied the five edges directly to `.memory-seed/sessions/links/2026-07/{2026-07-28,2026-07-29}.md` on `main`, bypassing `session merge-branch` a second time - replaying through another branch+merge cycle would hit the identical drop, since the mechanism that dropped it is unrelated to which branch carries the edit. - R: Reconstructed from observed behaviour, not from reading the fuse's source in this entry. T",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_znfnyxssvhz5srz9:d1",
+    "title": "D1 - Gate the primitive, not just the sanctioned commands",
+    "body": "- D: `session_fuse` takes `user_approved` and checks `_merge_trigger_block` at the top of its existing `if apply:` block. Preview (`apply=False`) stays ungated. - R: The teeth were on `session_merge_branch`/`session_open_pr`, but fuse is a documented lower-level primitive that also writes. Leaving it open meant the gate stopped the sanctioned path and waved through the unsanctioned one — the wrong way round, since an",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kq3ba0cy9nkpqkm0:d4",
+    "title": "D4 - Defer local branch deletion after approval-gate block",
+    "body": "- D: Do not attempt branch deletion again in this turn. - R: Deleting local branches requires writing Git refs; the approval request was blocked by the environment usage-limit gate. Working around that would be inappropriate. Branches attached to active worktrees also need the separate worktree cleanup pass the user already sequenced next. - A: Branches still to delete or remove through their worktrees: fully merged/",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jg33a730vpr4085a:d2",
+    "title": "D2 - Subagent orchestration contract",
+    "body": "- D: Proposed `docs/1_Inbox/subagent-orchestration-contract-proposal.md`: a portable `.memory-seed/skills/subagent_orchestration.md` (+ seed twin) codifying the fan-out protocol (pre-allocate branch names; workers assert expected base commit + worktree isolation + append-only; orchestrator validates IN the worker's worktree at a named HEAD, merges one branch at a time, re-validates after each merge, and runs an indep",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cne938zjaq5w6605:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Preserve the monthly-session feature branch in the Git graph with `git merge --no-ff`. - R: The repository's branch-history workflow expects completed feature work to appear as discrete branch-and-merge topology rather than a linear fast-forward. - F: `main`, merge commit `5e1a2b6`, `.memory-seed/sessions/2026-07/2026-07-10.md`. - T: `git log --graph --decorate --oneline -n 8` shows the monthly-session branch me",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xza4tj40p52bsbhn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the agent branching policy from \"one branch per task/commit\" to **\"one branch per WORKSTREAM\"** (user-chosen). Batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry just written, or the same files/subsystem — and merge the batch at a **stable, tested stopping point** (Claude self-gates; no per-merge ap",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "concern": "founding:.memory-seed/index.md#L106",
+  "founding_head": "founding:.memory-seed/index.md#L106",
+  "candidates": [
+   {
+    "ref": "mse_5hgxywp0n3qsz0dw:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep market, competitor, pricing, and wedge strategy in top-level living dossiers under `business/`, separate from the product implementation lifecycle in `docs/`. - R: The repository is private, the material needs a stable canonical home, and living dossiers make sourced facts, internal estimates, review dates, and unresolved validation questions maintainable together. - A: Keeping the reports flat in `docs/4_R",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Place all seven programme reports under `business/research/` with a folder README indexing them, move rather than copy them out of `docs/4_Reference/`, and write every cross-link to the location the target file occupies on main rather than the location it occupies on this branch. - R: `business/` already exists on main as the maintained source of truth for Memory Seed as a business, with a market/wedges split an",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5y962348e85x7grr:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add `business/` to the runtime index's Topology section, describing its dossier-versus-provenance convention, its three areas, its move-not-copy rule, and the fact that `docs check` does not validate it. - R: The index contained no mention of `business/` at all, despite the area holding the market, wedge and pricing dossiers plus a seven-report research programme. An agent orienting from the index would not lear",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9c8tng6r5tsctd2b:d2",
+    "title": "D2 - Fold conclusions into the strategy documents rather than leaving them in the evidence log",
+    "body": "- D: Amend the roadmap, strategic fit and benchmarking reports with dated amendment blocks, and close the wedge dossier's first validation question. - R: JNL's instruction, and the evidence log is the wrong home for conclusions that should drive decisions - it records what was observed, not what to do about it. The three amendments each change a specific claim: the roadmap's ordering (install correctness now outranks",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ftqwacmpv594wvy3:d1",
+    "title": "D1 - Record demand evidence as a living log, separate from the dated reports",
+    "body": "- D: Create `business/research/field-evidence-log.md` as an append-per-pass living document that records observation and source verbatim before any interpretation, and register it in the research README as distinct from the seven dated reports. - R: The programme's standing caveat through all seven reports was that no user had been interviewed and every claim was inference. That is no longer true, and the correction ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_eg7enwqcdk9a5ey8:d2",
+    "title": "D2 - Refuse to publish an unsourceable number, and declare provenance per claim",
+    "body": "- D: Tag every non-obvious claim `[primary]` / `[secondary]` / `[estimate]` / `[unsourced]`, require a URL and retrieval date on every `[primary]`, name the commercial interest of every vendor source, and write `[unsourced]` into a cost cell rather than carry a plausible figure. - R: These reports land in `docs/4_Reference/` as durable, potentially public artefacts, so a wrong cost figure outlives the session that pr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d3",
+    "title": "D3 - Preserve source provenance outside the inbox",
+    "body": "- D: Move the inbox source package out of active inbox by preserving it as `docs/4_Reference/memory-trace-next-generation-plan-document-set.md`, promoting the integration guide to completed, and removing the now-empty inbox directories. - R: The inbox should only hold unresolved material; once disposition is decided, the original source needs a stable reference home while actionable content lives in todo/spec docs. -",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_brt83hq9cmtmbqxq:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Triaged 4 strategy/research docs the user dropped into `docs/1_Inbox`. Routed by NATURE per the `proposal_lifecycle` protocol: the one actionable proposal (`memory-seed-architectural-discovery-proposal.md`) stayed in `1_Inbox` pending approval; the three source docs moved to `4_Reference` with `-report` kind names (`memory-seed-gitlens-competitor-report.md`, `memory-seed-strategic-synthesis-report.md`, `memory-s",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jmha2w491rh76z03:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat `docs/3_Spec/` as this repository's live normative spec folder, containing `functionality-audit.md`, `graph-edge-contract.md`, and a README explaining why the two documents live together. - R: The graph-edge contract is implemented but remains a live contract; the functionality audit is the live inventory. Keeping them together in `docs/3_Spec/` makes their ongoing governance role explicit without misclass",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zz1v0a5we0gyqrp6:d3",
+    "title": "D3 - Fold E8 and E9 into the strategy reports rather than leaving them as field evidence",
+    "body": "- D: Amend the roadmap report with the veto finding and the benchmark, and the fit report with the competitive correction, using the established blockquote-amendment pattern. - R: Both findings change strategy documents rather than only the evidence log. E8 showed the shipped control plane refusing user instructions - a product posture no roadmap ever chose - so the research gaps should include probing what the rules",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mess3e6092gmb4wt:d1",
+    "title": "D1 - Confirm the developer-first wedge and disqualify the regulated verticals on a structural, not commercial, basis",
+    "body": "- D: Keep the active wedge unchanged, name the multi-agent solo builder as the adoption beachhead and the small AI-forward engineering team as the first real buyer, disqualify medical devices and airborne aerospace as targets outright, restrict automotive to non-safety-critical edges, and retain financial services as the single named regulated expansion vertical. - R: The industries with the heaviest compliance burde",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9s1yhyh43qp1k3mx:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep `Cost analysis.xlsx` under `business/market/` and link it from the business index. - R: Its assumptions and competitor-pricing model are commercial market evidence, not technical product reference material. - F: Moved `docs/4_Reference/Cost analysis.xlsx` to `business/market/Cost analysis.xlsx` and updated `business/README.md`. - T: Imported the workbook read-only and confirmed it contains an Assumptions sh",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_d01t18fca60r15r2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Filed `docs/1_Inbox/document-lifecycle-system-plan.md`, synthesizing the agent's objective review of `docs/` and the user's own gap analysis into one plan: a `docs/README.md` front door (naming flow-lanes vs type-lanes), a controlled `status:` frontmatter with per-lane vocabularies (standardizing the `status: \"proposed-specification\"` convention that already exists on some specs), spec binding-status (`live/draf",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2geqfa8tg182a77p:d1",
+    "title": "D1 - Decision",
+    "body": "- D: JNL asked to triage the Inbox and fold it into a coherent next-steps plan. Checked `docs/1_Inbox/` - already marked \"TRIAGED 2026-07-20, no untriaged proposals remain\" by an earlier session today, holding only two evaluation docs (`INBOX-ASSESSMENT.md`, `INBOX-CAPABILITY-CROSSWALK.md`) and one design-reference folder (`trace-humanised-dashboard-references/`). JNL then asked the sharper question directly: if thes",
+    "claimed_by": [
+     "adr_inbox_promotion_workflow"
+    ]
+   },
+   {
+    "ref": "mse_mazbt6cek8m8a6st:d1",
+    "title": "D1 - Sequence the surviving platform ideas after React Trail parity",
+    "body": "- D: Keep three bounded candidates in `docs/1_Inbox/` - a referential Evidence Envelope for Task Packets, a derived review queue/document-lineage view, and an advisory capability-status/publishability boundary - with React Trail parity and B0b acceptance as the first gate. - R: - Local `main` was ahead of the reviewed remote snapshot and already contains the Cytoscape decision and the implemented React graph/workspac",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_pd9y5bwxs0xwhszb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Lead the audit's System map with a compact Mermaid diagram that presents Memory Trace as the human interface, Markdown Sessions/ADRs as the human-verifiable durable layer, Memory Seed Core as the canonical knowledge graph, REST/MCP/CLI as adapters, and Orchestrator + Workers as consumers. - R: The existing diagram begins at packages and modules, so it cannot communicate the system's one-source-of-truth boundary ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_g9xegd9ct9sns5s4:d1",
+    "title": "D1 - Found all twelve, heads on the newest chain member",
+    "body": "- D: Twelve ADRs written `proposed`, each headed on its chain's newest decision with the remaining members as `supporting_decisions`. The three `docs-lifecycle` chains were founded as three separate concerns - inbox promotion, documentation lanes, and completion moving lane - rather than merged on their shared area. - R: A shared area is not a shared concern; the chains are separately connected in the lineage graph, ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xje157km2m3rfzv0:d2",
+    "title": "D2 - The inventory falsifies the proposal's premise; step 3 is blocked on a v1 contract decision",
+    "body": "- D: Record that `authority_class` already exists and already disagrees with the proposal, and block step 3 on an explicit user decision rather than picking a resolution. - R: - BG1 reads as though `authority_class` is unbuilt. It is not: `RendererGraphNode.authority_class` exists as a bare `str`, validated only as \"non-empty\" (`graph_projection.py:218`), emitting `canonical_memory` (L120) - a value absent from the p",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d2",
+    "title": "D2 - Give every Inbox idea one coherent owner",
+    "body": "- D: Promote canonical semantic-foundation, workflow-evidence/review, semantic-projection, and worktree/branch-hygiene plans; fold Evidence Envelope, Capability Status, and seeded docs lifecycle into their existing owners; defer publishability and the generic skill/router architecture; supersede or archive every extracted source. - R: - One active owner per workstream prevents competing contracts and makes dependenci",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_djnwts4msn5r296n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat `docs/inbox/memory-trace-local-ai-timeline-summarisation-proposal.md` as the only current inbox item that should become an active todo plan immediately; treat older market/UI/competitor reports as source material whose actionable recommendations should update existing plans or move to completed/source provenance once links are repaired. - R: The unpushed tree already implements Memory Trace extraction, Tra",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_pgpct167b8dg9n15:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Recommend that the research phase end and the next ninety days buy demand evidence through three cheap tests - ten unprompted conversations about the pain, a direct check of whether passive-capture tools already answer \"why\" well enough, and the internal gold set - before any further build, and explicitly decline to choose between the solo unfunded, proprietary-free-tier, and funded-open-source paths until those",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d1",
+    "title": "D1 - Keep seeded docs lifecycle optional and proposal-gated",
+    "body": "- D: Added `seeded-document-lifecycle-control-plane-proposal.md` to `docs/1_Inbox/` and updated the docs front-door count; implementation remains unapproved. - R: The existing planning profile has only four empty anchors and a skill, while the richer lifecycle needs local `docs index` / `docs check` proof and non-destructive adoption semantics before it can become reusable seed behavior. - A: Rejected copying this re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7n25phrhv9kdnnc0:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added `proposal_lifecycle.md` to the live runtime and seed templates, registered it in both skill registries, added it to `SEED_FILES`, package data, runtime index, seed inventory tests, and `CHANGELOG.md`. The skill codifies the `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/` flow, required status block, completion criteria, and roadmap/audit update surfaces. - D: Promoted the inbox worktree/tmux/depend",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7c5hj34hjwkdbhpw:d1",
+    "title": "D1 - Found ADRs from control-file lines, not synthetic session entries",
+    "body": "- D: Every campaign ADR is founded on the index/policy line it lifts, carrying that line's verbatim quote as grounding, with session decisions attached as supporting evidence where they exist. `source: derived` throughout. Two decided-and-rejected concerns were written as `rejected`-status ADRs rather than omitted. - R: The alternative I had planned - authoring a synthetic \"founding\" session decision per lifted bulle",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zhf4a0fsgwh47c9j:d4",
+    "title": "D4 - Fix topic_swarm.md's instructions and leave its recorded measurements intact",
+    "body": "- D: Inverted rule 4's polarity - a child slug is canonical in its own right and is the *better* answer (`related-entries` over `graph`, `merge` over `git-workflow`), with spelling variants as the thing never to emit (`perf`, `memory-trace-ui`). Re-measured the stale \"45 topiced entries use an alias\" to **11 entries, 12 distinct aliases**. Relisted rule 1's axis lists with all 31 children grouped under their roots, p",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_control_file_authority",
+  "title": "Control-file authority partition (index/policy/skills/sessions)",
+  "concern": "founding:.memory-seed/policy.md#L49",
+  "founding_head": "founding:.memory-seed/policy.md#L49",
+  "candidates": [
+   {
+    "ref": "ms-845042c7:d3",
+    "title": "D3 - Ask the user on unresolved history conflicts",
+    "body": "- D: Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale. If history conflicts with current files and no clear newer supersession boundary exists, agents must ask the user before changing durable behavior. - R: The user wanted ambiguity handled explicitly rather than inferred from partial or conflicting memory. - A: Rejected blindly f",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d1",
+    "title": "D1 - Partition Markdown authority by concern",
+    "body": "- D: Ratify Constitution v1.1 and make one append-only Markdown ADR sidecar authoritative for ADR promotion, stable identity, and lifecycle. Original and decision-update entries own rationale/evidence; current status, registries, indexes, databases, and Trace views are derived. - R: - Explicit promotion and a compact lifecycle ledger provide a higher-signal decision corpus than repeated semantic inference over chrono",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural governing home, and mirrored to seed",
+    "body": "- D: `.memory-seed/skills/skill_architecture.md`'s \"Startup Contract Boundary\" section - previously stating the qualitative rule with no number at all - gained two sentences naming the enforced 280-line ceiling, the exact test that enforces it, and the principle for what headroom is for (a thin, easy-to-skip, unhooked step over a new feature). `docs/2_Todo/branch-field-provenance.md`'s stale \"~260-line... documented ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bsa7nr7pm903jy6p:d1",
+    "title": "D1 - Lead with the agent problem, not the auditor problem",
+    "body": "- D: Recommend positioning Memory Seed as the decision record agents cannot skip - enforced rationale, validated append-only supersession, Markdown you own - and explicitly defer every compliance and framework claim until the promotion layer that marks which decisions govern exists. Keep the existing \"Git-native institutional memory for humans and AI agents\" wedge rather than replacing it with a governance wedge. - R",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_52cw7g10wmaha5h4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated `index.md` — folded the participant-count session-layout gate and the doctor local-user/participant-mismatch warning into the existing \"Participant registry parsing (current unreleased worktree)\" Design Decision bullet; added a new adjacent bullet for the one-time identity-offer hook (`.memory-seed/.identity-offer-stamp`); added a Topology bullet documenting the `docs/todo/` / `docs/todo/completed/` / `d",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5ekvf2d0h5e2gw3y:d1",
+    "title": "D1 - Workers load packet + one persona + triggered skills; safety rails stay",
+    "body": "- D: Add the Worker Context Contract to `agent_collaboration.md` and two Task Packet fields (`persona:`, `context_load: packet|full`). A worker skips the full index read, the newest-session recency read, the whole skill registry, and load-all-active-personas. It still runs `base_sha`/preflight and the worktree guard. - R: - Operating Mode Start is written for the primary agent, which must establish current state itse",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7p3q9r2t5v8w1x6z:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep `.memory-seed/agent-rules.md` as a compact startup-safe operating contract and route procedural detail through indexed lazy skills. - R: This preserves always-on runtime discovery, authority, file ownership, and skill-loading rules while reducing the chance that agents carry bulky task-specific runbooks in every context. - F: Added live/seed skill twins for `history_retrieval.md`, `session_logging.md`, `end",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_63qcaab119xmyx0b:d1",
+    "title": "D1 - `index.md`/`policy.md` corrected where they had gone from stale to actively false",
+    "body": "- D: Bumped the Constitution version pointer (v1.3 -> v1.6, two places). Rewrote the \"Indexed topics\" bullet (was: 23 topics, a flat deploy-once vocabulary; now: 69 topics, two-axis hierarchy, the sidecar is the topic authority) and the \"Decision-level topic judgment swarm\" bullet (was: \"no swarm has been run and zero topic sidecars exist\" - now false; is: the scored auto-backfill was piloted and aborted, a redesigne",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d3",
+    "title": "D3 - The Skill Loading section's per-skill description list is cut; `skills/index.md` already does that job with more precision",
+    "body": "- D: The 17-bullet, one-line-per-skill description list (23 lines) is replaced by a 3-sentence paragraph: a pointer to `skills/index.md` as the authoritative `load_when`/`do_not_load_when` map, naming only the two skills needed almost every turn (`session_logging.md`, `end_of_turn.md`), and a closing line that everything else routes through the registry. Net effect on the file: -18 lines, more than paying for D2's tw",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d2",
+    "title": "D2 - Root cause: persona loading is a buried, conditional checklist step with no automatic backstop, unlike session-state recall",
+    "body": "- D: No code change - a diagnosis, offered because JNL asked for one. - R: Traced the actual load path rather than guessing. `.agents/README.md` documents the intended behaviour (\"when an agent starts a session, it reads `_registry.yaml`... and applies those rules\"), and `.memory-seed/agent-rules.md` really does encode it - **step 10 of 10** in the startup checklist: \"If `.agents/_registry.yaml` exists... load all pe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j23dvr3zehz8g7xh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Document the `--branch`/`--no-branch` workaround (A) in `.memory-seed/skills/session_logging.md`, appended to the prose that already defines the `branch` field, and cross-reference it from `README.md`'s `session append` command entry; record the standing convention (D) — a harness passes `--branch` unconditionally, sourced from the Task Packet's `working_branch` — as a bullet under \"Branch And Worktree Defaults\"",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0k8mtvqzq8hbcgev:d1",
+    "title": "D1 - Give durable non-decision facts a home at capture time",
+    "body": "- D: Decision Harvest gains step 9 - roles, ownership, codenames, cadences, thresholds, budgets, environments and external locations are promoted to `.memory-seed/index.md` under `## Active State` in the turn they are established, named in the entry; and a turn that establishes only facts and changes no code still records. `end_of_turn.md` step 2 references it so the runbook and the schema agree. - R: The harvest ask",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vy5yzac5jqw1vd0e:d2",
+    "title": "D2 - `skills/index.md` is the sole exemption; `.agents/` is excluded structurally, not by rule",
+    "body": "- D: `.memory-seed/skills/index.md` is skipped and the skip is asserted to be the only one. `.agents/` persona templates are not mentioned in the filter at all — they simply never match the `.memory-seed/skills/` prefix. - R: `index.md` is runtime-local: projects extend the trigger registry with persona entries, so exact equality is the wrong assertion, and `test_skill_trigger_registry_is_deterministic_and_seeded` al",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_thggdmry7hf7etp2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Record in `business/wedges/developer-project-memory.md` that the wedge now assumes agents as the primary reader and writer, with four stated consequences - a single never-fragmented store whose concern-scoped views are derived projections, push-first agent consumption with token cost as the ergonomics, Memory Trace as the human surface designed for the rare high-stakes lookup rather than habitual reading, and wr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_y8eds7vvbcshxvcp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `agent-rules.md`'s skill description no longer reads \"using tiers, grids, subgraphs, and invisible links\" — it now names the sidecar subset and states that `subgraph` and non-`-->` arrows do not render. The `skills/index.md` `load_when` trigger \"needing compact rectangular Mermaid layout with tiers, grids, subgraphs, or invisible links\" becomes \"authoring a diagram sidecar under `.memory-seed/sessions/diagrams/`",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_is0a3iw426g6v2zb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treated the repository as initialized operating mode (all reusable control files present, `index.md`/`policy.md` present - not seed-only), not bootstrap or repair mode. No lazy skill runbook loaded yet since no concrete task was specified beyond orientation. - R: `.memory-seed/index.md` confirms this is the root runtime with no parent to inherit policy from. Four personas are `status: active` in the registry wit",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7c5hj34hjwkdbhpw:d3",
+    "title": "D3 - Thin the index only where a bullet is not bundling uncovered decisions",
+    "body": "- D: Index bullets under 400 characters thin to a descriptive pointer (one-line digest plus ADR link); longer bullets keep their text and gain the ADR reference; policy rules always keep their text inline and gain only the governing-ADR pointer. Three bullets whose grounding quotes span line wraps were left entirely untouched. - R: Policy is Always Read, so an agent must learn how to behave without chasing links - th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d2",
+    "title": "D2 - Make SessionStart AGENTS-first with five-entry recency context",
+    "body": "- D: Claude, Codex, Gemini, and Cursor now receive an `AGENTS.md`-first startup directive plus the five newest applicable session entries in chronological order, spanning recent files when needed; Copilot's static prompt carries the same instructions. Empty/new projects still receive the directive. - R: The old payload listed every heading but injected only one entry body. Five recent entries give bounded continuity ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_azhh0f71css624jc:d2",
+    "title": "D2 - A skill names the ADR that governs it, and ESR audits the link",
+    "body": "- D: Skill frontmatter gains optional `governing_adr: <adr_id>`. ESR gains a `Skill governance` section reporting skills with no ref and skills whose ref does not resolve. Reported, never enforced. `topic_swarm.md`, `link_swarm.md` and `session_logging.md` are routed first (live and seed); 24 skills remain unrouted. - R: JNL asked for this after watching the failure. A skill says what to DO; an ADR says what is curre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8p47vz0pgabqm1va:d2",
+    "title": "D2 - Topic hierarchy cannot gate lineage hops, at any level",
+    "body": "- D: Chain construction stays gated on authorship (authored edges act, machine-scored edges go to review). Topic overlap remains an annotation. Hierarchy-aware variants were measured and not adopted. - R: JNL proposed comparing at parent or grandparent level so adjacent siblings resolve together. Measured against the 1 known-bad hop and 3 known-good authored hops, every hierarchy rule - same-parent, any-shared-ancest",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_pndcc168895x59ex:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The link-swarm pipeline (mechanical recall via `link audit --json` → haiku fan-out judgment → orchestrator validation → batch human approval → `:dN` edge writes → `links check`) is now a repo skill, `link_swarm.md`, registered as an OPTIONAL skill under a new \"curation\" profile. The runbook captures the six judging rules measured against the 68-edge campaign, the mechanical-first validation (verbatim quote groun",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qsfdkttkwmypx9cz:d3",
+    "title": "D3 - Constitutional/architectural conflict is its own STOP category with no lower tier",
+    "body": "- D: Add a STOP category for anything contradicting a ratified invariant or an established architectural decision, and state that no tier below Stop applies to it. - R: - Constitution §11 already says such a change \"is rejected or must first amend the invariant - it cannot silently override it\". The skill had no category that carried this, so an agent could route a constitutional conflict through Proceed-and-flag by ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xza4tj40p52bsbhn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the agent branching policy from \"one branch per task/commit\" to **\"one branch per WORKSTREAM\"** (user-chosen). Batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry just written, or the same files/subsystem — and merge the batch at a **stable, tested stopping point** (Claude self-gates; no per-merge ap",
+    "claimed_by": []
+   }
+  ]
+ }
+]

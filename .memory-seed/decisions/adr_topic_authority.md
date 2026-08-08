@@ -38,6 +38,10 @@ Adopted 2026-07-27 when the two-axis decision-level attribution campaign complet
 - `constitution:v1#provenance` (governing)
 - `constitution:v1#topic-vocabulary` (supporting)
 
+### Awaiting review
+
+- `mse_8qmv0m07sy95vjm9:d1` - The topic sidecar is the topic authority, not a derived overlay.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -92,3 +96,36 @@ Adopted 2026-07-27 when the two-axis decision-level attribution campaign complet
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:13:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#provenance",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#topic-vocabulary",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_8qmv0m07sy95vjm9:d1",
+  "event_id": "adre_028dfd0324874149fed7",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+The topic sidecar is the topic authority, not a derived overlay. Topic resolution follows strict precedence - sidecar attributions first, then the entry's authored `topics:` field, then hashtag and heading axes - instead of unioning sidecar and authored topics. Where an entry has sidecar attributions, those are its topics. Nothing authored is edited or deleted on disk; only which reading a consumer is shown changes, which is what keeps the switch reversible.
+
+#### Why
+
+Rests on the session decision that instituted it: "`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes." (mse_8qmv0m07sy95vjm9:d1). This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L158; this revision moves the concern off that control-file line onto mse_8qmv0m07sy95vjm9:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

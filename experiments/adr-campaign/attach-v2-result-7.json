@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_semantic_provider",
+    "verdict": "primary",
+    "ref": "mse_9r00krq403dsmdnq:d1",
+    "quote": "Keep `model2vec` required. Document `python -m pip install --no-deps memory-seed`",
+    "quote_ref": "mse_9r00krq403dsmdnq:d1",
+    "why": "This decision established model2vec as the only required dependency with documented lightweight install paths.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_session_layout",
+    "verdict": "primary",
+    "ref": "mse_k2188xq5evwmdny9:d1",
+    "quote": "Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`",
+    "quote_ref": "mse_k2188xq5evwmdny9:d1",
+    "why": "This decision established the month-grouped session layout with per-user files as canonical write targets.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_subproject_scoping",
+    "verdict": "primary",
+    "ref": "ms-0bd3d8b2:d2",
+    "quote": "Detailed session logs remain in the nearest active runtime; parent/root memory gets only",
+    "quote_ref": "ms-0bd3d8b2:d2",
+    "why": "This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.",
+    "runner_up": ""
+  }
+]

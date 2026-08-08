@@ -1,0 +1,7 @@
+[
+ {"adr_id": "adr_edge_kinds", "verdict": "refuted", "better_ref": "mse_0qycwt519qdggrpe:d1", "reason": "The claim only proposes the evolves kind; mse_0qycwt519qdggrpe:d1 actually institutes the complete system by setting DEFAULT_GRAPH_EDGE_TYPES to the three core kinds."},
+ {"adr_id": "adr_encoding_policy", "verdict": "stands", "better_ref": "", "reason": "The body directly establishes Seed as the sole owner: 'Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface in Memory Trace.'"},
+ {"adr_id": "adr_experiment_isolation", "verdict": "stands", "better_ref": "", "reason": "The body institutes structural isolation via nearest-runtime discovery: 'Generate each fixture by running the real init_project() inside a standalone git repo, pin the MCP server to the local working tree via absolute interpreter plus PYTHONPATH.'"},
+ {"adr_id": "adr_foreign_file_routing", "verdict": "stands", "better_ref": "", "reason": "The body institutes the complete non-destructive routing mechanism with the 4-way ownership branch handling absent/ours/foreign+marked files."},
+ {"adr_id": "adr_integration_mode", "verdict": "stands", "better_ref": "", "reason": "The body institutes the configurable modes: 'core.py gains INTEGRATION_MODES = (\"local-merge\", \"pr\"), DEFAULT_INTEGRATION_MODE = \"local-merge\", and read_integration_mode(target_root).'"}
+]

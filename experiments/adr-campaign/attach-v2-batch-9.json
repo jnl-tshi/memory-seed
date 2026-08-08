@@ -1,0 +1,318 @@
+[
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "title": "Trail derives display lanes without authored graph edges",
+  "concern": "founding:.memory-seed/index.md#L171",
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_rrf3kh583sk3zhye:d1",
+    "title": "D1 - `related` is a second kind-group, tried only over nodes lifecycle chains did not already claim",
+    "body": "- D: `RELATED_CHAIN_KINDS = {\"related\"}`, tried after `LIFECYCLE_CHAIN_KINDS` in `CHAIN_KIND_GROUPS`. New entry point `allSpiralAssignments(nodes, edges, options)` runs each group over only the nodes earlier groups left unclaimed, and merges the seats. `spiralChains`/`spiralAssignments` both gained a `kinds` option (default lifecycle, unchanged), so every existing call site and all 202 prior tests kept working with z",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ft7874jfnxxdevrz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Rewrote the evolution-edges proposal's D6 per user review: rename/migration/removal events are recorded as a structured optional entry-YAML field `continuity:` (items of kind/from/to; `to` forbidden on removal) instead of seeded core topics plus an `F:` both-paths prose convention. Values are historical labels like `branch:` (never validated against live filesystem/git). `links check` gains `malformed-continuity",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cbexvsnxenvy08fh:d2",
+    "title": "D2 - Held the strict co-occurrence bar: 6 true edges (ranking x3 + Trail x3), zero supersedes, evolution-edges x0",
+    "body": "- D: Upgraded only refinements-of-the-same-artifact. Ranking chain (3): P1a related_degree exposure -> connectivity rename -> P1b supersession-aware importance_score -> exclude_superseded filter. Trail relationship-rendering (3): relationship-lanes -> relationship-zone; adjacency-bracket -> two-rule related model -> related-innermost-lane. Dropped the hot-file siblings sharing `app.js` (typography, force-directed gra",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_f8ywqzzwke72rdv0:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The three remaining Trail slices in one workstream. **4b** - the full two-rule model: same-branch `related` edges now render as row brackets (chain-primary = entries the selection cites, pastel chain-secondary = inbound + bounded second-order, ported from the vanilla), adjacent same-lane `evolves` chains union-find into a single SVG square bracket, `commit_entry_ids` from the selected chunk mark commit-sibling r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xr6vav82parmbfh0:d1",
+    "title": "D1 - Fold three opportunities into the proposal",
+    "body": "- D: Added D7 (computed `superseded_by`/`evolved_by` on `memory_search` result payloads - surfaces status, never re-ranks, reuses the search's extracted corpus via `build_related_entry_graph(chunks=...)` so the hot path never re-parses), a named post-P1 user-reviewed lineage seeding pass (new clarification entries typing known history: merge-branch evolves fuse, Explorer -> Lense -> Trace renames, .AGENTS/layout migr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xee3vdwckhh0smx8:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Shipped Evolution graph scope, the first of three designs JNL asked me to draft and review (\"you design it, I'll review\") for Phase 0's remaining undesigned B0b slices (file/evolution modes, topology communities). A third `GraphScope` value alongside the existing `overview`/`local`, showing only a selected entry's `evolves`/`supersedes` lifecycle chain rather than its full local neighborhood. - R: Started with E",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c6wdkt2zr9x0p5ba:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Reworked Trail's relationship rendering per user testing feedback. Three always-dotted relationship lanes now sit left of main - related | evolves | replaces (strongest lifecycle signal closest to the trunk) - while lanes right of main remain the solid spawned git branches. Relationship edges route orthogonally through their type's lane (out from the source dot, along the lane, back in to the target dot, rounded",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d3",
+    "title": "D3 - Keep contextual ontology choices concise and stable",
+    "body": "- D: Remove zero-count ontology leaves and empty ancestors from contextual filters, preserve an explicitly empty axis, and derive graph scope from stable authored lifecycle edges so display-edge toggles do not change the available facets. - R: Users should only see choices present in the loaded logical result set, and hiding or showing an edge type must not silently redefine that result set. - A: Falling back to the ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c1ak23vthrvtheb6:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Reworked the Trail's adjacent-lifecycle rendering. Daisy-chained evolves within one lane now render as a single continuous \"[\" bracket beside the dots (the grouping the chain actually is) instead of a run of little out-and-back \"jump\" hops; and added edge-type precedence so an entry pair carrying more than one lifecycle edge shows only the highest-information one (replaces > evolves > related) - a pair that both",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4evn0cqjb6mab2kz:d2",
+    "title": "D2 - A soft force nudges crossing edges apart, bounded so it can never blow the frame budget",
+    "body": "- D: New pure module `graphCrossings.ts`: `segmentsCross` (exact strict-crossing test, shared endpoints excluded), `countCrossings` (O(E^2), a measurement tool only - never called per tick), and `edgeCrossingForce`, a d3-force-compatible force wired into the simulation between the standard link/charge/x/y forces and `chainSpiral` (crossing resolves first; the spiral's more specific claim about a chain member's radius",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7qfd6tx63txn9v3v:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Made the Graph Workspace's \"Edges\" filter row (Related/Replaces/Evolves/Topic) a pure client-side visibility toggle, at JNL's direct request to take inspiration from Obsidian's graph view: lines appear and disappear, but the node set and layout never move unless a genuine node-specific filter (scope, topic, date range) is applied. - R: Explained to JNL first why toggling a chip previously made the whole map jump",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rnjcg0d1k8a2a9gn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added D5 to the evolution-edges proposal per user direction: `F:` file-path overlap between entries is a first-class precision signal when ranking `evolves`/`supersedes` candidates in `link suggest`/`memory_link_suggest`, with four binding constraints - boost-never-gate (F is optional), rarity-weighted (hub files like CHANGELOG/README/session logs are stopword-like and contribute ~nothing), conservative backtick",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_b21km002f94tjwam:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Drive the link, crossing, and spiral forces from only the edges that pass the active type and confidence filters; replace that force-edge set in place and reheat only when its membership actually changes. - R: Removing a line must also remove its physical influence. Keeping the server-projected node set stable still matters for selection and facet continuity, so force eligibility belongs in the client simulation",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_6bmkhqwaax1wh0z3:d1",
+    "title": "D1 - Move the hand-drawn character from the filter into the path geometry",
+    "body": "- D: New pure module `trailPath.ts` generates deterministic, smoothly curved SVG paths for the Trail rail: interior control points every ~65px, lateral drift capped at 1.1px from two seeded sinusoids whose amplitudes sum to 1 (so the bound holds analytically, not by sampling), smoothstep-tapered to zero within 18px of each endpoint, splined through Catmull-Rom-to-Bezier at tension 0.45. Seeds are FNV-1a over `branch ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hffa651fqxchm9hx:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added D6 to the evolution-edges proposal per user exploration request: three core continuity topics (`rename`, `migration`, `removal`) seeded into every project's `topics.yaml` (delivery rides the accepted topics plan), applied only when the event occurs, marking the artifact-continuity breaks that blind both file-overlap and semantic traceability. The bridge is a convention, not an algorithm: rename/migration e",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_w8ke5tqx1a4c7jvn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Lane allocation now treats endpoint-touching intervals as compatible: two branches that share only a junction row (one merges exactly where the next forks) are daisy-chaining, not running in parallel, so they reuse a lane - matching the user's Git Graph reference where sequential branches stack on one lane. The overlap test went strict-to-inclusive (`<=`/`>=`). Follow-up flaw caught during verification: with inc",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_rrf3kh583sk3zhye:d2",
+    "title": "D2 - A concordance gate: shape says a chain is thread-like, it says nothing about whether it tracks time",
+    "body": "- D: `MIN_SPINE_CONCORDANCE = 0.85`. After degree checks pass, `spiralChains` walks the candidate's spine and computes the fraction of member PAIRS whose spine order agrees with their timestamp order (best of the two directions); below the floor, the whole component is dropped. - R: Found by re-measuring after D1 shipped, not assumed. The 8-node related chain spiraled well (87% simulated ordering). The circled 15-nod",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_37fpco0vvunilz5k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Rebuilt Memory Trace's Trail view as a vertical git-graph timeline, replacing the shared force-layout graph engine it borrowed before. Newest entry on top; one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends); lifecycle arcs bow through a left gutter - supersedes dashed red \"replaces\", evolves dotted blue \"refines\" (new `--edge-evolves` token #4f98d9); ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ws2prm8b5ec525ye:d2",
+    "title": "D2 - Overview selection is a chronological spine plus one hop, not a connectivity ranking",
+    "body": "- D: `_overview_slice` takes the newest `limit` entries as a spine, then expands one hop over the lifecycle edges currently rendered, pulling in referenced entries regardless of date. `limit` sizes the spine; expansion is additive. - R: JNL: the Trail must stay purely chronological, and the Graph should lead with the same chronological core so the spine is shared, with the Graph adding relationship context for visual",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_74fb71s2cdrwqrqp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Port the vanilla Trail to `/next` as a new `Trail` presentation mode. The layout math lives in a pure, framework-free `trailModel.ts` (a faithful port of `app.js:709-1008`): newest-first sort + day-separator rows, client-side windowing, branch spans, commit-time `interpRow`, fork/merge occupancy, greedy branch-lane interval packing (with the main-pinned-to-lane-0 guard and daisy-chain lane reuse), colour familie",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q3jt8wxv5n0r7kdc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The vanilla Trail's layout model is now a committed parity target: memory-trace/tests/fixtures/trail-golden-48.json captures trailModel() output (items order, laneOf, spans, linkRows, lifecycle edges) over the deterministic 48-entry synthetic corpus (seed 20260711) - 5 lanes, main pinned to 0, three branches daisy-chained onto lane 1, 44 lifecycle edges. A tiny read-only hook (window.memoryTraceDebug = { trailMo",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_h5trfwg2yjyjadpp:d2",
+    "title": "D2 - Documentation and skill surfaces in the same change",
+    "body": "- D: Updated `session_logging.md`/`end_of_turn.md` (live + seed, byte-identical) with the evolves/continuity schema paragraphs, the three-way rule of thumb, the backtick-quoted F nudge, and harvest steps 7-8; updated `graph-edge-contract.md` (four edge kinds, per-kind guards, authored-inverse-field, continuity as a label family, read-surface rows), README, functionality audit, runtime index, and CHANGELOG. - R: The e",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9tyb8n0yre7whh9r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat Extended Graph as evidence for a small, curated set of purpose-specific Memory Trace graph lenses and semantic encodings, not as a feature-for-feature target. - R: Trace already has the stronger provenance foundation (entry-level Inspector, typed lifecycle edges, Trail, Overview/Local/Evolution/File scopes), plus the new lazy bootstrap and settled-layout safeguards. Its next value is making these meanings ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4pz7vzgh7jrwedq2:d1",
+    "title": "D1 - The graph reparent is WITHDRAWN, and the reason is arithmetic",
+    "body": "- D: `graph` stays a root permanently. No reassignment campaign. I reported this an hour ago as \"deferred pending a `retracts:` campaign\" and that framing was wrong. - R: Three reasons, ordered by how long each stays true. **(1) It has no upside.** 64 entries carry `graph` WITH `memory-trace` and 45 carry it WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true positives and 45 false one",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cwnx1w43rd691aqh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Third slice of the design-feedback batch, applying JNL's MAI-inspired \"humanised design language\" (saved as memory `trace-design-language`; reference screenshots in `docs/1_Inbox/`). (1) **Token system**: every hardcoded colour in the React client's stylesheet (154 replacements incl. a stray sweep to zero) now routes through `:root` custom properties, with two palettes - **light** (default; warm cream #f5f0e6, w",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_worktree_convention",
+  "title": "Worktree=session, branch=task, agent-namespaced branch names",
+  "concern": "founding:.memory-seed/index.md#L81",
+  "founding_head": "founding:.memory-seed/index.md#L81",
+  "candidates": [
+   {
+    "ref": "mse_bzk370rfxdtta2bx:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Filed `docs/1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md`, a consolidated spec defining three things the user asked to be well-defined: (1) symmetric agent-namespaced naming for BOTH the worktree (`.<agent>/worktrees/<task>`, already shipped) and the branch (`<agent>/<kind>/<topic>` with a REQUIRED agent segment - recommend the slash form for branch<->worktree symmetry, reconciling this repo's ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_t5ecqb0k0t8wv68n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Revised the branch+worktree lifecycle spec to scope the worktree to the SESSION (not the task) and let branches own tasks. Worktree = `.<agent>/worktrees/<session>` (one durable worktree per agent session, matching Codex's actual `.codex/worktrees/session-2026-07-13`); branch = `<agent>/<kind>/<topic>` (one task at a time inside the session worktree). Split the model into two DECOUPLED lifecycles - session workt",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q9vz4hj9xqk8b0ed:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Extended the worktree naming in the lifecycle spec to include the user in multi-user workflows: `.<agent>/worktrees/<user>/<session>` when 2+ human participants are registered, gated on the SAME participant-count gate (`session_target()`) that flips session logs from flat to per-user. A solo repo stays flat `.<agent>/worktrees/<session>` (unchanged). No new config knob - the `<user>` segment follows the existing",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q95j5ftyg83r28b9:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Closed Phase 2 of the worktree/branch hygiene plan (Track E, explicitly \"running in parallel, not gated\" per the /goal Phase 0-4 plan): reconciled `agent_collaboration.md`'s stale worktree/branch naming examples against the model already ratified in `.memory-seed/index.md:77` (worktree=session, branch=task, `<agent>/<kind>/<topic>`) since 2026-07-13/16. - R: After the advisor flagged that the two remaining Phase",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d3",
+    "title": "D3 - Sequence safe worktree hygiene before lifecycle automation",
+    "body": "- D: Combine worktree GC and naming/lifecycle policy. Phase 1 uses dry-run classification, Git-native removal, and bounded lock retry with no raw recursive-delete fallback. Phase 2 adopts worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches while grandfathering existing names. - R: The executor must prove that dirty, unmerged, foreign, root, and locked worktrees fail closed before control-plan",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xza4tj40p52bsbhn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the agent branching policy from \"one branch per task/commit\" to **\"one branch per WORKSTREAM\"** (user-chosen). Batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry just written, or the same files/subsystem — and merge the batch at a **stable, tested stopping point** (Claude self-gates; no per-merge ap",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ngwdpar27fjad246:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created an active P1 proposal for an agent worktree namespace guard so Codex, Claude, Gemini, Cursor, and configured third-party agents can verify that write work is happening inside the correct agent-owned worktree namespace before editing files. - R: Recent multi-agent work hardened branches, session fuse, and MCP readouts, but still left a practical gap: a writing agent could start in another agent's worktree",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d4",
+    "title": "D4 - Give Codex its own ignored worktree area",
+    "body": "- D: Added `.codex/worktrees/` to `.gitignore` and moved this feature checkout from `.claude/worktrees/` into `.codex/worktrees/`. - R: Codex should follow the same branch-per-agent worktree pattern as Claude without polluting the root tree or borrowing Claude's workspace. - F: `.gitignore`.",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0d1dae0t39y2t9mn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Created a Codex-owned session worktree at `.codex/worktrees/session-2026-07-13` on branch `codex/session-2026-07-13`. - R: This keeps Codex write work isolated from the root checkout and the locked Claude worktree, matching the repo's branch/worktree collaboration guardrails. - A: No diagram sidecar was added; the topology is only the primary `main` checkout, the existing locked Claude worktree, and this single ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_g6gfnchzyn2tsftf:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Ran a full link pass on the session entries. Integrity (`links check`) is clean across all files. The gap audit (`link audit --date 2026-07-13`) surfaced 38 today-entries with structural neighbours, but they are overwhelmingly broad topic/file co-occurrence (documentation, git-workflow, release, memory-trace, shared `app.js`) rather than lifecycle relationships - and today's genuine work-chains (freshness, doc-l",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kq3ba0cy9nkpqkm0:d4",
+    "title": "D4 - Defer local branch deletion after approval-gate block",
+    "body": "- D: Do not attempt branch deletion again in this turn. - R: Deleting local branches requires writing Git refs; the approval request was blocked by the environment usage-limit gate. Working around that would be inappropriate. Branches attached to active worktrees also need the separate worktree cleanup pass the user already sequenced next. - A: Branches still to delete or remove through their worktrees: fully merged/",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_eaep9x4t50yesqb4:d2",
+    "title": "D2 - Leave the shared-checkout half to a maintainer decision rather than a heuristic",
+    "body": "- D: Do not implement a warning for two agents sharing one checkout. Record the finding and four options in `docs/2_Todo/branch-field-provenance.md`, mark item 5 as needing JNL's decision, and recommend (not decide) option A plus D: document the existing `--branch`/`--no-branch` workaround, and have the agent harness pass `--branch` unconditionally. - R: Two agents in one working tree have a genuinely identical HEAD,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j23dvr3zehz8g7xh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Document the `--branch`/`--no-branch` workaround (A) in `.memory-seed/skills/session_logging.md`, appended to the prose that already defines the `branch` field, and cross-reference it from `README.md`'s `session append` command entry; record the standing convention (D) — a harness passes `--branch` unconditionally, sourced from the Task Packet's `working_branch` — as a bullet under \"Branch And Worktree Defaults\"",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_675taf80bxkmjy7j:d1",
+    "title": "D1 - Parallelize four disjoint workstreams",
+    "body": "- D: Delegate successor surfacing/ranking, `topics suggest --from`, deterministic Evidence Packs, and Trail continuity display to separate branch owners with non-overlapping file allowlists. - R: These are independently useful roadmap items whose primary write sets separate cleanly across core retrieval, topic CLI, a new Memory Trace evidence module, and vanilla Trail assets. The ranking trio's `link audit --apply` r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dd7zyz50qw9aqx0x:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep `main` as the only registered worktree and retire completed workstream checkouts once their clean state and zero unique commits are verified. - R: The root checkout is the current project state; leaving completed worker checkouts in place caused Memory Trace to present stale workstreams and created avoidable OneDrive maintenance risk. - A: `git worktree remove` deregistered the first worktree but Windows/On",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kdtas1ae28tk3x3j:d2",
+    "title": "D2 - The language must travel outside software; the shipped starter vocabulary currently does not",
+    "body": "- D: `topics:` stays the field and the category name. The word **\"subsystem\"** is retired as the label for the first axis, which becomes **area** (\"what are you working on\") against **activity** (\"what kind of work\"). Starter vocabularies vary by project type, keyed off the existing `SKILL_PROFILES` mechanism; the two-axis *structure* is universal, the slugs filling it are per-profile. This project's own software slu",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c86qbwe1xp2sctq3:d3",
+    "title": "D3 - Built under live consent; the OneDrive lock reproduced during the work",
+    "body": "- D: Treated `--apply` as a STOP-category (destructive) action and built it only after explicit user consent this turn. - R: This is the first destructive command shipped, and the consent rule ratified earlier today requires live consent for it - not the standing plan approval. While building it, `git worktree add` on the primary repo failed twice with \"Could not reset index file\", so the throwaway worktree was creat",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zhsqw4nn1dwgevqb:d1",
+    "title": "D1 - Wrote the Trace/Trail proposal; confirmed no branch/worktree field exists anywhere in the schema",
+    "body": "- D: Wrote `docs/inbox/memory-trace-trail-feature-proposal.md`. Part 1 recommends Trace as the product name (defuses the positioning-collision risk from the competitor analysis; \"Trail\" keeps its metaphor exactly where it fits best). Part 2 scopes Trail as a dedicated graph view combining a new `branch` data axis with the already-computed-but-unrendered `supersedes` edge (Lense's `_graph_edges()` currently only build",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_sw54jn8k80g9t5mg:d1",
+    "title": "D1 - Ship Phase 1 only, move the plan to completed with deferred follow-ons noted",
+    "body": "- D: Added a \"Dependency Strategy\" section to `.memory-seed/skills/agent_collaboration.md` (+ seed twin): three dependency tiers (`none`/`isolated`/`dependency-changing`), four new task-packet fields (`dependency_tier`, `dependency_setup`, `dependency_definition_policy`, `dependency_shared_cache_policy`), dependency-definition files/lockfiles named as orchestrator-owned shared files (added to Conflict Escalation), a ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_eaep9x4t50yesqb4:d1",
+    "title": "D1 - Omit `branch:` when the memory dir belongs to another working tree",
+    "body": "- D: When `rev-parse --show-toplevel` for the caller's directory differs from the same for `runtime.workspace_root`, omit `branch:` rather than stamping the enclosing checkout's HEAD. Extends the existing detached-HEAD / not-a-repository omission rule by one clause via a new `_auto_captured_branch` helper; no new flag, no advisory channel, no new machinery. - R: This layout produces a wrong durable value with **no co",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1yk6gw5chvv6xks5:d1",
+    "title": "D1 - Ship the classifier alone; the remover is a separate increment",
+    "body": "- D: Implement `memory-seed worktree classify` (read-only, dry-run only) and explicitly do not implement `--apply` removal in this change. - R: - Classification is the safe half and is independently useful; removal is destructive and deserves a supervised implementation rather than an autonomous one. - The plan's own Phase 1 says \"Default to dry-run\" - shipping dry-run as the only mode makes that the literal default ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3x2d61jkn3jstpyg:d1",
+    "title": "D1 - Decision",
+    "body": "- D: After `session merge-branch` creates its merge commit, re-discover and attempt to remove only that merged branch's own registered worktree when it is clean, unlocked, and confirmed merged; preserve the branch and report all non-removal outcomes. - R: A successful branch merge does not itself deregister the checkout, so Trace continued to list already-integrated work. The cleanup must not turn a merge into a broa",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_f15dhdn52ytwgy5k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Deduplicated the 4 independently hand-rolled `_git()` subprocess helpers (`test_git_hooks.py`, `test_mcp_session_integrate.py`, `test_worktree_gc.py`, `test_session_fuse_and_merge.py`) into one shared `tests/_git_helpers.py::run_git(cwd, *args, check=False, timeout=None)`. Each file's own `_git()` now delegates to it, passing its own historical `check`/`timeout` value explicitly, so none of the 193 existing call",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_y3gb93k466tcfdq8:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add a warning-only `memory-seed branch status [--json]` command and update the shared collaboration guidance so all supported agents get the same branch-history rule through the vendor-neutral runtime. - R: The recent graph looked linear because work landed directly or effectively linearly on `main`; worktrees alone only isolate files, while visible branch topology requires task-branch commits plus `git merge --",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ft7874jfnxxdevrz:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Rewrote the evolution-edges proposal's D6 per user review: rename/migration/removal events are recorded as a structured optional entry-YAML field `continuity:` (items of kind/from/to; `to` forbidden on removal) instead of seeded core topics plus an `F:` both-paths prose convention. Values are historical labels like `branch:` (never validated against live filesystem/git). `links check` gains `malformed-continuity",
+    "claimed_by": []
+   }
+  ]
+ }
+]

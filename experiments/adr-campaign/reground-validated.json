@@ -1,0 +1,37 @@
+[
+ {
+  "adr_id": "adr_business_separation",
+  "verdict": "accept",
+  "ref": "mse_08nhq28nkm2ecpt4:d1",
+  "quote": "move rather than copy them out of `docs/4_Reference/`",
+  "why": "Explicitly institutes the policy requiring documents to move rather than be copied between business/ and docs/."
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "verdict": "accept",
+  "ref": "mse_x1ha2e26md3q83zv:d1",
+  "quote": "A `derived` block may **never** supersede a `write-time` block for the same subject",
+  "why": "Explicitly sets the precedence rule preventing derived blocks from overriding write-time values."
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "verdict": "accept",
+  "ref": "ms-db2d715c:d1",
+  "quote": "Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation",
+  "why": "Institutes the DRAFT label vocabulary that makes D/R mandatory in all decision records."
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "verdict": "accept",
+  "ref": "mse_0qycwt519qdggrpe:d1",
+  "quote": "`DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`",
+  "why": "Institutes the three core edge kinds system by defining DEFAULT_GRAPH_EDGE_TYPES."
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "verdict": "accept",
+  "ref": "mse_dvzh6fkn4d98cd6y:d1",
+  "quote": "**bidirectional read-time traversal** as the canonical graph-read model",
+  "why": "Institutes the forward-only authoring strategy with bidirectional read-time traversal."
+ }
+]

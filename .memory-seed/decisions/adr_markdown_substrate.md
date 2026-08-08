@@ -39,6 +39,10 @@ Control-plane behavioral constraint. Session decision mse_ddba1ztxqhasfbwf:d1 (2
 - `constitution:v1#markdown-authority` (governing)
 - `constitution:v1#evidence-first` (supporting)
 
+### Awaiting review
+
+- `mse_gn2kmdenk0p4cn7z:d1` - The memory core is kept as plain Markdown and predictable for file-reading agents.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -89,3 +93,36 @@ Control-plane behavioral constraint. Session decision mse_ddba1ztxqhasfbwf:d1 (2
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:10:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#markdown-authority",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#evidence-first",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_gn2kmdenk0p4cn7z:d1",
+  "event_id": "adre_99867bc87afd17e57d2f",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+The memory core is kept as plain Markdown and predictable for file-reading agents. All critical control-plane files, session logs, and decision records are encoded in readable, human-editable Markdown rather than binary or structured formats.
+
+#### Why
+
+Rests on the session decision that instituted it: "**Markdown is authoritative *everywhere*** (Invariant #6 reframed)" (mse_gn2kmdenk0p4cn7z:d1). Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.
+
+#### Evolution
+
+Founded from .memory-seed/policy.md#L21; this revision moves the concern off that control-file line onto mse_gn2kmdenk0p4cn7z:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

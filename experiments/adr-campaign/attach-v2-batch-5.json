@@ -1,0 +1,438 @@
+[
+ {
+  "adr_id": "adr_integration_mode",
+  "title": "Configurable integration_mode: local-merge vs PR",
+  "concern": "founding:.memory-seed/index.md#L173",
+  "founding_head": "founding:.memory-seed/index.md#L173",
+  "candidates": [
+   {
+    "ref": "mse_t388apx6evvmmd1r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Implemented P0.1 of the configurable integration-mode feature: the setting + core reader + `esr` surfacing. `memory_seed/core.py` gains `INTEGRATION_MODES = (\"local-merge\", \"pr\")`, `DEFAULT_INTEGRATION_MODE = \"local-merge\"`, and `read_integration_mode(target_root)` - a fail-open stdlib line-scanner (same style as `read_project_agents`/`read_project_participants`, no YAML dep) reading a top-level `integration_mod",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ex23fj34b49zn9ta:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Designed and got user approval for two linked proposals, and started implementation on branch `feature-integration-mode`. (1) OpenSSF credibility (`openssf-credibility-proposals.md`): four tracks - Best Practices Badge (passing), Scorecard, Sigstore signed-provenance, SLSA Build L3 - on a shared `SECURITY.md` + CI foundation, adopting a PR/branch-protection workflow. Alpha-Omega and GUAC/package-analysis/Critica",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_etfc204eshqdtpd7:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `merge_trigger` is unified to one meaning across both integration modes — \"at a stable stopping point, does the agent auto-advance to the integration handoff, or hold?\" — where the handoff is the merge into local main under `local-merge` and OPENING the pr under `pr`. Added a §5 \"Modes available\" matrix (integration_mode x merge_trigger) and narrowed §6.2 toward \"own field\". - R: JNL's answer collapsed a cell I ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpjr3zv6wthje8sk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Use compositional ownership: invoke Superpowers directly for independent read-only diagnostic fan-out and multi-task same-session SDD/review, while Memory Seed retains guarded worktrees, parallel code-writing ownership, durable session memory, session-aware integration, consent gates, and cleanup. - R: Superpowers' plan-scoped ledger, file-based task handoffs, exact-range review packages, fix/re-review lifecycle",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`",
+    "body": "- D: `read_merge_trigger` fail-opens to `automatic`; this repo declares `merge_trigger: manual` in `.memory-seed/project.yaml`. JNL's call, asked before writing. - R: The proposal left the default open (§6.1) and it is the breaking-change lever. Fail-open `manual` would make every seeded project's `session merge-branch` start refusing without a flag on their next update — a behaviour change for all downstream consume",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_44r69a5psy0n6fb3:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Evaluated the image as a good Level 2/3 collaboration pattern when translated into vendor-neutral roles and guarded by explicit integration contracts. - R: The diagram's useful core is not the named model stack; it is the role separation: explore, plan, bounded implementation in isolated worktrees, sequential integration, final review, and PR/local handoff. Existing `.memory-seed/skills/agent_collaboration.md` a",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d2",
+    "title": "D2 - Autonomous branch integration over MCP",
+    "body": "- D: Added `memory_session_integrate`, wrapping `session_merge_branch`, applying autonomously with no in-progress-merge precondition. On a non-session conflict it aborts the merge and restores a clean tree rather than leaving a half-merged repo an agent cannot reason about; it declines when `integration_mode` is `pr` (that path pushes and opens a PR) and hands back the CLI command. - R: JNL chose autonomous apply so ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_v26pem9hsvsbjbge:d1",
+    "title": "D1 - Accept the Wave 1 implementation set",
+    "body": "- D: Accept and integrate deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the bounded successor boost, configurable integration mode, and inert lifecycle-link scaffolding steps 1-3. - R: Each feature preserved Markdown authority and derived/read-only boundaries, passed its focused worker checks, then passed review on the combined integration head. - A: ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j3e5gza4w6jwm6x0:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The deliverable is a `docs/2_Todo` proposal for JNL to react to, not an `agent-rules.md` edit. It proposes two variable groups - session-stable (checked at first message: checkout_posture, integration_mode, a new merge_trigger, governing_persona, version_state) and intent-dependent (set from the task: write_intent, risk_tier, orchestration_level, worktree_decision, skills_to_load) - in a dependency-ordered seque",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5p94m2c3rwy7kbtj:d1",
+    "title": "D1 - `memory-seed situate`: network-free orientation preflight with full cross-agent parity",
+    "body": "- D: New `memory-seed situate` CLI (`situate.py`, mirroring `esr.py`) — a read-only report of LOCAL authoritative facts: git posture (branch / dirty / ahead-of-origin), `integration_mode`, the newest session entry (via the layout-aware `iter_session_documents` reader, not a re-derivation), worktree posture (reusing esr's helpers), and the local `pyproject` version + whether the CHANGELOG has a non-empty `## Unrelease",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_v26pem9hsvsbjbge:d2",
+    "title": "D2 - Close completed proposals and advance B0a",
+    "body": "- D: Move the four fully shipped plans to `docs/5_Completed/`, keep the AI timeline and lifecycle-link plans active for their explicit remaining work, and make the pre-React B0a graph/workspace contracts and renderer evidence the current roadmap lead. - R: Folder location is lifecycle state; leaving completed plans in Todo would contradict shipped code, while moving partially complete plans would hide real follow-up ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_675taf80bxkmjy7j:d3",
+    "title": "D3 - Integrate through a reviewed wave branch",
+    "body": "- D: Merge worker branches one at a time into `codex/integration/long-horizon-wave-1`, inspect ownership and diffs after each merge, run targeted validation, obtain an independent validator pass, and only then promote the integration branch to `main` with session-aware merge. - R: This preserves visible workstream topology, isolates review corrections from `main`, and gives cross-branch behavior one final validation ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xza4tj40p52bsbhn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the agent branching policy from \"one branch per task/commit\" to **\"one branch per WORKSTREAM\"** (user-chosen). Batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry just written, or the same files/subsystem — and merge the batch at a **stable, tested stopping point** (Claude self-gates; no per-merge ap",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7twxefmtphr30604:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat the B0a shell slice as the completed first increment of the pre-React graph/workspace track; keep its branch-visible `--no-ff` merge and preserve its fused session evidence. - R: - The workspace controls, fresh-worktree handling, specification update, and regression coverage form one coherent and validated workstream. - The repository is configured for local integration, so no remote push or PR is appropri",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d2",
+    "title": "D2 - Gate placement mirrors the asymmetric `pr` precedent, plus a deliberate strengthening",
+    "body": "- D: MCP `memory_session_integrate` declines under `manual` (no flag — declining IS the gate). CLI `session merge-branch`/`open-pr`/`integrate` require `--user-approved` under `manual`. - R: The existing `pr` gate is already asymmetric — the MCP declines `pr` (\"not run unattended\") while the CLI proceeds to `open_pr`. That is the design language: gate the autonomous surface, trust the attended one. The MCP is the age",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dwstzzfnz5w2626v:d1",
+    "title": "D1 - Implemented the three docs-only increments",
+    "body": "- D: Added the failed-approaches rule to `session_logging.md`'s Reason Rules; added the Mermaid usage bullet (with semantic freshness) to `agent-rules.md`'s Working Principles; added the named \"Fan-Out Recipe: Explore / Plan / Implement / Validate\" (9 gates, condensed) plus the new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `prefl",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_fh4sp1twn0w662jb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: First pass of a test-suite audit JNL requested (freeze uncontrolled growth, measure before culling, protection-value not headcount). Measured rather than guessed: total wall time ~135s/635 tests; the 40 slowest are all real-git-subprocess `session_fuse`/`merge_branch`/`prepare_pr`/`open_pr` workflows; `test_memory_seed.py` alone holds 287/635 tests (45%) and ~105/135s (78%) of wall time across 8 unrelated `unitt",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_84hmbf34tw8mm9qe:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Set `merge_trigger: automatic` so a verified, conflict-free local session integration may land without a separate manual-approval flag. - R: JNL explicitly authorized merging ready worktrees and requested automatic future integration; the session fuse remains mandatory and still fails closed on validation or conflict. - A: Bypass the fuse for faster raw Git merges - rejected because sidecars and session chronolo",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mj4vwfbjdhkej485:d2",
+    "title": "D2 - Preserve chronological session history through merge recovery and retain safe Git cleanup boundaries",
+    "body": "- D: When a session-aware merge encounters a non-journal sidecar conflict, reconcile that sidecar manually, reset only conflicted session/diagram files to the integration commit, then apply the sanctioned fuse before committing the merge. Delete only clean branches and registered worktrees already merged into `main`. - R: This retains both workstreams' immutable session records in chronological order while avoiding u",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wnbpwewm6h07t9kp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Integrated `codex/fix/full-text-search-navigation` into local `main` with the guarded session-fuse workflow. - R: The user explicitly requested the merge after client, backend, build, and live-browser checks completed; the integration dry run reported no fuse issues. - A: No diagram sidecar: the single-branch merge has no topology beyond the branch label and merge commit already recorded here. - F: Merged React ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7v4p692txy0a8nkr:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Verdict is adopt-with-refinements, parallel implementers deferred. Adopt: (1) an identity-verification step at worker spawn (confirm `pwd` + `git rev-parse HEAD` against the intended base) before a worker acts; (2) a bounded review→rework loop (cap N iterations, then escalate to a human checkpoint); (3) a validation/CI gate before the review stage, plus a named merge-conflict owner. Reject: rigid per-stage model",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat session fuse as an explicit Memory Seed-aware integration command, not as a Git union merge driver or automatic notes mechanism. - R: Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability. - A: Recommended defaulting fuse to dry-run with an explicit apply mode, requiri",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_v26pem9hsvsbjbge:d3",
+    "title": "D3 - Use reviewed local integration and retain publish gates",
+    "body": "- D: Land the reviewed wave through the declared `local-merge` flow and do not push or publish; release 2.19 remains behind explicit user approval even though its stated memory-quality cut criterion is now met. - R: Worker branches isolated production changes, the orchestrator reviewed each output, and an independent validator found no release-blocking issue on the combined code head. - A: The first documentation wor",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_legacy_agents_compat",
+  "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+  "concern": "founding:.memory-seed/policy.md#L22",
+  "founding_head": "founding:.memory-seed/policy.md#L22",
+  "candidates": [
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall",
+    "body": "- D: Added `add_agent`/`remove_agent` + `memory-seed agents list|add|remove`. Removal uses generic strippers (`_strip_grouped_hooks`/`_strip_cursor_hooks`/`_strip_mcp_entry`/`_strip_copilot_startup`/`_strip_codex_mcp`) that remove only our entries, delete a config file only when nothing of value remains, never delete shared dirs (`.github`/`.vscode`), back up everything first, and delete routing files by name. Warns ",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-6a09aea8:d2",
+    "title": "D2 - Strip the legacy settings.json block on init/update, ours-only",
+    "body": "- D: Added `_strip_claude_settings_mcp`; removes `mcpServers.memory-seed` from `.claude/settings.json` only when the entry is ours (command in `_OWN_MCP_COMMANDS` or args contain `memory-seed-mcp`), prunes an emptied `mcpServers`, and leaves a foreign server squatting the key untouched. - R: Leaving the dead block invites confusion (looks configured but does nothing). Ours-only deletion protects user customisation. W",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)",
+    "body": "- D: `read_project_agents`/`selected_agents`/`write_project_agents` with a dependency-free YAML parser. `init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing). Absent/malformed/no-`agents:` -> None -> ALL. Present-but-empty `agents:` -> empty set (a real zero-agents state, distinct from unconfigured). - R: Keeps every existing project + test byte-identical (advisor's key point). ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_03fpxwznab7efk1r:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add explicit `--agents none` support, `--no-agent-prompt`, clearer interactive agent prompt copy, and installed/ignored agent reporting for init and `agents list`. - R: Agent-selective install already existed, but the init UX made it feel semi-hidden; presenting all supported agents as the default selection keeps backward compatibility while making opt-out deliberate and inspectable. - A: Did not repair all lega",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_smz281cjrvh1j22d:d2",
+    "title": "D2 - The corpus field keys follow as an explicitly authorized history edit",
+    "body": "- D: The seven `supersedes:` keys across six session/sidecar files rewrite to `replaces:` in a single direct-to-main commit citing JNL's explicit permission (\"including old entries\"). - R: Rewriting published field keys is an Invariant #2 override and needs exactly what it got: the maintainer's explicit instruction, mirroring the 2026-07-21 branch-field rectification. It is a special-case authorization, not precedent",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hffa651fqxchm9hx:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added D6 to the evolution-edges proposal per user exploration request: three core continuity topics (`rename`, `migration`, `removal`) seeded into every project's `topics.yaml` (delivery rides the accepted topics plan), applied only when the event occurs, marking the artifact-continuity breaks that blind both file-overlap and semantic traceability. The bridge is a convention, not an algorithm: rename/migration e",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_27jbk0z5nkg4jabe:d2",
+    "title": "D2 - A branch existing at all can contaminate a concurrent session's entries",
+    "body": "- D: Recorded, not fixed: `session append` stamps `branch:` from the current git HEAD, which is shared process-wide. A second session appending while this one had a feature branch checked out stamped MY branch name onto ITS entry. - R: Observed directly today - a concurrent session's entry was written with `branch: claude/feature/semantic-visibility-and-lite-install`, a branch it had no part in, purely because that b",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_y3bbadxamz0gntfy:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Renamed the misleading internal Memory Trace module `memory_trace/lense.py` → `memory_trace/service.py` and its classes `LenseCache`/`LenseService` → `TraceCache`/`TraceService`, and fixed all references. Surgical token-replace across the active tree (16 code files + the 2 `git mv`s), regenerated the `/api/v1` `openapi.v1.json` + `types.ts` contract fixtures (the models.py description carried the old name), fixe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_eaep9x4t50yesqb4:d2",
+    "title": "D2 - Leave the shared-checkout half to a maintainer decision rather than a heuristic",
+    "body": "- D: Do not implement a warning for two agents sharing one checkout. Record the finding and four options in `docs/2_Todo/branch-field-provenance.md`, mark item 5 as needing JNL's decision, and recommend (not decide) option A plus D: document the existing `--branch`/`--no-branch` workaround, and have the agent harness pass `--branch` unconditionally. - R: Two agents in one working tree have a genuinely identical HEAD,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`",
+    "body": "- D: `read_merge_trigger` fail-opens to `automatic`; this repo declares `merge_trigger: manual` in `.memory-seed/project.yaml`. JNL's call, asked before writing. - R: The proposal left the default open (§6.1) and it is the breaking-change lever. Fail-open `manual` would make every seeded project's `session merge-branch` start refusing without a flag on their next update — a behaviour change for all downstream consume",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_t1g005w0mwd6srnj:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep agent_type as the session-entry agent attribution and remove agent_name from the current schema, CLI, MCP, retrieval payloads, Trace API, evidence packs, and active control-plane guidance. Historical YAML may retain the retired key but readers ignore it. - R: The persona name duplicated runtime context, was inconsistently recorded, and only supported a persona-usage heuristic already documented as lossy. - ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d1",
+    "title": "D1 - Keep seeded docs lifecycle optional and proposal-gated",
+    "body": "- D: Added `seeded-document-lifecycle-control-plane-proposal.md` to `docs/1_Inbox/` and updated the docs front-door count; implementation remains unapproved. - R: The existing planning profile has only four empty anchors and a skill, while the richer lifecycle needs local `docs index` / `docs check` proof and non-destructive adoption semantics before it can become reusable seed behavior. - A: Rejected copying this re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d2",
+    "title": "D2 - Root cause: persona loading is a buried, conditional checklist step with no automatic backstop, unlike session-state recall",
+    "body": "- D: No code change - a diagnosis, offered because JNL asked for one. - R: Traced the actual load path rather than guessing. `.agents/README.md` documents the intended behaviour (\"when an agent starts a session, it reads `_registry.yaml`... and applies those rules\"), and `.memory-seed/agent-rules.md` really does encode it - **step 10 of 10** in the startup checklist: \"If `.agents/_registry.yaml` exists... load all pe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memor",
+    "claimed_by": [
+     "adr_mcp_integration_surface"
+    ]
+   },
+   {
+    "ref": "mse_1yk6gw5chvv6xks5:d2",
+    "title": "D2 - Everything unanswerable fails closed, and `foreign` was added beyond the listed states",
+    "body": "- D: A worktree is `removable` only when every safety question answers yes at once. Unreadable `git status`, detached HEAD, and indeterminate merge status all classify `unknown`, which refuses removal. Added a `foreign` state not in the plan's list. - R: - The plan's rule is \"never assume merge status implies a clean worktree\"; the inverse matters just as much - an unanswerable question must never default to permitte",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d2",
+    "title": "D2 - Make the agent-facing control plane say what is now true",
+    "body": "- D: Repaired the falsehoods and documented two rules that shipped without being written down. `functionality-audit.md` section 5 no longer claims \"Every MCP tool is read-only\" and now agrees with its own section 7; `index.md` says 23 topics rather than 19. `session_logging` gains `malformed-entry-yaml`; `agent_collaboration` gains a section on session files not line-merging, including the `links/**` sidecar trap. St",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bzk370rfxdtta2bx:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Filed `docs/1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md`, a consolidated spec defining three things the user asked to be well-defined: (1) symmetric agent-namespaced naming for BOTH the worktree (`.<agent>/worktrees/<task>`, already shipped) and the branch (`<agent>/<kind>/<topic>` with a REQUIRED agent segment - recommend the slash form for branch<->worktree symmetry, reconciling this repo's ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mj4vwfbjdhkej485:d2",
+    "title": "D2 - Preserve chronological session history through merge recovery and retain safe Git cleanup boundaries",
+    "body": "- D: When a session-aware merge encounters a non-journal sidecar conflict, reconcile that sidecar manually, reset only conflicted session/diagram files to the integration commit, then apply the sanctioned fuse before committing the merge. Delete only clean branches and registered worktrees already merged into `main`. - R: This retains both workstreams' immutable session records in chronological order while avoiding u",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_sngrjb8vqmh3ap8q:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat the previous direct-main edit as a workflow miss to avoid repeating the same pattern. - R: `agent_collaboration.md` says distinct feature, fix, refactor, test, or documentation tasks should use their own task branch unless direct-main work is explicitly chosen; the previous task was a distinct control-plane behavior change. - A: The implicit rationale was proximity to an existing main-tree repair and low p",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "concern": "founding:.memory-seed/policy.md#L43",
+  "founding_head": "founding:.memory-seed/policy.md#L43",
+  "candidates": [
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it (which the fuse forbids). A new correction block declares `retracts: <kind> <ref> [(YYYY-MM-DD)]`; the reader (`entry_link_sidecars`) unions all edges then subtracts each retracted one (entry-level by `(kind, target)`, decision by the exact 4-tuple); ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_fsdq53qa5ak68xqh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Converted the 5 hand-audit downgrades from in-place link-sidecar edits (an Invariant #2 violation) to append-only `retracts:` blocks: restored each original `evolves` edge and appended a `retracts: evolves <ref> (<date>)` + fresh `related_entries: <ref>` correction block, so the effective edge is still `related` but the history is append-only and the campaign's original claim is preserved. Also fixed a retract-r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d5",
+    "title": "D5 - Reverted the demonstration edge rather than bypassing the append-only guard",
+    "body": "- D: Restore `.memory-seed/sessions/links/2026-07/2026-07-21.md` to its published state and land the rest, instead of forcing the merge or authoring a substitute pair. - R: Two rejected alternatives make the reasoning: a plain `git merge` would bypass a guard that was correctly identifying a real rule violation, and inventing a fresh 2026-07-22 pair (this entry \"evolving\" some decision) to satisfy the exit criterion ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m9kmrztj8kswee35:d1",
+    "title": "D1 - Root cause: converting an existing `classify_pending` stub in place is an EDIT to a file the base already has that entry_id in, and the fuse's base-reset loop does not import edits, only new blocks",
+    "body": "- D: Reapplied the five edges directly to `.memory-seed/sessions/links/2026-07/{2026-07-28,2026-07-29}.md` on `main`, bypassing `session merge-branch` a second time - replaying through another branch+merge cycle would hit the identical drop, since the mechanism that dropped it is unrelated to which branch carries the edit. - R: Reconstructed from observed behaviour, not from reading the fuse's source in this entry. T",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_75r7hmeqxjaas97n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Diagram sidecar blocks key on `(entry_id, heading timestamp)` rather than `entry_id` alone, so appending a later block for an entry that already has one is a legal declaration that supersedes under most-recent-wins. `entry_diagram_sidecars` resolves the winner by heading timestamp then block index — never by which file the directory walk reaches last — and the superseded block stays readable as what was authored",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_58rgfg4n8vfqbvfw:d1",
+    "title": "D1 - Fix the identity, not the immutability",
+    "body": "- D: The fuse's plan and apply phases key link-sidecar blocks by `(entry_id, timestamp)`. The same dated block remains immutable (\"existing link sidecar modified\" fires exactly as before); a new timestamp for a known entry imports as a later declaration; duplicate same-identity blocks are refused as authoring damage. - R: The collision cause was never append-only - it was the one-block-per-entry assumption baked into",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kdhw53hzp4nh8wwm:d3",
+    "title": "D3 - `links check` errors on wrong refs and only warns on coarse ones",
+    "body": "- D: A new error kind `dangling-source-decision` fires wherever an arrow names an ordinal the authoring entry lacks, in entry YAML and sidecar blocks alike. Coarseness gets two warning kinds instead - `unaddressed-target-decision`, `unattributed-source-decision` - and only on entries stamped after `2026-07-24 09:00`. - R: An error must be actionable. A published entry cannot be edited, so an error on a historical bar",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_smz281cjrvh1j22d:d2",
+    "title": "D2 - The corpus field keys follow as an explicitly authorized history edit",
+    "body": "- D: The seven `supersedes:` keys across six session/sidecar files rewrite to `replaces:` in a single direct-to-main commit citing JNL's explicit permission (\"including old entries\"). - R: Rewriting published field keys is an Invariant #2 override and needs exactly what it got: the maintainer's explicit instruction, mirroring the 2026-07-21 branch-field rectification. It is a special-case authorization, not precedent",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_x6qgkg61dnq26bk4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fixed the P1 bug where `session merge-branch` silently discarded branch-side link sidecar edits. Generalized the fuse to treat link sidecars as a third first-class sidecar kind, mirroring diagram sidecars exactly: new `_LinkSidecarRecord` dataclass, `_link_doc_from_relative_path` classifier, ref extraction, working-tree read, chronological writer, and full plan/apply wiring (`import_link_sidecars`/`planned_link_",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9aggjnyaqrmb545d:d1",
+    "title": "D1 - A non-chronological link sidecar is sorted on write, not refused",
+    "body": "- D: `apply_link_gap_stubs` no longer raises `Existing link sidecar blocks are not chronological`. It re-sorts the whole block region on write with the same stable sort `_write_chronological_link_sidecar_file` already used for the fuse - existing blocks keep their relative order within a minute, new blocks land after them, block content is never touched. The four corpus files stuck in that state (`2026-07-03`, `-05`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_58rgfg4n8vfqbvfw:d2",
+    "title": "D2 - The eight withheld edges land, including two that revisit a published classification",
+    "body": "- D: All eight ledger edges written as second blocks stamped with the wall clock, appended to each source's existing date file. Two of them (myybj and pnkvm, both -> v890) contradict the file's own earlier `edge_status: not_applicable` classification; their notes say so explicitly. - R: The earlier classification weighed file overlap only; the swarm judged the decision bodies and the validator confirmed. Under block ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time` block — precedence is `(source rank, then recency)`, so a sweep cannot win by being newer. (2) It may override one through an explicit `retracts:` naming it, **reviewed by a human before writing**. - R: My first draft stopped at half 1, which made write-time values permanently uncorrectable. JNL corrected it, and th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ktw9r3nq5bvx2plm:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built Phases 1-2 of the lifecycle-edge linking hardening (see `docs/3_Spec/lifecycle-edge-linking-sidecars.md`). Root problem: `supersedes`/`evolves` are opt-in typed edges declared in an entry's own YAML at write time, and in practice almost nobody stamps them (across 312 entries they appear in ONE file); genuine supersessions get logged as generic `related_entries`, so the Trail's replaces/evolves lines nearly",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s0kh1h39kzdgyk38:d2",
+    "title": "D2 - One append-only supersession rule for all three sidecar families, with the unit differing",
+    "body": "- D: An extraction sidecar is append-only and, for any named reference, the newest declaration wins on a (file date, block timestamp, position) sort. Topics and diagrams supersede per **entry**; links supersede per **edge**. Topic block identity becomes `(entry_id, heading timestamp)`, so a later block is a legal re-attribution and only a same-timestamp collision in one file errors. Diagram sidecars adopt the same id",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_31m31wsrwe77jh78:d3",
+    "title": "D3 - Topic sidecars file under the ENTRY date, which reshapes the write and the correction path",
+    "body": "- D: The skill states as its sharpest divergence from `link_swarm` that a batch writes one file per distinct ENTRY date under `sessions/topics/YYYY-MM/YYYY-MM-DD.md` — a 40-entry batch touches ~40 files spread across every month the corpus covers — and that a wrong batch is corrected by appending a block with a strictly later heading time to that SAME file, never by editing the published block. - R: `topic-sidecar-da",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4pz7vzgh7jrwedq2:d1",
+    "title": "D1 - The graph reparent is WITHDRAWN, and the reason is arithmetic",
+    "body": "- D: `graph` stays a root permanently. No reassignment campaign. I reported this an hour ago as \"deferred pending a `retracts:` campaign\" and that framing was wrong. - R: Three reasons, ordered by how long each stays true. **(1) It has no upside.** 64 entries carry `graph` WITH `memory-trace` and 45 carry it WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true positives and 45 false one",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d1",
+    "title": "D1 - Ship `link add`, refuse any non-newest source",
+    "body": "- D: Implement `memory-seed link add <target> [--from]` writing one `related_entries` edge from the newest entry to an older one. Forward-only, idempotent, YAML-only, `links check`-gated. Any source that is not the newest entry is refused at the writer, not just at the CLI. - R: - Adding to the entry being authored does not rewrite history, so it is clean under Invariant #2, and the plan itself calls this \"the normal",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mw03g9n22yk2z9st:d2",
+    "title": "D2 - Using a field is not completing the decision that created it",
+    "body": "- D: `mse_7c5hj34hjwkdbhpw:d1 evolves mse_tyj5wy264y84rhnf:d2` is downgraded to `related` through a `retracts:` block plus a re-authored `related_entries`, carrying no `edge_confidence` because a hand audit is authored rather than machine-scored. The other two flagged verdicts stand. - R: Constitution v1.6 D2 accepted the write-time sidecar consolidation proposal and fixed its build order; the ADR campaign applied th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cbexvsnxenvy08fh:d1",
+    "title": "D1 - Additive sidecar-evolves, never an in-place related->evolves move",
+    "body": "- D: Recorded each upgrade as an append-only `evolves` block in a date-scoped link sidecar and KEPT the successor's existing `related_entries`. Did not rewrite any entry YAML. - R: `importance_score` counts only related-inbound and `evolves` deliberately never dampens, so an in-place move would strip the predecessor's inbound count and make a still-live evolution root read as *less* referenced - contradicting the fre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jkfnrc6r9jwr353k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `related_entries` now accepts decision-level refs (`mse_x:d2`, `d1 -> mse_x:d2`), validated exactly like a lifecycle decision ref and rendered on the target's decision row — but ALLOWED, not MANDATED. A bare related ref to a multi-decision target stays valid; the granularity mandate (name the decision when 2+) remains lifecycle-only. The canonical decision-edge kind for related is `related`; the entry-level list",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_p0k0st2zmvmk70vn:d2",
+    "title": "D2 - The merge refusal now names the topic family and gives the command; the fuse itself is NOT built",
+    "body": "- D: `session merge-branch` still refuses on topic sidecars, but says which family it hit, why the fuse cannot rebuild it, and exactly what to run. `_topic_sidecar_tree_path` is deliberately NOT added to `_is_recognized_session_tree_path`. - R: The refusal was correct - resetting a branch-touched topic sidecar to base would silently discard its attributions, which is the loss the guard exists to prevent. What was wro",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hejpp9whj0nn8jyy:d2",
+    "title": "D2 - Scoped regression tests to 2 real gaps, not all 13 originally-flagged spots",
+    "body": "- D: Added `test_session_target_rejects_invalid_session_date` and `test_mcp_merge_preserves_foreign_server_on_our_key` (parameterized over claude/cursor/gemini via `subTest`). Added `test_seed_and_live_agent_rules_match` to cover the `agent-rules.md` twin this change itself hand-edits. Skipped tests for the 9 isinstance/malformed-config guards and for `_merge_vscode_mcp`'s foreign-key case. - R: A design-phase re-ver",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_10m885gx6bery1ew:d1",
+    "title": "D1 - A stub is resolved by a later sibling block, not never",
+    "body": "- D: `sidecar-unclassified-stub` is now an ENTRY-level question, decided after every block is read. A stub survives only when no LATER block for that entry authors an edge or declares `edge_status: not_applicable`. Ordering is `(heading timestamp, block index)` - the same later-and-more-specific precedence `edge_status` already used - so a resolution written BEFORE a stub correctly leaves it standing, because a fresh",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memor",
+    "claimed_by": [
+     "adr_mcp_integration_surface"
+    ]
+   },
+   {
+    "ref": "mse_5yk4ewb14hpvyxjs:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Hand-audited the 8 campaign edges the litmus heuristic flagged (evolves/replaces below 0.9 whose reasoning mentioned landing/parallel signals). Downgraded 5 evolves->related and kept 3. The five: verify/close a gated release (rule 5); \"land the wave via the merge-branch flow\" - uses the tool as the integration path, does not refine its design (rule 5); a separate bug in the same links-check validator, causally d",
+    "claimed_by": []
+   }
+  ]
+ }
+]

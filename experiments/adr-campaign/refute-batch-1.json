@@ -1,0 +1,790 @@
+[
+ {
+  "adr_id": "adr_control_file_authority",
+  "title": "Control-file authority partition (index/policy/skills/sessions)",
+  "concern": "founding:.memory-seed/policy.md#L49",
+  "claim": {
+   "ref": "ms-845042c7:d3",
+   "title": "D3 - Ask the user on unresolved history conflicts",
+   "body": "- D: Current `index.md`, `policy.md`, active skills, and source/config files are active authority; session history is evidence and rationale. If history conflicts with current files and no clear newer supersession boundary exists, agents must ask the user before changing durable behavior. - R: The user wanted ambiguity handled explicitly rather than inferred from partial or conflicting memory. - A: Rejected blindly f",
+   "why_claimed": "Directly establishes the partition between control files as authority and session history as evidence."
+  },
+  "other_candidates": [
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d1",
+    "title": "D1 - Partition Markdown authority by concern",
+    "body": "- D: Ratify Constitution v1.1 and make one append-only Markdown ADR sidecar authoritative for ADR promotion, stable identity, and lifecycle. Original and decision-update entries own rationale/evidence; current status, registries, indexes, databases, and Trace views are derived. - R: - Explicit promotion and a compact lifecycle ledger provide a higher-signal decision corpus than repeated semantic inference over chrono",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d4",
+    "title": "D4 - The new budget is documented as a real, citable fact in its one natural governing home, and mirrored to seed",
+    "body": "- D: `.memory-seed/skills/skill_architecture.md`'s \"Startup Contract Boundary\" section - previously stating the qualitative rule with no number at all - gained two sentences naming the enforced 280-line ceiling, the exact test that enforces it, and the principle for what headroom is for (a thin, easy-to-skip, unhooked step over a new feature). `docs/2_Todo/branch-field-provenance.md`'s stale \"~260-line... documented ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bsa7nr7pm903jy6p:d1",
+    "title": "D1 - Lead with the agent problem, not the auditor problem",
+    "body": "- D: Recommend positioning Memory Seed as the decision record agents cannot skip - enforced rationale, validated append-only supersession, Markdown you own - and explicitly defer every compliance and framework claim until the promotion layer that marks which decisions govern exists. Keep the existing \"Git-native institutional memory for humans and AI agents\" wedge rather than replacing it with a governance wedge. - R",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_52cw7g10wmaha5h4:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated `index.md` — folded the participant-count session-layout gate and the doctor local-user/participant-mismatch warning into the existing \"Participant registry parsing (current unreleased worktree)\" Design Decision bullet; added a new adjacent bullet for the one-time identity-offer hook (`.memory-seed/.identity-offer-stamp`); added a Topology bullet documenting the `docs/todo/` / `docs/todo/completed/` / `d",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5ekvf2d0h5e2gw3y:d1",
+    "title": "D1 - Workers load packet + one persona + triggered skills; safety rails stay",
+    "body": "- D: Add the Worker Context Contract to `agent_collaboration.md` and two Task Packet fields (`persona:`, `context_load: packet|full`). A worker skips the full index read, the newest-session recency read, the whole skill registry, and load-all-active-personas. It still runs `base_sha`/preflight and the worktree guard. - R: - Operating Mode Start is written for the primary agent, which must establish current state itse",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7p3q9r2t5v8w1x6z:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Keep `.memory-seed/agent-rules.md` as a compact startup-safe operating contract and route procedural detail through indexed lazy skills. - R: This preserves always-on runtime discovery, authority, file ownership, and skill-loading rules while reducing the chance that agents carry bulky task-specific runbooks in every context. - F: Added live/seed skill twins for `history_retrieval.md`, `session_logging.md`, `end",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_63qcaab119xmyx0b:d1",
+    "title": "D1 - `index.md`/`policy.md` corrected where they had gone from stale to actively false",
+    "body": "- D: Bumped the Constitution version pointer (v1.3 -> v1.6, two places). Rewrote the \"Indexed topics\" bullet (was: 23 topics, a flat deploy-once vocabulary; now: 69 topics, two-axis hierarchy, the sidecar is the topic authority) and the \"Decision-level topic judgment swarm\" bullet (was: \"no swarm has been run and zero topic sidecars exist\" - now false; is: the scored auto-backfill was piloted and aborted, a redesigne",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5trzymn43k92ky7z:d3",
+    "title": "D3 - The Skill Loading section's per-skill description list is cut; `skills/index.md` already does that job with more precision",
+    "body": "- D: The 17-bullet, one-line-per-skill description list (23 lines) is replaced by a 3-sentence paragraph: a pointer to `skills/index.md` as the authoritative `load_when`/`do_not_load_when` map, naming only the two skills needed almost every turn (`session_logging.md`, `end_of_turn.md`), and a closing line that everything else routes through the registry. Net effect on the file: -18 lines, more than paying for D2's tw",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_498jee2br14bp2mp:d2",
+    "title": "D2 - Root cause: persona loading is a buried, conditional checklist step with no automatic backstop, unlike session-state recall",
+    "body": "- D: No code change - a diagnosis, offered because JNL asked for one. - R: Traced the actual load path rather than guessing. `.agents/README.md` documents the intended behaviour (\"when an agent starts a session, it reads `_registry.yaml`... and applies those rules\"), and `.memory-seed/agent-rules.md` really does encode it - **step 10 of 10** in the startup checklist: \"If `.agents/_registry.yaml` exists... load all pe",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j23dvr3zehz8g7xh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Document the `--branch`/`--no-branch` workaround (A) in `.memory-seed/skills/session_logging.md`, appended to the prose that already defines the `branch` field, and cross-reference it from `README.md`'s `session append` command entry; record the standing convention (D) — a harness passes `--branch` unconditionally, sourced from the Task Packet's `working_branch` — as a bullet under \"Branch And Worktree Defaults\"",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_q0csfqb2darg474m:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Relocate Orientation and Merge And Branch Safety to `policy.md` as new sections, keep Response Length in `CLAUDE.md` with a pointer to where the vendor-neutral rules now live, and move rather than copy so the two files cannot drift. - R: `policy.md` is listed in `BOOTSTRAP_GENERATED_FILES` in `core.py` and is absent from the seed file set, so `update` generates it once and never replaces it - unlike `CLAUDE.md`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0k8mtvqzq8hbcgev:d1",
+    "title": "D1 - Give durable non-decision facts a home at capture time",
+    "body": "- D: Decision Harvest gains step 9 - roles, ownership, codenames, cadences, thresholds, budgets, environments and external locations are promoted to `.memory-seed/index.md` under `## Active State` in the turn they are established, named in the entry; and a turn that establishes only facts and changes no code still records. `end_of_turn.md` step 2 references it so the runbook and the schema agree. - R: The harvest ask",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_vy5yzac5jqw1vd0e:d2",
+    "title": "D2 - `skills/index.md` is the sole exemption; `.agents/` is excluded structurally, not by rule",
+    "body": "- D: `.memory-seed/skills/index.md` is skipped and the skip is asserted to be the only one. `.agents/` persona templates are not mentioned in the filter at all — they simply never match the `.memory-seed/skills/` prefix. - R: `index.md` is runtime-local: projects extend the trigger registry with persona entries, so exact equality is the wrong assertion, and `test_skill_trigger_registry_is_deterministic_and_seeded` al",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_thggdmry7hf7etp2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Record in `business/wedges/developer-project-memory.md` that the wedge now assumes agents as the primary reader and writer, with four stated consequences - a single never-fragmented store whose concern-scoped views are derived projections, push-first agent consumption with token cost as the ergonomics, Memory Trace as the human surface designed for the rare high-stakes lookup rather than habitual reading, and wr",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_y8eds7vvbcshxvcp:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `agent-rules.md`'s skill description no longer reads \"using tiers, grids, subgraphs, and invisible links\" — it now names the sidecar subset and states that `subgraph` and non-`-->` arrows do not render. The `skills/index.md` `load_when` trigger \"needing compact rectangular Mermaid layout with tiers, grids, subgraphs, or invisible links\" becomes \"authoring a diagram sidecar under `.memory-seed/sessions/diagrams/`",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_is0a3iw426g6v2zb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treated the repository as initialized operating mode (all reusable control files present, `index.md`/`policy.md` present - not seed-only), not bootstrap or repair mode. No lazy skill runbook loaded yet since no concrete task was specified beyond orientation. - R: `.memory-seed/index.md` confirms this is the root runtime with no parent to inherit policy from. Four personas are `status: active` in the registry wit",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7c5hj34hjwkdbhpw:d3",
+    "title": "D3 - Thin the index only where a bullet is not bundling uncovered decisions",
+    "body": "- D: Index bullets under 400 characters thin to a descriptive pointer (one-line digest plus ADR link); longer bullets keep their text and gain the ADR reference; policy rules always keep their text inline and gain only the governing-ADR pointer. Three bullets whose grounding quotes span line wraps were left entirely untouched. - R: Policy is Always Read, so an agent must learn how to behave without chasing links - th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d2",
+    "title": "D2 - Make SessionStart AGENTS-first with five-entry recency context",
+    "body": "- D: Claude, Codex, Gemini, and Cursor now receive an `AGENTS.md`-first startup directive plus the five newest applicable session entries in chronological order, spanning recent files when needed; Copilot's static prompt carries the same instructions. Empty/new projects still receive the directive. - R: The old payload listed every heading but injected only one entry body. Five recent entries give bounded continuity ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_azhh0f71css624jc:d2",
+    "title": "D2 - A skill names the ADR that governs it, and ESR audits the link",
+    "body": "- D: Skill frontmatter gains optional `governing_adr: <adr_id>`. ESR gains a `Skill governance` section reporting skills with no ref and skills whose ref does not resolve. Reported, never enforced. `topic_swarm.md`, `link_swarm.md` and `session_logging.md` are routed first (live and seed); 24 skills remain unrouted. - R: JNL asked for this after watching the failure. A skill says what to DO; an ADR says what is curre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8p47vz0pgabqm1va:d2",
+    "title": "D2 - Topic hierarchy cannot gate lineage hops, at any level",
+    "body": "- D: Chain construction stays gated on authorship (authored edges act, machine-scored edges go to review). Topic overlap remains an annotation. Hierarchy-aware variants were measured and not adopted. - R: JNL proposed comparing at parent or grandparent level so adjacent siblings resolve together. Measured against the 1 known-bad hop and 3 known-good authored hops, every hierarchy rule - same-parent, any-shared-ancest",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_pndcc168895x59ex:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The link-swarm pipeline (mechanical recall via `link audit --json` → haiku fan-out judgment → orchestrator validation → batch human approval → `:dN` edge writes → `links check`) is now a repo skill, `link_swarm.md`, registered as an OPTIONAL skill under a new \"curation\" profile. The runbook captures the six judging rules measured against the 68-edge campaign, the mechanical-first validation (verbatim quote groun",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qsfdkttkwmypx9cz:d3",
+    "title": "D3 - Constitutional/architectural conflict is its own STOP category with no lower tier",
+    "body": "- D: Add a STOP category for anything contradicting a ratified invariant or an established architectural decision, and state that no tier below Stop applies to it. - R: - Constitution §11 already says such a change \"is rejected or must first amend the invariant - it cannot silently override it\". The skill had no category that carried this, so an agent could route a constitutional conflict through Proceed-and-flag by ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xza4tj40p52bsbhn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Refined the agent branching policy from \"one branch per task/commit\" to **\"one branch per WORKSTREAM\"** (user-chosen). Batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry just written, or the same files/subsystem — and merge the batch at a **stable, tested stopping point** (Claude self-gates; no per-merge ap",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "concern": "founding:.memory-seed/policy.md#L44",
+  "claim": {
+   "ref": "mse_dqwvb8gxnn88ch3b:d1",
+   "title": "D1 - Decision",
+   "body": "- D: The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time` block — precedence is `(source rank, then recency)`, so a sweep cannot win by being newer. (2) It may override one through an explicit `retracts:` naming it, **reviewed by a human before writing**. - R: My first draft stopped at half 1, which made write-time values permanently uncorrectable. JNL corrected it, and th",
+   "why_claimed": "This decision established the rule that derived blocks cannot implicitly override write-time values."
+  },
+  "other_candidates": [
+   {
+    "ref": "mse_x1ha2e26md3q83zv:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Sidecar precedence becomes `(source rank, then recency)` rather than recency alone. A `derived` block may **never** supersede a `write-time` block for the same subject; it may only fill a gap where no write-time value exists. Within a source class, most-recent-wins is unchanged. - R: Found while aligning the ADR contract — an agent flagged that once write-time values live in the sidecar, the existing most-recent",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hj0hh657j693rqzj:d2",
+    "title": "D2 - The sweep proposes an ADR; it never writes one",
+    "body": "- D: A swarm may **never** create an ADR sidecar or append a transition block. It may propose any movement — creation, accept, reject, supersede — as a candidate in the ordinary suggestion channel; human approval always commits, and the resulting file records `source: derived` so the reconstructed origin survives the approval. A four-row table enumerates every movement so no reader has to infer. - R: This is delibera",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_tyj5wy264y84rhnf:d1",
+    "title": "D1 - Provenance is first-hand vs reconstructed, and must be declared not inferred",
+    "body": "- D: Invariant #4 gains a clarifying clause (v1.6). A value recorded when the work was done is **first-hand**; one derived afterwards by reading the finished record is **reconstructed**. Both are legitimate, they are **not equal evidence**, and which one a value is must be **declared on the record, never inferred from where it is stored**. - R: JNL's observation forced it: this repository's links and topics are writt",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hj0hh657j693rqzj:d1",
+    "title": "D1 - First-hand vs reconstructed, with provenance as a declared field",
+    "body": "- D: `adr-lifecycle-sidecar-contract.md` now (1) states the **first-hand vs reconstructed** split explicitly — an agent that just did the work versus a sweep reading finished prose — rather than implying a human wrote the entry YAML; (2) carries `source: write-time | derived` as a **declared field** on the frontmatter and on every transition block, using the consolidation proposal's exact vocabulary, with missing or ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s0kh1h39kzdgyk38:d2",
+    "title": "D2 - One append-only supersession rule for all three sidecar families, with the unit differing",
+    "body": "- D: An extraction sidecar is append-only and, for any named reference, the newest declaration wins on a (file date, block timestamp, position) sort. Topics and diagrams supersede per **entry**; links supersede per **edge**. Topic block identity becomes `(entry_id, heading timestamp)`, so a later block is a legal re-attribution and only a same-timestamp collision in one file errors. Diagram sidecars adopt the same id",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bx4zjr3cy79w7jme:d2",
+    "title": "D2 - The reader replaces per entry rather than unioning blocks, and does not resolve aliases",
+    "body": "- D: `entry_topic_sidecars` applies most-recent-wins per entry on `(heading timestamp, block index)`, so a later block supersedes the earlier list **wholesale**. Slugs are returned exactly as authored, with no alias resolution. - R: This is the topic instance of the supersession model: a topic list is a state replaced by a better one, unlike link edges where each edge is an independent assertion and blocks union. Reu",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_z7rfq8x5qjfbyzdc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Proposal recorded at `docs/2_Todo/write-time-sidecar-consolidation-proposal.md`. The gated write tool keeps taking `--topics`/`--related`/`--replaces`/`--evolves` and folds them into the entry's **sidecar block** instead of its YAML; provenance moves from positional (which file) to an explicit `source: write-time|derived` field; the swarm becomes a sweep for omissions rather than a source. Recommended write orde",
+    "claimed_by": [
+     "adr_mcp_decision_envelope_review",
+     "adr_session_decision_authority"
+    ]
+   },
+   {
+    "ref": "mse_31m31wsrwe77jh78:d3",
+    "title": "D3 - Topic sidecars file under the ENTRY date, which reshapes the write and the correction path",
+    "body": "- D: The skill states as its sharpest divergence from `link_swarm` that a batch writes one file per distinct ENTRY date under `sessions/topics/YYYY-MM/YYYY-MM-DD.md` — a 40-entry batch touches ~40 files spread across every month the corpus covers — and that a wrong batch is corrected by appending a block with a strictly later heading time to that SAME file, never by editing the published block. - R: `topic-sidecar-da",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mw03g9n22yk2z9st:d2",
+    "title": "D2 - Using a field is not completing the decision that created it",
+    "body": "- D: `mse_7c5hj34hjwkdbhpw:d1 evolves mse_tyj5wy264y84rhnf:d2` is downgraded to `related` through a `retracts:` block plus a re-authored `related_entries`, carrying no `edge_confidence` because a hand audit is authored rather than machine-scored. The other two flagged verdicts stand. - R: Constitution v1.6 D2 accepted the write-time sidecar consolidation proposal and fixed its build order; the ADR campaign applied th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_bx4zjr3cy79w7jme:d1",
+    "title": "D1 - Inferred topics are a distinct channel on the chunk, never merged into authored `topics`",
+    "body": "- D: `MemoryChunk` gains `inferred_topics` (rolled up to entry level) and `inferred_decision_topics` (the `(ordinal, slug)` pairs, `\"\"` for a bare slug). `augment_chunks_with_topic_sidecars` attaches them without touching `chunk.topics`; each consumer decides separately whether to union the two. - R: Provenance is not a detail a consumer may lose (Invariant #3), and the Trace inspector already holds the line by showi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_75r7hmeqxjaas97n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Diagram sidecar blocks key on `(entry_id, heading timestamp)` rather than `entry_id` alone, so appending a later block for an entry that already has one is a legal declaration that supersedes under most-recent-wins. `entry_diagram_sidecars` resolves the winner by heading timestamp then block index — never by which file the directory walk reaches last — and the superseded block stays readable as what was authored",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qsfdkttkwmypx9cz:d2",
+    "title": "D2 - \"A recorded prior approval is not live consent\"",
+    "body": "- D: State that a proposal sign-off, a `status:`/`next_action:` field, or an approving session entry authorises the *work* but never a STOP-category action taken later while the user is absent. Test: *if the user is not present to say no right now, they have not said yes right now.* - R: - This session produced the evidence. The Worker Context Contract was approved 2026-07-14 with scope explicitly naming `agent-rules",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hqzcxnkehb7mbcma:d1",
+    "title": "D1 - The swarm works, and two write-path lessons are now in the brief",
+    "body": "- D: Ran 10 batches of <=12 entries, one haiku worker each, no agreement gate. 194 of 201 units survived validation, then 5 of the 7 rejects on retry - gap 201 -> 2. Both failures found on the way are recorded in `topic_swarm.md` (live and seed): a new block SUPERSEDES the entry's previous one wholesale, so pre-existing per-decision attributions must be carried forward; and workers get two separately labelled closed ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kys1ygxq2sxcnfbs:d3",
+    "title": "D3 - Topic retraction exists, scoped to corrections",
+    "body": "- D: A topic `retracts:` is worth building and is scoped narrowly to **corrections** — a wrong topic, or a `derived` block correcting a `write-time` one. It is explicitly not the instrument for reducing a parent's share. Recorded in the supersession spec, which already owns the links equivalent. - R: JNL: \"retraction might be useful for corrections, keep it as a narrow use case functionality\". The guard is a question",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_tyj5wy264y84rhnf:d2",
+    "title": "D2 - Accept the write-time consolidation proposal",
+    "body": "- D: `write-time-sidecar-consolidation-proposal.md` marked **ACCEPTED**. Build order fixed: block format + `source` field → sidecar-first write ordering → flip `session append` → branch-scoped sweep. - R: v1.6 changes the design's standing from *permitted* to *required*: Invariant #6 already allowed a sidecar to own a declared field, but #4 now demands the provenance be declared on the record, which **is** the `sourc",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4pz7vzgh7jrwedq2:d1",
+    "title": "D1 - The graph reparent is WITHDRAWN, and the reason is arithmetic",
+    "body": "- D: `graph` stays a root permanently. No reassignment campaign. I reported this an hour ago as \"deferred pending a `retracts:` campaign\" and that framing was wrong. - R: Three reasons, ordered by how long each stays true. **(1) It has no upside.** 64 entries carry `graph` WITH `memory-trace` and 45 carry it WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true positives and 45 false one",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9aggjnyaqrmb545d:d1",
+    "title": "D1 - A non-chronological link sidecar is sorted on write, not refused",
+    "body": "- D: `apply_link_gap_stubs` no longer raises `Existing link sidecar blocks are not chronological`. It re-sorts the whole block region on write with the same stable sort `_write_chronological_link_sidecar_file` already used for the fuse - existing blocks keep their relative order within a minute, new blocks land after them, block content is never touched. The four corpus files stuck in that state (`2026-07-03`, `-05`,",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it (which the fuse forbids). A new correction block declares `retracts: <kind> <ref> [(YYYY-MM-DD)]`; the reader (`entry_link_sidecars`) unions all edges then subtracts each retracted one (entry-level by `(kind, target)`, decision by the exact 4-tuple); ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_09p094mr0qwm3qjw:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The exact block in `topic_swarm.md` §6 is now empirically verified rather than inferred, and the skill says so with the observed output. Also corrected the closing check line: `links check` is the only command that validates a topic sidecar; `topics check` validates the vocabulary file and entry-**authored** topics and never reads sidecars, so pairing the two read as if both gated the write. - R: The previous en",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_smz281cjrvh1j22d:d1",
+    "title": "D1 - Rename the surfaces; alias the readers; leave the records verbatim",
+    "body": "- D: `replaces:` is the canonical field (inverse `replaced_by`, filter `exclude_replaced`, the replacing_head boost family, renamed issue kinds, the /api/v1 enum and payload fields, the `7_Replaced/` docs lane with `replaced_by:`/`replaced_on:` frontmatter). Every reader and validator accepts the legacy spellings forever - field keys, the `--supersedes` flag, MCP arguments, the edge-type request value, legacy lanes a",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "title": "D1 - Decision",
+    "body": "- D: `_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes. It unioned the first two until today. - R: JNL's call, and the union stopped being right the moment the two-axis campaign finished. A union is correct while sidecars are sparse ENRICHMENT - an entry tagged `memory-trace` gaining `trail` really is both. It is wrong once the sidecar carries a COM",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cbexvsnxenvy08fh:d1",
+    "title": "D1 - Additive sidecar-evolves, never an in-place related->evolves move",
+    "body": "- D: Recorded each upgrade as an append-only `evolves` block in a date-scoped link sidecar and KEPT the successor's existing `related_entries`. Did not rewrite any entry YAML. - R: `importance_score` counts only related-inbound and `evolves` deliberately never dampens, so an in-place move would strip the predecessor's inbound count and make a still-live evolution root read as *less* referenced - contradicting the fre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qsfdkttkwmypx9cz:d3",
+    "title": "D3 - Constitutional/architectural conflict is its own STOP category with no lower tier",
+    "body": "- D: Add a STOP category for anything contradicting a ratified invariant or an established architectural decision, and state that no tier below Stop applies to it. - R: - Constitution §11 already says such a change \"is rejected or must first amend the invariant - it cannot silently override it\". The skill had no category that carried this, so an agent could route a constitutional conflict through Proceed-and-flag by ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_asxvd56nwg52ar3s:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Report the thesis as confirmed on convergence and false on scope - the eight-question spine fits all 19 frameworks with a decision surface and needs no ninth question, and Memory Seed's field model is strongest on the highest-demand question (E4, why, mandatory and enforced at write time), but it has no approval record at all, answers affected-systems with a filename convention, and captures engineering session ",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "concern": "founding:.memory-seed/index.md#L105",
+  "claim": {
+   "ref": "mse_yfsrahvq87hxkcv9:d1",
+   "title": "D1 - Decision",
+   "body": "- D: Reworked the document-lifecycle plan to be folder-primary and human-discoverable. The FOLDER is now the single visible source of truth for a doc's lifecycle state (no `status:` field mirroring it); YAML carries only what a folder can't (priority, next_action, blocked_by, superseded_by/split_into, extracted_into, spec_binding); and a generated per-lane `README.md` index + a front-door roll-up is the human read su",
+   "why_claimed": "This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields."
+  },
+  "other_candidates": [
+   {
+    "ref": "mse_mr0dhy4s09wcsf9v:d1",
+    "title": "D1 - Migrate the archive and retire the folder; do not reclassify",
+    "body": "- D: Move all 43 `2_Todo/completed/` docs plus the nested `agent-templates/` into `5_Completed/`, remove the folder, and repair every inbound reference. Skip the plan's optional `6_Rejected`/`7_Superseded` reclassification. - R: - The source folder was literally named `completed`, so `5_Completed` is the faithful lane; the folder is the state, and a legacy archive sitting beside the lanes contradicted that rule. - Re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_jmha2w491rh76z03:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Treat `docs/3_Spec/` as this repository's live normative spec folder, containing `functionality-audit.md`, `graph-edge-contract.md`, and a README explaining why the two documents live together. - R: The graph-edge contract is implemented but remains a live contract; the functionality audit is the live inventory. Keeping them together in `docs/3_Spec/` makes their ongoing governance role explicit without misclass",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_msgs6qzn3mcnmkn5:d2",
+    "title": "D2 - 10 low-risk lane moves; the 43-doc `completed/` bulk migration stays P2",
+    "body": "- D: `git mv` (history-preserving): 5 fully-shipped/spent docs -> `5_Completed/` (freshness-ranking, proactive-retrieval, fontjoy, both goal-run briefs); the 2 spent synergy reviews -> `7_Superseded/` (renamed `claude-`/`codex-` to deconflict), emptying + removing `2_Todo/{Claude,codex}/`; the 2 parked strategy docs (commercialisation, hosted-security) -> `8_Deferred/`; `document-lifecycle-system-plan.md` `1_Inbox` -",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_d01t18fca60r15r2:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Filed `docs/1_Inbox/document-lifecycle-system-plan.md`, synthesizing the agent's objective review of `docs/` and the user's own gap analysis into one plan: a `docs/README.md` front door (naming flow-lanes vs type-lanes), a controlled `status:` frontmatter with per-lane vocabularies (standardizing the `status: \"proposed-specification\"` convention that already exists on some specs), spec binding-status (`live/draf",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2geqfa8tg182a77p:d1",
+    "title": "D1 - Decision",
+    "body": "- D: JNL asked to triage the Inbox and fold it into a coherent next-steps plan. Checked `docs/1_Inbox/` - already marked \"TRIAGED 2026-07-20, no untriaged proposals remain\" by an earlier session today, holding only two evaluation docs (`INBOX-ASSESSMENT.md`, `INBOX-CAPABILITY-CROSSWALK.md`) and one design-reference folder (`trace-humanised-dashboard-references/`). JNL then asked the sharper question directly: if thes",
+    "claimed_by": [
+     "adr_inbox_promotion_workflow"
+    ]
+   },
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d3",
+    "title": "D3 - Preserve source provenance outside the inbox",
+    "body": "- D: Move the inbox source package out of active inbox by preserving it as `docs/4_Reference/memory-trace-next-generation-plan-document-set.md`, promoting the integration guide to completed, and removing the now-empty inbox directories. - R: The inbox should only hold unresolved material; once disposition is decided, the original source needs a stable reference home while actionable content lives in todo/spec docs. -",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ckdba6pyhev4f9r8:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Executed P1 of the document-lifecycle plan, additively (no file moves). Created the top-level lanes `5_Completed`, `6_Rejected`, `7_Superseded`, `8_Deferred` plus `3_Spec/draft/` and `4_Reference/archived/`, each with a README stating purpose + required YAML + current contents (the human-discoverable index seed). Wrote the `docs/README.md` front door (lane map, flow-vs-type, promotion rules, naming, side-folder ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s3t523yvtr39978k:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Updated the control-plane skills to match the new folder-primary document lifecycle, with seed twins. Rewrote `.memory-seed/skills/proposal_lifecycle.md`: the folder IS the lifecycle state; distinct terminal lanes (completed/rejected/superseded/deferred) replace the old single mixed \"completed\"; rejected/superseded are kept, never `git rm`'d; the project's `docs/README.md` front door is the path authority; secon",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mazbt6cek8m8a6st:d1",
+    "title": "D1 - Sequence the surviving platform ideas after React Trail parity",
+    "body": "- D: Keep three bounded candidates in `docs/1_Inbox/` - a referential Evidence Envelope for Task Packets, a derived review queue/document-lineage view, and an advisory capability-status/publishability boundary - with React Trail parity and B0b acceptance as the first gate. - R: - Local `main` was ahead of the reviewed remote snapshot and already contains the Cytoscape decision and the implemented React graph/workspac",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_brt83hq9cmtmbqxq:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Triaged 4 strategy/research docs the user dropped into `docs/1_Inbox`. Routed by NATURE per the `proposal_lifecycle` protocol: the one actionable proposal (`memory-seed-architectural-discovery-proposal.md`) stayed in `1_Inbox` pending approval; the three source docs moved to `4_Reference` with `-report` kind names (`memory-seed-gitlens-competitor-report.md`, `memory-seed-strategic-synthesis-report.md`, `memory-s",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qkvkd8qkza7kk4y8:d1",
+    "title": "D1 - Surface the Trace distribution plan in NEXT_STEPS rather than relane it",
+    "body": "- D: Keep `memory-trace-distribution-plan.md` in `2_Todo/` and add it as Track A tail 4, naming its live obligation: the `memory-seed[lense]` deprecated alias kept \"for one release window\" is still open, and whether 2.19 drops it is an open user decision. - R: The doc looked terminal (both phases implemented and released) and unreferenced by NEXT_STEPS, which claims to enumerate live work. But `memory-trace-next-gene",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wzr3rh9cjce924vf:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Move source research out of `docs/inbox/` into `docs/reference/`, promote the AI timeline summarisation proposal to active todo, and move completed Memory Trace UI/product/audit plans into `docs/todo/completed/`. - R: The inbox should stay limited to unassessed material; market reports, UI-source learnings, competitor analysis, and functionality reports are durable reference evidence, while the Trace entry-level",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xje157km2m3rfzv0:d1",
+    "title": "D1 - Publish the crosswalk as a draft spec and stop at step 2",
+    "body": "- D: Deliver BG1 steps 1-2 (inventory + canonical ownership + alias map) as `docs/3_Spec/draft/provenance-authority-crosswalk.md`. Change no code, no field, and no default. - R: - The proposal's own next_action says \"Produce an additive model/crosswalk proposal and fixtures; do not change ranking or actionability defaults in the taxonomy-definition step.\" - `3_Spec/draft/` is the correct lane: the lane README states ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d1",
+    "title": "D1 - Bring the roadmap and the inbox back into truth",
+    "body": "- D: Rewrote `0_NEXT_STEPS.md` against `CHANGELOG.md` and code rather than its own prior claims: Constitution v1.2 → v1.3 in all three header positions, a new \"Shipped 2026-07-18/19\" block, and the B2 sentence split so Trail/search parity reads as substantially closed while Storybook, Playwright and accessibility stay open. Added an \"Unscoped discoveries\" section and a P1 entry for a verified data-loss bug. Triaged t",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d2",
+    "title": "D2 - Give every Inbox idea one coherent owner",
+    "body": "- D: Promote canonical semantic-foundation, workflow-evidence/review, semantic-projection, and worktree/branch-hygiene plans; fold Evidence Envelope, Capability Status, and seeded docs lifecycle into their existing owners; defer publishability and the generic skill/router architecture; supersede or archive every extracted source. - R: - One active owner per workstream prevents competing contracts and makes dependenci",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5nr2pvjyrs92bvj2:d3",
+    "title": "D3 - The check caught three real defects on its first run",
+    "body": "- D: Repair `spec_binding` in three specs: `adr-lifecycle-sidecar-contract.md` held a *filename*, and the two B0a renderer specs held *prose*, in what is an enum field (`live|draft|candidate|deprecated`). - R: None of the three values were valid bindings, so the field asserting each doc's normative status was meaningless in all three. The filename was a misfiled parent pointer; it now uses the `parent:` field the sib",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_fhdns7vy5pb316q3:d2",
+    "title": "D2 - Confidence and STOP-trigger research becomes one risk-signaling plan",
+    "body": "- D: Moved the two inbox research proposals into completed as resolved source reports and created `docs/todo/risk-signaling-and-stop-triggers-plan.md` as the active implementation plan. - R: The two proposals describe one behavior system: qualitative action tiers plus STOP categories. A single lazy-loaded skill is easier to route and avoids duplicating escalation rules. - A: Did not promote the market-fit report, app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_pkd8hbh3qbbahydn:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Classify the adopted ADR as `spec_binding: live` and point proposal references at its canonical `3_Spec/` location. - R: The Constitution and docs lifecycle define `3_Spec/` as the normative lane; the ADR remains the governing record for the measured rejection of structural community detection. - A: Moving the ADR to a terminal rejection lane was rejected because it records a binding architectural decision, not ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_67fdqaez6n2hfnad:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Fixed broken markdown doc-links found by a manual scan (`links check` validates session-memory refs, not markdown links — that gate is the unbuilt `docs check`). (1) Removed the stale architectural-discovery-proposal bullet from `0_NEXT_STEPS` \"Captured proposals (1_Inbox)\": I promoted that file to `2_Todo/` in the Constitution-v1 merge but left a broken `../1_Inbox/` link and a now-false \"decision needed\" frami",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_d2daxtnv8eqx4vqr:d1",
+    "title": "D1 - Promote inbox items conservatively",
+    "body": "- D: Promote `docs/1_Inbox/memory-trail-graph-and-topic-neighbourhoods.md` into `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`, promote `docs/1_Inbox/README Improvements.md` into `docs/2_Todo/readme-front-door-refresh-plan.md`, and move the source-only graph lessons into `docs/4_Reference/graph-architecture-lessons.md`. - R: The topic-neighbourhood idea is actionable but crosses into new session metadata and",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_d2daxtnv8eqx4vqr:d2",
+    "title": "D2 - Keep lifecycle guidance path-aware",
+    "body": "- D: Update `proposal_lifecycle.md` and its trigger registry to support this repository's numbered `docs/1_Inbox` / `docs/2_Todo` / `docs/3_Spec` / `docs/4_Reference` taxonomy while preserving the generic `docs/inbox` / `docs/todo` / `docs/reference` bootstrap taxonomy for new projects. - R: The product CLI still creates generic planning-profile anchors for fresh projects, but this repository now uses numbered folder",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7n25phrhv9kdnnc0:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Added `proposal_lifecycle.md` to the live runtime and seed templates, registered it in both skill registries, added it to `SEED_FILES`, package data, runtime index, seed inventory tests, and `CHANGELOG.md`. The skill codifies the `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/` flow, required status block, completion criteria, and roadmap/audit update surfaces. - D: Promoted the inbox worktree/tmux/depend",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mhfreh4t521ryc2v:d1",
+    "title": "D1 - Decision",
+    "body": "- D: On the maintainer's decision, PAUSED feature development (`0_NEXT_STEPS` Tracks A/B) and authored the **Memory Seed Constitution v1** as a living, top-level governing document (`docs/CONSTITUTION.md`, ~1300 words). It distils DEMONSTRATED behaviour into a tiered hierarchy — Vision → Invariants (7: users-own- memory, append-only-never-rewrite, explainable/attributable, files-authority-now/memory-authority-why, mo",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mfjekh7rppwqz7ed:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Backfilled `superseded_by` and `superseded_on` on all 12 retired documents that lacked them, so `missing-superseded-by` is now zero. Also normalised the key on the 14 documents retired earlier today — they used `superseded:` where the lane README requires `superseded_on:`. Removed `test_retired_inbox_proposal_group_is_flagged_again`, added a few hours earlier in the same session. - R: JNL: a test naming two fold",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "concern": "founding:.memory-seed/index.md#L143",
+  "claim": {
+   "ref": "ms-d5f3155e:d1",
+   "title": "D1 - Decision",
+   "body": "- D: Reframed `## Session Log Format` in `.memory-seed/agent-rules.md` (and its byte-synced seed twin) so the single-decision DRAFT record is the baseline shape; the Small work and Multi-decision shapes are now framed as explicit down/up routes. Reordered Entry Shapes to Meaningful-decision -> Small-work -> Multi-decision, switched the headline example to a DRAFT entry, and annotated D/R (mandatory) and A/F/T (option",
+   "why_claimed": "This decision reframed the session log to use DRAFT format as the baseline for single-decision entries."
+  },
+  "other_candidates": [
+   {
+    "ref": "ms-3a9a99a6:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Applied the reframe to the demo's existing v2.0 structure (headline -> DRAFT entry, baseline-first Entry Shapes intro, reorder to Meaningful/Small/Multi, (mandatory)/(optional) markers, baseline lead line) while keeping the demo's own \"Rationale\" terminology and its `### Rationale Rules` section placement. (mandatory) - R: The request was to mirror \"the new changes I made\" - i.e. the reframe - not a v2.0->2.3 mi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_v9stt3nxkg7s4m84:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Amended the draft ADR lifecycle sidecar contract. A decision is identified by the pair `(source_entry_id, source_decision)` — the entry id fixes the location, so the ordinal need only be unique within the entry. The ordinal is **derived** from the DRAFT grammar, never authored: `#### Dn` headings give it directly, a singular `### Decision` reads as **`d1` by convention**, and inline `- Dn:` bullets give it from ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qa4h8zzmp8sgfpmr:d1",
+    "title": "D1 - The numbered form is the only decision shape; the singular one is legacy",
+    "body": "- D: `session_logging.md` (live and seed) now mandates `### Decisions` + `#### D1` regardless of how many decisions an entry records. `_find_decision_ranges` recognises the singular `### Decision` heading as the same concept, marked LEGACY, so existing entries stay readable. - R: JNL's reading was that the fault is having two ways of seeing a decision at all, and that is the right level. My own framing had been a pay",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_9wsn23n3k8txnm2m:d1",
+    "title": "D1 - Surface decisions as Trail rows via the section chunks that already carry their identity",
+    "body": "- D: Multi-decision entries (>=2 `#### Dn -` decisions) now render one Trail row per decision, at JNL's request: D1 is the entry's existing row (entry time, full branch colour); D2..DN are additional rows on the same branch lane with a pastel of the branch colour and a bracket right of the time column grouping the set. Implemented as a Trail-only backend opt-in (`TraceService.graph(include_decisions=True)`, passed so",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_kdhw53hzp4nh8wwm:d1",
+    "title": "D1 - Both ends of a lifecycle edge must name their decision, enforced where the ref is still unwritten",
+    "body": "- D: A new `replaces:`/`evolves:` item names the decision on each end. Target side: `<entry_id>:dN`, explicitly `:d1` even when the target has exactly one decision, comma form `mse_x:d1,d4` expanding to one edge per ordinal; a bare id stays legal only where the target has no decision section at all. Source side: a `dN -> ` prefix naming which of the writing entry's own decisions authors the edge, required whenever th",
+    "claimed_by": [
+     "adr_decision_identity"
+    ]
+   },
+   {
+    "ref": "mse_ad6fgzpnqe10j91c:d1",
+    "title": "D1 - Withdraw the ordinal-as-clock reasoning; decision edges must cross entries",
+    "body": "- D: Intra-entry lifecycle edges are forbidden - both endpoints must belong to different entries, at any granularity, reported as `intra-entry-decision-ref`. This withdraws [[mse_j55kt6mq230zj2p4]]'s D3, which allowed `mse_x:d3 evolves mse_x:d1` and broke the resulting timestamp tie with the ordinal. - R: JNL challenged the stated justification - \"within an entry, lower ordinal is older, sound because entries are app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_49j7822hdwsnm517:d1",
+    "title": "D1 - Cite measured addressability, not inherited entry-shape counts",
+    "body": "- D: The draft's decisive argument against the section slug (\"that is 346 of ~610 entries\") is replaced with numbers produced by running the chunk extractor against the live corpus: 381 decision chunks address as `...#decision` with NO ordinal and are therefore unreachable by any `#decisions/dN-` slug, against 131 reachable as `#decisions/d1-` (309 across all N). - R: The original figure was copied verbatim from the ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j55kt6mq230zj2p4:d1",
+    "title": "D1 - The canonical ref is the pair; the section slug is an accepted alias, not a second spelling",
+    "body": "- D: A decision ref is authored as `<entry_id>:<dN>` (e.g. `mse_wh33mc61swqx0vkv:d2`). The Memory Trace section slug (`mse_abc#decisions/d2-some-slug`) is accepted on read and normalised to the pair, but is never canonical and never emitted by writers. Bare entry ids keep their current meaning untouched. - R: The identity was already ratified 2026-07-20 as the pair `(entry_id, dN)`, so only the authored surface form ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ynmnn99kgmqmec5r:d2",
+    "title": "D2 - Tighten reminder language",
+    "body": "- D: Rewrite both the base and escalated reminder text: lead with the imperative, enumerate concrete triggers (file changes, `git push`/`merge`/`rebase`/delete, any decision), and state D/R as required on every entry rather than \"for decisions, use DRAFT labels\" (which read as if some entries don't need D/R, when the DRAFT record's D/R are the mandatory baseline shape for virtually all entries). - R: The exact miss t",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d4",
+    "title": "D4 - The ADR corpus table is re-derived from a committed script, and disagrees with both prior counts",
+    "body": "- D: Ship `scripts/count_decision_shapes.py` and amend the ADR table in place to 138 numbered / 383 singular / 1 inline / 42 no-decision = 564 entries, 521 with an addressable decision, 115 multi-decision, 710 addressable decisions in total. - R: The ADR's 2026-07-20 hand count (612 entries) and the 2026-07-21 recount (580) were both unreproducible, and the honest finding is that the new numbers match neither. The me",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qeht233q9ebvf2ms:d1",
+    "title": "D1 - Serve retrieval at decision granularity with canonical mse_x:dN identity",
+    "body": "- D: New `granularity=\"decision\"` mode, default for `memory_search` and `rank_session_memory`: one chunk per `#### Dn - ...` heading with `chunk_id = mse_<entry>:dN`, decision-scoped topics (`operations:d1` resolves to that decision only; bare topics apply to all) and decision-scoped lifecycle edges. Entries without decision headings keep the whole-entry unit. - R: Every other subsystem - topics, lifecycle edges, ADR",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-db2d715c:d1",
+    "title": "D1 - Use DRAFT for compact decision records",
+    "body": "- D: Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation. - R: The user wanted the same decision-history function with fewer tokens and less semantic-search noise from repeated long labels. - A: Rejected keeping verbose labels such as `Decision:` and `Alternatives considered:` because they add repeated non-domain terms before the content. - F: ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_6s46whjzghew9w08:d1",
+    "title": "D1 - Ten approvals, one rejection, one mechanical ordinal correction",
+    "body": "- D: Approved ten upgrades (all evolves; five explicit rule-6 deferral completions, four rule-2 implementation/refinement shapes, one infrastructure-consumer). Rejected one: it claimed rule 6 on a deferral the older entry \"implicitly required\" - implicit need is not deferral language, and the same source's genuine edge (the explicitly deferred competitor investigation) was approved instead. Corrected one ordinal mech",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_0z5r2qwwnt323eh5:d1",
+    "title": "D1 - Both axes are mandatory in core, so every write path agrees",
+    "body": "- D: `_normalise_decision_sidecars` refuses a decision without `topics.area` or without at least one `topics.activity`. The MCP JSON schema has required both since 2026-07-31; moving the rule into core makes `session append` refuse identically instead of accepting a decision with neither. - R: The asymmetry WAS the leak. Decision-keyed attribution fell 92% (July) to 8% (August) while coverage stayed at 100%, and only",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_h297nf3qghp7ysyk:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The write-time mandate no longer requires `:d1` for a single-decision target. The rule for both ends becomes uniform — name a decision only when the entry it belongs to has more than one. A single- or no-decision target takes the bare id; `:d1` on a single-decision target is rejected at `session append` and warned as `redundant-decision-ref` at `links check`. The source side was already this way (a single-decisi",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qj69fzzvf6y6de93:d1",
+    "title": "D1 - State the population, and refresh the ADR corpus table from one classifier at a named commit",
+    "body": "- D: The corpus section of `adr-lifecycle-sidecar-contract.md` now opens with an explicit **Population** paragraph — the stamped-heading splitter `_ENTRY_HEADING_RE` (what `links check` validates against), with the 25 date-only May-2026 legacy headings **excluded** — and every figure is tagged with the commit it was measured at (`0dc423b`). The table goes 138/383/1/42 -> **186 numbered / 407 singular / 1 inline / 42 ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_s0kh1h39kzdgyk38:d1",
+    "title": "D1 - Build the decision-level topic grammar before the backfill, not after it",
+    "body": "- D: Topic sidecars gain `<slug>:dN` alongside bare slugs, with the ordinal validated against the entry's real decisions (`dangling-topic-decision`), a malformed-suffix error (`malformed-topic-ref`), a per-decision cap of 3 (`MAX_TOPICS_PER_DECISION`) with the rolled-up entry union left uncapped, and the redundancy rule inverted so a decision-keyed slug naming a topic the author wrote at entry level reads as enrichme",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_2b1bthj8x03nfe91:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Built a deterministic entry DRAFT-format lint and enforced it at write time and audit time. `core.entry_body_format_issues(body)` + `check_entry_format(text)` flag bare `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no `### Decision`/`### Summary` heading, several decisions crammed under a singular `### Decision`, and a `D:` with no `R:`. `session append` now rejects a malformed body before writ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_j55kt6mq230zj2p4:d3",
+    "title": "D3 - Intra-entry edges are legal, and the ordinal breaks the timestamp tie",
+    "body": "- D: `mse_x:d3 evolves mse_x:d1` is legal. Decisions carry no timestamp of their own, so a decision endpoint resolves its entry's heading timestamp (leaving the forward-only guard unchanged in logic) - which means both ends of an intra-entry edge share one timestamp. Within an entry the ordinal decides: an intra-entry edge is legal iff the target ordinal is strictly lower than the source's. - R: Without an explicit r",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_asxvd56nwg52ar3s:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Report the thesis as confirmed on convergence and false on scope - the eight-question spine fits all 19 frameworks with a decision surface and needs no ninth question, and Memory Seed's field model is strongest on the highest-demand question (E4, why, mandatory and enforced at write time), but it has no approval record at all, answers affected-systems with a filename convention, and captures engineering session ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_t5bbdstgmqzagn2y:d1",
+    "title": "D1 - Decision",
+    "body": "- D: A multi-decision entry's Trail rows are now a HEADING plus SUBHEADINGS: the entry row is the group anchor (`decision_ordinal=None`, `decision_count=N`, full branch colour, keeps the timestamp) and EVERY decision D1..DN gets its own pastel row. Previously the entry row doubled as D1, so the Trail went entry title -> D2 -> D3 with no D1 anywhere. - R: JNL: \"D1 should be seperately visible too as the multidecisions",
+    "claimed_by": []
+   },
+   {
+    "ref": "ms-845042c7:d2",
+    "title": "D2 - Preserve optional section granularity",
+    "body": "- D: Add `granularity: \"entry\" | \"section\"` to `memory_search`, with `entry` as default and `section` available for long or multi-topic entries. - R: Entry-level retrieval should be the normal agent-memory behavior, but narrow searches are useful for large plan-mode logs. - A: Rejected removing section retrieval entirely because some projects may need more targeted search. - F: MCP tool schema, `memory_get_chunk` loo",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wj8p66t3v1pbpzth:d1",
+    "title": "D1 - Scope the shape rule to decision-keyed sidecar groups, armed by the vocabulary",
+    "body": "- D: The rule fires only on groups keyed to a decision (`graph:d1`), never on bare entry-level slugs, and only when the vocabulary declares an axis somewhere. Fail-open is per SLUG: an undeterminable slug sitting beside one with an axis raises nothing, and the `no-axis` failure is a property of the group - nothing in it is determinable - not of any member. Unknown slugs are excluded from the group so a typo costs one",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qeht233q9ebvf2ms:d2",
+    "title": "D2 - Serve the whole DRAFT block, not a preview",
+    "body": "- D: A decision result's `excerpt` is the complete block up to `DECISION_TEXT_LIMIT = 2500` chars, newlines preserved, with an explicit truncation marker naming `memory_get_chunk` past the cap. Entry and section results keep the 280-char preview. - R: JNL's instruction - give the agent the whole relevant DRAFT section, not the D and R lines. The block is the unit of reasoning, and a preview of a decision is exactly t",
+    "claimed_by": []
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "concern": "founding:.memory-seed/index.md#L186",
+  "claim": {
+   "ref": "mse_p4xd3wqf214nqtmv:d2",
+   "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+   "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wast",
+   "why_claimed": "Created the structured edge_confidence field that the ADR governs."
+  },
+  "other_candidates": [
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Client render for edge confidence (stage 2, completing \"teach the graph and Trail to read the confidence\"). GraphWorkspace fades machine-suggested edges by confidence via cytoscape data-driven styles - low (<0.7) -> opacity 0.28 + thin, mid (0.7-0.9) -> 0.5, high/authored -> full 0.85; TrailWorkspace folds a confidence factor into arc opacity (low x0.5, mid x0.75). Authored edges (no confidence) render full stre",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_hdfv52yz74wk9js1:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Threaded the structured `edge_confidence` sidecar field through to the graph payload (the backend half of \"teach the graph to read the confidence\"). The reader (`entry_link_sidecars`) parses the `edge_confidence` list into a kind-agnostic `(source_ordinal, target, target_ordinal) -> confidence` map on each sidecar; the Trace service attaches `confidence` to entry-level edges (in `graph()`, bare identity) and to ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d3",
+    "title": "D3 - Write all 696 mechanically-validated survivors, tier-marked",
+    "body": "- D: Of 838 non-none verdicts, 696 survived mechanical validation (142 quote-ungrounded dropped as the hallucination guard; 117 redundant ordinals normalised to bare rather than dropped). Wrote all 696 as decision-level lifecycle edges - 309 blocks across 36 source-date sidecar files: 166 blocks validator-approved (all edges >=0.7), 143 machine-suggested/unverified (carry a sub-0.7 edge). - R: The user chose to keep ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_qyp5p2w8z1gtmb37:d1",
+    "title": "D1 - Decision",
+    "body": "- D: A three-step control in the graph filter bar — **All / ≥0.7 / ≥0.9** — hiding machine-suggested edges below the chosen score. Defaults to All and persists with the other graph settings. Human-authored edges are never hidden by it. A filtered edge is also removed from the per-pair outranking input, not merely hidden. - R: The thresholds reuse the tiers the sidecar already stores (`low` <0.7, `review` ≥0.7, `high`",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_10m885gx6bery1ew:d2",
+    "title": "D2 - Closed answer lists, and every edge lands carrying its confidence",
+    "body": "- D: Ran the swarm over all 67 open stubs, one worker per source entry (~5 pairs each), and wrote all 131 surviving verdicts with `edge_confidence` and a tier on the corpus's own thresholds (`low < 0.70 <= review < 0.90 <= high`, derived from 33 authored pairs with no contradictions). Worker payloads address the SOURCE by bare `dN` and every TARGET by a fully-qualified `mse_x:dN` - candidate decision bodies carry `re",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_mw03g9n22yk2z9st:d2",
+    "title": "D2 - Using a field is not completing the decision that created it",
+    "body": "- D: `mse_7c5hj34hjwkdbhpw:d1 evolves mse_tyj5wy264y84rhnf:d2` is downgraded to `related` through a `retracts:` block plus a re-authored `related_entries`, carrying no `edge_confidence` because a hand audit is authored rather than machine-scored. The other two flagged verdicts stand. - R: Constitution v1.6 D2 accepted the write-time sidecar consolidation proposal and fixed its build order; the ADR campaign applied th",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zhsqw4nn1dwgevqb:d1",
+    "title": "D1 - Wrote the Trace/Trail proposal; confirmed no branch/worktree field exists anywhere in the schema",
+    "body": "- D: Wrote `docs/inbox/memory-trace-trail-feature-proposal.md`. Part 1 recommends Trace as the product name (defuses the positioning-collision risk from the competitor analysis; \"Trail\" keeps its metaphor exactly where it fits best). Part 2 scopes Trail as a dedicated graph view combining a new `branch` data axis with the already-computed-but-unrendered `supersedes` edge (Lense's `_graph_edges()` currently only build",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d1",
+    "title": "D1 - Decision edges are a separate stream, computed after row expansion and outside the visibility filter",
+    "body": "- D: Build decision edges in `_decision_edges_for_rows`, called only from the `include_decisions` branch after `_expand_decision_rows`, and append them to `visible_edges` after the `limited_ids` filter rather than through it. - R: Two independent reasons converged on the same placement. The ratified draft forbids projecting a decision edge into entry-level `supersedes`/`evolves` - \"D2 of B supersedes D1 of A\" does no",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ex5216t2hn30s5wx:d2",
+    "title": "D2 - Only an authored edge may move an ADR head; machine-scored edges go to a review queue",
+    "body": "- D: Head changes are applied only when every step of the chain is authored (no `edge_confidence` entry). Machine-scored edges are written to `LINEAGE-REVIEW.md` with BOTH decision titles, and `reconcile_lineage.py` applies nothing unless the ADR is named with `--approve`. Batch mode was removed. - R: Measured, not assumed. The first pass applied the map wholesale under a confidence floor of 0.7 and moved `adr_subpro",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d2",
+    "title": "D2 - The Trail draws all lifecycle edges by default, weighted by a three-class granularity model",
+    "body": "- D: The default view draws every lifecycle edge, ranked by precision: decision->decision (class 1) and entry<->decision (class 2) solid and bold; entry->entry (class 3) dashed and light. An entry can evolve another entry, so class-3 history links and the swarm-era edges are real lineage and stay visible, not hidden. A three-state setting (On select / Decision / All) keeps the de-crowded views available; All is defau",
+    "claimed_by": [
+     "adr_trail_lifecycle_visualization"
+    ]
+   },
+   {
+    "ref": "mse_ad6fgzpnqe10j91c:d1",
+    "title": "D1 - Withdraw the ordinal-as-clock reasoning; decision edges must cross entries",
+    "body": "- D: Intra-entry lifecycle edges are forbidden - both endpoints must belong to different entries, at any granularity, reported as `intra-entry-decision-ref`. This withdraws [[mse_j55kt6mq230zj2p4]]'s D3, which allowed `mse_x:d3 evolves mse_x:d1` and broke the resulting timestamp tie with the ordinal. - R: JNL challenged the stated justification - \"within an entry, lower ordinal is older, sound because entries are app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_xpqy4kxjevdd8ehj:d1",
+    "title": "D1 - Decision",
+    "body": "- D: The cached-chunk loader no longer trusts the stored shape blindly. A renamed field is canonicalised (`supersedes` → `replaces`, merged without duplicates) so its edges survive; any other unknown key is dropped rather than passed to `MemoryChunk(**data)`. A stale cache therefore degrades to a rebuild, never a hard crash. - R: A pre-rename cache carrying `supersedes` raised `unexpected keyword argument` and took t",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_7r60st50e977pjz7:d1",
+    "title": "D1 - Name the cause at the guard, and state the ordering rule where agents read it",
+    "body": "- D: `unknown_event_kinds()` scans a branch's ADR text for `### <kind> - <stamp>` headings whose kind this build does not know, and the fuse checks it BEFORE parsing, failing with \"uses ADR event kind(s) X that this build does not understand. Land the parser change as its own merge first, then merge the ledger data.\" Policy states the same rule generally, covering sidecar fields as well as ADR event kinds. - R: `EVEN",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_wp102zrccfjqwt95:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Add `branch: str | None` to `MemoryChunk` (parsed via `_metadata_value` at all three construction sites), surface it read-only in the shared retrieval service (`ranked_to_dict`/`chunk_to_dict`) and the Lense API mapper (`_chunk_to_api`), document it in `session_logging.md` (solo capture via `git rev-parse --abbrev-ref HEAD`) and `agent_collaboration.md` Final Handoff Gate (orchestrated backfill from Task Packet ",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_r0r8kpbcj5meb2rm:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Node size is `22 + min(20, sqrt(degree) * 5)`, where degree counts every edge kind present in the graph payload. Position is untouched. `connectivity` stays on the node as the server computes it. - R: Item 7 called for degree to drive visual weight, and the note added to it on 2026-07-26 warned that the input must be chosen deliberately, because `connectivity` and the inspector's `Links` had become different num",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Per user direction, the evolution-edges proposal now states as a hard constraint that `evolved_by` exists only in the derived read layer (canonical graph reader consumed by CLI/MCP/Trace) and is never written to any entry file by anyone - declaring `evolves:` on a new entry changes zero bytes of the target. Added an `authored-inverse-field` `links check` guard to the proposal scope so a stored `evolved_by:`/`sup",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_5zg50mzrmtx80c80:d2",
+    "title": "D2 - Deterministic evidence score joins the edge-confidence spec as a derived read-time projection",
+    "body": "- D: Extracted Residue 1 into `edge-confidence-metadata.md`: a future deterministic evidence score (shared F: files, shared topics, explicit in-prose reference, human authorship) computed at read time as a derived projection - never stored, never model-derived, inspectable per component, sitting alongside the advisory model confidence rather than replacing it. Also fixed the spec's stale status: consumption shipped 2",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d5",
+    "title": "D5 - An authored colour wins over a borrowed one",
+    "body": "- D: Decide the node fill and rim on whether the node HAS an authored colour, not on whether its community qualifies. - R: Live verification caught the render path discarding the change. The fill was gated on `hasAuthoredCommunity`, and grouping still applies the floor per slug, so an entry tagged with nothing but child slugs is named `unassigned` by the server despite plainly having authored topics. Those entries we",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_25zzy3cmdjgrsf69:d3",
+    "title": "D3 - Flag three aliases as wrong in place rather than rehome them",
+    "body": "- D: `append-only`, `windows-worktree-hazard` and `topics` keep resolving where they do, each with a comment recording the evidence and why the obvious rehoming is also wrong. `append-only` is a cross-cutting invariant, and its one authored use (\"Constraint: evolved_by is read-time inferred only, never stored\") is about the graph, not session logging - but re-pointing it at `graph` is just as arbitrary, since the app",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d1",
+    "title": "D1 - One line per pair, taken by the strongest relationship",
+    "body": "- D: When two entries carry several relationships at once, the graph now draws only the most consequential: `replaces` > `evolves` > `related` > `topic` (with `branch`/`agent`/`day` below). The pair key is undirected, so A->B and B->A compete for the same line rather than stacking two. Crucially the winner is chosen among the types currently switched ON in the Edges row, so switching a type off PROMOTES whatever it w",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_c7fk4wq9xrn2tvhb:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Closed the entry-YAML half of the strict-charset blind spot: `check_session_links` now extracts `related_entries`/`supersedes`/`evolves` refs with `_TRAILER_ENTRY_ID_RE` (mse_[0-9a-z]{8,32} | legacy hex) at all three sites - the fenced-yaml dangling pass, the heading-anchored forward-only pass, and per-user file frontmatter - matching what the sidecar path already does. Previously a ref to a real id containing o",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_a67jnwa1048dn3wc:d1",
+    "title": "D1 - Decision",
+    "body": "- D: Settled the four open decisions (bidirectional read-time traversal of directed forward edges; backfill between pre-existing entries out of 3.0 scope; raw `entry_id` selection; `link add` held) and shipped the read-only core: `build_related_entry_graph()` in `semantic_cache.py` (stored outbound + inbound computed only from resolvable refs), `memory-seed link suggest` (ranks **older** candidates only, excludes sel",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_10m885gx6bery1ew:d1",
+    "title": "D1 - A stub is resolved by a later sibling block, not never",
+    "body": "- D: `sidecar-unclassified-stub` is now an ENTRY-level question, decided after every block is read. A stub survives only when no LATER block for that entry authors an edge or declares `edge_status: not_applicable`. Ordering is `(heading timestamp, block index)` - the same later-and-more-specific precedence `edge_status` already used - so a resolution written BEFORE a stub correctly leaves it standing, because a fresh",
+    "claimed_by": []
+   },
+   {
+    "ref": "mse_ptcadyekn3j2ga9r:d3",
+    "title": "D3 - Treat the harness as failing silently toward success",
+    "body": "- D: Record both mid-run measurement bugs in E5 as a standing warning about this instrument. - R: Each produced a complete, internally consistent, plausible table that was wrong. The DRAFT-heading counter scored prose captures as silence and invented an L2 dip; argv-truncated judge prompts left 56 of 60 blind judgements answering a fragment while the keyed stage, obliged by its schema to emit one verdict per seeded k",
+    "claimed_by": []
+   }
+  ]
+ }
+]

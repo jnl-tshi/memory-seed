@@ -39,6 +39,10 @@ Founded from the control file; outlined in the agent-capture experiment specific
 - `constitution:v1#authority` (governing)
 - `constitution:v1#prove-automation` (supporting)
 
+### Awaiting review
+
+- `mse_gbc4m5m71dqmen75:d1` - Experimental fixtures achieve isolation through structural design via nearest-runtime discovery.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -89,3 +93,36 @@ Founded from the control file; outlined in the agent-capture experiment specific
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:06:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#authority",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#prove-automation",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_gbc4m5m71dqmen75:d1",
+  "event_id": "adre_51e2d1ee46650eeb718d",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Experimental fixtures achieve isolation through structural design via nearest-runtime discovery. Each generated fixture is a standalone git repository with its own `.memory-seed/` runtime. Fixture runtimes are throwaway sub-project runtimes deliberately not individually registered in the parent index.
+
+#### Why
+
+Rests on the session decision that instituted it: "treat each fixture's own `.memory-seed/sessions/` as the experiment readout" (mse_gbc4m5m71dqmen75:d1). This decision directly established structural fixture isolation through isolated runtime environments with per-fixture session directories.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L107; this revision moves the concern off that control-file line onto mse_gbc4m5m71dqmen75:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

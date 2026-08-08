@@ -1,0 +1,637 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "topics": [
+   "cli",
+   "control-plane",
+   "process-correction"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L124",
+  "candidates": [
+   {
+    "ref": "mse_kq3ba0cy9nkpqkm0:d4",
+    "title": "D4 - Defer local branch deletion after approval-gate block"
+   },
+   {
+    "ref": "mse_m6amd5db4c7s8sfw:d3",
+    "title": "D3 - Keep live and seed runtime behavior aligned"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": "D3 - `agents add/remove` with strip-in-place uninstall"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "topics": [
+   "git-workflow",
+   "branch-history"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L153",
+  "candidates": [
+   {
+    "ref": "mse_2x8yysgezex3tbys",
+    "title": "2026-07-30 14:26 - Verify visible safe-merge worktree cleanup"
+   },
+   {
+    "ref": "mse_3x2d61jkn3jstpyg:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_4z9wcanedg82wp16",
+    "title": "2026-07-15 19:01 - Integrate ranking and long-horizon workstream into main"
+   },
+   {
+    "ref": "mse_5mv4dvxfp1tr8v16",
+    "title": "2026-07-10 15:35 - Lifecycle clarification: merge-branch evolves the fuse workfl"
+   },
+   {
+    "ref": "mse_a3wytbb3m7c4tj7w:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "topics": [
+   "documentation",
+   "docs-lifecycle",
+   "governance-profile"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L105",
+  "candidates": [
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5hgxywp0n3qsz0dw:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_61bnt9ty6rfgpw1e:d1",
+    "title": "D1 - The refresh records open threads, not just completed boxes"
+   },
+   {
+    "ref": "ms-9066d377:d1",
+    "title": "D1 - 2.4.0 minor + control-plane 2.3 -> 2.4"
+   },
+   {
+    "ref": "ms-92f62f89:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a4282580:d1",
+    "title": "D1 - Explorer package split"
+   },
+   {
+    "ref": "ms-c0d56306:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0842kjv76f4btrr8:d4",
+    "title": "D4 - Naming reconciliation Explorer -> Memory Lense"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "topics": [
+   "session-logging",
+   "schema"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L143",
+  "candidates": [
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes"
+   },
+   {
+    "ref": "ms-2e9c5f31:d2",
+    "title": "D2 - Embed DRAFT labels in the staleness hook reminder"
+   },
+   {
+    "ref": "ms-2e9c5f31:d3",
+    "title": "D3 - Add DRAFT reminder to retrieval hook too"
+   },
+   {
+    "ref": "ms-3a7c5f2b:d1",
+    "title": "D1 - Times are approximate for retroactively logged entries"
+   },
+   {
+    "ref": "ms-3a9a99a6:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_1cabc5sw1g4hkb25:d2",
+    "title": "D2 - The P2 historical backfill is blocked pending a constitutional ruling"
+   },
+   {
+    "ref": "mse_1wz44tdd04pt5yx4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d1",
+    "title": "D1 - Decision edges are a separate stream, computed after row expansion and outs"
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d3",
+    "title": "D3 - A dangling ordinal on an expanded entry draws nothing, rather than falling "
+   },
+   {
+    "ref": "mse_3e63pfckz4rzkw25:d5",
+    "title": "D5 - Reverted the demonstration edge rather than bypassing the append-only guard"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "topics": [
+   "lifecycle-edges",
+   "graph"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_07veztrwd4w9tfby:d1",
+    "title": "D1 - \"462 of 603\" was two faults sharing one number"
+   },
+   {
+    "ref": "mse_07vwfbgsk31ec7d6:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0842kjv76f4btrr8:d2",
+    "title": "D2 - Fixed Graph tab + efficiency"
+   },
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge"
+   },
+   {
+    "ref": "mse_0qycwt519qdggrpe:d2",
+    "title": "D2 - The measurement that justified it was wrong the first time"
+   },
+   {
+    "ref": "ms-8e44a1c7:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a4282580:d2",
+    "title": "D2 - Entry IDs and related links"
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_5zg50mzrmtx80c80:d2",
+    "title": "D2 - Deterministic evidence score joins the edge-confidence spec as a derived re"
+   },
+   {
+    "ref": "mse_67y44fsj2srz0eyz:d2",
+    "title": "D2 - A decision-level edge suppresses its pair in link audit"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "topics": [
+   "control-plane",
+   "windows-encoding",
+   "seed-core"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L183",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-fbc65d3c:d1",
+    "title": "D1 - Make public and bootstrap docs match the active routing model"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "topics": [
+   "testing",
+   "seed-core",
+   "functionality-audit"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L107",
+  "candidates": [
+   {
+    "ref": "mse_aqsfm061kmekm87m:d1",
+    "title": "D1 - Adopt four Codex harness constants, each forced by an observed failure"
+   },
+   {
+    "ref": "mse_b1q6bjqv5w1zyn2k:d3",
+    "title": "D3 - Pinned the coupling to core's format parser with a test"
+   },
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-bde55cc2:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_0c9aj0p67px02wcf:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_integration_mode",
+  "title": "Configurable integration_mode: local-merge vs PR",
+  "topics": [
+   "control-plane",
+   "git-workflow"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L173",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6e1aadec:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-74475f71:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_legacy_agents_compat",
+  "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+  "topics": [
+   "control-plane",
+   "agent-collaboration",
+   "memory-repair"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L22",
+  "candidates": [
+   {
+    "ref": "mse_sw54jn8k80g9t5mg:d1",
+    "title": "D1 - Ship Phase 1 only, move the plan to completed with deferred follow-ons note"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6e1aadec:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "topics": [
+   "documentation",
+   "seed-core",
+   "control-plane"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L21",
+  "candidates": [
+   {
+    "ref": "ms-a7d29f64:d2",
+    "title": "D2 - Restore two-step skill-registry wording in AGENTS.md"
+   },
+   {
+    "ref": "mse_03bwbpzck2qdkeh7:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_38hrm8xm2bx6y27t:d1",
+    "title": "D1 - Read the index as substrate validation with a governance-shaped gap, not as"
+   },
+   {
+    "ref": "mse_4ch29yqmw7426pfw:d1",
+    "title": "D1 - Treat tests-versus-records as the strongest standing challenge, and record "
+   },
+   {
+    "ref": "mse_4ch29yqmw7426pfw:d2",
+    "title": "D2 - Register the direct hit on the solo-developer ICP instead of absorbing it"
+   },
+   {
+    "ref": "ms-2b8e6f01:d1",
+    "title": "D1 - user-attachments URL for the inline player, release asset for the fallback "
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-fbc65d3c:d1",
+    "title": "D1 - Make public and bootstrap docs match the active routing model"
+   },
+   {
+    "ref": "mse_0c9aj0p67px02wcf:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_release_topology",
+  "title": "Publish via GitHub Release with manual PyPI gate",
+  "topics": [
+   "release",
+   "release-packaging",
+   "git-publishing"
+  ],
+  "founding_head": "founding:.memory-seed/policy.md#L72",
+  "candidates": [
+   {
+    "ref": "ms-3cad2a35:d1",
+    "title": "D1 - 2.8.0 release boundary"
+   },
+   {
+    "ref": "ms-5c3b8e12:d2",
+    "title": "D2 - Patch release 2.2.1 for control-plane version bump"
+   },
+   {
+    "ref": "ms-6b21d9f4:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-72aa01ec:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5\u21922.6 (release content)"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_runtime_discovery",
+  "title": "Runtime discovery walks to the nearest .memory-seed",
+  "topics": [
+   "control-plane",
+   "agent-rules"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L120",
+  "candidates": [
+   {
+    "ref": "ms-1bcfcc91:d1",
+    "title": "D1 - Central AGENTS registry + per-agent tagging"
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": "D2 - Persist selection in project.yaml; absent = ALL (backward-compat)"
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": "D4 - Cursor needs no routing file (researched)"
+   },
+   {
+    "ref": "ms-2e9c5f31:d1",
+    "title": "D1 - Move Reason Rules before Entry Shapes"
+   },
+   {
+    "ref": "ms-3f7c08e2:d1",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "title": "Trace startup incremental; immutable git derivations persist",
+  "topics": [
+   "memory-trace",
+   "performance",
+   "seed-core"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L83",
+  "candidates": [
+   {
+    "ref": "mse_3yvakpxdshc95e68:d4",
+    "title": "D4 - Selection restyle memoised on its two real inputs"
+   },
+   {
+    "ref": "mse_5ezgxb11ssjzqjsr:d1",
+    "title": "D1 - The 150-node live-motion bound was withdrawn, with the measurement that bro"
+   },
+   {
+    "ref": "mse_74f1jkr8rv4b7hrp:d5",
+    "title": "D5 - The settle re-measures the camera 4x a second, and a warm mount stops early"
+   },
+   {
+    "ref": "mse_qerqhsqw8hfzp5d3:d2",
+    "title": "D2 - Share one parsed topic vocabulary per Trace request"
+   },
+   {
+    "ref": "mse_r5m6rdypd34dz9j0:d1",
+    "title": "D1 - Zonal settling is declined on measurement, not on taste"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d2",
+    "title": "D2 - Zoomable diagram viewer (replaces the popover)"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_86mvcfdmcfjqmrvv:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d1",
+    "title": "D1 - Colour at the root, justified by slot stability rather than a count that do"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "title": "Trail derives display lanes without authored graph edges",
+  "topics": [
+   "memory-trace",
+   "trail",
+   "graph"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L171",
+  "candidates": [
+   {
+    "ref": "mse_fadg58mgtypvypzt",
+    "title": "2026-07-16 09:18 - Integrate B0a renderer-neutral graph contract"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d1",
+    "title": "D1 - \"462 of 603\" was two faults sharing one number"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d2",
+    "title": "D2 - Edgeless entries get a computed halo, not a simulation"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d3",
+    "title": "D3 - Overflow was minZoom clamping the fit, not a missing fit"
+   },
+   {
+    "ref": "mse_07veztrwd4w9tfby:d4",
+    "title": "D4 - Reheat uses d3-force; the global layout stays cose"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d2",
+    "title": "D2 - Zoomable diagram viewer (replaces the popover)"
+   },
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_86mvcfdmcfjqmrvv:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_aja6sm9019315yh1:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ey0rr8vgnc5hhrw0:d1",
+    "title": "D1 - Colour at the root, justified by slot stability rather than a count that do"
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_worktree_convention",
+  "title": "Worktree=session, branch=task, agent-namespaced branch names",
+  "topics": [
+   "git-workflow",
+   "agent-collaboration",
+   "continuity"
+  ],
+  "founding_head": "founding:.memory-seed/index.md#L81",
+  "candidates": [
+   {
+    "ref": "mse_27jbk0z5nkg4jabe:d2",
+    "title": "D2 - A branch existing at all can contaminate a concurrent session's entries"
+   },
+   {
+    "ref": "mse_2x8yysgezex3tbys",
+    "title": "2026-07-30 14:26 - Verify visible safe-merge worktree cleanup"
+   },
+   {
+    "ref": "mse_3x2d61jkn3jstpyg:d1",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_4z9wcanedg82wp16",
+    "title": "2026-07-15 19:01 - Integrate ranking and long-horizon workstream into main"
+   },
+   {
+    "ref": "mse_5mv4dvxfp1tr8v16",
+    "title": "2026-07-10 15:35 - Lifecycle clarification: merge-branch evolves the fuse workfl"
+   }
+  ]
+ }
+]

@@ -1,0 +1,29 @@
+[
+ {
+  "adr_id": "adr_edge_confidence",
+  "verdict": "primary",
+  "ref": "mse_p4xd3wqf214nqtmv:d2",
+  "quote": "Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings",
+  "quote_ref": "mse_p4xd3wqf214nqtmv:d2",
+  "why": "Created the structured edge_confidence field that the ADR governs.",
+  "runner_up": ""
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "verdict": "primary",
+  "ref": "mse_t22wn997q5005zjp:d1",
+  "quote": "Draft a proposal for a fourth authored edge kind `evolves:` with computed `evolved_by` inverse, forward-only",
+  "quote_ref": "mse_t22wn997q5005zjp:d1",
+  "why": "Proposed the fourth edge kind (evolves) that completes the four-kind system.",
+  "runner_up": ""
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "verdict": "primary",
+  "ref": "mse_74ddxsena9nj2afk:d1",
+  "quote": "Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface",
+  "quote_ref": "mse_74ddxsena9nj2afk:d1",
+  "why": "Established Seed as the sole owner of encoding policy, preventing duplication in Trace.",
+  "runner_up": ""
+ }
+]

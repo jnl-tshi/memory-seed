@@ -38,6 +38,10 @@ Established 2026-07-08 (mse_ejpbz4qqsbdx0hvc); encoding hardening P0 completed w
 
 - `constitution:v1#single-source` (governing)
 
+### Awaiting review
+
+- `mse_74ddxsena9nj2afk:d1` - Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -84,3 +88,32 @@ Established 2026-07-08 (mse_ejpbz4qqsbdx0hvc); encoding hardening P0 completed w
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:05:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#single-source",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_74ddxsena9nj2afk:d1",
+  "event_id": "adre_b2028e60c20f9b6161b6",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace.
+
+#### Why
+
+Rests on the session decision that instituted it: "Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface" (mse_74ddxsena9nj2afk:d1). Established Seed as the sole owner of encoding policy, preventing duplication in Trace.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L183; this revision moves the concern off that control-file line onto mse_74ddxsena9nj2afk:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

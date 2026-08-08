@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "verdict": "primary",
+    "ref": "ms-7c4e1f9a:d1",
+    "quote": "Handle `.claude/settings.json` as a JSON merge rather than a seed file copy.",
+    "quote_ref": "ms-7c4e1f9a:d1",
+    "why": "Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_agent_selective_install",
+    "verdict": "primary",
+    "ref": "ms-1bcfcc91:d2",
+    "quote": "`init` writes `project.yaml` **only on a proper subset** (all-agents default writes nothing).",
+    "quote_ref": "ms-1bcfcc91:d2",
+    "why": "Directly establishes project.yaml as the persistent control mechanism for agent-selective installation with backward-compatible all-agents default.",
+    "runner_up": "ms-1bcfcc91:d3"
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "verdict": "primary",
+    "ref": "mse_903jqy9v4pr8g388:d2",
+    "quote": "the operator-owned archive snapshot step",
+    "quote_ref": "mse_903jqy9v4pr8g388:d2",
+    "why": "Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.",
+    "runner_up": "ms-757053d4:d4"
+  }
+]

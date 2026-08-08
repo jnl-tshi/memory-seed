@@ -1,0 +1,47 @@
+[
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Founding decision implemented in mse_81v7vk4x5ys3k2n0; candidates refine post-launch workflow, not establish core specification.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_edge_kinds",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Candidates apply edge relationships and refine graph behavior; founding specification of four kinds not in candidate list.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_integration_mode",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Candidates implement mode-aware integration procedures; configurable local-merge-vs-PR choice not established by any candidate.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_release_topology",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Candidates apply release procedures for specific versions; GitHub Release trigger + manual PyPI gate policy not in candidates.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trail_derived_lanes",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Candidates address rendering refinements; derived-lane establishment without authored edges not founded by any candidate.",
+    "runner_up": ""
+  }
+]

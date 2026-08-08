@@ -37,6 +37,10 @@ Founded from the control file; established as baseline in 2.4.0 per the control 
 
 - `constitution:v1#draft-format` (governing)
 
+### Awaiting review
+
+- `ms-db2d715c:d1` - The single-decision DRAFT record is the baseline session-entry shape.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -83,3 +87,32 @@ Founded from the control file; established as baseline in 2.4.0 per the control 
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:32:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#draft-format",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "ms-db2d715c:d1",
+  "event_id": "adre_57c1d50099c463b1795b",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.
+
+#### Why
+
+Rests on the session decision that instituted it: "Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation" (ms-db2d715c:d1). Institutes the DRAFT label vocabulary that makes D/R mandatory in all decision records.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L143; this revision moves the concern off that control-file line onto ms-db2d715c:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

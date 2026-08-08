@@ -1,0 +1,47 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate establishes the JSON/TOML merge pattern for agent config preservation",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_draft_format",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "Candidates relate to DRAFT format usage but none establish the baseline D/R structure itself",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_experiment_isolation",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate describes structural fixture isolation via nearest-runtime discovery",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_markdown_substrate",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "quote_ref": "",
+    "why": "No candidate establishes plain-Markdown as the core substrate for file-reading agents",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trace_incremental_startup",
+    "verdict": "primary",
+    "ref": "mse_qerqhsqw8hfzp5d3:d2",
+    "quote": "Load `topics.yaml` once per Graph or Trail request and pass that immutable `TopicIndex` through ontology matching, contextual counts, hierarchy rendering, and decision-row attribution.",
+    "quote_ref": "mse_qerqhsqw8hfzp5d3:d2",
+    "why": "This decision directly established the practice of loading immutable derivations once per request and passing them through Trace systems",
+    "runner_up": ""
+  }
+]

@@ -38,6 +38,10 @@ Founded from the control file; no session lineage attached yet.
 
 - `constitution:v1#append-only` (governing)
 
+### Awaiting review
+
+- `mse_903jqy9v4pr8g388:d2` - Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -101,3 +105,32 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 #### Reason
 
 An instance of the archive-before-replace rule being followed: the 2.5 reusable procedure files were archived before the 2.6 control plane replaced them. Evidence of the practice, not the decision establishing it.
+
+### revision-proposed - 2026-08-08T19:01:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_903jqy9v4pr8g388:d2",
+  "event_id": "adre_9bf59d8b04b1cc4adfe0",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.
+
+#### Why
+
+Rests on the session decision that instituted it: "the operator-owned archive snapshot step" (mse_903jqy9v4pr8g388:d2). Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.
+
+#### Evolution
+
+Founded from .memory-seed/policy.md#L74; this revision moves the concern off that control-file line onto mse_903jqy9v4pr8g388:d2, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

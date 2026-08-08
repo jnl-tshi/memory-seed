@@ -37,6 +37,10 @@ Founded from the control file; completed 2026-07-15 per the control plane histor
 
 - `constitution:v1#integration-mode` (governing)
 
+### Awaiting review
+
+- `mse_t388apx6evvmmd1r:d1` - integration_mode is a project-local default read fail-open as local-merge, surfaced by ESR, obeyed by...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -83,3 +87,32 @@ Founded from the control file; completed 2026-07-15 per the control plane histor
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:08:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#integration-mode",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_t388apx6evvmmd1r:d1",
+  "event_id": "adre_6d87567885756f5efb18",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+integration_mode is a project-local default read fail-open as local-merge, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware session integrate plus session open-pr.
+
+#### Why
+
+Rests on the session decision that instituted it: "`INTEGRATION_MODES = ("local-merge", "pr")`" (mse_t388apx6evvmmd1r:d1). Implemented the P0.1 configurable integration-mode feature with the core INTEGRATION_MODES setting.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L173; this revision moves the concern off that control-file line onto mse_t388apx6evvmmd1r:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

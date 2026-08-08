@@ -1,0 +1,32 @@
+[
+ {
+  "adr_id": "adr_control_file_authority",
+  "verdict": "refuted",
+  "better_ref": "",
+  "reason": "The claimed decision presupposes the partition and addresses conflict-handling procedure, but doesn't institute the foundational rule. No candidate establishes the partition; it preexists in control files."
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "verdict": "refuted",
+  "better_ref": "mse_x1ha2e26md3q83zv:d1",
+  "reason": "The claim refines an existing rule by adding explicit `retracts:` mechanism for overrides. The earlier candidate mse_x1ha2e26md3q83zv:d1 founds the core principle: derived blocks never implicitly supersede write-time ones."
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "verdict": "stands",
+  "better_ref": "",
+  "reason": "The decision clearly institutes the rule: 'The FOLDER is now the single visible source of truth for a doc's lifecycle state (no `status:` field mirroring it).' This establishes the folder-primary principle."
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "verdict": "refuted",
+  "better_ref": "ms-db2d715c:d1",
+  "reason": "The claim reframes documentation presentation but doesn't institute mandatory D/R enforcement or complete the bundled concern. The candidate ms-db2d715c:d1 founds the DRAFT label vocabulary itself."
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "verdict": "stands",
+  "better_ref": "",
+  "reason": "The decision institutes the structured field: 'Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings.' This establishes the core innovation."
+ }
+]

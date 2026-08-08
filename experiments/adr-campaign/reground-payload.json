@@ -1,0 +1,57 @@
+[
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "concern": "founding:.memory-seed/index.md#L106",
+  "proposed": {
+   "ref": "mse_08nhq28nkm2ecpt4:d1",
+   "title": "D1 - Decision",
+   "body": "- D: Place all seven programme reports under `business/research/` with a folder README indexing them, move rather than copy them out of `docs/4_Reference/`, and write every cross-link to the location the target file occupies on main rather than the location it occupies on this branch. - R: `business/` already exists on main as the maintained source of truth for Memory Seed as a business, with a market/wedges split an"
+  },
+  "refuter_reason": "D1 establishes business/ separation from docs/ but does not explicitly mandate the 'documents move, never copy' policy. The better ref explicitly states 'move rather than copy them.'"
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "concern": "founding:.memory-seed/policy.md#L44",
+  "proposed": {
+   "ref": "mse_x1ha2e26md3q83zv:d1",
+   "title": "D1 - Decision",
+   "body": "- D: Sidecar precedence becomes `(source rank, then recency)` rather than recency alone. A `derived` block may **never** supersede a `write-time` block for the same subject; it may only fill a gap where no write-time value exists. Within a source class, most-recent-wins is unchanged. - R: Found while aligning the ADR contract — an agent flagged that once write-time values live in the sidecar, the existing most-recent"
+  },
+  "refuter_reason": "The claim refines an existing rule by adding explicit `retracts:` mechanism for overrides. The earlier candidate mse_x1ha2e26md3q83zv:d1 founds the core principle: derived blocks never implicitly supersede write-time ones."
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "concern": "founding:.memory-seed/index.md#L143",
+  "proposed": {
+   "ref": "ms-db2d715c:d1",
+   "title": "D1 - Use DRAFT for compact decision records",
+   "body": "- D: Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation. - R: The user wanted the same decision-history function with fewer tokens and less semantic-search noise from repeated long labels. - A: Rejected keeping verbose labels such as `Decision:` and `Alternatives considered:` because they add repeated non-domain terms before the content. - F: "
+  },
+  "refuter_reason": "The claim reframes documentation presentation but doesn't institute mandatory D/R enforcement or complete the bundled concern. The candidate ms-db2d715c:d1 founds the DRAFT label vocabulary itself."
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "concern": "founding:.memory-seed/index.md#L171",
+  "proposed": {
+   "ref": "mse_0qycwt519qdggrpe:d1",
+   "title": "D1 - Topic is not a relationship, so it is not a default edge",
+   "body": "- D: `DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`. Topic remains offered. - R: The construction settles it. `chain()` in service.py groups entries by topic, sorts by time and joins CONSECUTIVE pairs, so a topic edge asserts \"nothing else carrying this tag happened between these two\" - a fact about sort order, not about the two entries. `related`/`supersedes`/`evolves` are authored claims about a "
+  },
+  "refuter_reason": "The claim only proposes the evolves kind; mse_0qycwt519qdggrpe:d1 actually institutes the complete system by setting DEFAULT_GRAPH_EDGE_TYPES to the three core kinds."
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "concern": "founding:.memory-seed/index.md#L174",
+  "proposed": {
+   "ref": "mse_dvzh6fkn4d98cd6y:d1",
+   "title": "D1 - Decision",
+   "body": "- D: Wrote `docs/todo/related-entries-generation-plan.md` and pointed NEXT_STEPS at it. The recommended shippable core (P1) is **write-time only, zero append-only tension**: `memory-seed link suggest` (read-only, reuses `rank_session_memory`) + `memory-seed link add` constrained to the current/newest entry + **bidirectional read-time traversal** as the canonical graph-read model. Backfilling edges between two pre-exi"
+  },
+  "refuter_reason": "The earlier quote was not a verbatim span of this decision; re-quote it or reject the pick."
+ }
+]

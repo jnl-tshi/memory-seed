@@ -1,0 +1,7 @@
+[
+  {"adr_id": "adr_topic_authority", "verdict": "stands", "better_ref": "", "reason": "Decision institutes the fallback priority order (sidecar > authored > hashtag) as a NEW rule because sidecars' role changed from enrichment to authority."},
+  {"adr_id": "adr_trace_boundary", "verdict": "stands", "better_ref": "", "reason": "Decision institutes Trace shipping as memory-seed[trace], leaving core without web framework."},
+  {"adr_id": "adr_trace_incremental_startup", "verdict": "stands", "better_ref": "", "reason": "Decision institutes the two foundational principles: immutable git facts persisted in SQLite and single-pass history harvesting."},
+  {"adr_id": "adr_trail_derived_lanes", "verdict": "stands", "better_ref": "", "reason": "Decision institutes lane derivation from branch intervals via greedy interval packing, without authored graph edges."},
+  {"adr_id": "adr_worktree_convention", "verdict": "refuted", "better_ref": "", "reason": "Decision revises a prior rule (worktree=task) to a new scope (worktree=session); no candidate founds the session-scoped rule in original form."}
+]

@@ -38,6 +38,10 @@ Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's f
 
 - `constitution:v1#markdown-authority` (governing)
 
+### Awaiting review
+
+- `mse_gtn504wfjt3c34p6:d1` - Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths)...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -84,3 +88,32 @@ Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's f
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:15:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#markdown-authority",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_gtn504wfjt3c34p6:d1",
+  "event_id": "adre_5bdb568e4e42319f22a3",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy.
+
+#### Why
+
+Rests on the session decision that instituted it: "immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER" (mse_gtn504wfjt3c34p6:d1). This decision established both architectural principles: persisting immutable git derivations and bulk-reading history in single passes.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L83; this revision moves the concern off that control-file line onto mse_gtn504wfjt3c34p6:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

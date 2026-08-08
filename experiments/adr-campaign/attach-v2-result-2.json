@@ -1,0 +1,29 @@
+[
+  {
+    "adr_id": "adr_derived_precedence",
+    "verdict": "primary",
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "quote": "A `derived` block never **implicitly** supersedes a `write-time` block",
+    "quote_ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "why": "This decision established the rule that derived blocks cannot implicitly override write-time values.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "verdict": "primary",
+    "ref": "mse_yfsrahvq87hxkcv9:d1",
+    "quote": "The FOLDER is now the single visible source of truth for a doc's lifecycle state",
+    "quote_ref": "mse_yfsrahvq87hxkcv9:d1",
+    "why": "This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_draft_format",
+    "verdict": "primary",
+    "ref": "ms-d5f3155e:d1",
+    "quote": "the single-decision DRAFT record is the baseline shape",
+    "quote_ref": "ms-d5f3155e:d1",
+    "why": "This decision reframed the session log to use DRAFT format as the baseline for single-decision entries.",
+    "runner_up": ""
+  }
+]

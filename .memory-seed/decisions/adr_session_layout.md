@@ -37,6 +37,10 @@ Founded from the control file; no session lineage attached yet.
 
 - `constitution:v1#markdown-authority` (governing)
 
+### Awaiting review
+
+- `mse_k2188xq5evwmdny9:d1` - Session document discovery uses iter_session_documents() to read legacy flat session files...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -86,3 +90,32 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-08T19:11:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#markdown-authority",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_k2188xq5evwmdny9:d1",
+  "event_id": "adre_3bff0ec9c76629eb0412",
+  "source": "derived",
+  "update_entry_id": "mse_kqna9hegj35dwsqj"
+}
+```
+
+#### Decision
+
+Session document discovery uses iter_session_documents() to read legacy flat session files (sessions/YYYY-MM-DD.md), new month-grouped flat files (sessions/YYYY-MM/YYYY-MM-DD.md), and new month-grouped per-user files (sessions/YYYY-MM/YYYY-MM-DD/<user>.md). Per-user layout activates only when 2+ participants are registered.
+
+#### Why
+
+Rests on the session decision that instituted it: "Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`" (mse_k2188xq5evwmdny9:d1). This decision established the month-grouped session layout with per-user files as canonical write targets.
+
+#### Evolution
+
+Founded from .memory-seed/index.md#L147; this revision moves the concern off that control-file line onto mse_k2188xq5evwmdny9:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
