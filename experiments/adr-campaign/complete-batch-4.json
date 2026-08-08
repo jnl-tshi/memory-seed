@@ -1,0 +1,193 @@
+[
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "live_chain": [
+   {
+    "ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-14T15:10:00",
+    "body": "- D: Refined the Constitution draft (`docs/CONSTITUTION.md`) after a design-conversation exploration of optional implementation layers. Widened the pending \"database\" edit into a general **derived-layer / optional-tier model** and RESOLVED the source-of-truth-under-collaboration fork: **Markdown is authoritative *everywhere*** (Invariant #6 reframed), including a future hosted/collaborative tier — every other store (cache, index, DB, embedding, hosted backend) is a derived, rebuildable projection, never a second source of truth; concurrent writes resolve *into* Markdown. Invariant #1 gained a core carve-out (optional layers may add cache/index/DB/hosted service; the core never depends on them). Added an **\"Open-core, one source of truth\"** principle. Rewrote §5 Implementations as bands by distance from the core: core / derived accelerators (DuckDB, SQLite FTS5, vector index) / optional-local (React, **VS Code extension**, desktop, local AI) / hosted-collaborative. §10: marked the collaboration fork RESOLVED; the remaining open item is *which* commercial tier to reach (local-pro / team-hosted / enterprise) and when. - R: The maintainer wanted the human-readability invariant reviewed against a potential optional Postgres accelerator while keeping Markdown the foundation. Per the advisor: this is a design conversation, not a research deliverable — do NOT fan out (open-ended architecture ideation is a sprawl engine); sketch the option space by *distance from the invariant line*. The real fork a flat sweep buries: does a hosted, multi-user tier keep Markdown authoritative, or make a server DB authoritative with Markdown as an export? The maintainer chose Markdown-authoritative everywhere (open-core). That makes the wording clean — the source-of-truth invariant extends to all tiers, so a read-only *or* collaborative DB is always a derived projection — and it unblocks the performance/commercial direction (DuckDB/vector accelerators, a VS Code extension, a hosted tier) without weakening any invariant. This is exactly the case the Constitution's invariant/implementation tiering exists to resolve. - A: Fan out ~5 agents to survey architecture options (rejected, advisor — open-ended ideation sprawls; sketched directly). DB-authoritative on the hosted tier with Markdown as export (rejected by the maintainer — splits the truth model and undercuts the core differentiation). A separate new \"source-of-truth\" invariant (rejected — folded into #6 to keep invariants at 7, no sprawl). - F: docs/CONSTITUTION.md (Invariants #1 & #6; new open-core principle; §5 Implementations bands; §10 open questions; header note). - T: `links check` OK (43 files); the internal link resolves; `encoding check` OK; 1608 words (within the one-sitting target). Still a RATIFICATION DRAFT — not ratified."
+   }
+  ],
+  "summary": {
+   "decision": "The memory core is encoded in plain Markdown throughout all tiers. All critical files—session logs, decision records, control policies—are human-editable Markdown. Even in future collaborative or hosted implementations, Markdown remains the authoritative source of truth; any database, cache, or index is a derived, rebuildable projection, never a second source of truth.",
+   "why": "Markdown is readable for file-reading agents and human maintainers, directly supporting the core differentiation. The open-core, layered-implementation model allows optional accelerators (DuckDB, vector indices, hosted backends) without splitting the truth model. Keeping Markdown authoritative everywhere simplifies the invariant landscape—one source of truth across core, derived-local, and optional-hosted tiers—and preserves the ability for any tier to re-derive all databases from the Markdown source.",
+   "evolution": "Reframed Markdown within the Constitution's derived-layer/optional-tier model as Invariant #6, making the source-of-truth principle explicit and extending it to all implementation tiers. This resolved a design fork about whether collaborative or hosted tiers could make a server database authoritative; the answer is no, to maintain the unified truth model.",
+   "covered": [
+    "mse_gn2kmdenk0p4cn7z:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_mcp_integration_surface",
+  "title": "MCP integration: per-agent config placement, upsert semantics, and a gated write surface",
+  "live_chain": [
+   {
+    "ref": "ms-4c8e2a17:d1",
+    "title": "D1 - Write MCP config unconditionally, no PATH check at init time",
+    "date": "2026-05-29T13:48:00",
+    "body": "- D: `init_project` writes MCP server config for all three vendors unconditionally, without checking if `memory-seed-mcp` is on PATH first. - R: If the user ran `memory-seed init`, the binary shipped in the same package and should already be on PATH. Checking at init time adds complexity for a failure case that can't happen through normal persistent installation. - A: Check PATH at init and warn — rejected because the check is fragile (binary could disappear later) and doesn't cover the `uvx` case anyway. - F: `memory_seed/core.py`."
+   },
+   {
+    "ref": "ms-7b3f1e92:d3",
+    "title": "D3 - MCP upsert: overwrite if command matches, skip if different command owns the key",
+    "date": "2026-05-29T14:07:00",
+    "body": "- D: MCP merge functions compare the full expected dict. If the key exists with a different `command`, leave it alone (user may have a different server named `memory-seed`). If the command matches but args differ, overwrite. - R: Protects user customization while still correcting stale args from our own prior installs. - F: `_merge_claude_mcp`, `_merge_cursor_mcp`, `_merge_gemini_mcp`."
+   },
+   {
+    "ref": "ms-a3f91c2b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29T15:17:00",
+    "body": "- D: Change `_MCP_SERVER_COMMAND` from `\"memory-seed-mcp\"` to `\"uvx\"` with `\"memory-seed-mcp\"` as the first arg. - R: Claude Code (and other agents) spawn MCP servers without inheriting the user's full PATH. `~/.local/bin` — where `uv tool` installs scripts — is not on Claude Code's PATH, so `memory-seed-mcp` was silently not found. `uvx` is part of uv and is typically available at the system level. - A: Hardcoding the absolute path was rejected — breaks portability across machines and users. - F: `memory_seed/core.py` (`_MCP_SERVER_COMMAND`, `_MCP_SERVER_ARGS`); `.claude/settings.json`, `.cursor/mcp.json`, `.gemini/settings.json` updated to match."
+   },
+   {
+    "ref": "ms-6a09aea8:d1",
+    "title": "D1 - Claude MCP server belongs in project-root .mcp.json, not settings.json",
+    "date": "2026-06-03T22:54:00",
+    "body": "- D: `_merge_claude_mcp` now writes `.mcp.json` at the project root (no `type` field); `.claude/settings.json` keeps hooks/permissions only. - R: Claude Code discovers project-scope MCP servers from `.mcp.json`, `~/.claude.json`, or `claude mcp add` - the `mcpServers` key in `settings.json` is the Cursor/generic format and is silently ignored. The bare {command,args} form (no type) was verified working in the issue report. - A: `claude mcp add` shell-out at init - rejected; fragile, needs the CLI on PATH and a live config, vs. a declarative checked-in file. - F: `memory_seed/core.py` (`_merge_claude_mcp`)."
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "date": "2026-06-03T23:43:00",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Text-upsert preserves user comments/formatting and adds no dependency, matching the project's minimal-dep, local-first ethos. - A: Add `tomli-w` and round-trip via dict - rejected; loses comments and adds a dependency. `codex mcp add` shell-out - rejected; fragile, needs CLI on PATH (same reasoning as the Claude `.mcp.json` fix). - F: `memory_seed/core.py` (`_merge_codex_mcp`, `_render_codex_mcp_block`, `_CODEX_MCP_HEADER_RE`, `tomllib` import, both tuples)."
+   },
+   {
+    "ref": "ms-2cd452e4:d2",
+    "title": "D2 - Surface the trust requirement (Codex's silent-failure trap)",
+    "date": "2026-06-03T23:43:00",
+    "body": "- D: Project `.codex/config.toml` loads only for *trusted* directories, so the trust step is surfaced in three places: a README caveat next to the Claude one, a one-line note appended in the `--codex` branch of `memory-retrieval-check.py` (live + seed copy), and a non-fatal `doctor` warning (new `DoctorResult.warnings`) when `.codex/hooks.json` exists but the MCP entry is missing. - R: This is the exact class of bug just fixed for Claude (config written where the agent never reads/loads it). Trust is unavoidable and invisible; documenting + warning prevents a repeat silent failure. - F: `README.md`, `.memory-seed/hooks/memory-retrieval-check.py` + seed copy, `memory_seed/core.py` (`doctor`, `_codex_mcp_registered`), `memory_seed/cli.py` (print warnings before the ok early-return)."
+   },
+   {
+    "ref": "ms-6eeb512f:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-03T23:55:00",
+    "body": "- D: De-silence + document, keeping the safe no-op and zero-dep design. Replaced `_codex_mcp_registered` (bool) with `_codex_mcp_status` returning `absent | current | foreign | stale-fixable | stale-manual`; `doctor` now emits a distinct non-fatal warning per actionable state. Did NOT expand the update path to migrate exotic forms. - R: The real hazard was silence, not the non-migration. A status classifier removes the silence cheaply; actually migrating dotted/inline forms needs either a TOML writer that loses comments or fragile multi-form text surgery (both previously rejected). - A: Fully handle exotic forms - rejected (comment loss / fragility). Documentation-only - rejected (leaves the silent stale case). - F: `memory_seed/core.py` (`_codex_expected`, `_codex_standard_header_index` shared by merge + status, `_codex_mcp_status`, `doctor` warning branches, expanded `_merge_codex_mcp` docstring); `README.md` (Codex callout sentence)."
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "date": "2026-07-19T20:01:00",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memory_session_target`: an id plus a target path was the whole bypass, and it is what agents actually used - this session's earlier entries were hand-written through it. A new `dry_run` on both the tool and core (`session append --dry-run`) runs every guard and returns the id, timestamp and path without writing, preserving the pre-flight and no-CLI-fallback the removed pair provided - strictly more than they did, since it also reports whether the body would be accepted. - R: Two authoring paths of unequal strength existed; the weak one enforced nothing and its violations only surfaced later in `links check`. Making the gated path the only MCP path closes that gap at the surface instead of trusting a description. The clock discipline from `memory_entry_id` (server stamps by default, drift warning past 10 minutes) moved onto the new tool so removing it regressed nothing. - A: Rejected keeping `memory_entry_id` with a redirect description - the bypass stays open for any agent that ignores wording, which is exactly the failure mode. `dry_run` covers its legitimate uses. - F: `memory_seed/mcp_server.py`, `memory_seed/core.py`, `memory_seed/cli.py`. - T: `tests/test_mcp_session_append.py` (17 cases: guards as issues, dry-run writes nothing yet predicts the id, the cwd precondition, drift warnings, the two retired tools unreachable)."
+   }
+  ],
+  "summary": {
+   "decision": "Each agent's MCP config is written to where that agent discovers it: Claude in project-root `.mcp.json`, Codex in `.codex/config.toml`. Config is written unconditionally at init time without PATH probes. On merge, if the key exists with a matching command, the entry is overwritten; if it exists with a different command, it is left alone. MCP authoring over the network is gated: only `memory_session_append` can author entries, inheriting the CLI's write-time guards, and this is the sole allowed path.",
+   "why": "Each vendor discovers MCP servers from different file types and locations; writing to the wrong place fails silently. Unconditional writes avoid fragile, timing-dependent PATH probes. Upsert-on-matching-command protects a user's own `memory-seed` server (if any) while keeping our config current. Gating the MCP write surface closes a bypass where ungated tools previously bypassed the CLI's guards; write-surface parity ensures all authoring paths enforce the same invariants.",
+   "evolution": "Started with unconditional writes and upsert logic. Discovered vendor-specific file and format requirements (Claude → `.mcp.json`, Codex → `.codex/config.toml` in TOML format), requiring separate merge handlers. Addressed Codex's silent-failure trap (config written but never loaded on untrusted directories) by adding status classification and warnings. Unified MCP authoring under a single gated path with dry-run support, removing two ungated tools that had previously bypassed guards.",
+   "covered": [
+    "ms-4c8e2a17:d1",
+    "ms-7b3f1e92:d3",
+    "ms-a3f91c2b:d1",
+    "ms-6a09aea8:d1",
+    "ms-2cd452e4:d1",
+    "ms-2cd452e4:d2",
+    "ms-6eeb512f:d1",
+    "mse_vzsef0fmpsde2jh4:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_mcp_metadata_and_filters",
+  "title": "MCP retrieval metadata and filters: read-only, applied before ranking",
+  "live_chain": [
+   {
+    "ref": "mse_77cn2v0rg9na3w0v:d2",
+    "title": "D2 - A-P4 MCP metadata and filters",
+    "date": "2026-06-15T02:26:00",
+    "body": "- D: `MemoryChunk` now carries per-file `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search`/`memory_get_chunk` expose `session_date`, `path`, `user`, `file_hash_id`, and `related_entries`; `memory_search` accepts `user`, `date_from`, and `date_to` filters before ranking. - R: This completes the next reviewed multi-user increment and gives the future Explorer a stable metadata/filter contract without forking retrieval from MCP. - F: `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `tests/test_semantic_cache.py`, `tests/test_mcp_server.py`, `README.md`, `CHANGELOG.md`, `.memory-seed/index.md`, `docs/functionality-audit.md`, `docs/todo/3.0-plan.md`, `NEXT_STEPS.md`."
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d2",
+    "title": "D2 - Read-only filterable API surface",
+    "date": "2026-06-15T20:13:00",
+    "body": "- D: Implemented service/API routes for runtime, search, chunk fetch, entries, timeline, graph, contributors, and stats; added entry filtering by user, agent type, tag, and date range. - R: The user clarified that Memory Lense must support criteria-based exploration, not just semantic search. - F: `memory_lense.service`, `memory_lense.server`, static UI filters, `tests/test_memory_lense.py`."
+   },
+   {
+    "ref": "mse_dbt6c32kk5dk55xs:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04T15:08:00",
+    "body": "- D: Added `exclude_superseded: bool = False` to `rank_session_memory`. When set, it builds the related-entry graph, collects entry_ids with a non-empty `superseded_by`, and drops those chunks from the candidate set for that query only (before ranking, so top_k still fills from survivors). Wired it into `memory_search`'s MCP input schema (default `false`) and dispatch. Chose parameter name `exclude_superseded` (plan Open Decision 1) — descriptive and matches the plan/CHANGELOG references. Backend-only; no CLI/UI default, per the plan's \"never a default, never a hard exclusion unless requested\" constraint. - R: The plan was fully specced and unblocked once `superseded_by` shipped (supersedes P1). Filtering pre-ranking (not post-top_k) keeps the surviving result set full and doesn't touch default ranking math — consistent with \"opt-in narrowing like date_from/date_to.\" - A: Before implementing, committed the concurrent Codex doc-reorg pile as its own checkpoint (`2f6d0d6`) rather than sweeping it into this feature commit or reverting it — got a clean baseline and preserved Codex's work (it had its own session entry, mse_r1ey59bbv1jsseth). Verified the reorg was healthy (links/doctor clean) and that my P1b status edits survived the plan-doc moves before committing it. Considered building the superseded set from the already-extracted corpus to avoid a second graph build; kept the simpler `build_related_entry_graph(cwd)` call since it's read-only and correctness-obvious. - F: `memory_seed/semantic_cache.py` (`exclude_superseded` in `rank_session_memory`), `memory_seed/mcp_server.py` (schema + dispatch), `tests/test_mcp_server.py` (2 paired tests: default returns the superseded entry, flag drops it — mutually discriminating), `docs/todo/completed/exclude-superseded-filter-plan.md` (moved from `docs/todo/`, status → implemented, sibling links fixed), `CHANGELOG.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md` (§3I filter list, roadmap \"all 6 implemented\", test count 239). - T: Full suite 239/239. `doctor` healthy, `links check` clean (24 files). The two search tests discriminate: with the flag off the superseded entry is present, with it on the entry is absent while the current one stays."
+   }
+  ],
+  "summary": {
+   "decision": "The memory retrieval API exposes per-entry metadata: user, session date, path, and file hash as read-only fields. Filters (user, date range, exclude_superseded) are applied before ranking. The exclude_superseded flag is opt-in and defaults to false; no filter influences ranking weights.",
+   "why": "Applying filters before ranking keeps retrieval deterministic and each constraint independent, so clients can compose them without the ranker silently reinterpreting the result set. exclude_superseded must default off because retrieval should never hide live history by default, even as an optimization. Pre-ranking filtering preserves the full result set size for stable top-k pagination.",
+   "evolution": "Metadata fields were added to support future multi-user and criteria-based exploration; then service routes integrated filtering for user, tag, and date-range criteria. The exclude_superseded filter was implemented last per the completed plan, applying the filter pre-ranking to maintain result-set integrity.",
+   "covered": [
+    "mse_77cn2v0rg9na3w0v:d2",
+    "mse_ztcsrx4hw0b6kxdv:d2",
+    "mse_dbt6c32kk5dk55xs:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_proposal_completion_moves_lane",
+  "title": "A proposal moves lane when its acceptance criteria are met, and stays there",
+  "live_chain": [
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02T19:55:00",
+    "body": "- D: Moved `NEXT_STEPS.md` to `docs/todo/NEXT_STEPS.md` (`git mv`), fixed the two live-file references (`.memory-seed/index.md` topology line, `docs/functionality-audit.md`) and all six now-relative internal links inside the file itself. Wrote five new plan docs — `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, `interaction-frequency-ranking-plan.md`, `mermaid-usage-guidance-plan.md`, `failed-approaches-logging-plan.md` — and added a \"Logic Capture Improvements - Proposed\" section to `NEXT_STEPS.md` linking all five. - R: Archived control-plane snapshots (`.memory-seed/archive/1.4/*`) also reference the old root-level `NEXT_STEPS.md` path but were left untouched per the \"archive snapshots are historical records and may preserve old path names\" policy. - A: While researching the commit-linking and supersession specs, empirically confirmed a real, currently-shipped gap: `check_session_links()`'s `related_entries` dangling-ref scan (`memory_seed/core.py:402-409`) only runs inside the per-user-day branch and silently skips legacy-flat session files — a constructed fixture with a dangling `related_entries` ref in a legacy-flat file passed `links check` with `ok=True`. This repo uses the legacy-flat layout. Documented as a shared \"Known Dependency\" in both new plan docs rather than fixed now, since fixing it wasn't part of what was asked this turn. - F: `docs/todo/NEXT_STEPS.md` (moved + new section + link fixes), `.memory-seed/index.md`, `docs/functionality-audit.md`, five new files under `docs/todo/`. - T: `memory-seed links check` (22 files, clean) and `memory-seed doctor` (healthy) both re-run after all edits; grep sweep found no remaining root-relative `NEXT_STEPS.md` references outside session logs/archive."
+   },
+   {
+    "ref": "mse_r1ey59bbv1jsseth:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04T11:06:00",
+    "body": "- D: Moved the implemented logic-capture proposal docs from active `docs/todo/` into `docs/todo/completed/`: `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, and `interaction-frequency-ranking-plan.md`. Left genuinely active/deferred docs in active `docs/todo/`: related-entries P2, exclude-superseded filter, DOCX render seed lessons, UI/Pillar B distribution, 3.0 plan, and source/synthesis reports. - D: Updated roadmap links and status language in `docs/todo/NEXT_STEPS.md`, `docs/todo/Memory-Seed Logic Capture Improvement.md`, `docs/todo/exclude-superseded-filter-plan.md`, `docs/todo/3.0-plan.md`, `docs/todo/codex/proposal-synergy-evaluation.md`, and the completed fanout plan. `exclude-superseded-filter-plan.md` is now explicitly unblocked because `superseded_by` exists. - D: Refreshed `docs/functionality-audit.md` to current state: 2.14.0 is the current published release, the graph/commit/ranking work is unreleased through `a72ffc3`, completed docs point at `docs/todo/completed/`, `link show`/`link commits` surfaces are described, and the test surface is updated to 237 tests. - R: The git tree showed `main` clean except for being two commits ahead of `origin/main` before this docs cleanup; recent session entries confirmed `supersedes` P1, commit-linking P1, ranking P1a, ranking P1b, Mermaid guidance, failed-approach logging, and fanout guidance had all been implemented or shipped. Keeping their proposal docs in active `docs/todo/` made the roadmap look less done than the code and session log say it is. - A: Did not move `exclude-superseded-filter-plan.md`; it is now startable but not built. Did not move `docx-render-windows-seed-lessons.md`; it remains a proposed seed-skill promotion. Did not move `user-interface-deep-research-report.md`; the Pillar B distribution decision remains open. - F: `docs/todo/completed/git-commit-entry-linking-plan.md`, `docs/todo/completed/supersession-edges-plan.md`, `docs/todo/completed/interaction-frequency-ranking-plan.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md`, `docs/todo/Memory-Seed Logic Capture Improvement.md`, `docs/todo/exclude-superseded-filter-plan.md`, `docs/todo/completed/agent-fanout-workflow-plan.md`, `docs/todo/3.0-plan.md`, `docs/todo/codex/proposal-synergy-evaluation.md`. - T: `python -m memory_seed.cli links check` clean before appending this entry and clean again after appending it; `python -m memory_seed.cli doctor` healthy; `python -m unittest tests.test_session_schema` passed 18 tests."
+   },
+   {
+    "ref": "mse_9m2jk06hgx7ctrm1:d3",
+    "title": "D3 - Logic-capture source report moved to completed",
+    "date": "2026-07-05T02:27:00",
+    "body": "- D: Moved `Memory-Seed Logic Capture Improvement.md` to `docs/todo/completed/` and updated NEXT_STEPS' cluster section to \"fully resolved\". - R: `proposal_lifecycle.md` completion criterion 4: it is a source report whose actionable recommendations were all split into now-completed plans (all six shipped, including the exclude-superseded filter). Prose mentions of the doc inside `completed/*` plans need no edits; the two synergy-evaluation docs stay in `docs/todo/` because they still inform the open Pillar B and deferred-automation decisions (lifecycle rule 6). - F: `docs/todo/completed/Memory-Seed Logic Capture Improvement.md` (moved), `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`. - T: Full `unittest discover tests` 243/243 OK; `links check` clean (25 files); `doctor` healthy."
+   }
+  ],
+  "summary": {
+   "decision": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record. This applies to individual plan documents, collections of related documents, and source reports whose actionable recommendations have all been split into their own plans and completed. Completed documents remain in place even when newer active proposals cite them, maintaining clarity between shipped work and current planning.",
+   "why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can distinguish an open question from shipped work without reading either. Leaving a completed document in place because something references it prevents historical research from being mistaken for current planning. The acceptance criteria recognize that a source report's completion depends on its recommendations being implemented as separate plans.",
+   "evolution": "The decision began with moving NEXT_STEPS.md to docs/todo/ and establishing the pattern of fixing references when documents relocate. It then evolved to moving completed individual plan documents into a docs/todo/completed/ subfolder with updated roadmap language. Finally it clarified the rule applies to source reports whose actionable recommendations have all been split into now-completed plans.",
+   "covered": [
+    "mse_bqc8am1yq8sv5s92:d1",
+    "mse_r1ey59bbv1jsseth:d1",
+    "mse_9m2jk06hgx7ctrm1:d3"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_retrieval_entry_granularity",
+  "title": "Retrieval: entry-level chunks as default, with optional section granularity",
+  "live_chain": [
+   {
+    "ref": "ms-845042c7:d1",
+    "title": "D1 - Make entry chunks the default MCP memory unit",
+    "date": "2026-05-26T21:26:00",
+    "body": "- D: Parse `##` session entries as the default chunk boundary and use the entry YAML `entry_id` as `chunk_id`. - R: A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation. - A: Rejected default heading-level chunking because it can separate a decision from its rationale and validation. - F: `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, parser/MCP tests. - T: `python -m unittest tests.test_semantic_cache tests.test_mcp_server tests.test_mcp_validation tests.test_session_schema`; `python -m unittest discover -s tests`."
+   },
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d2",
+    "title": "D2 - Retrieval service extracted; MCP is a wrapper; parity proven by tests",
+    "date": "2026-07-05T12:20:00",
+    "body": "- D: Created `memory_seed/retrieval.py` with `search_memory()`, `get_chunk()`, `resolve_semantic_provider()`, `format_search_results()`, `ranked_to_dict()`, `chunk_to_dict()` - the exact orchestration and dict-building code moved verbatim from `mcp_server.py`. The MCP server's `call_tool` now parses tool args and delegates; `format_search_results` is re-exported from `mcp_server` for compatibility. New `tests/test_retrieval.py` proves parity (search across granularity/top_k/recency variants and get_chunk incl. graph metrics are `assertEqual` between `call_tool` and the service) and MCP-independence (AST scan: retrieval imports nothing from mcp_server; the dependency points one way). - R: Distribution-plan Phase-1 acceptance criteria require byte-identical MCP behavior, a service with no mcp_server import, and parity tests - moving the code verbatim and asserting dict equality satisfies all three by construction. - A: Caught and reverted a mistaken mid-file edit to this session log during entry writing (an insertion marker landed inside the 11:31 entry's body; `git diff` confirmed exact restoration). Standing reminder: session entries are appended with file-append operations, never with string-replacement edits inside existing entries. - F: `memory_seed/retrieval.py` (new), `memory_seed/mcp_server.py` (thin wrapper), `tests/test_retrieval.py` (new), `docs/todo/memory-trail-renaming-plan.md` (Phase-0 findings + status). - T: Full suite 247/247 OK (243 prior + 4 new parity/independence tests). MCP fixture tests unchanged and green."
+   },
+   {
+    "ref": "mse_pwwz3ys324ght2qs:d1",
+    "title": "D1 - Rollup lives in the service (EntryRollup), Lense adapts presentation only",
+    "date": "2026-07-05T12:45:00",
+    "body": "- D: Added `EntryRollup` + `rollup_entry_matches()` (canonical grouping: collapse ranked entry+section results to one rollup per session entry, ranker order preserved, representative prefers the entry-granularity chunk, only genuinely-matching sections kept as highlight metadata, `score_source` = entry|section-rollup) and `rollup_entry_results()` (canonical dict shape with `best_match_chunk_id` + `matched_sections`) to `memory_seed/retrieval.py`. Lense's `LenseService.search()` now ranks across entry AND section chunks for entry-granularity queries and collapses via `rollup_entry_matches` - section matches can drive an entry's score but never appear as separate selectable records. `granularity=section|all` paths and MCP behavior unchanged (tests assert no rollup fields leak into the MCP contract). - R: The plan requires one selectable result per entry with best-match/highlight metadata preserved, and the distribution plan requires the grouping to be a service contract, not per-consumer logic. Grouping (contract) lives in retrieval.py; presentation (`_rollup_to_api`) stays in Lense. - A: UI terminology per the goal: compact rows say entry (\"Open entry\", \"N matched sections\"), empty state says \"No session entries match\", viewbar says \"entries shown\" at entry granularity. Full-text \"session entry\" reserved for disambiguating copy. Frontend renders \"Matched section:\" chips on comfortable cards with excerpt tooltips. - F: `memory_seed/retrieval.py` (EntryRollup, rollup_entry_matches, rollup_entry_results), `memory_seed/lense.py` (rollup search path + `_rollup_to_api`), `memory_seed/lense_static/app.js` (matched-section chips, entry terminology), `tests/test_retrieval.py` (3 rollup tests incl. MCP-unchanged guard), `tests/test_lense.py` (rollup + raw-section-granularity test). - T: Full suite 251/251 OK. `node --check` clean on app.js."
+   }
+  ],
+  "summary": {
+   "decision": "The memory-retrieval service uses session entries delimited by ## headings as the default coherent chunk boundary, with entry_id as the chunk id. Section-level granularity is optional for querying long or multi-topic entries. Entry-level results are collapsed into rollups where section matches drive an entry's score but never appear as separate selectable records. The retrieval service is extracted from the MCP implementation with both running the same service code, and parity is proven by tests.",
+   "why": "A ## entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation together - separating a decision from its rationale loses too much context. Heading-level chunking was rejected because it fragments this coherence. Service extraction lets retrieval and MCP evolve independently without drift, with parity tests locking down the contract. Rollup grouping preserves section highlights as metadata while keeping results organized around entries.",
+   "evolution": "The decision began with establishing ## entries as the default chunk boundary and rejecting heading-level chunking. It then evolved to extract retrieval service logic into its own module with MCP as a thin wrapper, proven identical by parity tests. Finally it added rollup logic to collapse ranked section results into entry-level rollups with section matches preserved as highlight metadata.",
+   "covered": [
+    "ms-845042c7:d1",
+    "mse_3n3mp35ekz08t4zb:d2",
+    "mse_pwwz3ys324ght2qs:d1"
+   ]
+  }
+ }
+]

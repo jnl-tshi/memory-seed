@@ -1,0 +1,34 @@
+[
+ {
+  "adr_id": "adr_documentation_lane_structure",
+  "decision": "Documentation is organized into lifecycle-based folders where folder location indicates the proposal's status. Active proposals remain in the root planning directory; completed proposals move to a `completed/` folder. Cross-references are maintained across moves to preserve the reference graph and keep the overall documentation coherent.",
+  "why": "Comprehensive documentation of system functionality requires regular refresh to remain authoritative as features ship. Organizing proposals by completion status and fixing their cross-references maintains discoverability, prevents duplicate planning work on shipped items, and makes the active roadmap readable at a glance. The practice ensures that documentation stays current and that stale references don't mislead.",
+  "evolution": "The audit documentation was authored to provide comprehensive system specification with data-flow diagrams. It was then maintained across multiple release cycles to keep it current with new features and API changes. The documentation organization was systematized by creating a `completed/` folder for proposals of shipped features and repairing stale cross-references to preserve the reference graph. This pattern continues as the system evolves.",
+  "covered": ["ms-a939b6b4:d2", "ms-4e1b8a07:d1", "mse_21d4kcx6g1vxt0ky:d1", "mse_djvwtfx02kjr5j1n:d2"],
+  "note": "Current summary mentions a `proposal_lifecycle` skill not evident in the chain; synthesis reflects the actual organizational practices documented in chain members."
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "decision": "Decision records use compact labels: D (Decision), R (Rationale), A (Alternatives), F (Files/artifacts/behaviors), and T (Tests/validation). D and R are mandatory; A, F, T are optional. For multi-decision entries, use numbered #### Dn headings as the canonical form.",
+  "why": "Compact labels reduce token count and semantic-search noise compared to verbose labels like 'Decision:' and 'Alternatives considered:', while preserving all necessary information categories. The DRAFT label vocabulary standardizes decision notation across all session entries, keeping records efficient without sacrificing clarity or the function of decisions as the primary documentation mechanism.",
+  "evolution": "Established the DRAFT label vocabulary as the standard for compact, consistent decision notation.",
+  "covered": ["ms-db2d715c:d1"],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "decision": "Machine-suggested edges carry a structured `edge_confidence` field containing YAML with confidence scores and tiers. Rendering consumers fade low-confidence edges by opacity—low confidence (<0.7) at opacity 0.28, mid (0.7–0.9) at 0.5, high/authored at full 0.85—so unverified suggestions never read as settled fact. Authored edges (no confidence attribute) render at full strength. Hovered or selected edges are never dimmed.",
+  "why": "The edge campaign preserves paid-for low-confidence suggestions rather than discarding them, but must prevent them from masquerading as fact. Storing confidence as structured YAML lets graph rendering weight them appropriately without parser changes or breaking existing validation. Fading by opacity in the actual rendering where users look delivers this distinction: a low-confidence edge at 0.28 is visually negligible, mid at 0.5 is noticeable but provisional, and authored edges at full strength convey certainty.",
+  "evolution": "Structured confidence storage was introduced to preserve low-confidence edges and enable later consumption without parser changes. Client rendering then implemented opacity-based fading across both GraphWorkspace and TrailWorkspace, with special handling to avoid incorrectly fading authored edges by omitting (rather than nulling) their confidence attribute.",
+  "covered": ["mse_p4xd3wqf214nqtmv:d2", "mse_7a6wgm62nty5ynkh:d1"],
+  "note": "Head is marked d2 but d1 is the newer live member; synthesis accounts for both members' contributions."
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "decision": "Lifecycle edges comprise three kinds: `related` (thematic association), `supersedes` (replacement), and `evolves` (extension). Edges are forward-only and acyclic by design. Topic edges are not included in the default edge type set, though topic remains offered.",
+  "why": "The chain construction in the codebase groups entries by topic naturally through sorting logic, so a topic edge would assert only that nothing else carrying that tag occurred between two entries—a statement about sort order, not about the entries themselves. Since topology is already visible through node coloring and community naming, topic edges would render the same fact twice. The three core edge types capture genuine authored claims about specific entry pairs; topic membership is already represented through graph community structure.",
+  "evolution": "Established DEFAULT_GRAPH_EDGE_TYPES as `related`, `supersedes`, and `evolves` after analyzing the codebase construction. Removed topic from the default types because it duplicates information already conveyed by entry sort order and community coloring, and its presence was even suppressing legitimate edge types in pair-precedence logic.",
+  "covered": ["mse_0qycwt519qdggrpe:d1"],
+  "note": "Current summary names different edge types (replaces, evolved_by) than the chain member discusses (supersedes); synthesis reflects the actual implementation described in the chain."
+ }
+]

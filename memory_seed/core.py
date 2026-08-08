@@ -2369,6 +2369,21 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             elif len(fence_lines) % 2 != 0:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
 
+    # An ADR anchored behind its own live chain: a later decision already moved the concern and
+    # the record still states the older position. Warning, not a gate - same reason as the diagram
+    # coverage above, a rule that reddens existing records on its own landing commit cannot land.
+    for adr_id, head, newest in stale_adr_anchors(cwd):
+        issues.append(
+            LinkIssue(
+                f".memory-seed/decisions/{adr_id}.md",
+                "stale-adr-anchor",
+                f"rests on {head}, but {newest} is a later live decision in its own chain - the "
+                "concern has moved, so the summary owes a regeneration synthesised from every "
+                "live member",
+                severity="warning",
+            )
+        )
+
     # Topic sidecars (sessions/topics/...): controlled-vocabulary slugs
     # attributed to an entry AFTER it was written, because append-only forbids
     # reopening the entry to add them. Modelled on the diagram family - a topic
@@ -4505,6 +4520,68 @@ def adr_head_entry_ids(cwd: Path | str = ".") -> dict[str, str]:
         if head and not head.startswith("founding:"):
             heads[path.stem] = head.split(":", 1)[0]
     return heads
+
+
+def stale_adr_anchors(cwd: Path | str = ".") -> list[tuple[str, str, str]]:
+    """``(adr_id, head, newest_live)`` for ADRs anchored behind their own live chain.
+
+    The rule this enforces: an ADR's summary is a synthesis of every member of its chain that has
+    not been completely replaced, and when the most recent authoritative decision that evolves the
+    concern shifts, the summary must be regenerated. So an ADR whose newest LIVE member is not the
+    decision it rests on is stale by construction - a later decision already moved the concern and
+    the record still states the older position.
+
+    Live means not retired by a `replaces` edge. Members joined by `evolves` all stay live, because
+    an evolution adds to a position rather than retiring it.
+
+    Reported as a WARNING, never a gate, for the same reason ADR diagram coverage is: a rule that
+    turns existing records red on the commit that introduces it is a rule nobody can land. Silent
+    on any failure - this must not be able to break `links check` over an unrelated parse error.
+    """
+    directory = resolve_runtime(cwd).memory_dir / "decisions"
+    if not directory.is_dir():
+        return []
+    try:
+        from .adr import adr_membership, parse_adr, replay_adr
+        from .retrieval import entry_link_sidecars
+    except ImportError:
+        return []
+
+    try:
+        sidecars = entry_link_sidecars(cwd)
+    except Exception:  # noqa: BLE001
+        return []
+    # A sidecar block declares edges from its OWN entry outward, so the declaring end is the newer
+    # one: `<entry>:<ord> --replaces--> <target>` retires the target.
+    retired: set[str] = set()
+    for entry_id, sidecar in sidecars.items():
+        for kind, source_ord, target_entry, target_ord in sidecar.get("decision_edges", ()):
+            if kind == "replaces":
+                retired.add(f"{target_entry}:{target_ord}")
+
+    _, timestamps = _known_entry_ids_and_timestamps(resolve_runtime(cwd).memory_dir / "sessions")
+
+    def when(ref: str) -> tuple[str, str]:
+        return (timestamps.get(ref.split(":", 1)[0], ""), ref)
+
+    stale: list[tuple[str, str, str]] = []
+    for path in sorted(directory.glob("*.md")):
+        try:
+            record = parse_adr(path)
+            state = replay_adr(record)
+        except Exception:  # noqa: BLE001 - one bad ADR must not blind the rest
+            continue
+        head = state.authoritative_decision
+        if not head or head.startswith("founding:"):
+            continue  # a placeholder head has no chain position to fall behind
+        members = {r for r in adr_membership(record) if not r.startswith("founding:")}
+        for event in record.events:
+            members |= {r for r in (event.supporting_decisions or ())
+                        if not r.startswith("founding:")}
+        live = sorted(members - retired, key=when)
+        if live and live[-1] != head:
+            stale.append((record.adr_id, head, live[-1]))
+    return stale
 
 
 def _validate_adr_diagram_block(

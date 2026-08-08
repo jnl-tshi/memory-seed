@@ -1,0 +1,16 @@
+[
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "verdict": "complete",
+  "missing": [],
+  "contradicted": [],
+  "reason": "The single chain member's substance is fully present in the summary: lane algorithm (greedy interval packing), vertical timeline, research basis, left gutter arcs, branch tip chips, day separators, 60-entry window, and edge set. Evolution accurately walks the single decision."
+ },
+ {
+  "adr_id": "adr_trail_lifecycle_visualization",
+  "verdict": "incomplete",
+  "missing": [],
+  "contradicted": [],
+  "reason": "Evolution omits mse_t5bbdstgmqzagn2y:d1 from the citation trail, jumping from mse_9wsn23n3k8txnm2m:d1 directly to mse_zm2h343r4shfre3j:d2. Though the HEADING+SUBHEADINGS substance appears in the summary, the evolution must cite and walk every chain member."
+ }
+]

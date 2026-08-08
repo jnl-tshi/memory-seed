@@ -1,0 +1,106 @@
+[
+ {
+  "adr_id": "adr_documentation_lane_structure",
+  "title": "Documentation lanes: folder is lifecycle state, with a skill codifying the flow",
+  "head": "mse_djvwtfx02kjr5j1n:d2",
+  "head_is_newest_live": true,
+  "current_summary": "Documentation folders are lifecycle lanes - intake, active planning, live spec, reference, and terminal outcomes. An active proposal carries a status block and completion criteria; a completed one moves lane with its supersession pointers intact. A seeded `proposal_lifecycle` skill codifies the flow and its gates.",
+  "current_why": "The lanes had been reorganised ad hoc across several sessions, leaving stale cross-references and unclear boundaries. Making the folder the state, and enforcing it through a reusable skill, keeps the roadmap discoverable, prevents duplicate work, and makes proposal status readable without opening every document.",
+  "live_chain": [
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams",
+    "date": "2026-06-14T09:52:00",
+    "body": "- D: Authored `docs/functionality-audit.md` — every current feature (CLI, agent-selective install, runtime, routing, skills, personas, hooks, MCP retrieval + ranking, session model, versioning, doctor, orphan sweep, release) plus 7 mermaid diagrams (system map, init/update, MCP pipeline, session lifecycle, agent wiring, multi-user layout, roadmap) and an upcoming-features section (2.8.0 ESR generalization; 3.0 multi-user memory + Memory Explorer). - R: User requested a full audit with data-flow diagrams covering current + upcoming features. Grounded it in the actual code (surveyed cli/core/mcp_server/semantic_cache) rather than memory.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14T18:45:00",
+    "body": "- D: (1) **Refreshed `docs/functionality-audit.md` 2.7 → 2.10** — header/frontmatter, packaging footprint (wheel re-measured at 107,200 B for 2.10.0, up from 101,251 B at 2.7.0), `user`/`session target` CLI rows, the 2.8 foreign-routing 4-way ownership branch (§3E) + doctor route-presence warning (§3L), 2.9 dual-read + 2.10 user-aware session targets/hooks (§3D/H/J), interfaces (`local.yaml`, `MEMORY_SEED_USER`, per-user `schema_version: 2` frontmatter, routing markers), constraints/risks (single-writer now \"phased migration underway\"), and the roadmap section + both mermaids (2.8–2.10 shipped; ESR generalization is the next near-term item; 3.0 holds the remaining multi-user phases + Memory Explorer). Test-count line 129 → 147. (2) **Deleted the stray `.verify-2.10-smoke/`** debris — this session's `rm -rf` succeeded (`git status` no longer lists it), resolving the prior entry's \"resisted cleanup\" follow-up. (3) **Refreshed `demo/.memory-seed/` 2.7 → 2.10** via the scoped method: snapshot to `archive/2.7/`, replace `agent-rules.md`/`project-bootstrap.md`/`skills/index.md` from the 2.10 seed, bump the version line only in generated `index.md`/`policy.md`. - R: The audit is a spec doc meant to be trusted later, so three shipped releases of drift mattered. A blanket `memory-seed update` in `demo/` was avoided (it would touch HyperFrames-owned files); the scoped refresh preserves `demo/AGENTS.md`/`demo/CLAUDE.md` — both still carry the injected `<!-- BEGIN memory-seed -->` routing block from the 2.8 work (verified, 1 block each). - A: Re-measuring the sdist exactly was skipped (`build` not installed; used `pip wheel` for the wheel) — sdist stated as approximate. Committing the demo refresh was not done (local housekeeping convention). - F: `docs/functionality-audit.md` (the commit candidate). Also tracked-modified but **left uncommitted by convention**: `demo/.memory-seed/{agent-rules.md, project-bootstrap.md, skills/index.md, index.md, policy.md}` (+ new untracked `demo/.memory-seed/archive/2.7/`) and this session log. Deleted `.verify-2.10-smoke/`. - T: 147 tests still green (no code touched); `doctor` healthy; audit mermaid fences balanced (16 backtick fences); only legitimate `2.7` history references remain; demo files all report `memory-system-version: 2.12` with generated files changed only on the version line. Smoke-dir deletion **verified absent on disk** (`ls` → \"No such file or directory\"; `[ -e ]` → GONE), not just absent from `git status`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02T18:51:00",
+    "body": "- D: Created `docs/todo/completed/` and moved four fully-shipped planning docs into it: `agent-rules-lazy-loading-recommendations.md`, `baseline-seed-promotions.md`, `multi-user-deep-research-report.md`, `multi-user-session-memory-proposal.md`. Fixed the now-stale cross-references in `NEXT_STEPS.md` and `docs/functionality-audit.md`. - R: - `agent-rules-lazy-loading-recommendations.md`: every recommended section move/shorten is present in the live `agent-rules.md` (2.13.0 lazy-skill extraction). - `baseline-seed-promotions.md`: items 1-3 and 5 verified shipped (skills + trigger entries + Working Principles + Copilot wiring); item 4b (`evolution-nudge-check.py` throttled Stop hook) was deliberately not built per `index.md`'s recorded ESR design decision (\"no blocking Stop hook — evolution needs reasoning + approval\"), so the doc's open questions are resolved even though 4b specifically was rejected rather than implemented. - `multi-user-deep-research-report.md` and `multi-user-session-memory-proposal.md`: the proposal's own \"remaining phases deferred\" list (graph validation, MCP metadata filters, migration) matches A-P3/A-P4/A-P5, all shipped in 2.12.0 per `NEXT_STEPS.md` and corroborated by `docs/functionality-audit.md`. - A: Left `3.0-plan.md` (explicitly \"In Progress\"), `related-entries-generation-plan.md` (P1 shipped, P2 explicitly deferred), and `user-interface-deep-research-report.md` (Pillar B restart still open) in the active `docs/todo/` root. Left `docs/todo/docx-render-windows-seed-lessons.md` (proposed `docx_render_windows.md` skill not yet created) and the newly added `Memory-Seed Logic Capture Improvement.md` alone — both are untracked and still active/unresolved. Did not touch `docs/todo/memory lense/` (gitignored prototype exports, not a tracked proposal doc) or historical session-log references to the moved files (append-only history is not rewritten for a file move). - F: `docs/todo/completed/*.md` (4 files moved via `git mv`), `NEXT_STEPS.md` (Specs list links + annotations), `docs/functionality-audit.md` (one reference path + status wording). - T: `grep` swept the repo for remaining references to the four old paths outside session logs/gitignored uploads — none found; verified the two moved multi-user docs' mutual cross-link stays valid since they moved together.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_djvwtfx02kjr5j1n:d2",
+    "title": "D2 - Refreshed functionality-audit.md",
+    "date": "2026-07-03T11:18:00",
+    "body": "- D: Updated the \"As of\" date to 2026-07-03; documented the participant-count session-layout gate, the SessionStart identity-offer hook, the `doctor` local-user/participant-mismatch warning, and the two new Working Principles bullets (§3D, §3H, §3J, §3L); updated the roadmap section to mark the ponytail evaluation completed and note the 4 remaining open logic-capture proposals; updated the test count from 205 to the verified 219. - R: The doc's own contract is \"status reflects the current tree\" — a full session's worth of shipped-but-unreleased work (participant gating, identity hook, guard tests, Working Principles) wasn't reflected anywhere, which would mislead anyone using it as an architecture reference. - F: `docs/functionality-audit.md` (header, §3D, §3H, §3J, §3L, §14, §15). - T: Full suite (219/219), `memory-seed doctor` (healthy), `memory-seed links check` (clean) all re-run after the docs edits.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "head": "ms-db2d715c:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.",
+  "current_why": "Rests on the session decision that instituted it: \"Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation\" (ms-db2d715c:d1). Institutes the DRAFT label vocabulary that makes D/R mandatory in all decision records.",
+  "live_chain": [
+   {
+    "ref": "ms-db2d715c:d1",
+    "title": "D1 - Use DRAFT for compact decision records",
+    "date": "2026-05-26T20:40:00",
+    "body": "- D: Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation. - R: The user wanted the same decision-history function with fewer tokens and less semantic-search noise from repeated long labels. - A: Rejected keeping verbose labels such as `Decision:` and `Alternatives considered:` because they add repeated non-domain terms before the content. - F: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, `.memory-seed/skills/memory_consolidation.md`, seed copies, and this session entry. - T: `python -m unittest tests.test_session_schema`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "head": "mse_p4xd3wqf214nqtmv:d2",
+  "head_is_newest_live": false,
+  "current_summary": "Every machine-suggested lifecycle edge carries a structured `edge_confidence` entry of `{ref, confidence, tier}` keyed to the exact edge token, stored as YAML rather than prose. `links check` tolerates it as an unknown sibling key with no parser change. Consumers read it: the Trace graph and Trail fade low-confidence edges by opacity so an unverified suggestion never renders as settled fact, while authored edges carry no confidence attribute and render at full strength.",
+  "current_why": "Rests on the session decision that instituted it: \"Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings\" (mse_p4xd3wqf214nqtmv:d2). Created the structured edge_confidence field that the ADR governs.",
+  "live_chain": [
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+    "date": "2026-07-25T18:05:00",
+    "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wastes paid-for work; writing them indistinguishably from human-authored edges would let a guess masquerade as fact. A structured field lets a later graph stage weight or filter them without re-parsing prose. A probe confirmed the parser scans only known ref-list keys, so the unknown sibling key is invisible to it (integrity OK with it present) - storing now costs nothing and needs no read-side change.",
+    "is_head": true
+   },
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25T19:40:00",
+    "body": "- D: Client render for edge confidence (stage 2, completing \"teach the graph and Trail to read the confidence\"). GraphWorkspace fades machine-suggested edges by confidence via cytoscape data-driven styles - low (<0.7) -> opacity 0.28 + thin, mid (0.7-0.9) -> 0.5, high/authored -> full 0.85; TrailWorkspace folds a confidence factor into arc opacity (low x0.5, mid x0.75). Authored edges (no confidence) render full strength; a hovered/selected edge is never dimmed. Verified live against the restarted backend: of 60 visible graph edges, all 13 low-confidence edges sit at opacity <0.35, 10 mid at ~0.5, 28 authored/high at full - exactly the intended weighting. - R: The campaign's whole point was to keep weak edges but never let them read as settled fact; fading them by confidence delivers that in the view the user actually looks at. Handled the cytoscape null-coercion trap explicitly - a null `confidence` attribute coerces to 0 in a `[confidence < x]` selector, which would silently fade every authored edge, so the attribute is OMITTED (not null) when unscored. Rebuilt the committed static/react bundle so the packaged app serves it. - A: Considered a settings threshold/filter control; deferred per the design review (ship the default weighting first, add a filter only if asked). Considered line-style for confidence; rejected because line-style already encodes edge type (related/replaces/evolves). - F: memory-trace/client/src/{GraphWorkspace.tsx, TrailWorkspace.tsx}, memory-trace/memory_trace/static/react (rebuilt bundle) - T: client typecheck; live browser - no console errors, payload carries confidence (375 scored), cytoscape edge opacities match the tiers",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "head": "mse_0qycwt519qdggrpe:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.",
+  "current_why": "Rests on the session decision that instituted it: \"`DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`\" (mse_0qycwt519qdggrpe:d1). Institutes the three core edge kinds system by defining DEFAULT_GRAPH_EDGE_TYPES.",
+  "live_chain": [
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge",
+    "date": "2026-07-22T19:35:00",
+    "body": "- D: `DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`. Topic remains offered. - R: The construction settles it. `chain()` in service.py groups entries by topic, sorts by time and joins CONSECUTIVE pairs, so a topic edge asserts \"nothing else carrying this tag happened between these two\" - a fact about sort order, not about the two entries. `related`/`supersedes`/`evolves` are authored claims about a specific pair. Topic membership is also already carried by node colour now that communities are named after topics, so drawing the chain renders the same fact twice and adds a pairwise link that does not exist. - R: The codebase had been compensating for this for a while. `topic` sits at priority 4 of 7 in `EDGE_PRIORITY`, below `branch`, and the pair-precedence rule exists because - in its own comment's words - a topic tag was painting over a supersession. Needing to suppress an edge type is evidence about the edge type. - A: The chain shape matters and my first instinct was wrong: I expected all-pairs and a combinatorial explosion. It is a chain, so 165 `memory-trace` entries make 164 edges, not 13,530. The problem is semantic, not quantitative.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

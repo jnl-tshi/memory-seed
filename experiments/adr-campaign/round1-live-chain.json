@@ -1,0 +1,1134 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "head": "ms-7c4e1f9a:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.",
+  "current_why": "Rests on the session decision that instituted it: \"Handle `.claude/settings.json` as a JSON merge rather than a seed file copy.\" (ms-7c4e1f9a:d1). Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.",
+  "live_chain": [],
+  "replaced": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "replaced_by": [
+     "ms-6a09aea8:d1"
+    ]
+   }
+  ],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_append_rule_is_an_invariant",
+  "title": "The append rule is stated as an invariant, not as a mechanism",
+  "head": "ms-e30b9c47:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The agent contract states the append INVARIANT - an entry is added at the physical end of its file, never inserted above existing content, and chronological order holds - and does not mandate the tool that achieves it. Shell append and Python append mode are optional tips, not requirements.",
+  "current_why": "The contract is read by any file-reading agent, so mandating `>>` assumed shell or Python access and was platform-unsafe: the shell example simply fails for an agent that edits files directly. Stating the invariant lets each agent satisfy it with whatever writing surface it has, while the property that actually matters - nothing is inserted above existing content - is unchanged. This is distinct from Constitution Invariant #2, which says the past IS append-only; this concern is about how that rule is expressed to the agents bound by it.",
+  "live_chain": [
+   {
+    "ref": "ms-d15e8a03:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29",
+    "body": "- D: Use `>>` / Python append mode as the required method for writing session entries. - R: Editor replace/insert requires an anchor line that may not be at the true end of the file if a prior edit added content after it. Append mode writes unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on care. - F: `.memory-seed/agent-rules.md`, `memory_seed/seed/.memory-s",
+    "is_head": false
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "title": "D1 - Reframe append rule as invariant, not mechanism",
+    "date": "2026-05-29",
+    "body": "- D: State the append invariant + vendor-neutral mitigation; demote `>>` to optional shell tip. - R: `agent-rules.md` is a contract for any file-reading agent. Mandating `>>` assumed shell/Python access and was platform-unsafe (the heredoc example fails / mis-encodes on Windows PowerShell, this repo's own platform). The durable rule is the invariant; the mechanism belongs to each agent's tooling. - F: `agent-rules.md",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_archive_before_replace",
+  "title": "Archive control-plane snapshots before replacing versioned artifacts",
+  "head": "mse_903jqy9v4pr8g388:d2",
+  "head_is_newest_live": true,
+  "current_summary": "Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.",
+  "current_why": "Rests on the session decision that instituted it: \"the operator-owned archive snapshot step\" (mse_903jqy9v4pr8g388:d2). Formally establishes archive snapshot as a required procedure step in release_publishing.md before version-bump replacement.",
+  "live_chain": [
+   {
+    "ref": "ms-757053d4:d4",
+    "title": "D4 - Version bump 2.5→2.6 (release content)",
+    "date": "2026-06-13",
+    "body": "- D: Bumped `memory-system-version` across 30 control-plane `.md` files (live+seed, incl. repo-root routers + new copilot-instructions.md), `core.py` VERSION, `pyproject.toml` 2.5.0→2.6.0, index Active State; updated CHANGELOG + README (agent table, hook-events table gained a Session-start-orientation column + Copilot row); archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/` (captured from g",
+    "is_head": false
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d2",
+    "title": "D2 - Runbook fold/archive steps (approved)",
+    "date": "2026-07-10",
+    "body": "- D: `release_publishing.md` (live + seed, byte-identical) procedure now includes the full version-bump surface (naming the root-routing-file trap and its guard test), the CHANGELOG fold with the standing empty Unreleased header, the operator-owned archive snapshot step, and the irreversible-PyPI-gate note. - R: Preconditions mentioned fold/archive but no procedure step owned them - S4 would have relied on an incompl",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "head": "mse_9c151e4gbkkv1w5v:d1",
+  "head_is_newest_live": true,
+  "current_summary": "memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram sidecars. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>` metadata.",
+  "current_why": "Rests on the session decision that instituted it: \"Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability.\" (mse_9c151e4gbkkv1w5v:d1). Establishes the fuse as Memory Seed-aware command with session-order and immutability semantics, not a git merge driver.",
+  "live_chain": [
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-10",
+    "body": "- D: Treat session fuse as an explicit Memory Seed-aware integration command, not as a Git union merge driver or automatic notes mechanism. - R: Git can merge text and preserve branch topology, but it does not validate `entry_id`, `branch:` provenance, append-only/session-order semantics, diagram sidecars, or existing-entry immutability. - A: Recommended defaulting fuse to dry-run with an explicit apply mode, requiri",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "head": "mse_08nhq28nkm2ecpt4:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance reports, deliberately separated from `docs/` which holds product specification and implementation lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than being copied; a document has one canonical home.",
+  "current_why": "Rests on the session decision that instituted it: \"move rather than copy them out of `docs/4_Reference/`\" (mse_08nhq28nkm2ecpt4:d1). Explicitly institutes the policy requiring documents to move rather than be copied between business/ and docs/.",
+  "live_chain": [
+   {
+    "ref": "mse_08nhq28nkm2ecpt4:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-01",
+    "body": "- D: Place all seven programme reports under `business/research/` with a folder README indexing them, move rather than copy them out of `docs/4_Reference/`, and write every cross-link to the location the target file occupies on main rather than the location it occupies on this branch. - R: `business/` already exists on main as the maintained source of truth for Memory Seed as a business, with a market/wedges split an",
+    "is_head": true
+   },
+   {
+    "ref": "mse_5y962348e85x7grr:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-03",
+    "body": "- D: Add `business/` to the runtime index's Topology section, describing its dossier-versus-provenance convention, its three areas, its move-not-copy rule, and the fact that `docs check` does not validate it. - R: The index contained no mention of `business/` at all, despite the area holding the market, wedge and pricing dossiers plus a seven-report research programme. An agent orienting from the index would not lear",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "head": "mse_x1ha2e26md3q83zv:d1",
+  "head_is_newest_live": false,
+  "current_summary": "Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+  "current_why": "Rests on the session decision that instituted it: \"A `derived` block may **never** supersede a `write-time` block for the same subject\" (mse_x1ha2e26md3q83zv:d1). Explicitly sets the precedence rule preventing derived blocks from overriding write-time values.",
+  "live_chain": [
+   {
+    "ref": "mse_x1ha2e26md3q83zv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26",
+    "body": "- D: Sidecar precedence becomes `(source rank, then recency)` rather than recency alone. A `derived` block may **never** supersede a `write-time` block for the same subject; it may only fill a gap where no write-time value exists. Within a source class, most-recent-wins is unchanged. - R: Found while aligning the ADR contract — an agent flagged that once write-time values live in the sidecar, the existing most-recent",
+    "is_head": true
+   },
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-26",
+    "body": "- D: The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time` block — precedence is `(source rank, then recency)`, so a sweep cannot win by being newer. (2) It may override one through an explicit `retracts:` naming it, **reviewed by a human before writing**. - R: My first draft stopped at half 1, which made write-time values permanently uncorrectable. JNL corrected it, and th",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_diagram_sidecar_structure",
+  "title": "Diagram sidecars: one dated file per day, keyed by entry, deterministically validated",
+  "head": "mse_0vbj4zdcc11s3ggj:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Diagram sidecars are one dated file per day rather than one file per entry, with multiple diagram blocks appended and each block keyed by `entry_id` inside. Validation is deterministic and lives in the single sidecar validator, covering frontmatter integrity, block shape and orphan references.",
+  "current_why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together; keying the block by entry_id inside the file keeps the association exact while letting the filesystem mirror the session-log convention. Deterministic validation in one validator is what stops the sidecar family drifting from the rules the other families already follow.",
+  "live_chain": [
+   {
+    "ref": "mse_m677wfhvq7s8b1x8:d1",
+    "title": "D1 - Deterministic sidecar validation inside the single validator",
+    "date": "2026-07-05",
+    "body": "- D: `check_session_links()` now scans `sessions/diagrams/*.md` after the entry-ID pass: no/invalid frontmatter or missing `entry_id` or no ```mermaid block or unbalanced fence -> `malformed-diagram`; filename stem != frontmatter `entry_id` -> `diagram-filename-mismatch`; `entry_id` resolving to no known entry -> `orphan-diagram`. Sidecars stay optional (no issue for entries without one), the fence check is purely le",
+    "is_head": false
+   },
+   {
+    "ref": "mse_0vbj4zdcc11s3ggj:d1",
+    "title": "D1 - One dated file per day, multiple diagram blocks appended, each keyed by entry_id inside",
+    "date": "2026-07-05",
+    "body": "- D: Sidecars now live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` - one file per date. Each diagram is a heading block shaped exactly like a session entry: `## <timestamp> - <title>` + fenced ```yaml block naming `entry_id` + fenced ```mermaid block(s). Multiple diagrams logged the same day append to the same file, ascending time order, exactly like session logs. `check_session_links()` reuses the existing `_E",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "head": "mse_yfsrahvq87hxkcv9:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/`, and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+  "current_why": "Rests on the session decision that instituted it: \"The FOLDER is now the single visible source of truth for a doc's lifecycle state\" (mse_yfsrahvq87hxkcv9:d1). This decision made the folder itself the authoritative source for lifecycle state rather than using YAML fields.",
+  "live_chain": [
+   {
+    "ref": "mse_yfsrahvq87hxkcv9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-13",
+    "body": "- D: Reworked the document-lifecycle plan to be folder-primary and human-discoverable. The FOLDER is now the single visible source of truth for a doc's lifecycle state (no `status:` field mirroring it); YAML carries only what a folder can't (priority, next_action, blocked_by, superseded_by/split_into, extracted_into, spec_binding); and a generated per-lane `README.md` index + a front-door roll-up is the human read su",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_documentation_lane_structure",
+  "title": "Documentation lanes: folder is lifecycle state, with a skill codifying the flow",
+  "head": "mse_djvwtfx02kjr5j1n:d2",
+  "head_is_newest_live": true,
+  "current_summary": "Documentation folders are lifecycle lanes - intake, active planning, live spec, reference, and terminal outcomes. An active proposal carries a status block and completion criteria; a completed one moves lane with its supersession pointers intact. A seeded `proposal_lifecycle` skill codifies the flow and its gates.",
+  "current_why": "The lanes had been reorganised ad hoc across several sessions, leaving stale cross-references and unclear boundaries. Making the folder the state, and enforcing it through a reusable skill, keeps the roadmap discoverable, prevents duplicate work, and makes proposal status readable without opening every document.",
+  "live_chain": [
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14",
+    "body": "- D: (1) **Refreshed `docs/functionality-audit.md` 2.7 → 2.10** — header/frontmatter, packaging footprint (wheel re-measured at 107,200 B for 2.10.0, up from 101,251 B at 2.7.0), `user`/`session target` CLI rows, the 2.8 foreign-routing 4-way ownership branch (§3E) + doctor route-presence warning (§3L), 2.9 dual-read + 2.10 user-aware session targets/hooks (§3D/H/J), interfaces (`local.yaml`, `MEMORY_SEED_USER`, per-",
+    "is_head": false
+   },
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams",
+    "date": "2026-06-14",
+    "body": "- D: Authored `docs/functionality-audit.md` — every current feature (CLI, agent-selective install, runtime, routing, skills, personas, hooks, MCP retrieval + ranking, session model, versioning, doctor, orphan sweep, release) plus 7 mermaid diagrams (system map, init/update, MCP pipeline, session lifecycle, agent wiring, multi-user layout, roadmap) and an upcoming-features section (2.8.0 ESR generalization; 3.0 multi-",
+    "is_head": false
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02",
+    "body": "- D: Created `docs/todo/completed/` and moved four fully-shipped planning docs into it: `agent-rules-lazy-loading-recommendations.md`, `baseline-seed-promotions.md`, `multi-user-deep-research-report.md`, `multi-user-session-memory-proposal.md`. Fixed the now-stale cross-references in `NEXT_STEPS.md` and `docs/functionality-audit.md`. - R: - `agent-rules-lazy-loading-recommendations.md`: every recommended section move",
+    "is_head": false
+   },
+   {
+    "ref": "mse_djvwtfx02kjr5j1n:d2",
+    "title": "D2 - Refreshed functionality-audit.md",
+    "date": "2026-07-03",
+    "body": "- D: Updated the \"As of\" date to 2026-07-03; documented the participant-count session-layout gate, the SessionStart identity-offer hook, the `doctor` local-user/participant-mismatch warning, and the two new Working Principles bullets (§3D, §3H, §3J, §3L); updated the roadmap section to mark the ponytail evaluation completed and note the 4 remaining open logic-capture proposals; updated the test count from 205 to the ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "head": "ms-db2d715c:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.",
+  "current_why": "Rests on the session decision that instituted it: \"Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation\" (ms-db2d715c:d1). Institutes the DRAFT label vocabulary that makes D/R mandatory in all decision records.",
+  "live_chain": [
+   {
+    "ref": "ms-db2d715c:d1",
+    "title": "D1 - Use DRAFT for compact decision records",
+    "date": "2026-05-26",
+    "body": "- D: Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation. - R: The user wanted the same decision-history function with fewer tokens and less semantic-search noise from repeated long labels. - A: Rejected keeping verbose labels such as `Decision:` and `Alternatives considered:` because they add repeated non-domain terms before the content. - F: ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "head": "mse_p4xd3wqf214nqtmv:d2",
+  "head_is_newest_live": false,
+  "current_summary": "Every machine-suggested lifecycle edge carries a structured `edge_confidence` entry of `{ref, confidence, tier}` keyed to the exact edge token, stored as YAML rather than prose. `links check` tolerates it as an unknown sibling key with no parser change. Consumers read it: the Trace graph and Trail fade low-confidence edges by opacity so an unverified suggestion never renders as settled fact, while authored edges carry no confidence attribute and render at full strength.",
+  "current_why": "Rests on the session decision that instituted it: \"Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings\" (mse_p4xd3wqf214nqtmv:d2). Created the structured edge_confidence field that the ADR governs.",
+  "live_chain": [
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+    "date": "2026-07-25",
+    "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wast",
+    "is_head": true
+   },
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25",
+    "body": "- D: Client render for edge confidence (stage 2, completing \"teach the graph and Trail to read the confidence\"). GraphWorkspace fades machine-suggested edges by confidence via cytoscape data-driven styles - low (<0.7) -> opacity 0.28 + thin, mid (0.7-0.9) -> 0.5, high/authored -> full 0.85; TrailWorkspace folds a confidence factor into arc opacity (low x0.5, mid x0.75). Authored edges (no confidence) render full stre",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "head": "mse_0qycwt519qdggrpe:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.",
+  "current_why": "Rests on the session decision that instituted it: \"`DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`\" (mse_0qycwt519qdggrpe:d1). Institutes the three core edge kinds system by defining DEFAULT_GRAPH_EDGE_TYPES.",
+  "live_chain": [
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge",
+    "date": "2026-07-22",
+    "body": "- D: `DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`. Topic remains offered. - R: The construction settles it. `chain()` in service.py groups entries by topic, sorts by time and joins CONSECUTIVE pairs, so a topic edge asserts \"nothing else carrying this tag happened between these two\" - a fact about sort order, not about the two entries. `related`/`supersedes`/`evolves` are authored claims about a ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "head": "mse_74ddxsena9nj2afk:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace.",
+  "current_why": "Rests on the session decision that instituted it: \"Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface\" (mse_74ddxsena9nj2afk:d1). Established Seed as the sole owner of encoding policy, preventing duplication in Trace.",
+  "live_chain": [
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d2",
+    "title": "D2 - Encoding policy implementation",
+    "date": "2026-07-07",
+    "body": "- D: Add a shared `memory_seed.text_files` helper, `.editorconfig`, `.gitattributes`, README/changelog/audit documentation, MCP Unicode-preserving JSON output, and non-ASCII round-trip tests. - R: Windows/default-code-page drift and BOMs were already observable in active files; central helpers plus repository config reduce future mojibake without adding the larger repair command yet. - A: Did not implement `memory-se",
+    "is_head": false
+   },
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d2",
+    "title": "D2 - Encoding check slice",
+    "date": "2026-07-08",
+    "body": "- D: Add `memory-seed encoding check [path] [--json]` backed by read-only scanner helpers in `memory_seed/text_files.py`. - R: The active P1 plan calls for explicit validation of the UTF-8/LF/no-BOM contract before adding any repair behavior. - A: Repair, backup policy, clean-worktree checks, and static implicit-I/O enforcement remain open in the active follow-up plan. - F: `memory_seed/text_files.py`, `memory_seed/c",
+    "is_head": false
+   },
+   {
+    "ref": "mse_74ddxsena9nj2afk:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-08",
+    "body": "- D: Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface in Memory Trace. - R: Memory Trace already depends on the core package. One owner keeps UTF-8/LF/NFC policy, exclusions, backup behavior, and static enforcement consistent. - A: Automatic mojibake repair was rejected because the intended source characters cannot be inferred safely. Invali",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "head": "mse_gbc4m5m71dqmen75:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Experimental fixtures achieve isolation through structural design via nearest-runtime discovery. Each generated fixture is a standalone git repository with its own `.memory-seed/` runtime. Fixture runtimes are throwaway sub-project runtimes deliberately not individually registered in the parent index.",
+  "current_why": "Rests on the session decision that instituted it: \"treat each fixture's own `.memory-seed/sessions/` as the experiment readout\" (mse_gbc4m5m71dqmen75:d1). This decision directly established structural fixture isolation through isolated runtime environments with per-fixture session directories.",
+  "live_chain": [
+   {
+    "ref": "mse_gbc4m5m71dqmen75:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-03",
+    "body": "- D: Generate each fixture by running the real `init_project()` and applying documented per-level strips inside a standalone git repo, pin the MCP server to the local working tree via absolute interpreter plus PYTHONPATH, keep hand-written `index.md`/`policy.md`/vocabulary byte-identical across levels, and treat each fixture's own `.memory-seed/sessions/` as the experiment readout, with `templates/` and `runs/` gener",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_foreign_file_routing",
+  "title": "Non-destructive routing into foreign entry-point files",
+  "head": "ms-7c2f1d90:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The four routing destinations (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) follow one 4-way ownership branch shared by `init` and `update`: absent writes the full seed file; ours (carrying `memory-system-version` frontmatter) gets a version-gated archive-and-replace; foreign carrying our markers has the managed block re-synced in place; foreign without markers gets a marker-delimited routing block injected. A foreign file is never overwritten, even under `--force`.",
+  "current_why": "Rests on the session decision that instituted it: \"Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS`\" (ms-7c2f1d90:d1). This decision implemented the complete non-destructive routing mechanism for foreign entry-point files through structured ownership and version-gated handling.",
+  "live_chain": [
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → r",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "head": "mse_dvzh6fkn4d98cd6y:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Related-entry edges are authored forward-only in the writing entry's own YAML; the bidirectional graph is assembled at READ time, with inbound backlinks computed only from resolvable outbound refs. `build_related_entry_graph()` owns that assembly, and the read-only `link suggest` / `link show` surfaces expose it. No historical entry is ever edited to record an inbound link.",
+  "current_why": "Rests on the session decision that instituted it: \"**bidirectional read-time traversal** as the canonical graph-read model\" (mse_dvzh6fkn4d98cd6y:d1). Institutes the forward-only authoring strategy with bidirectional read-time traversal.",
+  "live_chain": [
+   {
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-15",
+    "body": "- D: Wrote `docs/todo/related-entries-generation-plan.md` and pointed NEXT_STEPS at it. The recommended shippable core (P1) is **write-time only, zero append-only tension**: `memory-seed link suggest` (read-only, reuses `rank_session_memory`) + `memory-seed link add` constrained to the current/newest entry + **bidirectional read-time traversal** as the canonical graph-read model. Backfilling edges between two pre-exi",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_hook_merge_framework",
+  "title": "Hook installation is a per-agent merge, idempotent on script filename",
+  "head": "ms-5e366ef4:d2",
+  "head_is_newest_live": true,
+  "current_summary": "Hook configuration is merged per agent rather than copied, across every supported agent's own config file. Hooks install unconditionally for the selected agents, and update is idempotent by matching on the script filename rather than the full command, so a flag change in a later version upserts instead of appending a duplicate.",
+  "current_why": "Merging preserves configuration the project already owns, which copying would destroy. Matching on the script filename is what makes upgrade safe: the command line changes between versions, so comparing full commands would leave a stale entry beside the new one every time. Installing unconditionally keeps the seed model-agnostic rather than betting on which agent a contributor uses.",
+  "live_chain": [
+   {
+    "ref": "ms-5e1a9d44:d1",
+    "title": "D1 - Cursor retrieval uses sessionStart, not beforeSubmitPrompt",
+    "date": "2026-05-27",
+    "body": "- D: Wire Cursor's retrieval reminder to `sessionStart` with `additional_context`. - R: Cursor's `beforeSubmitPrompt` can only allow/deny submission; it cannot inject context. `sessionStart`'s `additional_context` is the documented context-injection field. - A: `beforeSubmitPrompt` — rejected, no context injection. - F: `memory_seed/seed/.memory-seed/hooks/memory-retrieval-check.py`, `memory_seed/core.py`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-7b3f1e92:d1",
+    "title": "D1 - Script filename as the stable identifier for hook upsert",
+    "date": "2026-05-29",
+    "body": "- D: Detect \"our\" hook entry by checking if the command string contains the script filename (e.g., `session-log-check.py`), not by exact command match. - R: The script filename doesn't change between versions. Flags added to the command (the most likely version bump) would cause an exact-match check to miss, appending a duplicate. The filename check survives that. - A: Version-stamp comments inside hook entries — rej",
+    "is_head": false
+   },
+   {
+    "ref": "ms-5e366ef4:d2",
+    "title": "D2 - Multi-agent wiring reuses the existing merge framework; Copilot added as 5th agent",
+    "date": "2026-06-11",
+    "body": "- D: Wired the hook through `core.py` via the existing `_merge_grouped_hook` (Claude/Codex/Gemini `SessionStart`) and `_merge_cursor_event_hook` (Cursor `sessionStart`), registered in both init/update orchestration lists. Added Copilot: `_merge_copilot_mcp` writes repo-local `.github/mcp.json` (`type:local`, `tools:[\"*\"]`), `_merge_copilot_startup_hook` writes `.github/hooks/memory-seed.json` with a **static `prompt`",
+    "is_head": true
+   }
+  ],
+  "replaced": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "replaced_by": [
+     "ms-6a09aea8:d1"
+    ]
+   }
+  ],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_inbox_promotion_workflow",
+  "title": "Inbox promotion: conservative triage, one owner per workstream",
+  "head": "mse_2geqfa8tg182a77p:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Inbox items are promoted to the active roadmap only when evidence supports actionability. Where many proposals overlap, a distilled crosswalk becomes the surviving record and the individual sources are retired once their deltas are confirmed or merged into an active owner. Every workstream has exactly one owner.",
+  "current_why": "The inbox accumulated overlapping proposals drafted against stale assumptions, several of which read as missing capability only because they predated the code that shipped them. One distilled crosswalk plus deliberate ownership prevents competing contracts and duplicated lifecycle tracking, and keeps the roadmap something a reader can trust.",
+  "live_chain": [
+   {
+    "ref": "mse_d2daxtnv8eqx4vqr:d1",
+    "title": "D1 - Promote inbox items conservatively",
+    "date": "2026-07-08",
+    "body": "- D: Promote `docs/1_Inbox/memory-trail-graph-and-topic-neighbourhoods.md` into `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`, promote `docs/1_Inbox/README Improvements.md` into `docs/2_Todo/readme-front-door-refresh-plan.md`, and move the source-only graph lessons into `docs/4_Reference/graph-architecture-lessons.md`. - R: The topic-neighbourhood idea is actionable but crosses into new session metadata and",
+    "is_head": false
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d2",
+    "title": "D2 - Give every Inbox idea one coherent owner",
+    "date": "2026-07-16",
+    "body": "- D: Promote canonical semantic-foundation, workflow-evidence/review, semantic-projection, and worktree/branch-hygiene plans; fold Evidence Envelope, Capability Status, and seeded docs lifecycle into their existing owners; defer publishability and the generic skill/router architecture; supersede or archive every extracted source. - R: - One active owner per workstream prevents competing contracts and makes dependenci",
+    "is_head": false
+   },
+   {
+    "ref": "mse_mazbt6cek8m8a6st:d1",
+    "title": "D1 - Sequence the surviving platform ideas after React Trail parity",
+    "date": "2026-07-16",
+    "body": "- D: Keep three bounded candidates in `docs/1_Inbox/` - a referential Evidence Envelope for Task Packets, a derived review queue/document-lineage view, and an advisory capability-status/publishability boundary - with React Trail parity and B0b acceptance as the first gate. - R: - Local `main` was ahead of the reviewed remote snapshot and already contains the Cytoscape decision and the implemented React graph/workspac",
+    "is_head": false
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d1",
+    "title": "D1 - Bring the roadmap and the inbox back into truth",
+    "date": "2026-07-20",
+    "body": "- D: Rewrote `0_NEXT_STEPS.md` against `CHANGELOG.md` and code rather than its own prior claims: Constitution v1.2 → v1.3 in all three header positions, a new \"Shipped 2026-07-18/19\" block, and the B2 sentence split so Trail/search parity reads as substantially closed while Storybook, Playwright and accessibility stay open. Added an \"Unscoped discoveries\" section and a P1 entry for a verified data-loss bug. Triaged t",
+    "is_head": false
+   },
+   {
+    "ref": "mse_tx1c338ca1ybr666:d1",
+    "title": "D1 - Retire both proposal sets; the crosswalk becomes the surviving record",
+    "date": "2026-07-20",
+    "body": "- D: Moved all 14 documents to `7_Superseded/`, de-numbered and renamed `-exploration` per the 2026-07-16 precedent, each carrying YAML `superseded_by` pointing at [the capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md). The inbox now holds two assessment artifacts and one design-reference folder; no proposal awaits triage. Both `SIDE_FOLDER_ALLOWLIST` entries were removed from `docs_check.py` and `docs/",
+    "is_head": false
+   },
+   {
+    "ref": "mse_y9q4bnv2yckk6w74:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-20",
+    "body": "- D: Answered section 14 of the Living Archive proposal: three decisions taken, three deliberately deferred. **Taken** — generated briefs are ephemeral by default and exportable only on explicit request; the **Decision Brief** is the first brief to build; adoption as the B0b visual target is gated on a task-completion test recorded inside `memory-quality-metrics-v0-proposal.md`. **Deferred** — both naming questions (",
+    "is_head": false
+   },
+   {
+    "ref": "mse_2geqfa8tg182a77p:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-20",
+    "body": "- D: JNL asked to triage the Inbox and fold it into a coherent next-steps plan. Checked `docs/1_Inbox/` - already marked \"TRIAGED 2026-07-20, no untriaged proposals remain\" by an earlier session today, holding only two evaluation docs (`INBOX-ASSESSMENT.md`, `INBOX-CAPABILITY-CROSSWALK.md`) and one design-reference folder (`trace-humanised-dashboard-references/`). JNL then asked the sharper question directly: if thes",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_integration_mode",
+  "title": "Configurable integration_mode: local-merge vs PR",
+  "head": "mse_t388apx6evvmmd1r:d1",
+  "head_is_newest_live": true,
+  "current_summary": "integration_mode is a project-local default read fail-open as local-merge, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware session integrate plus session open-pr.",
+  "current_why": "Rests on the session decision that instituted it: \"`INTEGRATION_MODES = (\"local-merge\", \"pr\")`\" (mse_t388apx6evvmmd1r:d1). Implemented the P0.1 configurable integration-mode feature with the core INTEGRATION_MODES setting.",
+  "live_chain": [
+   {
+    "ref": "mse_t388apx6evvmmd1r:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-13",
+    "body": "- D: Implemented P0.1 of the configurable integration-mode feature: the setting + core reader + `esr` surfacing. `memory_seed/core.py` gains `INTEGRATION_MODES = (\"local-merge\", \"pr\")`, `DEFAULT_INTEGRATION_MODE = \"local-merge\"`, and `read_integration_mode(target_root)` - a fail-open stdlib line-scanner (same style as `read_project_agents`/`read_project_participants`, no YAML dep) reading a top-level `integration_mod",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_lifecycle_link_audit_workflow",
+  "title": "Link audit writes inert stubs; only an approval turns one into an edge",
+  "head": "mse_63qcaab119xmyx0b:d2",
+  "head_is_newest_live": true,
+  "current_summary": "The link audit writes classified but INERT stubs for candidate lifecycle edges. A stub is never a live edge: it becomes one only through an explicit approval, and an entry whose candidates were all judged unrelated records that verdict rather than being left silently unexamined.",
+  "current_why": "A sweep that wrote live edges directly would let a mechanical candidate generator author lineage, which is the one thing the edge grammar reserves for a deliberate act. Keeping the stub inert separates 'this pair might be related' from 'this pair IS related' - the first is cheap and can be wrong, the second is a claim the graph carries. Recording the negative verdict matters for the same reason: 'looked and found nothing' and 'never looked' are different states.",
+  "live_chain": [
+   {
+    "ref": "mse_jg33a730vpr4085a:d1",
+    "title": "D1 - Lifecycle-link authoring assist",
+    "date": "2026-07-13",
+    "body": "- D: Proposed `docs/1_Inbox/lifecycle-link-authoring-assist-proposal.md`: a `link audit --date <d> --apply` that scaffolds the dated link sidecar with inert, machine-detectable `classify_pending` stubs (entry_id + commented candidate evidence) the author resolves into a real supersedes/evolves edge; a `links check` `sidecar-unclassified-stub` warning + an `esr` stub count so open stubs can't be forgotten; plus an opt",
+    "is_head": false
+   },
+   {
+    "ref": "mse_63qcaab119xmyx0b:d2",
+    "title": "D2 - Link-audit stubs created for 2026-07-28 (missed) and 2026-07-29 (today); five upgrade candidates flagged for JNL, none applied without approval",
+    "date": "2026-07-29",
+    "body": "- D: Ran `memory-seed link audit --date 2026-07-28 --apply` (7 inert stubs) and `--date 2026-07-29 --apply` (2 inert stubs) - mechanical, safe, no live edge written by either. Read the candidate lists and picked out five where the litmus (\"refines while it stays valid -> evolves\") reads clearly rather than coincidental shared-file overlap: the declared-axis entry over the topic-sidecar-authority entries; the crossing",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "head": "mse_c3a4z35t4m4rjf1n:d1",
+  "head_is_newest_live": false,
+  "current_summary": "A published lifecycle edge is never edited in place. A downgrade or removal is expressed by appending a NEW sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates malformed, dangling and forward-only violations. A downgrade is a retract of the old kind plus a fresh edge of the new kind, authored together. `session merge-branch` refuses in-place edits to published link sidecars, and that guard is not to be bypassed.",
+  "current_why": "Rests on the session decision that instituted it: \"Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed\" (mse_c3a4z35t4m4rjf1n:d1). Introduced the append-only retracts mechanism enabling non-destructive correction of published lifecycle edges.",
+  "live_chain": [
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25",
+    "body": "- D: Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it (which the fuse forbids). A new correction block declares `retracts: <kind> <ref> [(YYYY-MM-DD)]`; the reader (`entry_link_sidecars`) unions all edges then subtracts each retracted one (entry-level by `(kind, target)`, decision by the exact 4-tuple); ",
+    "is_head": true
+   },
+   {
+    "ref": "mse_fsdq53qa5ak68xqh:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25",
+    "body": "- D: Converted the 5 hand-audit downgrades from in-place link-sidecar edits (an Invariant #2 violation) to append-only `retracts:` blocks: restored each original `evolves` edge and appended a `retracts: evolves <ref> (<date>)` + fresh `related_entries: <ref>` correction block, so the effective edge is still `related` but the history is append-only and the campaign's original claim is preserved. Also fixed a retract-r",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "head": "mse_gn2kmdenk0p4cn7z:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The memory core is kept as plain Markdown and predictable for file-reading agents. All critical control-plane files, session logs, and decision records are encoded in readable, human-editable Markdown rather than binary or structured formats.",
+  "current_why": "Rests on the session decision that instituted it: \"**Markdown is authoritative *everywhere*** (Invariant #6 reframed)\" (mse_gn2kmdenk0p4cn7z:d1). Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.",
+  "live_chain": [
+   {
+    "ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-14",
+    "body": "- D: Refined the Constitution draft (`docs/CONSTITUTION.md`) after a design-conversation exploration of optional implementation layers. Widened the pending \"database\" edit into a general **derived-layer / optional-tier model** and RESOLVED the source-of-truth-under-collaboration fork: **Markdown is authoritative *everywhere*** (Invariant #6 reframed), including a future hosted/collaborative tier — every other store (",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_mcp_integration_surface",
+  "title": "MCP integration: per-agent config placement, upsert semantics, and a gated write surface",
+  "head": "mse_vzsef0fmpsde2jh4:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Each agent's MCP config goes where that agent actually reads it - Claude in project-root `.mcp.json`, Codex in `.codex/config.toml` - written on init unconditionally rather than gated on a PATH probe. Merges upsert: a matching command is overwritten, a different one under the same key is left alone. The MCP write surface is gated, with `memory_session_append` the only authoring path, inheriting the same write-time guards as the CLI.",
+  "current_why": "Config placement is per-agent because each vendor discovers servers differently, and writing to the wrong file fails silently. Upsert-on-matching-command protects a user's own server that happens to share our key while still keeping ours current. Unconditional write avoids a PATH probe that is wrong at init time anyway. The write surface is gated because an ungated pair let MCP writes bypass guards the CLI enforced - the write-surface parity rule.",
+  "live_chain": [
+   {
+    "ref": "ms-4c8e2a17:d1",
+    "title": "D1 - Write MCP config unconditionally, no PATH check at init time",
+    "date": "2026-05-29",
+    "body": "- D: `init_project` writes MCP server config for all three vendors unconditionally, without checking if `memory-seed-mcp` is on PATH first. - R: If the user ran `memory-seed init`, the binary shipped in the same package and should already be on PATH. Checking at init time adds complexity for a failure case that can't happen through normal persistent installation. - A: Check PATH at init and warn — rejected because th",
+    "is_head": false
+   },
+   {
+    "ref": "ms-7b3f1e92:d3",
+    "title": "D3 - MCP upsert: overwrite if command matches, skip if different command owns the key",
+    "date": "2026-05-29",
+    "body": "- D: MCP merge functions compare the full expected dict. If the key exists with a different `command`, leave it alone (user may have a different server named `memory-seed`). If the command matches but args differ, overwrite. - R: Protects user customization while still correcting stale args from our own prior installs. - F: `_merge_claude_mcp`, `_merge_cursor_mcp`, `_merge_gemini_mcp`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-a3f91c2b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29",
+    "body": "- D: Change `_MCP_SERVER_COMMAND` from `\"memory-seed-mcp\"` to `\"uvx\"` with `\"memory-seed-mcp\"` as the first arg. - R: Claude Code (and other agents) spawn MCP servers without inheriting the user's full PATH. `~/.local/bin` — where `uv tool` installs scripts — is not on Claude Code's PATH, so `memory-seed-mcp` was silently not found. `uvx` is part of uv and is typically available at the system level. - A: Hardcoding t",
+    "is_head": false
+   },
+   {
+    "ref": "ms-2cd452e4:d2",
+    "title": "D2 - Surface the trust requirement (Codex's silent-failure trap)",
+    "date": "2026-06-03",
+    "body": "- D: Project `.codex/config.toml` loads only for *trusted* directories, so the trust step is surfaced in three places: a README caveat next to the Claude one, a one-line note appended in the `--codex` branch of `memory-retrieval-check.py` (live + seed copy), and a non-fatal `doctor` warning (new `DoctorResult.warnings`) when `.codex/hooks.json` exists but the MCP entry is missing. - R: This is the exact class of bug ",
+    "is_head": false
+   },
+   {
+    "ref": "ms-6a09aea8:d1",
+    "title": "D1 - Claude MCP server belongs in project-root .mcp.json, not settings.json",
+    "date": "2026-06-03",
+    "body": "- D: `_merge_claude_mcp` now writes `.mcp.json` at the project root (no `type` field); `.claude/settings.json` keeps hooks/permissions only. - R: Claude Code discovers project-scope MCP servers from `.mcp.json`, `~/.claude.json`, or `claude mcp add` - the `mcpServers` key in `settings.json` is the Cursor/generic format and is silently ignored. The bare {command,args} form (no type) was verified working in the issue r",
+    "is_head": false
+   },
+   {
+    "ref": "ms-6eeb512f:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-03",
+    "body": "- D: De-silence + document, keeping the safe no-op and zero-dep design. Replaced `_codex_mcp_registered` (bool) with `_codex_mcp_status` returning `absent | current | foreign | stale-fixable | stale-manual`; `doctor` now emits a distinct non-fatal warning per actionable state. Did NOT expand the update path to migrate exotic forms. - R: The real hazard was silence, not the non-migration. A status classifier removes t",
+    "is_head": false
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "date": "2026-06-03",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Te",
+    "is_head": false
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "date": "2026-07-19",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memor",
+    "is_head": true
+   }
+  ],
+  "replaced": [
+   {
+    "ref": "ms-4c8e2a17:d2",
+    "replaced_by": [
+     "ms-a3f91c2b:d1"
+    ]
+   },
+   {
+    "ref": "ms-4c8e2a17:d4",
+    "replaced_by": [
+     "ms-6a09aea8:d1"
+    ]
+   },
+   {
+    "ref": "mse_81v7vk4x5ys3k2n0:d3",
+    "replaced_by": [
+     "mse_vzsef0fmpsde2jh4:d1"
+    ]
+   }
+  ],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_mcp_metadata_and_filters",
+  "title": "MCP retrieval metadata and filters: read-only, applied before ranking",
+  "head": "mse_dbt6c32kk5dk55xs:d1",
+  "head_is_newest_live": true,
+  "current_summary": "`memory_search` and `memory_get_chunk` expose per-entry user, session date, path and file hash as read-only metadata. `memory_search` accepts user and date-range filters, applied BEFORE ranking. `exclude_superseded` is opt-in and never defaults on. No ranking weight is derived from a filter.",
+  "current_why": "Filtering before ranking keeps retrieval deterministic and each constraint orthogonal, so a client can compose them without the ranker quietly reinterpreting the result. `exclude_superseded` stays opt-in because retrieval must never hide live history by default.",
+  "live_chain": [
+   {
+    "ref": "mse_77cn2v0rg9na3w0v:d2",
+    "title": "D2 - A-P4 MCP metadata and filters",
+    "date": "2026-06-15",
+    "body": "- D: `MemoryChunk` now carries per-file `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search`/`memory_get_chunk` expose `session_date`, `path`, `user`, `file_hash_id`, and `related_entries`; `memory_search` accepts `user`, `date_from`, and `date_to` filters before ranking. - R: This completes the next reviewed multi-user increment and gives the future Explorer a stable metadata/filter contract wi",
+    "is_head": false
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d2",
+    "title": "D2 - Read-only filterable API surface",
+    "date": "2026-06-15",
+    "body": "- D: Implemented service/API routes for runtime, search, chunk fetch, entries, timeline, graph, contributors, and stats; added entry filtering by user, agent type, tag, and date range. - R: The user clarified that Memory Lense must support criteria-based exploration, not just semantic search. - F: `memory_lense.service`, `memory_lense.server`, static UI filters, `tests/test_memory_lense.py`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_dbt6c32kk5dk55xs:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04",
+    "body": "- D: Added `exclude_superseded: bool = False` to `rank_session_memory`. When set, it builds the related-entry graph, collects entry_ids with a non-empty `superseded_by`, and drops those chunks from the candidate set for that query only (before ranking, so top_k still fills from survivors). Wired it into `memory_search`'s MCP input schema (default `false`) and dispatch. Chose parameter name `exclude_superseded` (plan ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_proposal_completion_moves_lane",
+  "title": "A proposal moves lane when its acceptance criteria are met, and stays there",
+  "head": "mse_9m2jk06hgx7ctrm1:d3",
+  "head_is_newest_live": true,
+  "current_summary": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record even when a newer active proposal cites it. A source report moves once its actionable recommendations have been split into their own plans.",
+  "current_why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can tell an open question from shipped work without reading either. Leaving a completed document in place because something still references it is what turns historical research into apparent current planning.",
+  "live_chain": [
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02",
+    "body": "- D: Moved `NEXT_STEPS.md` to `docs/todo/NEXT_STEPS.md` (`git mv`), fixed the two live-file references (`.memory-seed/index.md` topology line, `docs/functionality-audit.md`) and all six now-relative internal links inside the file itself. Wrote five new plan docs — `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, `interaction-frequency-ranking-plan.md`, `mermaid-usage-guidance-plan.md`, `failed-approa",
+    "is_head": false
+   },
+   {
+    "ref": "mse_r1ey59bbv1jsseth:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04",
+    "body": "- D: Moved the implemented logic-capture proposal docs from active `docs/todo/` into `docs/todo/completed/`: `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, and `interaction-frequency-ranking-plan.md`. Left genuinely active/deferred docs in active `docs/todo/`: related-entries P2, exclude-superseded filter, DOCX render seed lessons, UI/Pillar B distribution, 3.0 plan, and source/synthesis reports. -",
+    "is_head": false
+   },
+   {
+    "ref": "mse_9m2jk06hgx7ctrm1:d3",
+    "title": "D3 - Logic-capture source report moved to completed",
+    "date": "2026-07-05",
+    "body": "- D: Moved `Memory-Seed Logic Capture Improvement.md` to `docs/todo/completed/` and updated NEXT_STEPS' cluster section to \"fully resolved\". - R: `proposal_lifecycle.md` completion criterion 4: it is a source report whose actionable recommendations were all split into now-completed plans (all six shipped, including the exclude-superseded filter). Prose mentions of the doc inside `completed/*` plans need no edits; the",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_retrieval_entry_granularity",
+  "title": "Retrieval: entry-level chunks as default, with optional section granularity",
+  "head": "mse_pwwz3ys324ght2qs:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The memory-retrieval service uses session entries (delimited by `##` headings) as the default coherent chunk boundary, with `entry_id` as the chunk id. Section granularity is optional for querying long or multi-topic entries. Rollup and windowing live in the service; the MCP surface adapts presentation only. The retrieval service is extracted from the MCP implementation - both run the same service code, with parity proven by tests.",
+  "current_why": "A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation and validation - separating a decision from its rationale loses too much context, so entry-level retrieval is the normal agent-memory behaviour. The service extraction lets retrieval and MCP evolve without drift, and parity tests lock the contract down.",
+  "live_chain": [
+   {
+    "ref": "ms-845042c7:d1",
+    "title": "D1 - Make entry chunks the default MCP memory unit",
+    "date": "2026-05-26",
+    "body": "- D: Parse `##` session entries as the default chunk boundary and use the entry YAML `entry_id` as `chunk_id`. - R: A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation. - A: Rejected default heading-level chunking because it can separate a decision from its rationale and validation. - F: `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, parser/MCP ",
+    "is_head": false
+   },
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d2",
+    "title": "D2 - Retrieval service extracted; MCP is a wrapper; parity proven by tests",
+    "date": "2026-07-05",
+    "body": "- D: Created `memory_seed/retrieval.py` with `search_memory()`, `get_chunk()`, `resolve_semantic_provider()`, `format_search_results()`, `ranked_to_dict()`, `chunk_to_dict()` - the exact orchestration and dict-building code moved verbatim from `mcp_server.py`. The MCP server's `call_tool` now parses tool args and delegates; `format_search_results` is re-exported from `mcp_server` for compatibility. New `tests/test_re",
+    "is_head": false
+   },
+   {
+    "ref": "mse_pwwz3ys324ght2qs:d1",
+    "title": "D1 - Rollup lives in the service (EntryRollup), Lense adapts presentation only",
+    "date": "2026-07-05",
+    "body": "- D: Added `EntryRollup` + `rollup_entry_matches()` (canonical grouping: collapse ranked entry+section results to one rollup per session entry, ranker order preserved, representative prefers the entry-granularity chunk, only genuinely-matching sections kept as highlight metadata, `score_source` = entry|section-rollup) and `rollup_entry_results()` (canonical dict shape with `best_match_chunk_id` + `matched_sections`) ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_safe_process_and_upgrade_workflow",
+  "title": "Safe process and upgrade workflow: discover, dry-run, then confirm",
+  "head": "mse_etm5m5682sseasgm:d3",
+  "head_is_newest_live": true,
+  "current_summary": "Process discovery is conservative and shared, exposed through `processes`, `shutdown --dry-run` and `upgrade --dry-run` with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the `memory-seed[trace]` extra, so upgrade is coordinated through the core package, and each worktree owns its own Trace process state.",
+  "current_why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection has to precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step, and per-worktree ownership stops one worktree's upgrade from killing another's running UI.",
+  "live_chain": [
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d1",
+    "title": "D1 - Safe process MVP",
+    "date": "2026-07-08",
+    "body": "- D: Add shared conservative process discovery in `memory_seed/processes.py`, with `memory-seed processes`, `memory-seed shutdown --dry-run`, and `memory-seed upgrade --dry-run` plus JSON output; delegate equivalent `memory-trace` commands through the same shared helper. - R: The active P0 plan prioritizes release safety and executable-lock diagnosis before any destructive shutdown or package-manager upgrade executio",
+    "is_head": false
+   },
+   {
+    "ref": "mse_zx704zcr1sd3k91n:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-08",
+    "body": "- D: Implement confirmation-gated package process shutdown and package-manager-aware upgrade execution for both `memory-seed` and `memory-trace`. - R: The dry-run MVP already proved conservative process discovery; finishing P0 needed the actual release-safety path: default-no confirmation, `--yes`, failed-shutdown blocking, explicit manager execution, and tests for non-matches/current control-command exclusion. - A: ",
+    "is_head": false
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d3",
+    "title": "D3 - Resolve process ownership through Memory Seed",
+    "date": "2026-07-12",
+    "body": "- D: `memory-trace upgrade` now upgrades the owning `memory-seed` package while process matching still targets active `memory-trace` UI processes. - R: The running command is `memory-trace`, but the installed distribution and upgrade target are now `memory-seed`. - F: `memory_seed/processes.py`, `tests/test_processes.py`, `memory-trace/tests/test_process_cli.py`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_session_layout",
+  "title": "Month-grouped session layout; per-user gated on 2+ participants",
+  "head": "mse_k2188xq5evwmdny9:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Session document discovery uses iter_session_documents() to read legacy flat session files (sessions/YYYY-MM-DD.md), new month-grouped flat files (sessions/YYYY-MM/YYYY-MM-DD.md), and new month-grouped per-user files (sessions/YYYY-MM/YYYY-MM-DD/<user>.md). Per-user layout activates only when 2+ participants are registered.",
+  "current_why": "Rests on the session decision that instituted it: \"Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`\" (mse_k2188xq5evwmdny9:d1). This decision established the month-grouped session layout with per-user files as canonical write targets.",
+  "live_chain": [
+   {
+    "ref": "mse_ed8zaf52k3eyaxqv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-15",
+    "body": "- D: Added a conservative migration API and CLI command. The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps entry `user_initials` through `.memory-seed/project.yaml` `participants:`, writes/appends to `sessions/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values, creates per-user file frontmatter with one `hash_id`, backs up each migrated flat file, then removes the flat source so dual-read",
+    "is_head": false
+   },
+   {
+    "ref": "mse_k2188xq5evwmdny9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-09",
+    "body": "- D: Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` the new canonical write targets. - R: Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. - A: Historical files are not moved by init, update, hooks, MCP startup, or Memory Trace",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_session_layout_participant_gating",
+  "title": "Per-user session files activate only at two or more participants",
+  "head": "ms-38098d7a:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Per-user session files are written only when two or more participants are registered. A single configured user stays on the flat file, preserving the solo-first design. Reads discover both layouts, so the split is a write-time change rather than a migration, and an explicit `--user` bypasses the gate.",
+  "current_why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author actually exists. One configured user is declarative intent, not yet multi-user, so waiting for the second participant makes the layout move explicit and mechanical rather than a surprise. Dual-read means the change is reversible without touching history.",
+  "live_chain": [
+   {
+    "ref": "ms-41f4f32a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-13",
+    "body": "- D: Authored `docs/todo/multi-user-session-memory-proposal.md` (refined, gap-fixed), cleaned the research report's citation artifacts, and recorded a Deferred-3.0 entry in `NEXT_STEPS.md`. - R: Proposal is well-engineered but a core-data-model change + product pivot (solo-first -> team-capable). User confirmed team-capable is worth exploring but chose to refine-then-hold until 2.6.0 ships and 2.7.0 lands. Refining n",
+    "is_head": false
+   },
+   {
+    "ref": "ms-3cad2a35:d2",
+    "title": "D2 - 2.9.0 read-only dual discovery",
+    "date": "2026-06-14",
+    "body": "- D: Added `SessionDocument` / `iter_session_documents()` and routed package readers (`extract_memory_chunks()` / MCP and `compact_sessions()`) through it so both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` are read. Per-user filenames use the bare slug form (for example `jean.md`). Writes, hooks, active-user resolution, migration, and `session_path()` remain deferred. - R: This is the safe Phase 1 f",
+    "is_head": false
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14",
+    "body": "- D: Added opt-in local user identity, per-user session target creation, and user-aware hooks while keeping no-user installs on the legacy flat session file. - R: This advances the multi-user roadmap without silently moving existing users' write targets; a clone must opt in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or an explicit CLI/user argument. - A: Automatic user inference was not added; guessing wo",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_skill_registry_and_generic_skills",
+  "title": "Skills route through a deterministic registry, and seeded skills are written generic",
+  "head": "mse_542z3qn0azma9mmx:d1",
+  "head_is_newest_live": true,
+  "current_summary": "`.memory-seed/skills/index.md` is the deterministic trigger registry: a fresh agent evaluates one map rather than loading every runbook, and new capabilities are routed by adding a registry entry rather than by prose scattered across skills. A skill shipped in the seed is written generic - no hardcoded paths, no machine-specific locations - so it is reusable in any project that installs it.",
+  "current_why": "Trigger prose inside each skill cannot be evaluated without reading every skill, which is the cost the registry removes; moving trigger logic into `agent-rules.md` was rejected for making the operating contract too large and less extensible. Generic seed content is the same principle applied to the skill body: a runbook carrying one machine's paths is a runbook only that machine can run.",
+  "live_chain": [
+   {
+    "ref": "ms-0bd3d8b2:d1",
+    "title": "D1 - Use a seeded trigger registry instead of only prose triggers",
+    "date": "2026-05-26",
+    "body": "- D: Add `.memory-seed/skills/index.md` and seed/package it as the deterministic trigger registry for bundled universal skills. - R: The user wanted a hook-like, one-stop skill trigger map that a fresh agent can evaluate predictably without loading every skill runbook. - A: Rejected moving all trigger logic into `agent-rules.md` because it would make the operating contract too large and less extensible for local skil",
+    "is_head": false
+   },
+   {
+    "ref": "mse_vexkm8da35zj856x:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-29",
+    "body": "- D: Add rendered UI debugging checks to the developer persona and local skill registry. - R: Memory Lense graph/timeline fixes showed tests alone missed stale asset and hit-target issues; future rendered UI work needs browser asset and target verification. - F: `.agents/developer.md`, `.memory-seed/skills/developer-rendered-ui-debugging.md`, `.memory-seed/skills/index.md`, `.memory-seed/sessions/2026-06-29.md`. - T:",
+    "is_head": false
+   },
+   {
+    "ref": "mse_fp32yxbxy3k3r5x1:d1",
+    "title": "D1 - Generic skill content, project specifics stripped",
+    "date": "2026-07-05",
+    "body": "- D: Wrote `.memory-seed/skills/docx_render_windows.md` (+ seed twin) from the source runtime's project-local skill and `render_docx_windows_safe.py`, but generalized: no hardcoded output paths, no machine-specific Poppler location, command pattern shown as inline Python with `Path(profile).as_uri()`, bounded per-step timeouts, and exists-and-non-empty output checks. Registered in the trigger registry (live + seed) w",
+    "is_head": false
+   },
+   {
+    "ref": "mse_542z3qn0azma9mmx:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-07",
+    "body": "- D: Update `compact_mermaid_diagrams.md` in live and seed runtime files, route Mermaid-vs-D2 and D2 architecture diagram questions through the same skill registry entry, update the diagramming profile description, and move the evaluation proposal to completed. - R: This captures the useful D2 decision rule without creating a parallel diagram skill, adding a dependency, or expanding the current Mermaid-only session s",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "head": "ms-0bd3d8b2:d2",
+  "head_is_newest_live": true,
+  "current_summary": "A sub-project is a normal folder carrying its own nested `.memory-seed/` runtime, never a folder nested inside the root runtime. The nested runtime scopes work under its containing folder: active state is local by default, detailed session logs stay in the nearest runtime, and parent active state is not read unless the sub-project index explicitly links to it. Parent policy and parent skills are inherited by default; local skill files exist only to override parent behaviour or to hold genuinely local runbooks.",
+  "current_why": "Rests on the session decision that instituted it: \"Detailed session logs remain in the nearest active runtime; parent/root memory gets only\" (ms-0bd3d8b2:d2). This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.",
+  "live_chain": [
+   {
+    "ref": "ms-f776aff0:d1",
+    "title": "D1 - Restore operational guardrails in v2 language",
+    "date": "2026-05-26",
+    "body": "- D: Add public memory hygiene, explicit locked structure-change rules, immediate durable-memory update exception, skill trigger quick starts, stricter supersession criteria, sub-project inheritance conflict guidance, and target bootstrap boundaries. - R: The v2 architecture is cleaner, but the archived v1.4 rules had stronger safety and operational clarity for fresh agents. - A: Rejected copying v1.4 verbatim becaus",
+    "is_head": false
+   },
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes",
+    "date": "2026-05-26",
+    "body": "- D: Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries for root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. - R: This preserves localized context while keeping the root aware of cross-project consequences. - A: Rejected mirroring sub-project sessions into root memory because that would duplicate noise",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "head": "mse_8qmv0m07sy95vjm9:d1",
+  "head_is_newest_live": false,
+  "current_summary": "The topic sidecar is the topic authority, not a derived overlay. Topic resolution follows strict precedence - sidecar attributions first, then the entry's authored `topics:` field, then hashtag and heading axes - instead of unioning sidecar and authored topics. Where an entry has sidecar attributions, those are its topics. Nothing authored is edited or deleted on disk; only which reading a consumer is shown changes, which is what keeps the switch reversible.",
+  "current_why": "Rests on the session decision that instituted it: \"`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes.\" (mse_8qmv0m07sy95vjm9:d1). This decision directly establishes the topic priority rule - sidecar authority over authored topics and hashtags.",
+  "live_chain": [
+   {
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-27",
+    "body": "- D: `_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes. It unioned the first two until today. - R: JNL's call, and the union stopped being right the moment the two-axis campaign finished. A union is correct while sidecars are sparse ENRICHMENT - an entry tagged `memory-trace` gaining `trail` really is both. It is wrong once the sidecar carries a COM",
+    "is_head": true
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d1",
+    "title": "D1 - Use authored sidecars as the only Trace topic truth",
+    "date": "2026-07-31",
+    "body": "- D: Project entry and decision topics only from their authored topic sidecars; remove link-neighbour topic inference, keep untagged decisions neutral, and let the parent entry expose the deduplicated union of its authored decision topics. - R: Link structure explains relationships, not semantic classification. Inferring colour or community from linked entries made untagged content look authored and obscured which de",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_topic_vocabulary_controlled",
+  "title": "Topic vocabulary: controlled, alias-preserving, canonicalised at read time",
+  "head": "mse_jz0pwv0ngzzxr484:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The project maintains a controlled canonical topic vocabulary in `.memory-seed/topics.yaml` as a deploy-once project-local file that update never overwrites. Authored entries carry 1-3 slugs validated against the canonical list; aliases resolve to canonical slugs at read time, preserving every observed historical slug in the alias table. The inferred-topic cap is 4, matching the corpus-authored maximum. Unknown topics are errors; overreach warns only.",
+  "current_why": "Usage-derived vocabulary was necessary because topic sprawl had already materialised - 62 slugs across 50 entries. Deriving from real usage plus alias preservation made the corpus validate with zero errors on day one, and deploy-once protects curation from update overwrites. Capping at 4 reflects the authored maximum: a genuinely four-facet entry should not be rejected for inferring a fourth topic, which would hold the inference path to a stricter standard than the author.",
+  "live_chain": [
+   {
+    "ref": "mse_ehm67mqpmsqm00md:d1",
+    "title": "D1 - Vocabulary derived from usage, aliases preserve every observed slug",
+    "date": "2026-07-10",
+    "body": "- D: This repo's vocabulary is the user-approved 19-canonical consolidation of the 62 slugs found across 50 entries (every observed slug canonical or alias, aliases resolve at read time); seeded projects get a minimal 5-topic generic starter. Deploy-once via the existing runtime-local rule so `update` never overwrites curation. - R: The plan's topic-sprawl blind spot had already materialized; deriving from real usage",
+    "is_head": false
+   },
+   {
+    "ref": "mse_vy8tq90rr4br8a0z:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-12",
+    "body": "- D: Added `ui-design` and `memory-seed` as canonical slugs in `.memory-seed/topics.yaml` so recent 2026-07-11 entries resolve through the controlled topic vocabulary instead of failing `topics check`. - R: The invalid slugs were authored in historical entries after the original 2026-07-10 vocabulary harvest. Extending the project-local vocabulary preserves append-only session history and keeps later Trace UI/core Me",
+    "is_head": false
+   },
+   {
+    "ref": "mse_ke0f6x2v8zmd3yrf:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-19",
+    "body": "- D: Added `security` (aliases: openssf, supply-chain) and `performance` (aliases: perf, profiling) to the controlled topic vocabulary, with a dated header note in the house 2026-07-12 style. Vocabulary grows 21 -> 23. - R: JNL approved adding the topics rather than editing the entries. Both slugs were already in use by merged entries - the OpenSSF in-repo slice (`security`) and the fork-point memo (`performance`) - ",
+    "is_head": false
+   },
+   {
+    "ref": "mse_jz0pwv0ngzzxr484:d1",
+    "title": "D1 - Raise the inferred-topic cap to 4 to match the corpus, not hold the machine stricter than the author",
+    "date": "2026-07-25",
+    "body": "- D: `MAX_INFERRED_TOPICS` goes from 3 to 4 — the corpus authored maximum. The topic-sidecar overreach check fires at 5+. - R: JNL's intuition that multi-decision entries touch more topics is confirmed by measurement: 2- and 3+-decision entries average 2.76 / 2.60 topics vs 2.10 for single-decision, and authored entries reach 4. The sidecar cap was 3, so an inferred fourth topic on a genuinely four-facet entry would ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_trace_boundary",
+  "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+  "head": "mse_etm5m5682sseasgm:d1",
+  "head_is_newest_live": true,
+  "current_summary": "`memory-trace/` is a separate source package owning the `memory-trace` command, the web stack (`fastapi`/`uvicorn`) and the static assets, consuming `memory_seed/retrieval.py` as a library. The release strategy folds Trace into the root `memory-seed[trace]` install path rather than shipping a separate PyPI project, and plain `memory-seed` must still ship no web framework.",
+  "current_why": "Rests on the session decision that instituted it: \"Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra.\" (mse_etm5m5682sseasgm:d1). This decision made the concern: shipping Trace as an optional extra in the root package rather than a separate required distribution.",
+  "live_chain": [
+   {
+    "ref": "mse_fcecj9hpq4qj16ay:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-06",
+    "body": "- D: Create `memory-trace/` as a separate distribution (own `pyproject.toml`, `memory_trace` package, `memory-trace` console command, `static/` assets). `git mv`'d `memory_seed/lense.py` → `memory-trace/memory_trace/lense.py`, `memory_seed/lense_static/*` → `memory_trace/static/*`, and `tests/test_lense.py` → `memory-trace/tests/`. Repointed the module's imports to the public `memory_seed` API, and its static-asset/h",
+    "is_head": false
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d1",
+    "title": "D1 - Bundle Trace in the root distribution",
+    "date": "2026-07-12",
+    "body": "- D: Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra. - R: PyPI rejected the standalone `memory-trace` project name, and the monetisation strategy no longer needs a split at the installation layer. - A: Keeping a separate `memory-trace` distribution was rejected because it added release coordination and naming risk without matching the current c",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "title": "Trace startup incremental; immutable git derivations persist",
+  "head": "mse_gtn504wfjt3c34p6:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy.",
+  "current_why": "Rests on the session decision that instituted it: \"immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER\" (mse_gtn504wfjt3c34p6:d1). This decision established both architectural principles: persisting immutable git derivations and bulk-reading history in single passes.",
+  "live_chain": [
+   {
+    "ref": "mse_gtn504wfjt3c34p6:d1",
+    "title": "D1 - Persist immutable git derivations per sha; bulk-read history in single passes",
+    "date": "2026-07-21",
+    "body": "- D: Rebuilt the TraceCache enrichment pipeline around two principles: (1) immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER and persisted in the disposable SQLite projection (schema v2: `fork_points`, `commit_parents`, `changed_paths`, `file_entries` tables), carried across full rebuilds; (2) all history harvesting happens in single delim",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_trace_trail_first_ui",
+  "title": "Memory Trace is Trail-first, with search a function over the open view",
+  "head": "mse_rqkgatgt5eh55yb8:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Trail is the primary chronological evidence surface and Graph is secondary for exploration; the generic timeline is retired. Search is a function over whichever view is open rather than a destination of its own, returning a ranked dropdown plus in-place highlighting. The React workspace ships additively at its own route against v1 API contracts while the vanilla client keeps serving the root.",
+  "current_why": "Trail reads chronology without the temporal noise a generic timeline adds, which is why it earned the primary slot on use rather than on design taste. Search as a function keeps attention on the view the reader chose instead of throwing them into a third place. Shipping React additively avoids maintaining two clients that both claim to be current.",
+  "live_chain": [
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d1",
+    "title": "D1 - Promote the new plan package",
+    "date": "2026-07-11",
+    "body": "- D: Treat the Memory Trace next-generation blueprint and roadmap as active Memory Trace planning documents, with Trail-first product architecture and Evidence Pack/provenance work captured as first-class todo/spec material. - R: The inbox package added product, frontend, provenance, commercial, hosted, and roadmap decisions that were broader than the existing piecemeal Trace plans and needed to become part of the no",
+    "is_head": false
+   },
+   {
+    "ref": "mse_rsjbgk4qnyrtvv09:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-15",
+    "body": "- D: Promoted the four-document Memory Trace graph/workspace proposal set to active `2_Todo` work and made it the detailed shape of B0: shell clarification/shared selection, renderer-neutral graph contract, renderer benchmark, topology-first graph, dockable inspector, and a later optional structural-provider tail. - R: This is the work JNL explicitly asked to evaluate and fold into the plan, and it directly refines t",
+    "is_head": false
+   },
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d1",
+    "title": "D1 - Serve the React shell as an additive packaged route",
+    "date": "2026-07-16",
+    "body": "- D: Build `memory-trace/client/` with Vite and package its content-addressed output under `/next` and `/assets/react/*`, while keeping `/` on the vanilla client. - R: The shell can consume only the stable `/api/v1/*` contract and prove offline wheel delivery without making a parity or migration claim for the existing Trace UI. - F: `memory-trace/client/`, `memory-trace/memory_trace/service.py`, `memory-trace/memory_",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "title": "Trail derives display lanes without authored graph edges",
+  "head": "mse_37fpco0vvunilz5k:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.",
+  "current_why": "Rests on the session decision that instituted it: \"one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)\" (mse_37fpco0vvunilz5k:d1). This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.",
+  "live_chain": [
+   {
+    "ref": "mse_37fpco0vvunilz5k:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-10",
+    "body": "- D: Rebuilt Memory Trace's Trail view as a vertical git-graph timeline, replacing the shared force-layout graph engine it borrowed before. Newest entry on top; one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends); lifecycle arcs bow through a left gutter - supersedes dashed red \"replaces\", evolves dotted blue \"refines\" (new `--edge-evolves` token #4f98d9); ",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_trail_lifecycle_visualization",
+  "title": "Trail: lifecycle visualization and decision-level row rendering",
+  "head": "mse_zm2h343r4shfre3j:d2",
+  "head_is_newest_live": true,
+  "current_summary": "The Trail displays lifecycle edges (supersedes/evolves/related) between entries and decisions by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision, grouped under an anchor row, with edge selection scoped by entry so clicking any row in a group lights the entire entry's lineage.",
+  "current_why": "The decision-level edges were recorded but invisible - every decision-level edge drew only on select, so the finest lineage links in the corpus were dark until clicked, and 189 entry-level evolves were equally hidden. Draw all three classes and let weight and opacity carry hierarchy, so history links read as quiet background rather than a wall. Decision rows must compute visibility and grouping by entry identity because selection state is entry-scoped, which is what stops a group from splitting.",
+  "live_chain": [
+   {
+    "ref": "mse_74fb71s2cdrwqrqp:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-18",
+    "body": "- D: Port the vanilla Trail to `/next` as a new `Trail` presentation mode. The layout math lives in a pure, framework-free `trailModel.ts` (a faithful port of `app.js:709-1008`): newest-first sort + day-separator rows, client-side windowing, branch spans, commit-time `interpRow`, fork/merge occupancy, greedy branch-lane interval packing (with the main-pinned-to-lane-0 guard and daisy-chain lane reuse), colour familie",
+    "is_head": false
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d1",
+    "title": "D1 - Middle-third stability band with distance-eased scrolling",
+    "date": "2026-07-19",
+    "body": "- D: New `trailScroll.ts` owns Trail scroll movement. A selection whose row already sits in the middle third of the viewport does not move at all; one outside eases to that band's **near** edge (top when above, bottom when below) over an `easeInOutCubic` whose duration scales with distance (180-600ms), cancelling any in-flight run. `prefers-reduced-motion` jumps instantly. - R: JNL asked for stability between neighbo",
+    "is_head": false
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d2",
+    "title": "D2 - A new corpus opens at the top",
+    "date": "2026-07-19",
+    "body": "- D: Loading Trace or switching worktree leaves the Trail at row 0: the reset is keyed on the `trail` object (which Load-older does not replace), and the corpus's **opening auto-selection is adopted without scrolling**. - R: The root cause was not a missing scroll reset - `loadGraph` auto-selects a node, and the scroll effect then chased it, parking a fresh corpus at whatever offset that entry happened to have (measu",
+    "is_head": false
+   },
+   {
+    "ref": "mse_9wsn23n3k8txnm2m:d1",
+    "title": "D1 - Surface decisions as Trail rows via the section chunks that already carry their identity",
+    "date": "2026-07-21",
+    "body": "- D: Multi-decision entries (>=2 `#### Dn -` decisions) now render one Trail row per decision, at JNL's request: D1 is the entry's existing row (entry time, full branch colour); D2..DN are additional rows on the same branch lane with a pastel of the branch colour and a bracket right of the time column grouping the set. Implemented as a Trail-only backend opt-in (`TraceService.graph(include_decisions=True)`, passed so",
+    "is_head": false
+   },
+   {
+    "ref": "mse_t5bbdstgmqzagn2y:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-21",
+    "body": "- D: A multi-decision entry's Trail rows are now a HEADING plus SUBHEADINGS: the entry row is the group anchor (`decision_ordinal=None`, `decision_count=N`, full branch colour, keeps the timestamp) and EVERY decision D1..DN gets its own pastel row. Previously the entry row doubled as D1, so the Trail went entry title -> D2 -> D3 with no D1 anywhere. - R: JNL: \"D1 should be seperately visible too as the multidecisions",
+    "is_head": false
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d2",
+    "title": "D2 - The Trail draws all lifecycle edges by default, weighted by a three-class granularity model",
+    "date": "2026-07-24",
+    "body": "- D: The default view draws every lifecycle edge, ranked by precision: decision->decision (class 1) and entry<->decision (class 2) solid and bold; entry->entry (class 3) dashed and light. An entry can evolve another entry, so class-3 history links and the swarm-era edges are real lineage and stay visible, not hidden. A three-state setting (On select / Decision / All) keeps the de-crowded views available; All is defau",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

@@ -20,27 +20,23 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L83`
+Authoritative decision: `mse_gtn504wfjt3c34p6:d1`
 
 ### Decision
 
-Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy.
+Memory Trace startup is incremental. Immutable git derivations—fork points, commit parents, and changed-path trees—are computed once per commit and persisted in the SQLite projection to carry across rebuilds. History harvesting uses bulk single-pass git log operations rather than per-item subprocess spawns.
 
 ### Why
 
-Incremental startup drastically improves performance. Warm start reduced from 44.25s to ~308ms; persisted derivations and lazy indexing enable efficient rebuilds and reconciliation.
+Direct profiling showed the prior design spawned 990 git subprocesses on a full rebuild, with 17.4 seconds spent on fork reconstruction and 15.2 seconds on file-entry indexing alone. Profiling revealed per-historical-item subprocess calls at 50–90 ms each on Windows were the entire bottleneck. Persisting immutable facts to the SQLite schema (the same contract that requires derived projections to stay rebuildable) eliminates recomputation on server restart, while bulk-read git history passes (fork-point resolution via maximal-common-ancestor and changed paths via single `git log --diff-merges=first-parent` passes) drop subprocess overhead from 990 to 7 calls.
 
 ### How it evolved
 
-Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's final deferred piece.
+This decision consolidated startup performance in one session (2026-07-21), with no prior chain members. The work built a profiling harness first to confirm subprocess overhead was the root cause, then implemented immutable derivation caching and bulk-read patterns simultaneously.
 
 ### Constitution
 
 - `constitution:v1#markdown-authority` (governing)
-
-### Awaiting review
-
-- `mse_gtn504wfjt3c34p6:d1` - Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths)...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -117,3 +113,59 @@ Rests on the session decision that instituted it: "immutable git facts (a merge'
 #### Evolution
 
 Founded from .memory-seed/index.md#L83; this revision moves the concern off that control-file line onto mse_gtn504wfjt3c34p6:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:23:00Z
+
+```json
+{
+  "decision_ref": "mse_gtn504wfjt3c34p6:d1",
+  "event_id": "adre_df8d93fe35c386016017",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+### revision-proposed - 2026-08-08T23:23:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#markdown-authority",
+      "role": "governing"
+    }
+  ],
+  "decision_ref": "mse_gtn504wfjt3c34p6:d1",
+  "event_id": "adre_4b5f272b1844419435b1",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Memory Trace startup is incremental. Immutable git derivations—fork points, commit parents, and changed-path trees—are computed once per commit and persisted in the SQLite projection to carry across rebuilds. History harvesting uses bulk single-pass git log operations rather than per-item subprocess spawns.
+
+#### Why
+
+Direct profiling showed the prior design spawned 990 git subprocesses on a full rebuild, with 17.4 seconds spent on fork reconstruction and 15.2 seconds on file-entry indexing alone. Profiling revealed per-historical-item subprocess calls at 50–90 ms each on Windows were the entire bottleneck. Persisting immutable facts to the SQLite schema (the same contract that requires derived projections to stay rebuildable) eliminates recomputation on server restart, while bulk-read git history passes (fork-point resolution via maximal-common-ancestor and changed paths via single `git log --diff-merges=first-parent` passes) drop subprocess overhead from 990 to 7 calls.
+
+#### Evolution
+
+This decision consolidated startup performance in one session (2026-07-21), with no prior chain members. The work built a profiling harness first to confirm subprocess overhead was the root cause, then implemented immutable derivation caching and bulk-read patterns simultaneously.
+
+### revision-accepted - 2026-08-08T23:23:40Z
+
+```json
+{
+  "decision_ref": "mse_gtn504wfjt3c34p6:d1",
+  "event_id": "adre_371870a41ebde6b8b502",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L83",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

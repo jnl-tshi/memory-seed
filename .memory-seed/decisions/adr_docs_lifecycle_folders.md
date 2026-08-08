@@ -20,28 +20,24 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L105`
+Authoritative decision: `mse_yfsrahvq87hxkcv9:d1`
 
 ### Decision
 
-Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/`, and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.
+Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/` (with archived material in `archived/`), and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The folder itself is the single visible source of truth for a document's state. YAML fields carry only what a folder cannot express: priority, next_action, blocked_by, superseded_by, split_into, extracted_into, and spec_binding. A generated per-lane README index and front-door roll-up provide the human read surface.
 
 ### Why
 
-Folder structure makes lifecycle state transparent and queryable. The legacy archive `docs/2_Todo/completed/` was retired 2026-07-17, moving its 43 documents and nested structures to `docs/5_Completed/`, ensuring every terminal document sits in a designated lane.
+A folder makes lifecycle state easier for humans to find and distinguish—humans cannot scan YAML tags effectively. Making the folder the single source of truth eliminates the status-versus-folder drift class, where earlier documents carried both a YAML status field and a lifecycle folder, creating ambiguity about which was authoritative. A generated index provides human-readable discovery without duplicating YAML fields.
 
 ### How it evolved
 
-Control-plane decision recorded and codified in the runtime index. Session decision mse_m0xs623m4cs0kjag:d1 (2026-07-15) captured the seeded docs lifecycle as an unapproved proposal, noting that richer lifecycle behavior requires local proof and non-destructive adoption semantics before becoming reusable seed behavior.
+A single decision reworked the document-lifecycle system from a machine-first design with status fields as truth to a human-discoverable, folder-first approach. This decision promoted terminal and parked states from abstract tags to top-level folders and added versioning subdirectories (draft for specs, archived for reference) to keep the folder count manageable while preserving human-visible state encoding.
 
 ### Constitution
 
 - `constitution:v1#folder-lifecycle` (governing)
 - `constitution:v1#metadata-curation` (supporting)
-
-### Awaiting review
-
-- `mse_yfsrahvq87hxkcv9:d1` - Document lifecycle state is encoded in folder structure.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -126,3 +122,63 @@ Rests on the session decision that instituted it: "The FOLDER is now the single 
 #### Evolution
 
 Founded from .memory-seed/index.md#L105; this revision moves the concern off that control-file line onto mse_yfsrahvq87hxkcv9:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:03:00Z
+
+```json
+{
+  "decision_ref": "mse_yfsrahvq87hxkcv9:d1",
+  "event_id": "adre_bbf5a251e75252ccac2a",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+### revision-proposed - 2026-08-08T23:03:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#folder-lifecycle",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#metadata-curation",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_yfsrahvq87hxkcv9:d1",
+  "event_id": "adre_5ccb855ce43942b520e7",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/` (with archived material in `archived/`), and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The folder itself is the single visible source of truth for a document's state. YAML fields carry only what a folder cannot express: priority, next_action, blocked_by, superseded_by, split_into, extracted_into, and spec_binding. A generated per-lane README index and front-door roll-up provide the human read surface.
+
+#### Why
+
+A folder makes lifecycle state easier for humans to find and distinguish—humans cannot scan YAML tags effectively. Making the folder the single source of truth eliminates the status-versus-folder drift class, where earlier documents carried both a YAML status field and a lifecycle folder, creating ambiguity about which was authoritative. A generated index provides human-readable discovery without duplicating YAML fields.
+
+#### Evolution
+
+A single decision reworked the document-lifecycle system from a machine-first design with status fields as truth to a human-discoverable, folder-first approach. This decision promoted terminal and parked states from abstract tags to top-level folders and added versioning subdirectories (draft for specs, archived for reference) to keep the folder count manageable while preserving human-visible state encoding.
+
+### revision-accepted - 2026-08-08T23:03:40Z
+
+```json
+{
+  "decision_ref": "mse_yfsrahvq87hxkcv9:d1",
+  "event_id": "adre_e7bac22d8ff949b6b80f",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L105",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

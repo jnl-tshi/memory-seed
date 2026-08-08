@@ -1,0 +1,7 @@
+[
+ {"adr_id": "adr_topic_authority", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Both chain members present. Member 1's fallback precedence and Member 2's sidecars-only refinement both in decision statement. Evolution walks the two-step chronology."},
+ {"adr_id": "adr_topic_vocabulary_controlled", "verdict": "complete", "missing": [], "contradicted": [], "reason": "All four members accounted for in decision and evolution. Evolution explicitly names each step from 62→19 consolidation through cap raise to 4. Specific chain progression, not generic."},
+ {"adr_id": "adr_trace_boundary", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Member 1's separate-distribution extraction and Member 2's bundling-back both present. Evolution walks PyPI barrier transition clearly with dates."},
+ {"adr_id": "adr_trace_incremental_startup", "verdict": "complete", "missing": [], "contradicted": [], "reason": "Single member fully present: profiling results (990→7), immutable derivations, bulk-read strategy all in decision. Evolution appropriately describes profiling-first approach."},
+ {"adr_id": "adr_trace_trail_first_ui", "verdict": "incomplete", "missing": ["mse_rsjbgk4qnyrtvv09:d1"], "contradicted": [], "reason": "Member 2 establishes React deferral until graph gets attention (2026-07-15); Member 3 ships React next day (2026-07-16). Summary does not clarify whether Member 3 fulfills Member 2's condition or abandons it—the chain's logical link is missing."}
+]

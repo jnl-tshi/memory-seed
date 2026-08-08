@@ -1,0 +1,37 @@
+[
+  {
+    "adr_id": "adr_hook_merge_framework",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "All three members present: sessionStart injection point (d1), script filename stability (d1), multi-agent generalization with Copilot (d2). Evolution walks the complete chain with all three refs."
+  },
+  {
+    "adr_id": "adr_inbox_promotion_workflow",
+    "verdict": "incomplete",
+    "missing": ["mse_y9q4bnv2yckk6w74:d1"],
+    "contradicted": [],
+    "reason": "Member mse_y9q4bnv2yckk6w74:d1 documents three specific taken decisions (ephemeral briefs by default, Decision Brief as first priority, task-completion test gate) and three deferred items; the summary only mentions deferral of naming and commercialisation without stating what was decided or why those answers were grounded in existing capability."
+  },
+  {
+    "adr_id": "adr_integration_mode",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Single member fully present: configuration setting, fail-open reader, default local-merge, ESR surfacing. Evolution names the ref and explains the implementation."
+  },
+  {
+    "adr_id": "adr_lifecycle_link_audit_workflow",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both members present: scaffold proposal with inert stubs (d1), implementation and execution for two dates creating inert stubs and flagging five cases without converting to live edges (d2). Evolution walks both steps."
+  },
+  {
+    "adr_id": "adr_link_retraction",
+    "verdict": "complete",
+    "missing": [],
+    "contradicted": [],
+    "reason": "Both members present: append-only retracts mechanism design (d1), retroactive application to fix five in-place edits and twin-retract bug (d2). Evolution explains mechanism then retroactive compliance restoration."
+  }
+]

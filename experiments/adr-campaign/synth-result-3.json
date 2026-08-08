@@ -1,0 +1,34 @@
+[
+  {
+    "adr_id": "adr_encoding_policy",
+    "decision": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace. Check tooling is in place for validation, and automatic repair of mojibake is rejected because the original characters cannot be safely inferred. Memory Trace depends on Seed and relies on its single source of truth for encoding enforcement.",
+    "why": "Central ownership by Seed prevents inconsistency and duplication across the system. The dependency relationship (Trace depends on Seed core) means one authoritative source suffices. Automatic repair was rejected as unsafe—when text is corrupted, the original intended characters cannot be recovered without human judgment.",
+    "evolution": "Infrastructure and central helpers were established first, adding shared utilities and repository-level configuration. The check command was then added to provide explicit validation of the UTF-8/LF/no-BOM contract. The architectural decision finalized that Seed alone owns encoding policy, with Trace relying on it rather than duplicating the surface.",
+    "covered": ["mse_76r59d5yxcqy0kb8:d2", "mse_2rvggg1jy6y4m1g3:d2", "mse_74ddxsena9nj2afk:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_experiment_isolation",
+    "decision": "Experimental fixtures achieve isolation through structural design using nearest-runtime discovery. Each fixture is generated as a standalone git repository by running the real init_project with documented per-level strips applied. The MCP server is pinned to the local working tree via absolute interpreter path and PYTHONPATH. Hand-written index.md, policy.md, and vocabulary files remain byte-identical across fixture levels. Each fixture's .memory-seed/sessions/ directory serves as the experiment readout, while generated templates/ and runs/ directories are gitignored.",
+    "why": "Running real init_project on actual installations ensures results generalize beyond hand-assembled approximations. Standalone git repositories and identical stubs address verified hazards: the commit hook installs into the nearest git common directory, the parent's prepare-commit-msg globs nested session stores, and resolve_runtime walks upward without a boundary guard. Using the generator as provenance avoids complexity from tracking nested git repos in the parent.",
+    "evolution": "The architecture was designed as a single integrated system encompassing isolation topology, fixture generation methodology, runtime pinning, stub handling, and experiment readout location.",
+    "covered": ["mse_gbc4m5m71dqmen75:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_foreign_file_routing",
+    "decision": "The four routing destinations (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md) follow a single four-way ownership branch applied by both init and update. Absent files trigger a full seed write. Files carrying our memory-system-version frontmatter are archived before version-gated replacement. Foreign files bearing our marker delimiters have their managed block re-synced in place. Foreign files without markers receive an injected marker-delimited block at the end. Under all circumstances, foreign files are never overwritten, even under --force.",
+    "why": "Ownership is determined by frontmatter presence, a fail-safe marker requiring no guessing. When ownership cannot be proven, appending a block is non-destructive, whereas overwriting is the bug being removed. This preserves the host file's content while enabling the routing system to maintain its state across init and update operations without forcing re-writes of uncontrolled user content.",
+    "evolution": "The complete four-way ownership mechanism was designed as an integrated system handling the full lifecycle of foreign file routing across both init and update operations, replacing the earlier practice of archiving and clobbering unknown files.",
+    "covered": ["ms-7c2f1d90:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_forward_only_edges",
+    "decision": "Related-entry edges are authored forward-only in the writing entry's own YAML frontmatter. The bidirectional graph is assembled at read time, with inbound backlinks computed only from resolvable outbound references. The `link suggest` command provides read-only suggestions, and `link add` is constrained to adding edges from the current or newest entry only. Backfilling edges between pre-existing entries is deferred; no historical entry is ever edited to record an inbound link.",
+    "why": "An edge lives in its source entry's YAML, so generating one from an existing entry would rewrite history, colliding with append-only chronology. Forward-only authoring plus bidirectional read-time traversal captures relationships without editing history. Derived edges already populate the graph, so explicit links are a curated overlay. Keeping edges in Markdown preserves it as the single source of truth.",
+    "evolution": "The complete approach was established as a single decision encompassing forward-only authoring, read-time bidirectional traversal, and the constraint that links can only be added from current or newest entries.",
+    "covered": ["mse_dvzh6fkn4d98cd6y:d1"],
+    "note": ""
+  }
+]

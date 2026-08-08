@@ -1,0 +1,116 @@
+[
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "live_chain": [
+   {
+    "ref": "mse_0qycwt519qdggrpe:d1",
+    "title": "D1 - Topic is not a relationship, so it is not a default edge",
+    "date": "2026-07-22T19:35:00",
+    "body": "- D: `DEFAULT_GRAPH_EDGE_TYPES` becomes `related, supersedes, evolves`. Topic remains offered. - R: The construction settles it. `chain()` in service.py groups entries by topic, sorts by time and joins CONSECUTIVE pairs, so a topic edge asserts \"nothing else carrying this tag happened between these two\" - a fact about sort order, not about the two entries. `related`/`supersedes`/`evolves` are authored claims about a specific pair. Topic membership is also already carried by node colour now that communities are named after topics, so drawing the chain renders the same fact twice and adds a pairwise link that does not exist. - R: The codebase had been compensating for this for a while. `topic` sits at priority 4 of 7 in `EDGE_PRIORITY`, below `branch`, and the pair-precedence rule exists because - in its own comment's words - a topic tag was painting over a supersession. Needing to suppress an edge type is evidence about the edge type. - A: The chain shape matters and my first instinct was wrong: I expected all-pairs and a combinatorial explosion. It is a chain, so 165 `memory-trace` entries make 164 edges, not 13,530. The problem is semantic, not quantitative."
+   }
+  ],
+  "summary": {
+   "decision": "Lifecycle edges comprise three kinds: `related` (thematic association), `supersedes` (replacement), and `evolves` (extension). Edges are forward-only and acyclic by design. Topic edges are not included in the default edge type set, though topic remains offered.",
+   "why": "The chain construction in the codebase groups entries by topic naturally through sorting logic, so a topic edge would assert only that nothing else carrying that tag occurred between two entries—a statement about sort order, not about the entries themselves. Since topology is already visible through node coloring and community naming, topic edges would render the same fact twice. The three core edge types capture genuine authored claims about specific entry pairs; topic membership is already represented through graph community structure.",
+   "evolution": "Established DEFAULT_GRAPH_EDGE_TYPES as `related`, `supersedes`, and `evolves` after analyzing the codebase construction. Removed topic from the default types because it duplicates information already conveyed by entry sort order and community coloring, and its presence was even suppressing legitimate edge types in pair-precedence logic.",
+   "covered": [
+    "mse_0qycwt519qdggrpe:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "live_chain": [
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d2",
+    "title": "D2 - Encoding policy implementation",
+    "date": "2026-07-07T23:18:00",
+    "body": "- D: Add a shared `memory_seed.text_files` helper, `.editorconfig`, `.gitattributes`, README/changelog/audit documentation, MCP Unicode-preserving JSON output, and non-ASCII round-trip tests. - R: Windows/default-code-page drift and BOMs were already observable in active files; central helpers plus repository config reduce future mojibake without adding the larger repair command yet. - A: Did not implement `memory-seed encoding check` or `encoding repair`; those need conservative scan rules, backup behavior, and more tests. - F: `.editorconfig`, `.gitattributes`, `memory_seed/text_files.py`, `memory_seed/core.py`, `memory_seed/cli.py`, `memory_seed/mcp_server.py`, `tests/test_text_files.py`, `tests/test_session_schema.py`, `README.md`, `CHANGELOG.md`, `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/2_Todo/completed/memory-seed-utf8-encoding-policy-phase-1.md`, `docs/2_Todo/utf8-encoding-doctor-and-static-check-plan.md`, `docs/2_Todo/NEXT_STEPS.md`, `docs/3_Spec/functionality-audit.md`. - T: `python -m unittest discover -s tests` passed (247 tests); `python -m memory_seed.cli doctor` passed; `python -m memory_seed.cli links check` passed; `git diff --check origin/main...HEAD` passed; `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed (33 tests)."
+   },
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d2",
+    "title": "D2 - Encoding check slice",
+    "date": "2026-07-08T07:49:00",
+    "body": "- D: Add `memory-seed encoding check [path] [--json]` backed by read-only scanner helpers in `memory_seed/text_files.py`. - R: The active P1 plan calls for explicit validation of the UTF-8/LF/no-BOM contract before adding any repair behavior. - A: Repair, backup policy, clean-worktree checks, and static implicit-I/O enforcement remain open in the active follow-up plan. - F: `memory_seed/text_files.py`, `memory_seed/cli.py`, `tests/test_text_files.py`, `docs/2_Todo/utf8-encoding-doctor-and-static-check-plan.md`, `README.md`, `CHANGELOG.md`, `docs/3_Spec/functionality-audit.md`. - T: `python -m unittest tests.test_processes`; `python -m unittest tests.test_text_files`; `PYTHONPATH=memory-trace python -m unittest memory-trace.tests.test_process_cli`; `python -m unittest discover -s tests` passed (258 tests); `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed (35 tests); dry-run CLI smokes for `memory-seed` and `memory-trace` process commands passed; clean-file `memory-seed encoding check --json` smoke passed."
+   },
+   {
+    "ref": "mse_74ddxsena9nj2afk:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-08T18:40:00",
+    "body": "- D: Keep encoding policy in Memory Seed and add explicit check/repair tooling rather than duplicating an encoding command surface in Memory Trace. - R: Memory Trace already depends on the core package. One owner keeps UTF-8/LF/NFC policy, exclusions, backup behavior, and static enforcement consistent. - A: Automatic mojibake repair was rejected because the intended source characters cannot be inferred safely. Invalid UTF-8 and likely mojibake remain blocked for manual review. - A: OneDrive again denied lifecycle file removal after creating canonical completed copies. The affected todo paths are marked resolved redirect copies rather than active proposals. - F: `memory_seed/text_files.py`, `memory_seed/cli.py`, `memory_seed/core.py`, `tests/test_text_files.py`, `tests/test_memory_seed.py`, `README.md`, `CHANGELOG.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/2_Todo/completed/utf8-encoding-doctor-and-static-check-plan.md`, `docs/2_Todo/utf8-encoding-doctor-and-static-check-plan.md`, `docs/3_Spec/functionality-audit.md`, `.memory-seed/sessions/2026-07-08.md`. - T: TDD red/green checks covered safe normalization, backup preservation, blocked unsafe repair, CLI dry-run JSON, scan exclusions, static implicit-I/O detection, and doctor summaries. `python -m unittest discover -s tests` passed before the final static-inference refactor (276 tests); targeted `tests.test_text_files` passed after it. Final closeout rerun follows."
+   }
+  ],
+  "summary": {
+   "decision": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace. Check tooling is in place for validation, and automatic repair of mojibake is rejected because the original characters cannot be safely inferred. Memory Trace depends on Seed and relies on its single source of truth for encoding enforcement.",
+   "why": "Central ownership by Seed prevents inconsistency and duplication across the system. The dependency relationship (Trace depends on Seed core) means one authoritative source suffices. Automatic repair was rejected as unsafe—when text is corrupted, the original intended characters cannot be recovered without human judgment.",
+   "evolution": "Infrastructure and central helpers were established first, adding shared utilities and repository-level configuration. The check command was then added to provide explicit validation of the UTF-8/LF/no-BOM contract. The architectural decision finalized that Seed alone owns encoding policy, with Trace relying on it rather than duplicating the surface.",
+   "covered": [
+    "mse_76r59d5yxcqy0kb8:d2",
+    "mse_2rvggg1jy6y4m1g3:d2",
+    "mse_74ddxsena9nj2afk:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "live_chain": [
+   {
+    "ref": "mse_gbc4m5m71dqmen75:d1",
+    "title": "D1 - Decision",
+    "date": "2026-08-03T20:14:00",
+    "body": "- D: Generate each fixture by running the real `init_project()` and applying documented per-level strips inside a standalone git repo, pin the MCP server to the local working tree via absolute interpreter plus PYTHONPATH, keep hand-written `index.md`/`policy.md`/vocabulary byte-identical across levels, and treat each fixture's own `.memory-seed/sessions/` as the experiment readout, with `templates/` and `runs/` generated and gitignored so the tracked definition is the generator and stubs. - R: Real-init-plus-strips means results generalise to actual installs rather than hand-assembled approximations, and JNL confirmed the local tree over PyPI because the published 2.19.0 lacks the adr layer. The standalone-git and identical-stub requirements each close a verified hazard: the commit hook installs into the nearest git common dir, the parent's prepare-commit-msg deliberately globs nested session stores, resolve_runtime walks upward with no boundary guard, and an agent reading agent-rules.md without index/policy diverts into bootstrap interviewing - which would contaminate arms asymmetrically. - A: Tracking generated fixture trees in the parent was rejected - nested git repos cannot be tracked cleanly and the generator is better provenance. Committing the probe-contaminated L0 template was avoided by regenerating; the isolation probe itself was kept CLI-side deliberately, since the MCP path is what smoke probe A exercises. A decision diagram sidecar was considered and skipped: the isolation topology reduces to one sentence (nearest ancestor wins) and a diagram would add no structure beyond prose. - F: `experiments/agent-capture/` (generator, stubs incl. `strutil` project, `tasks/` with `tasks.json` answer key, `run.py`, `collect.py`, `README.md`, `PREREGISTRATION.md`), `.gitignore` (+2 lines), `.memory-seed/index.md` (topology registration). - T: Generator determinism proven (regeneration diff excluding `.git` = zero lines). Isolation proven: a session-append from cwd inside the L0 fixture landed in the fixture's store and the parent's `links check` stayed at 153 files. Stub project's `run_checks.py` passes. Parent `docs check` passes. Two Windows rmtree failures on read-only git objects were fixed with a chmod-on-error handler in both generator and runner. Smoke probe A launched a real headless session whose harness mechanics all worked, then failed in four seconds on \"OAuth session expired and could not be refreshed\" - the probes are blocked on JNL re-authenticating the claude CLI, not on the instrument."
+   }
+  ],
+  "summary": {
+   "decision": "Experimental fixtures achieve isolation through structural design using nearest-runtime discovery. Each fixture is generated as a standalone git repository by running the real init_project with documented per-level strips applied. The MCP server is pinned to the local working tree via absolute interpreter path and PYTHONPATH. Hand-written index.md, policy.md, and vocabulary files remain byte-identical across fixture levels. Each fixture's .memory-seed/sessions/ directory serves as the experiment readout, while generated templates/ and runs/ directories are gitignored.",
+   "why": "Running real init_project on actual installations ensures results generalize beyond hand-assembled approximations. Standalone git repositories and identical stubs address verified hazards: the commit hook installs into the nearest git common directory, the parent's prepare-commit-msg globs nested session stores, and resolve_runtime walks upward without a boundary guard. Using the generator as provenance avoids complexity from tracking nested git repos in the parent.",
+   "evolution": "The architecture was designed as a single integrated system encompassing isolation topology, fixture generation methodology, runtime pinning, stub handling, and experiment readout location.",
+   "covered": [
+    "mse_gbc4m5m71dqmen75:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_foreign_file_routing",
+  "title": "Non-destructive routing into foreign entry-point files",
+  "live_chain": [
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14T16:30:00",
+    "body": "- D: Added a 4-way ownership branch (shared `_maybe_merge_foreign_routing` used by both `init_project` and `update_project`) over the four `ROUTING_DESTINATIONS` (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`): (1) absent → write full seed file; (2) ours (`memory-system-version` frontmatter) → version-gated archive+replace (unchanged); (3) foreign + our `<!-- BEGIN memory-seed -->` markers → re-sync block in place; (4) foreign, no markers → inject block, append at end. A foreign file is **never** overwritten, even under `init --force`. `_merge_routing_stanza` mirrors `_merge_grouped_hook`. Added a `doctor` route-presence warning (runtime exists but a present entry-point file is foreign-without-block → orphaned runtime) and made `doctor` skip foreign routing files from version-mismatch. Injected the block into `demo/AGENTS.md` + `demo/CLAUDE.md` (untracked). Bumped control-plane 2.7→2.8 / package 2.8.0. - R: Ownership is frontmatter-only and fail-safe to merge (advisor-confirmed): when we cannot prove a file is ours, appending a block is non-destructive; overwriting is the bug being removed. This retires the legacy \"versionless → archive `unknown-*` + clobber\" path. The user explicitly asked the CLI to check ownership *before* archiving-or-merging, and to think through the \"second merge\" on a later version bump — handled by in-place block replacement gated on **body** content-equality. - A: Signature/content-guessing for ownership (rejected — reintroduces overwrite-on-guess); version-stamping the block (rejected mid-build — the advisor caught that `v=2.8` inside the compared block would force a rewrite on every bump, contradicting the no-churn claim; removed the stamp so a foreign, non-version-tracked block re-syncs only on body change). - F: `core.py` (`ROUTING_DESTINATIONS`, `_ROUTING_STANZA`, `_ROUTING_BLOCK_RE`, `_is_foreign_routing_file`, `_file_routes_into_runtime`, `_merge_routing_stanza`, `_maybe_merge_foreign_routing`, init refuse-guard + both install loops, `doctor`); `tests/test_memory_seed.py` (init-merge/force, foreign-update-merge, in-place resync, idempotency, body-change resync unit test, doctor route check; retired the unversioned-clobber test); `memory_doctor.md` (+ seed twin); version bump across all control-plane `.md` (live + seed, incl. repo-root), `pyproject.toml`, test pin; `CHANGELOG.md`/`README.md`/`NEXT_STEPS.md`/`index.md`; `demo/AGENTS.md` + `demo/CLAUDE.md` (untracked). - T: 134 tests green. Manual temp-dir flow verified: foreign `AGENTS.md` → init keeps host content + injects block; `update` idempotent; `doctor` clean with block, warns when block stripped; repo `doctor` healthy."
+   }
+  ],
+  "summary": {
+   "decision": "The four routing destinations (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md) follow a single four-way ownership branch applied by both init and update. Absent files trigger a full seed write. Files carrying our memory-system-version frontmatter are archived before version-gated replacement. Foreign files bearing our marker delimiters have their managed block re-synced in place. Foreign files without markers receive an injected marker-delimited block at the end. Under all circumstances, foreign files are never overwritten, even under --force.",
+   "why": "Ownership is determined by frontmatter presence, a fail-safe marker requiring no guessing. When ownership cannot be proven, appending a block is non-destructive, whereas overwriting is the bug being removed. This preserves the host file's content while enabling the routing system to maintain its state across init and update operations without forcing re-writes of uncontrolled user content.",
+   "evolution": "The complete four-way ownership mechanism was designed as an integrated system handling the full lifecycle of foreign file routing across both init and update operations, replacing the earlier practice of archiving and clobbering unknown files.",
+   "covered": [
+    "ms-7c2f1d90:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "live_chain": [
+   {
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-15T20:12:00",
+    "body": "- D: Wrote `docs/todo/related-entries-generation-plan.md` and pointed NEXT_STEPS at it. The recommended shippable core (P1) is **write-time only, zero append-only tension**: `memory-seed link suggest` (read-only, reuses `rank_session_memory`) + `memory-seed link add` constrained to the current/newest entry + **bidirectional read-time traversal** as the canonical graph-read model. Backfilling edges between two pre-existing entries is demoted to a deferred P2 with an append-only-native default (\"write a new linking entry\"); a sidecar edge file is the escalation only with sign-off (B5-aligned). Four open decisions are surfaced for the user, not resolved. - R: An edge lives in the source entry'''s YAML, so generating one *from* an existing entry would rewrite history - colliding with the Append-Only Chronology and \"don'''t rewrite old entries\" locks. Forward-only authoring + bidirectional read-time traversal captures the old<->new relationship without ever editing history, and the 3.0 plan'''s B3 derived edges mean the graph isn'''t empty - explicit links are a curated overlay, so the assist is for curation, not graph-from-nothing. Per agent-rules, a durable memory-structure decision is the user'''s to make, so the doc stays options+recommendation+open-decisions. - A: Lead with a sidecar graph file as the primary mechanism (rejected after advisor pressure-test - it'''s backwards; forward-in-entry + read-time traversal dissolves most backfill need and keeps Markdown the single source of truth). Frame the graph as \"empty\" (rejected - overstates the need vs. B3 derived edges). Build now (rejected - reopens the release-stack accumulation; this is a scoping turn). - F: `docs/todo/related-entries-generation-plan.md` (new), `NEXT_STEPS.md`."
+   }
+  ],
+  "summary": {
+   "decision": "Related-entry edges are authored forward-only in the writing entry's own YAML frontmatter. The bidirectional graph is assembled at read time, with inbound backlinks computed only from resolvable outbound references. The `link suggest` command provides read-only suggestions, and `link add` is constrained to adding edges from the current or newest entry only. Backfilling edges between pre-existing entries is deferred; no historical entry is ever edited to record an inbound link.",
+   "why": "An edge lives in its source entry's YAML, so generating one from an existing entry would rewrite history, colliding with append-only chronology. Forward-only authoring plus bidirectional read-time traversal captures relationships without editing history. Derived edges already populate the graph, so explicit links are a curated overlay. Keeping edges in Markdown preserves it as the single source of truth.",
+   "evolution": "The complete approach was established as a single decision encompassing forward-only authoring, read-time bidirectional traversal, and the constraint that links can only be added from current or newest entries.",
+   "covered": [
+    "mse_dvzh6fkn4d98cd6y:d1"
+   ]
+  }
+ }
+]

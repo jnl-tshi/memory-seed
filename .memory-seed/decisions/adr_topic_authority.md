@@ -19,28 +19,24 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L158`
+Authoritative decision: `mse_ypmrtzfmw4qwtbnn:d1`
 
 ### Decision
 
-The topic sidecar is the topic authority, not a derived overlay. Topic resolution follows strict precedence - sidecar attributions first, then the entry's authored `topics:` field, then hashtag and heading axes - instead of unioning sidecar and authored topics. Where an entry has sidecar attributions, those are its topics. Nothing authored is edited or deleted on disk; only which reading a consumer is shown changes, which is what keeps the switch reversible.
+Topic sidecars are the sole topic authority. Entry topics come from authored topic sidecars when present, with fallback to the authored topics: field, then hashtag and heading axes. Later refinement narrowed this: topics come only from authored sidecars; other sources are not consulted. Nothing authored is edited on disk; only which reading consumers see changes, preserving reversibility. Untagged decisions remain neutral.
 
 ### Why
 
-A union is right while sidecars are sparse enrichment, but wrong once the sidecar carries a complete two-axis reading of every decision, because unioning re-admits the coarse pre-axis label the sweep exists to supersede and leaves a reader unable to tell which classification the corpus currently believes. The authored YAML stays intact and readable as what its author wrote. Inferring topics from link neighbours was removed for the same reason: link structure explains relationships, not classification.
+Link structure explains relationships, not semantic classification. Inferring topics from linked entries made untagged content appear authored and obscured which decision actually carried each topic. Sidecars are the authoritative topic truth; authored sources are not edited or contradicted, only which reader sees changes.
 
 ### How it evolved
 
-Adopted 2026-07-27 when the two-axis decision-level attribution campaign completed and the union stopped being correct, then extended 2026-07-31 by making authored sidecars the only Trace and MCP topic truth and dropping link-neighbour inference.
+Strict topic precedence was established with sidecars taking priority over authored topics and hashtag axes, with the change applied only to reader output, not disk state. A second refinement removed all sources except authored sidecars, eliminating link-neighbour inference and other topic derivation methods.
 
 ### Constitution
 
 - `constitution:v1#provenance` (governing)
 - `constitution:v1#topic-vocabulary` (supporting)
-
-### Awaiting review
-
-- `mse_8qmv0m07sy95vjm9:d1` - The topic sidecar is the topic authority, not a derived overlay.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -129,3 +125,66 @@ Rests on the session decision that instituted it: "`_topics()` now falls back in
 #### Evolution
 
 Founded from .memory-seed/index.md#L158; this revision moves the concern off that control-file line onto mse_8qmv0m07sy95vjm9:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-rejected - 2026-08-08T23:29:00Z
+
+```json
+{
+  "decision_ref": "mse_8qmv0m07sy95vjm9:d1",
+  "event_id": "adre_de0390f05c91da4cb7c7",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Reason
+
+Wording retired and the anchor moved. This revision rested on mse_8qmv0m07sy95vjm9:d1, but mse_ypmrtzfmw4qwtbnn:d1 is a later decision in the same chain that had already moved the concern past it. A shift in the most recent authoritative decision triggers a regenerated summary, so both land together.
+
+### revision-proposed - 2026-08-08T23:29:20Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#provenance",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#topic-vocabulary",
+      "role": "supporting"
+    }
+  ],
+  "decision_ref": "mse_ypmrtzfmw4qwtbnn:d1",
+  "event_id": "adre_aa04f78219016bedbc44",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_8qmv0m07sy95vjm9:d1"
+  ],
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```
+
+#### Decision
+
+Topic sidecars are the sole topic authority. Entry topics come from authored topic sidecars when present, with fallback to the authored topics: field, then hashtag and heading axes. Later refinement narrowed this: topics come only from authored sidecars; other sources are not consulted. Nothing authored is edited on disk; only which reading consumers see changes, preserving reversibility. Untagged decisions remain neutral.
+
+#### Why
+
+Link structure explains relationships, not semantic classification. Inferring topics from linked entries made untagged content appear authored and obscured which decision actually carried each topic. Sidecars are the authoritative topic truth; authored sources are not edited or contradicted, only which reader sees changes.
+
+#### Evolution
+
+Strict topic precedence was established with sidecars taking priority over authored topics and hashtag axes, with the change applied only to reader output, not disk state. A second refinement removed all sources except authored sidecars, eliminating link-neighbour inference and other topic derivation methods.
+
+### revision-accepted - 2026-08-08T23:29:40Z
+
+```json
+{
+  "decision_ref": "mse_ypmrtzfmw4qwtbnn:d1",
+  "event_id": "adre_4fdab723438fe1247a1d",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L158",
+  "source": "derived",
+  "update_entry_id": "mse_rfw60ctv535cbseq"
+}
+```

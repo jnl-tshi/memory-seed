@@ -1,0 +1,48 @@
+[
+ {
+  "adr_id": "adr_topic_vocabulary_controlled",
+  "decision": "The project maintains a controlled topic vocabulary in `.memory-seed/topics.yaml` as a deploy-once project-local file. Authored entries use 1-3 slugs validated against the canonical list; unknown historical slugs resolve as aliases at read time, preserving every observed variation. The cap for inferred topics is 4, matching the corpus-authored maximum.",
+  "why": "Usage-derived vocabulary was necessary because sprawl had materialized before a formal schema existed. Deriving from 62 real-world slugs and aliasing ensured the entire live corpus validated with zero errors immediately. The 4-topic cap reflects the highest authored reach: a genuinely four-facet entry should not be rejected for inferring a fourth topic, which would hold inference to a stricter standard than the human author. The cap is kept rather than removed because universal labels distinguish nothing; bounded at 4, nothing in the corpus exceeds it.",
+  "evolution": "The decision started by consolidating observed 62 slugs into 19 canonical ones with aliases (2026-07-10). Two later extensions added `ui-design` and `memory-seed`, then `security` (with openssf/supply-chain aliases) and `performance` (with perf/profiling aliases), growing the vocabulary to 23 by reflecting real entry usage rather than retroactively constraining historical corpus. Finally, the inferred-topic cap rose from 3 to 4 to treat the machine and author equally.",
+  "covered": [
+   "mse_ehm67mqpmsqm00md:d1",
+   "mse_vy8tq90rr4br8a0z:d1",
+   "mse_ke0f6x2v8zmd3yrf:d1",
+   "mse_jz0pwv0ngzzxr484:d1"
+  ],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_trace_boundary",
+  "decision": "Memory Trace ships as an optional extra in the root `memory-seed` package, not as a separate PyPI project. The `memory-trace` command, FastAPI web stack, and static assets live in `memory-trace/` as a separate source tree. Core `memory_seed` carries no web framework; Trace consumes the public retrieval API.",
+  "why": "Separating Trace as its own distribution cleanly extracted presentation and web concerns from core, with Trace importing only public API symbols. Bundling back into the root package as an optional extra resolved practical constraints: PyPI rejected the standalone `memory-trace` project name, and the commercial strategy no longer required installation-layer separation. The release path changed to fold Trace into the root install rather than maintain separate distribution coordination.",
+  "evolution": "The decision first extracted Trace into a separate distribution with its own `pyproject.toml`, package, command, and assets, moving `lense.py` and static files out of core (2026-07-06). Seven days later, when PyPI naming barriers emerged and commercialisation strategy shifted, the decision bundled Trace back into the root package as an optional `trace` extra while retaining the source-tree separation (2026-07-12).",
+  "covered": [
+   "mse_fcecj9hpq4qj16ay:d1",
+   "mse_etm5m5682sseasgm:d1"
+  ],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "decision": "Memory Trace startup is incremental. Immutable git derivations—fork points, commit parents, and changed-path trees—are computed once per commit and persisted in the SQLite projection to carry across rebuilds. History harvesting uses bulk single-pass git log operations rather than per-item subprocess spawns.",
+  "why": "Direct profiling showed the prior design spawned 990 git subprocesses on a full rebuild, with 17.4 seconds spent on fork reconstruction and 15.2 seconds on file-entry indexing alone. Profiling revealed per-historical-item subprocess calls at 50–90 ms each on Windows were the entire bottleneck. Persisting immutable facts to the SQLite schema (the same contract that requires derived projections to stay rebuildable) eliminates recomputation on server restart, while bulk-read git history passes (fork-point resolution via maximal-common-ancestor and changed paths via single `git log --diff-merges=first-parent` passes) drop subprocess overhead from 990 to 7 calls.",
+  "evolution": "This decision consolidated startup performance in one session (2026-07-21), with no prior chain members. The work built a profiling harness first to confirm subprocess overhead was the root cause, then implemented immutable derivation caching and bulk-read patterns simultaneously.",
+  "covered": [
+   "mse_gtn504wfjt3c34p6:d1"
+  ],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_trace_trail_first_ui",
+  "decision": "Trail is the primary chronological evidence surface; Graph is secondary for exploration. The generic timeline is retired. Search is a function over the open view rather than a destination, returning ranked results and in-place highlighting. A React client ships additively at `/next` and `/assets/react/*` against stable v1 API contracts while the vanilla client continues serving the root.",
+  "why": "Trail reads chronology without the temporal noise a generic timeline introduces, making it the better default surface for evidence work. Keeping search as an overlay function on the active view preserves reader attention rather than redirecting to a third place. Shipping React additively proves offline wheel delivery and stable API consumption without requiring parity or migration claims for the existing Trace UI, letting the vanilla client remain current.",
+  "evolution": "The decision unfolded across three moves: first, planning documents for Trail-first architecture and Evidence Pack provenance work were elevated to active material (2026-07-11). Next, a graph/workspace proposal package was promoted from review to active `2_Todo` work, detailing Shell, Graph, Workspace, and Inspector components (2026-07-15). Finally, the React client was shipped additively at its own route, consuming only the v1 API while vanilla stayed at root (2026-07-16).",
+  "covered": [
+   "mse_loe4c3vbaeeq22dt:d1",
+   "mse_rsjbgk4qnyrtvv09:d1",
+   "mse_rqkgatgt5eh55yb8:d1"
+  ],
+  "note": ""
+ }
+]

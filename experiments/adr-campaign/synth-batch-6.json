@@ -1,0 +1,127 @@
+[
+ {
+  "adr_id": "adr_proposal_completion_moves_lane",
+  "title": "A proposal moves lane when its acceptance criteria are met, and stays there",
+  "head": "mse_9m2jk06hgx7ctrm1:d3",
+  "head_is_newest_live": true,
+  "current_summary": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record even when a newer active proposal cites it. A source report moves once its actionable recommendations have been split into their own plans.",
+  "current_why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can tell an open question from shipped work without reading either. Leaving a completed document in place because something still references it is what turns historical research into apparent current planning.",
+  "live_chain": [
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02T19:55:00",
+    "body": "- D: Moved `NEXT_STEPS.md` to `docs/todo/NEXT_STEPS.md` (`git mv`), fixed the two live-file references (`.memory-seed/index.md` topology line, `docs/functionality-audit.md`) and all six now-relative internal links inside the file itself. Wrote five new plan docs — `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, `interaction-frequency-ranking-plan.md`, `mermaid-usage-guidance-plan.md`, `failed-approaches-logging-plan.md` — and added a \"Logic Capture Improvements - Proposed\" section to `NEXT_STEPS.md` linking all five. - R: Archived control-plane snapshots (`.memory-seed/archive/1.4/*`) also reference the old root-level `NEXT_STEPS.md` path but were left untouched per the \"archive snapshots are historical records and may preserve old path names\" policy. - A: While researching the commit-linking and supersession specs, empirically confirmed a real, currently-shipped gap: `check_session_links()`'s `related_entries` dangling-ref scan (`memory_seed/core.py:402-409`) only runs inside the per-user-day branch and silently skips legacy-flat session files — a constructed fixture with a dangling `related_entries` ref in a legacy-flat file passed `links check` with `ok=True`. This repo uses the legacy-flat layout. Documented as a shared \"Known Dependency\" in both new plan docs rather than fixed now, since fixing it wasn't part of what was asked this turn. - F: `docs/todo/NEXT_STEPS.md` (moved + new section + link fixes), `.memory-seed/index.md`, `docs/functionality-audit.md`, five new files under `docs/todo/`. - T: `memory-seed links check` (22 files, clean) and `memory-seed doctor` (healthy) both re-run after all edits; grep sweep found no remaining root-relative `NEXT_STEPS.md` references outside session logs/archive.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_r1ey59bbv1jsseth:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04T11:06:00",
+    "body": "- D: Moved the implemented logic-capture proposal docs from active `docs/todo/` into `docs/todo/completed/`: `git-commit-entry-linking-plan.md`, `supersession-edges-plan.md`, and `interaction-frequency-ranking-plan.md`. Left genuinely active/deferred docs in active `docs/todo/`: related-entries P2, exclude-superseded filter, DOCX render seed lessons, UI/Pillar B distribution, 3.0 plan, and source/synthesis reports. - D: Updated roadmap links and status language in `docs/todo/NEXT_STEPS.md`, `docs/todo/Memory-Seed Logic Capture Improvement.md`, `docs/todo/exclude-superseded-filter-plan.md`, `docs/todo/3.0-plan.md`, `docs/todo/codex/proposal-synergy-evaluation.md`, and the completed fanout plan. `exclude-superseded-filter-plan.md` is now explicitly unblocked because `superseded_by` exists. - D: Refreshed `docs/functionality-audit.md` to current state: 2.14.0 is the current published release, the graph/commit/ranking work is unreleased through `a72ffc3`, completed docs point at `docs/todo/completed/`, `link show`/`link commits` surfaces are described, and the test surface is updated to 237 tests. - R: The git tree showed `main` clean except for being two commits ahead of `origin/main` before this docs cleanup; recent session entries confirmed `supersedes` P1, commit-linking P1, ranking P1a, ranking P1b, Mermaid guidance, failed-approach logging, and fanout guidance had all been implemented or shipped. Keeping their proposal docs in active `docs/todo/` made the roadmap look less done than the code and session log say it is. - A: Did not move `exclude-superseded-filter-plan.md`; it is now startable but not built. Did not move `docx-render-windows-seed-lessons.md`; it remains a proposed seed-skill promotion. Did not move `user-interface-deep-research-report.md`; the Pillar B distribution decision remains open. - F: `docs/todo/completed/git-commit-entry-linking-plan.md`, `docs/todo/completed/supersession-edges-plan.md`, `docs/todo/completed/interaction-frequency-ranking-plan.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md`, `docs/todo/Memory-Seed Logic Capture Improvement.md`, `docs/todo/exclude-superseded-filter-plan.md`, `docs/todo/completed/agent-fanout-workflow-plan.md`, `docs/todo/3.0-plan.md`, `docs/todo/codex/proposal-synergy-evaluation.md`. - T: `python -m memory_seed.cli links check` clean before appending this entry and clean again after appending it; `python -m memory_seed.cli doctor` healthy; `python -m unittest tests.test_session_schema` passed 18 tests.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_9m2jk06hgx7ctrm1:d3",
+    "title": "D3 - Logic-capture source report moved to completed",
+    "date": "2026-07-05T02:27:00",
+    "body": "- D: Moved `Memory-Seed Logic Capture Improvement.md` to `docs/todo/completed/` and updated NEXT_STEPS' cluster section to \"fully resolved\". - R: `proposal_lifecycle.md` completion criterion 4: it is a source report whose actionable recommendations were all split into now-completed plans (all six shipped, including the exclude-superseded filter). Prose mentions of the doc inside `completed/*` plans need no edits; the two synergy-evaluation docs stay in `docs/todo/` because they still inform the open Pillar B and deferred-automation decisions (lifecycle rule 6). - F: `docs/todo/completed/Memory-Seed Logic Capture Improvement.md` (moved), `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`. - T: Full `unittest discover tests` 243/243 OK; `links check` clean (25 files); `doctor` healthy.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_retrieval_entry_granularity",
+  "title": "Retrieval: entry-level chunks as default, with optional section granularity",
+  "head": "mse_pwwz3ys324ght2qs:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The memory-retrieval service uses session entries (delimited by `##` headings) as the default coherent chunk boundary, with `entry_id` as the chunk id. Section granularity is optional for querying long or multi-topic entries. Rollup and windowing live in the service; the MCP surface adapts presentation only. The retrieval service is extracted from the MCP implementation - both run the same service code, with parity proven by tests.",
+  "current_why": "A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation and validation - separating a decision from its rationale loses too much context, so entry-level retrieval is the normal agent-memory behaviour. The service extraction lets retrieval and MCP evolve without drift, and parity tests lock the contract down.",
+  "live_chain": [
+   {
+    "ref": "ms-845042c7:d1",
+    "title": "D1 - Make entry chunks the default MCP memory unit",
+    "date": "2026-05-26T21:26:00",
+    "body": "- D: Parse `##` session entries as the default chunk boundary and use the entry YAML `entry_id` as `chunk_id`. - R: A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation. - A: Rejected default heading-level chunking because it can separate a decision from its rationale and validation. - F: `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, parser/MCP tests. - T: `python -m unittest tests.test_semantic_cache tests.test_mcp_server tests.test_mcp_validation tests.test_session_schema`; `python -m unittest discover -s tests`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d2",
+    "title": "D2 - Retrieval service extracted; MCP is a wrapper; parity proven by tests",
+    "date": "2026-07-05T12:20:00",
+    "body": "- D: Created `memory_seed/retrieval.py` with `search_memory()`, `get_chunk()`, `resolve_semantic_provider()`, `format_search_results()`, `ranked_to_dict()`, `chunk_to_dict()` - the exact orchestration and dict-building code moved verbatim from `mcp_server.py`. The MCP server's `call_tool` now parses tool args and delegates; `format_search_results` is re-exported from `mcp_server` for compatibility. New `tests/test_retrieval.py` proves parity (search across granularity/top_k/recency variants and get_chunk incl. graph metrics are `assertEqual` between `call_tool` and the service) and MCP-independence (AST scan: retrieval imports nothing from mcp_server; the dependency points one way). - R: Distribution-plan Phase-1 acceptance criteria require byte-identical MCP behavior, a service with no mcp_server import, and parity tests - moving the code verbatim and asserting dict equality satisfies all three by construction. - A: Caught and reverted a mistaken mid-file edit to this session log during entry writing (an insertion marker landed inside the 11:31 entry's body; `git diff` confirmed exact restoration). Standing reminder: session entries are appended with file-append operations, never with string-replacement edits inside existing entries. - F: `memory_seed/retrieval.py` (new), `memory_seed/mcp_server.py` (thin wrapper), `tests/test_retrieval.py` (new), `docs/todo/memory-trail-renaming-plan.md` (Phase-0 findings + status). - T: Full suite 247/247 OK (243 prior + 4 new parity/independence tests). MCP fixture tests unchanged and green.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_pwwz3ys324ght2qs:d1",
+    "title": "D1 - Rollup lives in the service (EntryRollup), Lense adapts presentation only",
+    "date": "2026-07-05T12:45:00",
+    "body": "- D: Added `EntryRollup` + `rollup_entry_matches()` (canonical grouping: collapse ranked entry+section results to one rollup per session entry, ranker order preserved, representative prefers the entry-granularity chunk, only genuinely-matching sections kept as highlight metadata, `score_source` = entry|section-rollup) and `rollup_entry_results()` (canonical dict shape with `best_match_chunk_id` + `matched_sections`) to `memory_seed/retrieval.py`. Lense's `LenseService.search()` now ranks across entry AND section chunks for entry-granularity queries and collapses via `rollup_entry_matches` - section matches can drive an entry's score but never appear as separate selectable records. `granularity=section|all` paths and MCP behavior unchanged (tests assert no rollup fields leak into the MCP contract). - R: The plan requires one selectable result per entry with best-match/highlight metadata preserved, and the distribution plan requires the grouping to be a service contract, not per-consumer logic. Grouping (contract) lives in retrieval.py; presentation (`_rollup_to_api`) stays in Lense. - A: UI terminology per the goal: compact rows say entry (\"Open entry\", \"N matched sections\"), empty state says \"No session entries match\", viewbar says \"entries shown\" at entry granularity. Full-text \"session entry\" reserved for disambiguating copy. Frontend renders \"Matched section:\" chips on comfortable cards with excerpt tooltips. - F: `memory_seed/retrieval.py` (EntryRollup, rollup_entry_matches, rollup_entry_results), `memory_seed/lense.py` (rollup search path + `_rollup_to_api`), `memory_seed/lense_static/app.js` (matched-section chips, entry terminology), `tests/test_retrieval.py` (3 rollup tests incl. MCP-unchanged guard), `tests/test_lense.py` (rollup + raw-section-granularity test). - T: Full suite 251/251 OK. `node --check` clean on app.js.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_safe_process_and_upgrade_workflow",
+  "title": "Safe process and upgrade workflow: discover, dry-run, then confirm",
+  "head": "mse_etm5m5682sseasgm:d3",
+  "head_is_newest_live": true,
+  "current_summary": "Process discovery is conservative and shared, exposed through `processes`, `shutdown --dry-run` and `upgrade --dry-run` with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the `memory-seed[trace]` extra, so upgrade is coordinated through the core package, and each worktree owns its own Trace process state.",
+  "current_why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection has to precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step, and per-worktree ownership stops one worktree's upgrade from killing another's running UI.",
+  "live_chain": [
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d1",
+    "title": "D1 - Safe process MVP",
+    "date": "2026-07-08T07:49:00",
+    "body": "- D: Add shared conservative process discovery in `memory_seed/processes.py`, with `memory-seed processes`, `memory-seed shutdown --dry-run`, and `memory-seed upgrade --dry-run` plus JSON output; delegate equivalent `memory-trace` commands through the same shared helper. - R: The active P0 plan prioritizes release safety and executable-lock diagnosis before any destructive shutdown or package-manager upgrade execution. - A: Real process termination and upgrade execution were left guarded for a later pass; current non-dry-run shutdown/upgrade paths return a clear non-enabled message when matching processes are active. - F: `memory_seed/processes.py`, `memory_seed/cli.py`, `memory-trace/memory_trace/cli.py`, `tests/test_processes.py`, `memory-trace/tests/test_process_cli.py`, `README.md`, `memory-trace/README.md`, `CHANGELOG.md`, `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/3_Spec/functionality-audit.md`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_zx704zcr1sd3k91n:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-08T14:46:00",
+    "body": "- D: Implement confirmation-gated package process shutdown and package-manager-aware upgrade execution for both `memory-seed` and `memory-trace`. - R: The dry-run MVP already proved conservative process discovery; finishing P0 needed the actual release-safety path: default-no confirmation, `--yes`, failed-shutdown blocking, explicit manager execution, and tests for non-matches/current control-command exclusion. - A: The completed proposal copy was created under `docs/2_Todo/completed/`, but the original `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md` could not be removed because OneDrive exposes it as a reparse point and denied the move/delete. Left it as a redirect placeholder. - F: `memory_seed/processes.py`, `tests/test_processes.py`, `README.md`, `memory-trace/README.md`, `CHANGELOG.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/2_Todo/completed/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/3_Spec/functionality-audit.md`, `.memory-seed/sessions/2026-07-08.md`. - T: `python -m unittest tests.test_processes` passed; `PYTHONPATH=memory-trace python -m unittest memory-trace.tests.test_process_cli` passed; `python -m unittest discover -s tests` passed (269 tests); `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed (35 tests); dry-run JSON smokes for `memory-seed shutdown`, `memory-seed upgrade`, and `memory-trace upgrade` passed; `python -m memory_seed.cli links check` passed; `python -m memory_seed.cli doctor` passed; `git diff --check origin/main...HEAD` passed.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d3",
+    "title": "D3 - Resolve process ownership through Memory Seed",
+    "date": "2026-07-12T00:38:00",
+    "body": "- D: `memory-trace upgrade` now upgrades the owning `memory-seed` package while process matching still targets active `memory-trace` UI processes. - R: The running command is `memory-trace`, but the installed distribution and upgrade target are now `memory-seed`. - F: `memory_seed/processes.py`, `tests/test_processes.py`, `memory-trace/tests/test_process_cli.py`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_session_layout",
+  "title": "Month-grouped session layout; per-user gated on 2+ participants",
+  "head": "mse_k2188xq5evwmdny9:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Session document discovery uses iter_session_documents() to read legacy flat session files (sessions/YYYY-MM-DD.md), new month-grouped flat files (sessions/YYYY-MM/YYYY-MM-DD.md), and new month-grouped per-user files (sessions/YYYY-MM/YYYY-MM-DD/<user>.md). Per-user layout activates only when 2+ participants are registered.",
+  "current_why": "Rests on the session decision that instituted it: \"Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`\" (mse_k2188xq5evwmdny9:d1). This decision established the month-grouped session layout with per-user files as canonical write targets.",
+  "live_chain": [
+   {
+    "ref": "mse_ed8zaf52k3eyaxqv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-15T02:43:00",
+    "body": "- D: Added a conservative migration API and CLI command. The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps entry `user_initials` through `.memory-seed/project.yaml` `participants:`, writes/appends to `sessions/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values, creates per-user file frontmatter with one `hash_id`, backs up each migrated flat file, then removes the flat source so dual-read does not surface duplicate entry IDs. - R: Migration has to be explicit and auditable; guessing unknown or ambiguous identity would misattribute history. Removing the flat source only after backup keeps permanent legacy dual-read support from reading migrated entries twice. - A: Silent migration during update was rejected by the roadmap and proposal; keeping migrated flat files in place was rejected because it would create duplicate IDs under dual-read. - F: `memory_seed/core.py`, `memory_seed/cli.py`, `tests/test_memory_seed.py`, `README.md`, `CHANGELOG.md`, `NEXT_STEPS.md`, `.memory-seed/index.md`, `docs/functionality-audit.md`, `docs/todo/3.0-plan.md`, `docs/todo/multi-user-session-memory-proposal.md`. - T: TDD RED checks failed first for missing `migrate_session_layout`, missing CLI command, and duplicate-initials ambiguity. `python -m unittest tests.test_memory_seed` passed (127 tests). `python -m unittest discover -s tests` passed (171 tests). `python -m memory_seed.cli doctor` healthy. `python -m memory_seed.cli links check` OK (15 files). Stale A-P5 wording scan clean. `git diff --check` reported no whitespace errors, only existing LF-to-CRLF warnings.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_k2188xq5evwmdny9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-09T20:30:00",
+    "body": "- D: Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` the new canonical write targets. - R: Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. - A: Historical files are not moved by init, update, hooks, MCP startup, or Memory Trace startup; `memory-seed migrate sessions-month-layout` is the explicit dry-run/backup migration path. - F: `memory_seed/core.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py`, `.memory-seed/hooks/session-start-context.py`, `.memory-seed/hooks/session-log-check.py`, `memory_seed/seed/.memory-seed/hooks/session-start-context.py`, `memory_seed/seed/.memory-seed/hooks/session-log-check.py`, `memory-trace/tests/test_lense.py`, `tests/test_memory_seed.py`, `tests/test_semantic_cache.py`, `tests/test_retrieval.py`, `README.md`, `CHANGELOG.md`, `docs/3_Spec/functionality-audit.md`, live and seed runtime docs. - T: `python -m unittest discover -s tests` passed 291 tests; `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed 36 tests; `python -m memory_seed.cli links check` passed; `python -m memory_seed.cli doctor` passed with the known non-fatal 33-issue encoding warning; `git diff --check` passed with the existing CRLF warning on `tests/test_retrieval.py`.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

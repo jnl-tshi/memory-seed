@@ -1,0 +1,34 @@
+[
+ {
+  "adr_id": "adr_session_layout_participant_gating",
+  "decision": "Per-user session files are written only when a user identity is explicitly configured via .memory-seed/local.yaml, MEMORY_SEED_USER environment variable, or command-line argument. Installs without user configuration remain on the flat session file. The split is a write-time change with no migration; reads discover both layouts, and an explicit --user flag bypasses the opt-in gate.",
+  "why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author exists. A single configured user represents deliberate intent rather than an active multi-user state, so waiting for explicit user configuration makes the layout change explicit and mechanical. Dual-read capability ensures reversibility without touching history.",
+  "evolution": "An initial proposal refined the multi-user approach for future implementation. Phase 1 added read-side compatibility for both file layouts without changing write targets. The final member implemented the write-side decision: opt-in user identity enables per-user files, while no-user installs stay on the legacy flat file.",
+  "covered": ["ms-41f4f32a:d1", "ms-3cad2a35:d2", "ms-38098d7a:d1"],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_skill_registry_and_generic_skills",
+  "decision": "Skills route through a deterministic registry at .memory-seed/skills/index.md so fresh agents evaluate one map rather than loading all runbooks. Trigger logic lives in the registry, not scattered as prose. Skills shipped in the seed are written generic: no hardcoded output paths, no machine-specific tool locations, command patterns shown portably. Local skill registries can carry project-local entries like developer persona skills, but those are not exported to the seed.",
+  "why": "Reading every skill to evaluate triggers is expensive; the registry removes that cost. Moving all triggers to agent-rules.md was rejected for making the operating contract too large and less extensible. Generic skill content applies the same principle to bodies: a runbook with hardcoded paths only runs on one machine. Shipping skills in the seed requires them to work on any project.",
+  "evolution": "A registry was instituted as the deterministic skill trigger map. UI debugging checks were added to the developer persona and local registry. A skill was then generalized from project-local source code, establishing the pattern of stripping machine-specific paths and locations. The latest member unified diagram questions through the same registry without adding parallel logic.",
+  "covered": ["ms-0bd3d8b2:d1", "mse_vexkm8da35zj856x:d1", "mse_fp32yxbxy3k3r5x1:d1", "mse_542z3qn0azma9mmx:d1"],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "decision": "A sub-project is a normal folder carrying its own nested .memory-seed/ runtime scoped to its containing folder. Detailed session logs remain in the nearest active runtime; parent/root memory receives only coordination summaries addressing root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. Parent policy and skills are inherited by default; local skill files exist only to override parent behavior or hold genuinely local runbooks.",
+  "why": "Localized context is preserved while root awareness of cross-project consequences is maintained. Mirroring sub-project sessions into root memory would duplicate noise and weaken runtime isolation. Each runtime's nearest folder is read first, allowing inheritance while keeping detailed logs local.",
+  "evolution": "Operational guardrails were restored in v2 language, including sub-project inheritance conflict guidance. This was then distilled into the scoping rule: detailed logs stay in the nearest active runtime, and parent gets only coordination summaries for cross-project visibility.",
+  "covered": ["ms-f776aff0:d1", "ms-0bd3d8b2:d2"],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "decision": "Topic sidecars are the sole topic authority. Entry topics come from authored topic sidecars when present, with fallback to the authored topics: field, then hashtag and heading axes. Later refinement narrowed this: topics come only from authored sidecars; other sources are not consulted. Nothing authored is edited on disk; only which reading consumers see changes, preserving reversibility. Untagged decisions remain neutral.",
+  "why": "Link structure explains relationships, not semantic classification. Inferring topics from linked entries made untagged content appear authored and obscured which decision actually carried each topic. Sidecars are the authoritative topic truth; authored sources are not edited or contradicted, only which reader sees changes.",
+  "evolution": "Strict topic precedence was established with sidecars taking priority over authored topics and hashtag axes, with the change applied only to reader output, not disk state. A second refinement removed all sources except authored sidecars, eliminating link-neighbour inference and other topic derivation methods.",
+  "covered": ["mse_8qmv0m07sy95vjm9:d1", "mse_ypmrtzfmw4qwtbnn:d1"],
+  "note": ""
+ }
+]

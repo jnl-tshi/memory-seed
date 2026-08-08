@@ -1,0 +1,151 @@
+[
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "live_chain": [
+   {
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-27T19:10:00",
+    "body": "- D: `_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`, then the hashtag/heading axes. It unioned the first two until today. - R: JNL's call, and the union stopped being right the moment the two-axis campaign finished. A union is correct while sidecars are sparse ENRICHMENT - an entry tagged `memory-trace` gaining `trail` really is both. It is wrong once the sidecar carries a COMPLETE reading of every decision on two declared axes, because unioning then re-admits the coarse pre-axis label the sweep exists to supersede: an entry reads as `memory-seed` AND `topic-vocabulary` with nothing to say which the corpus currently believes. Measured after the switch: the facet drops `memory-trace` from 204 entries to 76, because entries now answer with the specific slug rather than the root they were parked on. The root is still reachable - `expand_topic_filter` derives it from the child - so nothing lost reach, only false breadth. **Nothing authored is edited, deleted or contradicted on disk.** The entry's own YAML is untouched and still readable as what its author wrote. Only which of the two a READER is shown changed, and that is exactly what makes this reversible. - A: Union and mark provenance in the UI - rejected: it keeps the ambiguity and moves the cost to every consumer. Union only where the sidecar has no area/activity pair - rejected as a rule nobody could predict from the outside. - F: `memory-trace/memory_trace/service.py` (`_topics`), `memory-trace/tests/test_topic_sidecars.py` (assertions inverted, 2 tests added). - T: 225 Trace tests pass. Live facets rebuild to 68 slugs led by `feature-build` 222, `bugfix` 99, `ui-design` 84 - the two-axis reading, not the old one."
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d1",
+    "title": "D1 - Use authored sidecars as the only Trace topic truth",
+    "date": "2026-07-31T20:59:00",
+    "body": "- D: Project entry and decision topics only from their authored topic sidecars; remove link-neighbour topic inference, keep untagged decisions neutral, and let the parent entry expose the deduplicated union of its authored decision topics. - R: Link structure explains relationships, not semantic classification. Inferring colour or community from linked entries made untagged content look authored and obscured which decision actually carried each topic. - A: Retaining inferred linked context as a secondary colour or fallback was rejected because it would continue to present unauthored classification as topic truth. No diagram was added because this is an authority and projection rule without a new spatial or lifecycle topology. - F: `memory-trace/memory_trace/service.py`, `memory-trace/memory_trace/models.py`, `memory-trace/memory_trace/graph_projection.py`, `memory-trace/client/src/App.tsx`, `memory-trace/client/src/graphCommunities.ts`, API contracts, and the authored topic sidecar for `mse_d06t9bccm3yykfqs`. - T: Live Inspector and Graph checks confirmed exact D1/D2 topic attribution and authored communities; untagged decisions remain neutral."
+   }
+  ],
+  "summary": {
+   "decision": "Topic sidecars are the sole topic authority. Entry topics come from authored topic sidecars when present, with fallback to the authored topics: field, then hashtag and heading axes. Later refinement narrowed this: topics come only from authored sidecars; other sources are not consulted. Nothing authored is edited on disk; only which reading consumers see changes, preserving reversibility. Untagged decisions remain neutral.",
+   "why": "Link structure explains relationships, not semantic classification. Inferring topics from linked entries made untagged content appear authored and obscured which decision actually carried each topic. Sidecars are the authoritative topic truth; authored sources are not edited or contradicted, only which reader sees changes.",
+   "evolution": "Strict topic precedence was established with sidecars taking priority over authored topics and hashtag axes, with the change applied only to reader output, not disk state. A second refinement removed all sources except authored sidecars, eliminating link-neighbour inference and other topic derivation methods.",
+   "covered": [
+    "mse_8qmv0m07sy95vjm9:d1",
+    "mse_ypmrtzfmw4qwtbnn:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_topic_vocabulary_controlled",
+  "title": "Topic vocabulary: controlled, alias-preserving, canonicalised at read time",
+  "live_chain": [
+   {
+    "ref": "mse_ehm67mqpmsqm00md:d1",
+    "title": "D1 - Vocabulary derived from usage, aliases preserve every observed slug",
+    "date": "2026-07-10T16:13:00",
+    "body": "- D: This repo's vocabulary is the user-approved 19-canonical consolidation of the 62 slugs found across 50 entries (every observed slug canonical or alias, aliases resolve at read time); seeded projects get a minimal 5-topic generic starter. Deploy-once via the existing runtime-local rule so `update` never overwrites curation. - R: The plan's topic-sprawl blind spot had already materialized; deriving from real usage plus alias preservation makes the whole live corpus validate with zero errors on day one. - F: `.memory-seed/topics.yaml`, `memory_seed/seed/.memory-seed/topics.yaml`, `memory_seed/core.py` (SEED_FILES), `pyproject.toml` (package data)."
+   },
+   {
+    "ref": "mse_vy8tq90rr4br8a0z:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-12T11:49:00",
+    "body": "- D: Added `ui-design` and `memory-seed` as canonical slugs in `.memory-seed/topics.yaml` so recent 2026-07-11 entries resolve through the controlled topic vocabulary instead of failing `topics check`. - R: The invalid slugs were authored in historical entries after the original 2026-07-10 vocabulary harvest. Extending the project-local vocabulary preserves append-only session history and keeps later Trace UI/core Memory Seed work searchable without rewriting old entries. - A: Did not edit historical session entries; the requested repair is better represented as a vocabulary evolution, and the remaining four-topic notices are warnings rather than vocabulary errors. - F: `.memory-seed/topics.yaml`, `.memory-seed/sessions/2026-07/2026-07-12.md`. - T: `python -m memory_seed.cli topics check` exits 0 and reports \"Topic vocabulary OK\" with 21 topics; older four-topic entries still warn. `python -m memory_seed.cli topics list` shows the new slugs."
+   },
+   {
+    "ref": "mse_ke0f6x2v8zmd3yrf:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-19T20:15:00",
+    "body": "- D: Added `security` (aliases: openssf, supply-chain) and `performance` (aliases: perf, profiling) to the controlled topic vocabulary, with a dated header note in the house 2026-07-12 style. Vocabulary grows 21 -> 23. - R: JNL approved adding the topics rather than editing the entries. Both slugs were already in use by merged entries - the OpenSSF in-repo slice (`security`) and the fork-point memo (`performance`) - and `topics check` flagged them as unknown-entry-topic errors because neither concept had a canonical home nor a plausible alias target among the existing 21. Fixing the entries instead would have rewritten published history to accommodate a vocabulary gap, which is backwards: the vocabulary exists to describe the corpus, not to constrain it retroactively. - F: `.memory-seed/topics.yaml`. - T: `topics check` clean - 23 topics, 282 entries, zero unknown-entry-topic errors; `esr` Topics section OK."
+   },
+   {
+    "ref": "mse_jz0pwv0ngzzxr484:d1",
+    "title": "D1 - Raise the inferred-topic cap to 4 to match the corpus, not hold the machine stricter than the author",
+    "date": "2026-07-25T11:13:00",
+    "body": "- D: `MAX_INFERRED_TOPICS` goes from 3 to 4 — the corpus authored maximum. The topic-sidecar overreach check fires at 5+. - R: JNL's intuition that multi-decision entries touch more topics is confirmed by measurement: 2- and 3+-decision entries average 2.76 / 2.60 topics vs 2.10 for single-decision, and authored entries reach 4. The sidecar cap was 3, so an inferred fourth topic on a genuinely four-facet entry would be rejected — the inference path held to a stricter standard than the author holds themselves, which is backwards. The cap is kept (not removed): a label applied to everything distinguishes nothing, and the effect is bounded — nothing in the corpus exceeds 4. - A: A decision-aware cap (`min(4, 2 + decisions)`) — rejected as more machinery for a ~0.6-topic difference; a flat 4 matching the corpus max is simpler and correct. Removing the cap entirely — rejected: the restraint guard is the reason it exists. - F: `memory_seed/core.py` (`MAX_INFERRED_TOPICS`), `tests/test_links_check.py` (cap test now asserts 4 passes, 5 is overreach; test vocab widened), `docs/3_Spec/graph-edge-contract.md`. - T: 922 backend tests pass; corpus links check clean."
+   }
+  ],
+  "summary": {
+   "decision": "The project maintains a controlled topic vocabulary in `.memory-seed/topics.yaml` as a deploy-once project-local file. Authored entries use 1-3 slugs validated against the canonical list; unknown historical slugs resolve as aliases at read time, preserving every observed variation. The cap for inferred topics is 4, matching the corpus-authored maximum.",
+   "why": "Usage-derived vocabulary was necessary because sprawl had materialized before a formal schema existed. Deriving from 62 real-world slugs and aliasing ensured the entire live corpus validated with zero errors immediately. The 4-topic cap reflects the highest authored reach: a genuinely four-facet entry should not be rejected for inferring a fourth topic, which would hold inference to a stricter standard than the human author. The cap is kept rather than removed because universal labels distinguish nothing; bounded at 4, nothing in the corpus exceeds it.",
+   "evolution": "The decision started by consolidating observed 62 slugs into 19 canonical ones with aliases (2026-07-10). Two later extensions added `ui-design` and `memory-seed`, then `security` (with openssf/supply-chain aliases) and `performance` (with perf/profiling aliases), growing the vocabulary to 23 by reflecting real entry usage rather than retroactively constraining historical corpus. Finally, the inferred-topic cap rose from 3 to 4 to treat the machine and author equally.",
+   "covered": [
+    "mse_ehm67mqpmsqm00md:d1",
+    "mse_vy8tq90rr4br8a0z:d1",
+    "mse_ke0f6x2v8zmd3yrf:d1",
+    "mse_jz0pwv0ngzzxr484:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_trace_boundary",
+  "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+  "live_chain": [
+   {
+    "ref": "mse_fcecj9hpq4qj16ay:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-06T06:32:00",
+    "body": "- D: Create `memory-trace/` as a separate distribution (own `pyproject.toml`, `memory_trace` package, `memory-trace` console command, `static/` assets). `git mv`'d `memory_seed/lense.py` → `memory-trace/memory_trace/lense.py`, `memory_seed/lense_static/*` → `memory_trace/static/*`, and `tests/test_lense.py` → `memory-trace/tests/`. Repointed the module's imports to the public `memory_seed` API, and its static-asset/hint references to `memory_trace`. Core `pyproject.toml` sheds `fastapi`/`uvicorn` and the `lense_static` package-data; the `[lense]` extra and the `memory-seed lense` CLI subcommand became deprecation shims that install/point to `memory-trace`. - R: The extraction boundary is clean because `lense.py` imported **only public names** from `core`/`retrieval`/`semantic_cache` (verified) - no private reach-through - so the whole module moves and imports the frozen public surface, satisfying the plan's \"no forking, public API only\" rule. Keeping the whole `LenseService`/`LenseCache` in the moved module (rather than splitting) is correct: it depends only on public core symbols and has no web-framework import at module load. - A: Considered leaving `LenseService`/`LenseCache` in core and moving only the FastAPI app; rejected - they are Explorer presentation code, and the acceptance criterion is \"no Explorer code in core,\" not just \"no web framework.\" Considered promoting lense's private helpers to public core API; unnecessary since they are module-internal and move with the module. - F: `memory-trace/` (new: pyproject.toml, README.md, memory_trace/{__init__,cli,lense}.py, memory_trace/static/*, tests/{test_lense,test_parity}.py), `memory_seed/cli.py` (lense shim), `pyproject.toml` (extra→shim, drop web deps + lense_static data), `.memory-seed/index.md`, `README.md`, `docs/functionality-audit.md`, `docs/todo/memory-trace-distribution-plan.md` (Phase 2 marked implemented), `tests/test_memory_seed.py` (shim test). - T: Core suite 236 passed (7 subtests); memory-trace suite 25 passed incl. a new cross-package parity test (`test_parity.py`: LenseService search/chunk == MCP `memory_search`/`memory_get_chunk`). `python -c \"import memory_seed\"` loads no fastapi/uvicorn; `memory_seed.lense` is gone. `node --check` on the moved app.js OK; `links check` clean (27 files); `doctor` healthy. Unreleased."
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d1",
+    "title": "D1 - Bundle Trace in the root distribution",
+    "date": "2026-07-12T00:38:00",
+    "body": "- D: Ship `memory_trace` and the `memory-trace` command from the root `memory-seed` package behind the optional `trace` extra. - R: PyPI rejected the standalone `memory-trace` project name, and the monetisation strategy no longer needs a split at the installation layer. - A: Keeping a separate `memory-trace` distribution was rejected because it added release coordination and naming risk without matching the current commercial packaging plan. - F: `pyproject.toml`, `memory-trace/memory_trace/lense.py`, `memory-trace/memory_trace/__init__.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py`."
+   }
+  ],
+  "summary": {
+   "decision": "Memory Trace ships as an optional extra in the root `memory-seed` package, not as a separate PyPI project. The `memory-trace` command, FastAPI web stack, and static assets live in `memory-trace/` as a separate source tree. Core `memory_seed` carries no web framework; Trace consumes the public retrieval API.",
+   "why": "Separating Trace as its own distribution cleanly extracted presentation and web concerns from core, with Trace importing only public API symbols. Bundling back into the root package as an optional extra resolved practical constraints: PyPI rejected the standalone `memory-trace` project name, and the commercial strategy no longer required installation-layer separation. The release path changed to fold Trace into the root install rather than maintain separate distribution coordination.",
+   "evolution": "The decision first extracted Trace into a separate distribution with its own `pyproject.toml`, package, command, and assets, moving `lense.py` and static files out of core (2026-07-06). Seven days later, when PyPI naming barriers emerged and commercialisation strategy shifted, the decision bundled Trace back into the root package as an optional `trace` extra while retaining the source-tree separation (2026-07-12).",
+   "covered": [
+    "mse_fcecj9hpq4qj16ay:d1",
+    "mse_etm5m5682sseasgm:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "title": "Trace startup incremental; immutable git derivations persist",
+  "live_chain": [
+   {
+    "ref": "mse_gtn504wfjt3c34p6:d1",
+    "title": "D1 - Persist immutable git derivations per sha; bulk-read history in single passes",
+    "date": "2026-07-21T14:58:00",
+    "body": "- D: Rebuilt the TraceCache enrichment pipeline around two principles: (1) immutable git facts (a merge's fork point, a commit's parents, its first-parent changed paths) are computed once per commit EVER and persisted in the disposable SQLite projection (schema v2: `fork_points`, `commit_parents`, `changed_paths`, `file_entries` tables), carried across full rebuilds; (2) all history harvesting happens in single delimited `git log` passes - fork points resolve in-process via maximal-common-ancestor over one bulk commit-graph read (with a `git merge-base` subprocess fallback only for criss-cross ambiguity), and per-work-commit changed paths come from one `git log --diff-merges=first-parent --name-only` pass instead of one `git diff` per commit. - R: Direct profiling on this corpus (new `python -m memory_trace.bench` harness, built FIRST per the task brief): full rebuild 44.3s spawning 990 git subprocesses, of which trailer/fork reconstruction was 17.4s/297 procs and the file-entry index 15.2s/342 procs - per-historical-item subprocess spawns at ~50-90ms each on Windows were the entire problem; parsing was 0.5s. The 2026-07-18 fork-point memo (entry `mse_81s84hmztx3ayqww`) fixed this within one process but was in-memory only, so every fresh server launch repaid the full walk. Retrieved the prior reasoning first: the projection contract (G1-G7) requires everything persisted to stay derived/rebuildable; unresolvable (None) fork points are deliberately NOT persisted so a deepened shallow clone can recover them. Body-scan trailer semantics (entry `mse_skpkqx0hhkw6ve4f`) and oldest-commit-wins attribution (entry `mse_e2vh8bqt4x0w6ljd`) preserved verbatim. - A: `_trunk_ref_and_sha`, `_commit_graph`, `_bulk_fork_points` (+ downward-closed-set maximality argument in its docstring), `_trailer_walk`/`_resolve_event_forks` (walk and fork resolution decoupled), `_changed_paths_bulk`, `_file_entry_index_from_parts` (pure derivation). Also fixed the pre-existing hardcoded-`main` asymmetry in `_file_entry_index` (now uses the main/master/HEAD fallback chain like its siblings). - T: Same corpus, same harness: full rebuild 44.3s/990 procs -> 1.46s/7 procs; trailer walk 17.4s -> 0.23s; file index 15.2s -> 0.78s. New regression test pins the count: rebuild subprocess total is IDENTICAL at 3 merges and 9 merges (per-item git work cannot silently return)."
+   }
+  ],
+  "summary": {
+   "decision": "Memory Trace startup is incremental. Immutable git derivations—fork points, commit parents, and changed-path trees—are computed once per commit and persisted in the SQLite projection to carry across rebuilds. History harvesting uses bulk single-pass git log operations rather than per-item subprocess spawns.",
+   "why": "Direct profiling showed the prior design spawned 990 git subprocesses on a full rebuild, with 17.4 seconds spent on fork reconstruction and 15.2 seconds on file-entry indexing alone. Profiling revealed per-historical-item subprocess calls at 50–90 ms each on Windows were the entire bottleneck. Persisting immutable facts to the SQLite schema (the same contract that requires derived projections to stay rebuildable) eliminates recomputation on server restart, while bulk-read git history passes (fork-point resolution via maximal-common-ancestor and changed paths via single `git log --diff-merges=first-parent` passes) drop subprocess overhead from 990 to 7 calls.",
+   "evolution": "This decision consolidated startup performance in one session (2026-07-21), with no prior chain members. The work built a profiling harness first to confirm subprocess overhead was the root cause, then implemented immutable derivation caching and bulk-read patterns simultaneously.",
+   "covered": [
+    "mse_gtn504wfjt3c34p6:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_trace_trail_first_ui",
+  "title": "Memory Trace is Trail-first, with search a function over the open view",
+  "live_chain": [
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d1",
+    "title": "D1 - Promote the new plan package",
+    "date": "2026-07-11T13:00:00",
+    "body": "- D: Treat the Memory Trace next-generation blueprint and roadmap as active Memory Trace planning documents, with Trail-first product architecture and Evidence Pack/provenance work captured as first-class todo/spec material. - R: The inbox package added product, frontend, provenance, commercial, hosted, and roadmap decisions that were broader than the existing piecemeal Trace plans and needed to become part of the normal proposal lifecycle. - F: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md`, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md`, `docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`, `docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md`, `docs/2_Todo/memory-trace-commercialisation-and-monetisation-report.md`, `docs/2_Todo/memory-trace-hosted-product-and-security-architecture.md`, `docs/3_Spec/memory-trace-trail-search-and-graph-ux.md`, `docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md`."
+   },
+   {
+    "ref": "mse_rsjbgk4qnyrtvv09:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-15T17:33:00",
+    "body": "- D: Promoted the four-document Memory Trace graph/workspace proposal set to active `2_Todo` work and made it the detailed shape of B0: shell clarification/shared selection, renderer-neutral graph contract, renderer benchmark, topology-first graph, dockable inspector, and a later optional structural-provider tail. - R: This is the work JNL explicitly asked to evaluate and fold into the plan, and it directly refines the 2026-07-15 roadmap decision that React stays deferred until the graph view gets proper attention. The documents are actionable proposals rather than source-only reference reports: they define scope, order, acceptance criteria, and open benchmark decisions. - A: Did not put the provider proposal first. It depends on the native graph/workspace contract, so it is sequenced as the tail after graph/workspace foundations; `code-review-graph` remains an optional pilot, Graphify a benchmark, and SCIP later. - A: No diagram sidecar; the workstream sequence is already captured in the promoted index and B0 plan text, and a sidecar would duplicate the roadmap structure rather than clarify it. - F: `docs/2_Todo/memory-trace-graph-and-workspace-proposal-set-index.md`, `docs/2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md`, `docs/2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md`, `docs/2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/README.md`. - T: `python -m memory_seed.cli links check` OK (45 files); `python -m memory_seed.cli doctor` healthy except pre-existing encoding warnings; `python -m memory_seed.cli esr` OK for integrity/topics/seed twins; lane count verified as Inbox 2 / Todo 25."
+   },
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d1",
+    "title": "D1 - Serve the React shell as an additive packaged route",
+    "date": "2026-07-16T14:14:00",
+    "body": "- D: Build `memory-trace/client/` with Vite and package its content-addressed output under `/next` and `/assets/react/*`, while keeping `/` on the vanilla client. - R: The shell can consume only the stable `/api/v1/*` contract and prove offline wheel delivery without making a parity or migration claim for the existing Trace UI. - F: `memory-trace/client/`, `memory-trace/memory_trace/service.py`, `memory-trace/memory_trace/static/react/`, `pyproject.toml`, `memory-trace/tests/test_static_serving.py`. - T: TypeScript check and production build passed; a local Chrome sweep rendered the graph with no page errors at 1440px and 390px; the offline wheel contains the React entry document and all hashed assets."
+   }
+  ],
+  "summary": {
+   "decision": "Trail is the primary chronological evidence surface; Graph is secondary for exploration. The generic timeline is retired. Search is a function over the open view rather than a destination, returning ranked results and in-place highlighting. A React client ships additively at `/next` and `/assets/react/*` against stable v1 API contracts while the vanilla client continues serving the root.",
+   "why": "Trail reads chronology without the temporal noise a generic timeline introduces, making it the better default surface for evidence work. Keeping search as an overlay function on the active view preserves reader attention rather than redirecting to a third place. Shipping React additively proves offline wheel delivery and stable API consumption without requiring parity or migration claims for the existing Trace UI, letting the vanilla client remain current.",
+   "evolution": "The decision unfolded across three moves: first, planning documents for Trail-first architecture and Evidence Pack provenance work were elevated to active material (2026-07-11). Next, a graph/workspace proposal package was promoted from review to active `2_Todo` work, detailing Shell, Graph, Workspace, and Inspector components (2026-07-15). Finally, the React client was shipped additively at its own route, consuming only the v1 API while vanilla stayed at root (2026-07-16).",
+   "covered": [
+    "mse_loe4c3vbaeeq22dt:d1",
+    "mse_rsjbgk4qnyrtvv09:d1",
+    "mse_rqkgatgt5eh55yb8:d1"
+   ]
+  }
+ }
+]

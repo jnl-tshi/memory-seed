@@ -1,0 +1,167 @@
+[
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "head": "mse_c3a4z35t4m4rjf1n:d1",
+  "head_is_newest_live": false,
+  "current_summary": "A published lifecycle edge is never edited in place. A downgrade or removal is expressed by appending a NEW sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates malformed, dangling and forward-only violations. A downgrade is a retract of the old kind plus a fresh edge of the new kind, authored together. `session merge-branch` refuses in-place edits to published link sidecars, and that guard is not to be bypassed.",
+  "current_why": "Rests on the session decision that instituted it: \"Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed\" (mse_c3a4z35t4m4rjf1n:d1). Introduced the append-only retracts mechanism enabling non-destructive correction of published lifecycle edges.",
+  "live_chain": [
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25T19:15:00",
+    "body": "- D: Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be downgraded or removed without reopening the block that declared it (which the fuse forbids). A new correction block declares `retracts: <kind> <ref> [(YYYY-MM-DD)]`; the reader (`entry_link_sidecars`) unions all edges then subtracts each retracted one (entry-level by `(kind, target)`, decision by the exact 4-tuple); `links check` validates malformed / dangling (nothing to retract) / forward-only (retract cannot pre-date the edge). A downgrade is a retract of the old kind plus a fresh edge of the new kind, authored together - so `evolves` becomes `related` with no block reopened. - R: The hand-audit exposed the gap directly: `session merge-branch` rightly refused my in-place edits to published sidecar blocks (append-only), and there was no sanctioned way to reclassify an edge, so I had to bypass the guard with a plain merge (JNL kept that correction but asked for a real mechanism). This closes it - future corrections use the path the fuse already accepts (a new block). Per JNL's steer, the retract identifies its target by kind + ref and is optionally pinned by the original declaration date (\"use the date and the id\"). - A: A `reclassifies:` one-liner (retract-plus-readd) was considered and deferred - the explicit retract+readd pair reads clearer. Editing blocks in place (rejected: bypasses the guard) and deleting them (rejected: destroys the evidence the edge existed) were the non-append-only alternatives. - F: memory_seed/core.py (parser, validator), memory_seed/retrieval.py (reader subtraction), tests/test_links_check.py (3 cases), docs/3_Spec/draft/link-retraction.md - T: 3 new retract tests pass; full backend suite; `links check` integrity OK",
+    "is_head": true
+   },
+   {
+    "ref": "mse_fsdq53qa5ak68xqh:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25T20:27:00",
+    "body": "- D: Converted the 5 hand-audit downgrades from in-place link-sidecar edits (an Invariant #2 violation) to append-only `retracts:` blocks: restored each original `evolves` edge and appended a `retracts: evolves <ref> (<date>)` + fresh `related_entries: <ref>` correction block, so the effective edge is still `related` but the history is append-only and the campaign's original claim is preserved. Also fixed a retract-reader bug the conversion exposed - an arrow-prefixed bare ref (`d2 -> X`) is collected as BOTH an entry-level edge and a source-only decision edge, so a retract must remove both twins or the decision one silently survives (pair mse_hejpp9whj0nn8jyy showed it). Added a regression test. - R: Reading `docs/CONSTITUTION.md` to update its durable facts surfaced that the earlier plain-merge of the in-place downgrades (`ea29bcc`) rewrote PUBLISHED link sidecars - exactly what Invariant #2 (append-only) forbids, and the v1.4 amendment log explicitly walls link sidecars off from in-place editing (citing the same fuse refusal I bypassed). At the time neither JNL nor I framed it as a constitutional violation and JNL said \"keep it as is\" - but that was before the sanctioned `retracts:` mechanism existed. Presented the finding; JNL chose to convert. This restores the corpus to Invariant #2 compliance and makes the pending docs honest. The twin fix is required for the conversion to actually complete each downgrade. - A: Leave the in-place edits and document the exception (rejected by JNL in favour of compliance). git-revert the audit merge (rejected: messier than a targeted restore + retract, and would not add the retract blocks the append-only path needs). - F: .memory-seed/sessions/links/2026-07/{2026-07-03,05,12,16,17}.md (restore evolves + retract block); memory_seed/retrieval.py (twin-retract fix); tests/test_links_check.py (twin regression test) - T: 4 retract tests (incl. new twin case); reader confirms all 5 downgrades now `related` not `evolves`; `links check` integrity OK",
+    "is_head": false
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "head": "mse_gn2kmdenk0p4cn7z:d1",
+  "head_is_newest_live": true,
+  "current_summary": "The memory core is kept as plain Markdown and predictable for file-reading agents. All critical control-plane files, session logs, and decision records are encoded in readable, human-editable Markdown rather than binary or structured formats.",
+  "current_why": "Rests on the session decision that instituted it: \"**Markdown is authoritative *everywhere*** (Invariant #6 reframed)\" (mse_gn2kmdenk0p4cn7z:d1). Established Markdown as the authoritative substrate by reframing it as Invariant #6 in the Constitution, making it the core for all file-reading agents.",
+  "live_chain": [
+   {
+    "ref": "mse_gn2kmdenk0p4cn7z:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-14T15:10:00",
+    "body": "- D: Refined the Constitution draft (`docs/CONSTITUTION.md`) after a design-conversation exploration of optional implementation layers. Widened the pending \"database\" edit into a general **derived-layer / optional-tier model** and RESOLVED the source-of-truth-under-collaboration fork: **Markdown is authoritative *everywhere*** (Invariant #6 reframed), including a future hosted/collaborative tier — every other store (cache, index, DB, embedding, hosted backend) is a derived, rebuildable projection, never a second source of truth; concurrent writes resolve *into* Markdown. Invariant #1 gained a core carve-out (optional layers may add cache/index/DB/hosted service; the core never depends on them). Added an **\"Open-core, one source of truth\"** principle. Rewrote §5 Implementations as bands by distance from the core: core / derived accelerators (DuckDB, SQLite FTS5, vector index) / optional-local (React, **VS Code extension**, desktop, local AI) / hosted-collaborative. §10: marked the collaboration fork RESOLVED; the remaining open item is *which* commercial tier to reach (local-pro / team-hosted / enterprise) and when. - R: The maintainer wanted the human-readability invariant reviewed against a potential optional Postgres accelerator while keeping Markdown the foundation. Per the advisor: this is a design conversation, not a research deliverable — do NOT fan out (open-ended architecture ideation is a sprawl engine); sketch the option space by *distance from the invariant line*. The real fork a flat sweep buries: does a hosted, multi-user tier keep Markdown authoritative, or make a server DB authoritative with Markdown as an export? The maintainer chose Markdown-authoritative everywhere (open-core). That makes the wording clean — the source-of-truth invariant extends to all tiers, so a read-only *or* collaborative DB is always a derived projection — and it unblocks the performance/commercial direction (DuckDB/vector accelerators, a VS Code extension, a hosted tier) without weakening any invariant. This is exactly the case the Constitution's invariant/implementation tiering exists to resolve. - A: Fan out ~5 agents to survey architecture options (rejected, advisor — open-ended ideation sprawls; sketched directly). DB-authoritative on the hosted tier with Markdown as export (rejected by the maintainer — splits the truth model and undercuts the core differentiation). A separate new \"source-of-truth\" invariant (rejected — folded into #6 to keep invariants at 7, no sprawl). - F: docs/CONSTITUTION.md (Invariants #1 & #6; new open-core principle; §5 Implementations bands; §10 open questions; header note). - T: `links check` OK (43 files); the internal link resolves; `encoding check` OK; 1608 words (within the one-sitting target). Still a RATIFICATION DRAFT — not ratified.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_mcp_integration_surface",
+  "title": "MCP integration: per-agent config placement, upsert semantics, and a gated write surface",
+  "head": "mse_vzsef0fmpsde2jh4:d1",
+  "head_is_newest_live": true,
+  "current_summary": "Each agent's MCP config goes where that agent actually reads it - Claude in project-root `.mcp.json`, Codex in `.codex/config.toml` - written on init unconditionally rather than gated on a PATH probe. Merges upsert: a matching command is overwritten, a different one under the same key is left alone. The MCP write surface is gated, with `memory_session_append` the only authoring path, inheriting the same write-time guards as the CLI.",
+  "current_why": "Config placement is per-agent because each vendor discovers servers differently, and writing to the wrong file fails silently. Upsert-on-matching-command protects a user's own server that happens to share our key while still keeping ours current. Unconditional write avoids a PATH probe that is wrong at init time anyway. The write surface is gated because an ungated pair let MCP writes bypass guards the CLI enforced - the write-surface parity rule.",
+  "live_chain": [
+   {
+    "ref": "ms-4c8e2a17:d1",
+    "title": "D1 - Write MCP config unconditionally, no PATH check at init time",
+    "date": "2026-05-29T13:48:00",
+    "body": "- D: `init_project` writes MCP server config for all three vendors unconditionally, without checking if `memory-seed-mcp` is on PATH first. - R: If the user ran `memory-seed init`, the binary shipped in the same package and should already be on PATH. Checking at init time adds complexity for a failure case that can't happen through normal persistent installation. - A: Check PATH at init and warn — rejected because the check is fragile (binary could disappear later) and doesn't cover the `uvx` case anyway. - F: `memory_seed/core.py`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-7b3f1e92:d3",
+    "title": "D3 - MCP upsert: overwrite if command matches, skip if different command owns the key",
+    "date": "2026-05-29T14:07:00",
+    "body": "- D: MCP merge functions compare the full expected dict. If the key exists with a different `command`, leave it alone (user may have a different server named `memory-seed`). If the command matches but args differ, overwrite. - R: Protects user customization while still correcting stale args from our own prior installs. - F: `_merge_claude_mcp`, `_merge_cursor_mcp`, `_merge_gemini_mcp`.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-a3f91c2b:d1",
+    "title": "D1 - Decision",
+    "date": "2026-05-29T15:17:00",
+    "body": "- D: Change `_MCP_SERVER_COMMAND` from `\"memory-seed-mcp\"` to `\"uvx\"` with `\"memory-seed-mcp\"` as the first arg. - R: Claude Code (and other agents) spawn MCP servers without inheriting the user's full PATH. `~/.local/bin` — where `uv tool` installs scripts — is not on Claude Code's PATH, so `memory-seed-mcp` was silently not found. `uvx` is part of uv and is typically available at the system level. - A: Hardcoding the absolute path was rejected — breaks portability across machines and users. - F: `memory_seed/core.py` (`_MCP_SERVER_COMMAND`, `_MCP_SERVER_ARGS`); `.claude/settings.json`, `.cursor/mcp.json`, `.gemini/settings.json` updated to match.",
+    "is_head": false
+   },
+   {
+    "ref": "ms-6a09aea8:d1",
+    "title": "D1 - Claude MCP server belongs in project-root .mcp.json, not settings.json",
+    "date": "2026-06-03T22:54:00",
+    "body": "- D: `_merge_claude_mcp` now writes `.mcp.json` at the project root (no `type` field); `.claude/settings.json` keeps hooks/permissions only. - R: Claude Code discovers project-scope MCP servers from `.mcp.json`, `~/.claude.json`, or `claude mcp add` - the `mcpServers` key in `settings.json` is the Cursor/generic format and is silently ignored. The bare {command,args} form (no type) was verified working in the issue report. - A: `claude mcp add` shell-out at init - rejected; fragile, needs the CLI on PATH and a live config, vs. a declarative checked-in file. - F: `memory_seed/core.py` (`_merge_claude_mcp`).",
+    "is_head": false
+   },
+   {
+    "ref": "ms-2cd452e4:d1",
+    "title": "D1 - Codex MCP belongs in project .codex/config.toml, written via zero-dep text upsert",
+    "date": "2026-06-03T23:43:00",
+    "body": "- D: Added `_merge_codex_mcp` writing `[mcp_servers.memory-seed]` to `.codex/config.toml`; wired into both init/update `hook_merges` tuples. Detection uses stdlib `tomllib` (read-only); writes are line-based (append our block when absent, replace just our table's lines when stale) so existing content and comments survive. - R: Codex's project MCP config is TOML, not JSON, so the existing JSON mergers do not apply. Text-upsert preserves user comments/formatting and adds no dependency, matching the project's minimal-dep, local-first ethos. - A: Add `tomli-w` and round-trip via dict - rejected; loses comments and adds a dependency. `codex mcp add` shell-out - rejected; fragile, needs CLI on PATH (same reasoning as the Claude `.mcp.json` fix). - F: `memory_seed/core.py` (`_merge_codex_mcp`, `_render_codex_mcp_block`, `_CODEX_MCP_HEADER_RE`, `tomllib` import, both tuples).",
+    "is_head": false
+   },
+   {
+    "ref": "ms-2cd452e4:d2",
+    "title": "D2 - Surface the trust requirement (Codex's silent-failure trap)",
+    "date": "2026-06-03T23:43:00",
+    "body": "- D: Project `.codex/config.toml` loads only for *trusted* directories, so the trust step is surfaced in three places: a README caveat next to the Claude one, a one-line note appended in the `--codex` branch of `memory-retrieval-check.py` (live + seed copy), and a non-fatal `doctor` warning (new `DoctorResult.warnings`) when `.codex/hooks.json` exists but the MCP entry is missing. - R: This is the exact class of bug just fixed for Claude (config written where the agent never reads/loads it). Trust is unavoidable and invisible; documenting + warning prevents a repeat silent failure. - F: `README.md`, `.memory-seed/hooks/memory-retrieval-check.py` + seed copy, `memory_seed/core.py` (`doctor`, `_codex_mcp_registered`), `memory_seed/cli.py` (print warnings before the ok early-return).",
+    "is_head": false
+   },
+   {
+    "ref": "ms-6eeb512f:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-03T23:55:00",
+    "body": "- D: De-silence + document, keeping the safe no-op and zero-dep design. Replaced `_codex_mcp_registered` (bool) with `_codex_mcp_status` returning `absent | current | foreign | stale-fixable | stale-manual`; `doctor` now emits a distinct non-fatal warning per actionable state. Did NOT expand the update path to migrate exotic forms. - R: The real hazard was silence, not the non-migration. A status classifier removes the silence cheaply; actually migrating dotted/inline forms needs either a TOML writer that loses comments or fragile multi-form text surgery (both previously rejected). - A: Fully handle exotic forms - rejected (comment loss / fragility). Documentation-only - rejected (leaves the silent stale case). - F: `memory_seed/core.py` (`_codex_expected`, `_codex_standard_header_index` shared by merge + status, `_codex_mcp_status`, `doctor` warning branches, expanded `_merge_codex_mcp` docstring); `README.md` (Codex callout sentence).",
+    "is_head": false
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": "D1 - Gate the MCP write surface, retire the ungated pair",
+    "date": "2026-07-19T20:01:00",
+    "body": "- D: Added `memory_session_append`, wrapping core `session_append_entry`, as the only way to author an entry over MCP. It inherits the nine write-time guards (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format) and returns refusals as `{ok: false, issues}` rather than a JSON-RPC error, so each independently-fixable problem stays actionable. Removed `memory_entry_id` and `memory_session_target`: an id plus a target path was the whole bypass, and it is what agents actually used - this session's earlier entries were hand-written through it. A new `dry_run` on both the tool and core (`session append --dry-run`) runs every guard and returns the id, timestamp and path without writing, preserving the pre-flight and no-CLI-fallback the removed pair provided - strictly more than they did, since it also reports whether the body would be accepted. - R: Two authoring paths of unequal strength existed; the weak one enforced nothing and its violations only surfaced later in `links check`. Making the gated path the only MCP path closes that gap at the surface instead of trusting a description. The clock discipline from `memory_entry_id` (server stamps by default, drift warning past 10 minutes) moved onto the new tool so removing it regressed nothing. - A: Rejected keeping `memory_entry_id` with a redirect description - the bypass stays open for any agent that ignores wording, which is exactly the failure mode. `dry_run` covers its legitimate uses. - F: `memory_seed/mcp_server.py`, `memory_seed/core.py`, `memory_seed/cli.py`. - T: `tests/test_mcp_session_append.py` (17 cases: guards as issues, dry-run writes nothing yet predicts the id, the cwd precondition, drift warnings, the two retired tools unreachable).",
+    "is_head": true
+   }
+  ],
+  "replaced": [
+   {
+    "ref": "ms-4c8e2a17:d2",
+    "replaced_by": [
+     "ms-a3f91c2b:d1"
+    ]
+   },
+   {
+    "ref": "ms-4c8e2a17:d4",
+    "replaced_by": [
+     "ms-6a09aea8:d1"
+    ]
+   },
+   {
+    "ref": "mse_81v7vk4x5ys3k2n0:d3",
+    "replaced_by": [
+     "mse_vzsef0fmpsde2jh4:d1"
+    ]
+   }
+  ],
+  "unresolvable": []
+ },
+ {
+  "adr_id": "adr_mcp_metadata_and_filters",
+  "title": "MCP retrieval metadata and filters: read-only, applied before ranking",
+  "head": "mse_dbt6c32kk5dk55xs:d1",
+  "head_is_newest_live": true,
+  "current_summary": "`memory_search` and `memory_get_chunk` expose per-entry user, session date, path and file hash as read-only metadata. `memory_search` accepts user and date-range filters, applied BEFORE ranking. `exclude_superseded` is opt-in and never defaults on. No ranking weight is derived from a filter.",
+  "current_why": "Filtering before ranking keeps retrieval deterministic and each constraint orthogonal, so a client can compose them without the ranker quietly reinterpreting the result. `exclude_superseded` stays opt-in because retrieval must never hide live history by default.",
+  "live_chain": [
+   {
+    "ref": "mse_77cn2v0rg9na3w0v:d2",
+    "title": "D2 - A-P4 MCP metadata and filters",
+    "date": "2026-06-15T02:26:00",
+    "body": "- D: `MemoryChunk` now carries per-file `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search`/`memory_get_chunk` expose `session_date`, `path`, `user`, `file_hash_id`, and `related_entries`; `memory_search` accepts `user`, `date_from`, and `date_to` filters before ranking. - R: This completes the next reviewed multi-user increment and gives the future Explorer a stable metadata/filter contract without forking retrieval from MCP. - F: `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `tests/test_semantic_cache.py`, `tests/test_mcp_server.py`, `README.md`, `CHANGELOG.md`, `.memory-seed/index.md`, `docs/functionality-audit.md`, `docs/todo/3.0-plan.md`, `NEXT_STEPS.md`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d2",
+    "title": "D2 - Read-only filterable API surface",
+    "date": "2026-06-15T20:13:00",
+    "body": "- D: Implemented service/API routes for runtime, search, chunk fetch, entries, timeline, graph, contributors, and stats; added entry filtering by user, agent type, tag, and date range. - R: The user clarified that Memory Lense must support criteria-based exploration, not just semantic search. - F: `memory_lense.service`, `memory_lense.server`, static UI filters, `tests/test_memory_lense.py`.",
+    "is_head": false
+   },
+   {
+    "ref": "mse_dbt6c32kk5dk55xs:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-04T15:08:00",
+    "body": "- D: Added `exclude_superseded: bool = False` to `rank_session_memory`. When set, it builds the related-entry graph, collects entry_ids with a non-empty `superseded_by`, and drops those chunks from the candidate set for that query only (before ranking, so top_k still fills from survivors). Wired it into `memory_search`'s MCP input schema (default `false`) and dispatch. Chose parameter name `exclude_superseded` (plan Open Decision 1) — descriptive and matches the plan/CHANGELOG references. Backend-only; no CLI/UI default, per the plan's \"never a default, never a hard exclusion unless requested\" constraint. - R: The plan was fully specced and unblocked once `superseded_by` shipped (supersedes P1). Filtering pre-ranking (not post-top_k) keeps the surviving result set full and doesn't touch default ranking math — consistent with \"opt-in narrowing like date_from/date_to.\" - A: Before implementing, committed the concurrent Codex doc-reorg pile as its own checkpoint (`2f6d0d6`) rather than sweeping it into this feature commit or reverting it — got a clean baseline and preserved Codex's work (it had its own session entry, mse_r1ey59bbv1jsseth). Verified the reorg was healthy (links/doctor clean) and that my P1b status edits survived the plan-doc moves before committing it. Considered building the superseded set from the already-extracted corpus to avoid a second graph build; kept the simpler `build_related_entry_graph(cwd)` call since it's read-only and correctness-obvious. - F: `memory_seed/semantic_cache.py` (`exclude_superseded` in `rank_session_memory`), `memory_seed/mcp_server.py` (schema + dispatch), `tests/test_mcp_server.py` (2 paired tests: default returns the superseded entry, flag drops it — mutually discriminating), `docs/todo/completed/exclude-superseded-filter-plan.md` (moved from `docs/todo/`, status → implemented, sibling links fixed), `CHANGELOG.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md` (§3I filter list, roadmap \"all 6 implemented\", test count 239). - T: Full suite 239/239. `doctor` healthy, `links check` clean (24 files). The two search tests discriminate: with the flag off the superseded entry is present, with it on the entry is absent while the current one stays.",
+    "is_head": true
+   }
+  ],
+  "replaced": [],
+  "unresolvable": []
+ }
+]

@@ -1,0 +1,137 @@
+[
+ {
+  "adr_id": "adr_diagram_sidecar_structure",
+  "title": "Diagram sidecars: one dated file per day, keyed by entry, deterministically validated",
+  "live_chain": [
+   {
+    "ref": "mse_m677wfhvq7s8b1x8:d1",
+    "title": "D1 - Deterministic sidecar validation inside the single validator",
+    "date": "2026-07-05T13:10:00",
+    "body": "- D: `check_session_links()` now scans `sessions/diagrams/*.md` after the entry-ID pass: no/invalid frontmatter or missing `entry_id` or no ```mermaid block or unbalanced fence -> `malformed-diagram`; filename stem != frontmatter `entry_id` -> `diagram-filename-mismatch`; `entry_id` resolving to no known entry -> `orphan-diagram`. Sidecars stay optional (no issue for entries without one), the fence check is purely lexical (no Mermaid semantic parsing), and sidecar files count toward `files_checked`. `iter_session_documents` needed no change - `diagrams/` is skipped naturally because only date-named directories match the per-user-day pattern. - R: The graph-edge contract requires new artifact validation to live in the one validator, reusing its scan; the plan requires deterministic checks only."
+   },
+   {
+    "ref": "mse_0vbj4zdcc11s3ggj:d1",
+    "title": "D1 - One dated file per day, multiple diagram blocks appended, each keyed by entry_id inside",
+    "date": "2026-07-05T14:40:00",
+    "body": "- D: Sidecars now live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` - one file per date. Each diagram is a heading block shaped exactly like a session entry: `## <timestamp> - <title>` + fenced ```yaml block naming `entry_id` + fenced ```mermaid block(s). Multiple diagrams logged the same day append to the same file, ascending time order, exactly like session logs. `check_session_links()` reuses the existing `_ENTRY_TS_YAML_RE`/`_ENTRY_ID_RE` regexes (the same ones that parse session entries) rather than forking a new pattern. Issue kinds changed: `diagram-filename-mismatch` (stem vs frontmatter) no longer makes sense once multiple entries share one file, replaced by `diagram-date-mismatch` (the entry's real session date, read from the same `entry_timestamps` map the supersedes-postdates check already builds, must equal the diagrams filename date). `malformed-diagram` widened to also cover a non-date filename and \"no heading+yaml block found.\" `retrieval.entry_diagram_sidecars()` rewritten in parallel with its own local regex (kept separate from core.py's validator per the original design: the retrieval-side reader stays lenient/best-effort and skips malformed blocks silently, while `links check` owns strict reporting). - R: Direct user design instruction, with a clear stated rationale (filesystem-visual traversal parity with session logs) that the original per-entry_id-file design didn't serve as well. - A: Considered keeping per-entry_id frontmatter as a secondary field inside the new format - rejected; entry_id inside the yaml fence is the single link, matching how the plan's Phase 1 design note already insisted on \"one link source.\" - F: `memory_seed/core.py` (validator rewritten + docstring), `memory_seed/retrieval.py` (entry_diagram_sidecars rewritten, `re` import added), `.memory-seed/skills/session_logging.md` + seed twin (Decision Diagram Sidecars section rewritten), `.memory-seed/skills/end_of_turn.md` + seed twin (step 3 path reference), `tests/test_retrieval.py` (rewrote 3 diagram tests, added a multi-entry-per-file test), `tests/test_lense.py` (diagram test path/format), `.memory-seed/sessions/diagrams/2026-07-05.md` (renamed via `git mv` from `mse_3n3mp35ekz08t4zb.md` and reformatted to the new shape), `docs/todo/session-decision-diagrams-plan.md`, `docs/todo/memory-seed-explorer-distribution-plan.md`, `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md` (all path/issue-kind references updated). - T: Full suite 257/257 (was 256; +1 multi-entry-per-file test). `links check` clean (26 files). `doctor` healthy. Real-repo smoke: `entry_diagram_sidecars('.')` resolves the renamed/reformatted sidecar correctly."
+   }
+  ],
+  "summary": {
+   "decision": "Diagram sidecars live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` with one file per date. Each diagram is a heading block with timestamp and title, containing a YAML block with `entry_id` and one or more Mermaid blocks. Multiple diagrams logged on the same date append to the same file in ascending time order, mirroring the session-log convention. Validation is deterministic and covers frontmatter integrity, required `entry_id` presence, mermaid fence balance, filename-date matching, and orphan-reference detection.",
+   "why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together. Keying blocks by `entry_id` inside the file keeps the association exact while letting the filesystem structure mirror the session-log convention. Deterministic validation in a single validator prevents the sidecar family from drifting from rules other families follow and ensures the graph-edge contract has new artifact validation where it belongs.",
+   "evolution": "The first member established deterministic validation rules for diagram sidecars within a single validator, covering frontmatter, `entry_id` presence, fence balance, and reference resolution. The second member redesigned the file structure from per-entry_id files to one dated file per day with multiple diagram blocks, matching session-log conventions and enabling day-wide diagram browsing. Validation rules were adapted to the new structure.",
+   "covered": [
+    "mse_m677wfhvq7s8b1x8:d1",
+    "mse_0vbj4zdcc11s3ggj:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "live_chain": [
+   {
+    "ref": "mse_yfsrahvq87hxkcv9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-13T20:21:00",
+    "body": "- D: Reworked the document-lifecycle plan to be folder-primary and human-discoverable. The FOLDER is now the single visible source of truth for a doc's lifecycle state (no `status:` field mirroring it); YAML carries only what a folder can't (priority, next_action, blocked_by, superseded_by/split_into, extracted_into, spec_binding); and a generated per-lane `README.md` index + a front-door roll-up is the human read surface (`memory-seed docs index`). Terminal/parked states are promoted to TOP-LEVEL lanes - `5_Completed`, `6_Rejected`, `7_Superseded`, `8_Deferred`; draft/candidate specs go to `3_Spec/draft/` and reference archive to `4_Reference/archived/`; blocked stays index-only inside `2_Todo`. `3_Spec` and `4_Reference` keep their numbers for path stability. `docs check` validates required-YAML-per-lane and pointer resolution (no folder-vs-status rule needed). Migration is phased: P1 small (create lanes + front door + move the 3 drifts + 2 draft specs), P2 bulk-move the 43 completed + update references. - R: User: a `rejected/` FOLDER makes it easier for a human to find live/applied vs dead work, and \"the approach must be human discoverable too\" - humans can't scan YAML tags. That flips my earlier machine-first design (status-field-as-truth) to folder-as-truth, which also deletes the status-vs-folder drift class entirely (the LANDED-in-Todo / PROPOSED-but-shipped drifts I'd found can't happen when the folder is the only state). User's three calls: draft subfolder, promote terminal states to top level, blocked index-only. - A: Chose folder = primary state + a generated index over more YAML, because a folder is human-visible and a file browser sorts it; kept multi-axis attributes (priority, blocked) in YAML+index since a folder is single-axis. Kept `3_Spec`/`4_Reference` numbers (renumbering would break dozens of path references - anti-discoverable). Blocked stays index-only (transient; a folder would churn on the flaky OneDrive `git mv`). Execution deferred; P1 is the small structural pass, pending approval. - F: docs/1_Inbox/document-lifecycle-system-plan.md - T: Docs only; no code or tests. `links check` green."
+   }
+  ],
+  "summary": {
+   "decision": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/` (with archived material in `archived/`), and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The folder itself is the single visible source of truth for a document's state. YAML fields carry only what a folder cannot express: priority, next_action, blocked_by, superseded_by, split_into, extracted_into, and spec_binding. A generated per-lane README index and front-door roll-up provide the human read surface.",
+   "why": "A folder makes lifecycle state easier for humans to find and distinguish—humans cannot scan YAML tags effectively. Making the folder the single source of truth eliminates the status-versus-folder drift class, where earlier documents carried both a YAML status field and a lifecycle folder, creating ambiguity about which was authoritative. A generated index provides human-readable discovery without duplicating YAML fields.",
+   "evolution": "A single decision reworked the document-lifecycle system from a machine-first design with status fields as truth to a human-discoverable, folder-first approach. This decision promoted terminal and parked states from abstract tags to top-level folders and added versioning subdirectories (draft for specs, archived for reference) to keep the folder count manageable while preserving human-visible state encoding.",
+   "covered": [
+    "mse_yfsrahvq87hxkcv9:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_documentation_lane_structure",
+  "title": "Documentation lanes: folder is lifecycle state, with a skill codifying the flow",
+  "live_chain": [
+   {
+    "ref": "ms-a939b6b4:d2",
+    "title": "D2 - Author the functionality audit with data-flow diagrams",
+    "date": "2026-06-14T09:52:00",
+    "body": "- D: Authored `docs/functionality-audit.md` — every current feature (CLI, agent-selective install, runtime, routing, skills, personas, hooks, MCP retrieval + ranking, session model, versioning, doctor, orphan sweep, release) plus 7 mermaid diagrams (system map, init/update, MCP pipeline, session lifecycle, agent wiring, multi-user layout, roadmap) and an upcoming-features section (2.8.0 ESR generalization; 3.0 multi-user memory + Memory Explorer). - R: User requested a full audit with data-flow diagrams covering current + upcoming features. Grounded it in the actual code (surveyed cli/core/mcp_server/semantic_cache) rather than memory."
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14T18:45:00",
+    "body": "- D: (1) **Refreshed `docs/functionality-audit.md` 2.7 → 2.10** — header/frontmatter, packaging footprint (wheel re-measured at 107,200 B for 2.10.0, up from 101,251 B at 2.7.0), `user`/`session target` CLI rows, the 2.8 foreign-routing 4-way ownership branch (§3E) + doctor route-presence warning (§3L), 2.9 dual-read + 2.10 user-aware session targets/hooks (§3D/H/J), interfaces (`local.yaml`, `MEMORY_SEED_USER`, per-user `schema_version: 2` frontmatter, routing markers), constraints/risks (single-writer now \"phased migration underway\"), and the roadmap section + both mermaids (2.8–2.10 shipped; ESR generalization is the next near-term item; 3.0 holds the remaining multi-user phases + Memory Explorer). Test-count line 129 → 147. (2) **Deleted the stray `.verify-2.10-smoke/`** debris — this session's `rm -rf` succeeded (`git status` no longer lists it), resolving the prior entry's \"resisted cleanup\" follow-up. (3) **Refreshed `demo/.memory-seed/` 2.7 → 2.10** via the scoped method: snapshot to `archive/2.7/`, replace `agent-rules.md`/`project-bootstrap.md`/`skills/index.md` from the 2.10 seed, bump the version line only in generated `index.md`/`policy.md`. - R: The audit is a spec doc meant to be trusted later, so three shipped releases of drift mattered. A blanket `memory-seed update` in `demo/` was avoided (it would touch HyperFrames-owned files); the scoped refresh preserves `demo/AGENTS.md`/`demo/CLAUDE.md` — both still carry the injected `<!-- BEGIN memory-seed -->` routing block from the 2.8 work (verified, 1 block each). - A: Re-measuring the sdist exactly was skipped (`build` not installed; used `pip wheel` for the wheel) — sdist stated as approximate. Committing the demo refresh was not done (local housekeeping convention). - F: `docs/functionality-audit.md` (the commit candidate). Also tracked-modified but **left uncommitted by convention**: `demo/.memory-seed/{agent-rules.md, project-bootstrap.md, skills/index.md, index.md, policy.md}` (+ new untracked `demo/.memory-seed/archive/2.7/`) and this session log. Deleted `.verify-2.10-smoke/`. - T: 147 tests still green (no code touched); `doctor` healthy; audit mermaid fences balanced (16 backtick fences); only legitimate `2.7` history references remain; demo files all report `memory-system-version: 2.12` with generated files changed only on the version line. Smoke-dir deletion **verified absent on disk** (`ls` → \"No such file or directory\"; `[ -e ]` → GONE), not just absent from `git status`."
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-02T18:51:00",
+    "body": "- D: Created `docs/todo/completed/` and moved four fully-shipped planning docs into it: `agent-rules-lazy-loading-recommendations.md`, `baseline-seed-promotions.md`, `multi-user-deep-research-report.md`, `multi-user-session-memory-proposal.md`. Fixed the now-stale cross-references in `NEXT_STEPS.md` and `docs/functionality-audit.md`. - R: - `agent-rules-lazy-loading-recommendations.md`: every recommended section move/shorten is present in the live `agent-rules.md` (2.13.0 lazy-skill extraction). - `baseline-seed-promotions.md`: items 1-3 and 5 verified shipped (skills + trigger entries + Working Principles + Copilot wiring); item 4b (`evolution-nudge-check.py` throttled Stop hook) was deliberately not built per `index.md`'s recorded ESR design decision (\"no blocking Stop hook — evolution needs reasoning + approval\"), so the doc's open questions are resolved even though 4b specifically was rejected rather than implemented. - `multi-user-deep-research-report.md` and `multi-user-session-memory-proposal.md`: the proposal's own \"remaining phases deferred\" list (graph validation, MCP metadata filters, migration) matches A-P3/A-P4/A-P5, all shipped in 2.12.0 per `NEXT_STEPS.md` and corroborated by `docs/functionality-audit.md`. - A: Left `3.0-plan.md` (explicitly \"In Progress\"), `related-entries-generation-plan.md` (P1 shipped, P2 explicitly deferred), and `user-interface-deep-research-report.md` (Pillar B restart still open) in the active `docs/todo/` root. Left `docs/todo/docx-render-windows-seed-lessons.md` (proposed `docx_render_windows.md` skill not yet created) and the newly added `Memory-Seed Logic Capture Improvement.md` alone — both are untracked and still active/unresolved. Did not touch `docs/todo/memory lense/` (gitignored prototype exports, not a tracked proposal doc) or historical session-log references to the moved files (append-only history is not rewritten for a file move). - F: `docs/todo/completed/*.md` (4 files moved via `git mv`), `NEXT_STEPS.md` (Specs list links + annotations), `docs/functionality-audit.md` (one reference path + status wording). - T: `grep` swept the repo for remaining references to the four old paths outside session logs/gitignored uploads — none found; verified the two moved multi-user docs' mutual cross-link stays valid since they moved together."
+   },
+   {
+    "ref": "mse_djvwtfx02kjr5j1n:d2",
+    "title": "D2 - Refreshed functionality-audit.md",
+    "date": "2026-07-03T11:18:00",
+    "body": "- D: Updated the \"As of\" date to 2026-07-03; documented the participant-count session-layout gate, the SessionStart identity-offer hook, the `doctor` local-user/participant-mismatch warning, and the two new Working Principles bullets (§3D, §3H, §3J, §3L); updated the roadmap section to mark the ponytail evaluation completed and note the 4 remaining open logic-capture proposals; updated the test count from 205 to the verified 219. - R: The doc's own contract is \"status reflects the current tree\" — a full session's worth of shipped-but-unreleased work (participant gating, identity hook, guard tests, Working Principles) wasn't reflected anywhere, which would mislead anyone using it as an architecture reference. - F: `docs/functionality-audit.md` (header, §3D, §3H, §3J, §3L, §14, §15). - T: Full suite (219/219), `memory-seed doctor` (healthy), `memory-seed links check` (clean) all re-run after the docs edits."
+   }
+  ],
+  "summary": {
+   "decision": "Documentation is organized into lifecycle-based folders where folder location indicates the proposal's status. Active proposals remain in the root planning directory; completed proposals move to a `completed/` folder. Cross-references are maintained across moves to preserve the reference graph and keep the overall documentation coherent.",
+   "why": "Comprehensive documentation of system functionality requires regular refresh to remain authoritative as features ship. Organizing proposals by completion status and fixing their cross-references maintains discoverability, prevents duplicate planning work on shipped items, and makes the active roadmap readable at a glance. The practice ensures that documentation stays current and that stale references don't mislead.",
+   "evolution": "The audit documentation was authored to provide comprehensive system specification with data-flow diagrams. It was then maintained across multiple release cycles to keep it current with new features and API changes. The documentation organization was systematized by creating a `completed/` folder for proposals of shipped features and repairing stale cross-references to preserve the reference graph. This pattern continues as the system evolves.",
+   "covered": [
+    "ms-a939b6b4:d2",
+    "ms-4e1b8a07:d1",
+    "mse_21d4kcx6g1vxt0ky:d1",
+    "mse_djvwtfx02kjr5j1n:d2"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "live_chain": [
+   {
+    "ref": "ms-db2d715c:d1",
+    "title": "D1 - Use DRAFT for compact decision records",
+    "date": "2026-05-26T20:40:00",
+    "body": "- D: Use `D`, `R`, `A`, `F`, and `T` labels for decision, rationale, alternatives, files/artifacts/behaviors, and tests/validation. - R: The user wanted the same decision-history function with fewer tokens and less semantic-search noise from repeated long labels. - A: Rejected keeping verbose labels such as `Decision:` and `Alternatives considered:` because they add repeated non-domain terms before the content. - F: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, `.memory-seed/skills/memory_consolidation.md`, seed copies, and this session entry. - T: `python -m unittest tests.test_session_schema`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`."
+   }
+  ],
+  "summary": {
+   "decision": "Decision records use compact labels: D (Decision), R (Rationale), A (Alternatives), F (Files/artifacts/behaviors), and T (Tests/validation). D and R are mandatory; A, F, T are optional. For multi-decision entries, use numbered #### Dn headings as the canonical form.",
+   "why": "Compact labels reduce token count and semantic-search noise compared to verbose labels like 'Decision:' and 'Alternatives considered:', while preserving all necessary information categories. The DRAFT label vocabulary standardizes decision notation across all session entries, keeping records efficient without sacrificing clarity or the function of decisions as the primary documentation mechanism.",
+   "evolution": "Established the DRAFT label vocabulary as the standard for compact, consistent decision notation.",
+   "covered": [
+    "ms-db2d715c:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "live_chain": [
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": "D2 - Store per-edge confidence as a structured edge_confidence field, consumption deferred",
+    "date": "2026-07-25T18:05:00",
+    "body": "- D: Each campaign edge carries its model confidence in a new `edge_confidence:` list of `{ref, confidence, tier}` mappings - structured YAML, not prose - keyed to the exact edge token. The `note:` keeps only provenance and the block's overall status. `links check` tolerates the field with no parser change; teaching the graph to read it is a deliberately deferred later stage. - R: Discarding low-confidence edges wastes paid-for work; writing them indistinguishably from human-authored edges would let a guess masquerade as fact. A structured field lets a later graph stage weight or filter them without re-parsing prose. A probe confirmed the parser scans only known ref-list keys, so the unknown sibling key is invisible to it (integrity OK with it present) - storing now costs nothing and needs no read-side change."
+   },
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-25T19:40:00",
+    "body": "- D: Client render for edge confidence (stage 2, completing \"teach the graph and Trail to read the confidence\"). GraphWorkspace fades machine-suggested edges by confidence via cytoscape data-driven styles - low (<0.7) -> opacity 0.28 + thin, mid (0.7-0.9) -> 0.5, high/authored -> full 0.85; TrailWorkspace folds a confidence factor into arc opacity (low x0.5, mid x0.75). Authored edges (no confidence) render full strength; a hovered/selected edge is never dimmed. Verified live against the restarted backend: of 60 visible graph edges, all 13 low-confidence edges sit at opacity <0.35, 10 mid at ~0.5, 28 authored/high at full - exactly the intended weighting. - R: The campaign's whole point was to keep weak edges but never let them read as settled fact; fading them by confidence delivers that in the view the user actually looks at. Handled the cytoscape null-coercion trap explicitly - a null `confidence` attribute coerces to 0 in a `[confidence < x]` selector, which would silently fade every authored edge, so the attribute is OMITTED (not null) when unscored. Rebuilt the committed static/react bundle so the packaged app serves it. - A: Considered a settings threshold/filter control; deferred per the design review (ship the default weighting first, add a filter only if asked). Considered line-style for confidence; rejected because line-style already encodes edge type (related/replaces/evolves). - F: memory-trace/client/src/{GraphWorkspace.tsx, TrailWorkspace.tsx}, memory-trace/memory_trace/static/react (rebuilt bundle) - T: client typecheck; live browser - no console errors, payload carries confidence (375 scored), cytoscape edge opacities match the tiers"
+   }
+  ],
+  "summary": {
+   "decision": "Machine-suggested edges carry a structured `edge_confidence` field containing YAML with confidence scores and tiers. Rendering consumers fade low-confidence edges by opacity—low confidence (<0.7) at opacity 0.28, mid (0.7–0.9) at 0.5, high/authored at full 0.85—so unverified suggestions never read as settled fact. Authored edges (no confidence attribute) render at full strength. Hovered or selected edges are never dimmed.",
+   "why": "The edge campaign preserves paid-for low-confidence suggestions rather than discarding them, but must prevent them from masquerading as fact. Storing confidence as structured YAML lets graph rendering weight them appropriately without parser changes or breaking existing validation. Fading by opacity in the actual rendering where users look delivers this distinction: a low-confidence edge at 0.28 is visually negligible, mid at 0.5 is noticeable but provisional, and authored edges at full strength convey certainty.",
+   "evolution": "Structured confidence storage was introduced to preserve low-confidence edges and enable later consumption without parser changes. Client rendering then implemented opacity-based fading across both GraphWorkspace and TrailWorkspace, with special handling to avoid incorrectly fading authored edges by omitting (rather than nulling) their confidence attribute.",
+   "covered": [
+    "mse_p4xd3wqf214nqtmv:d2",
+    "mse_7a6wgm62nty5ynkh:d1"
+   ]
+  }
+ }
+]

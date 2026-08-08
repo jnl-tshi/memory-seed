@@ -570,6 +570,50 @@ class AwaitingReviewViewTests(ProjectFixture):
             self.assertEqual(render_adr(parse_adr(path)), read_text_file(path), path.name)
 
 
+class StaleAnchorTests(ProjectFixture):
+    """An ADR anchored behind its own live chain is stale, and `links check` says so.
+
+    The rule: a summary synthesises every live chain member, so when the most recent authoritative
+    decision that evolves the concern shifts, the summary owes a regeneration. Without this check
+    that condition is invisible - the record simply keeps stating an older position, and the only
+    way to notice is for a reader to compare the head against the chain by hand.
+
+    Warning, never a gate: the live corpus had two ADRs in this state the moment the check landed,
+    and a rule that reddens existing records on its own commit cannot land.
+    """
+
+    def test_the_live_corpus_reports_only_genuinely_stale_anchors(self):
+        from memory_seed.core import stale_adr_anchors
+
+        stale = {adr_id for adr_id, _head, _newest in stale_adr_anchors(REPO)}
+        heads = {}
+        for path in LIVE_ADRS:
+            record = parse_adr(path)
+            heads[record.adr_id] = replay_adr(record).authoritative_decision or ""
+        for adr_id in stale:
+            # Never flags a founding placeholder - it has no position in the chain to fall behind.
+            self.assertFalse(heads[adr_id].startswith("founding:"), adr_id)
+            self.assertTrue(heads[adr_id], adr_id)
+
+    def test_an_adr_on_its_newest_live_member_is_not_stale(self):
+        from memory_seed.core import stale_adr_anchors
+
+        root = self.make_project()
+        result = promote_decision(
+            root, adr_id="adr_anchor", source_entry_id="mse_extension0000001",
+            source_decision="d1", title="Anchored", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            timestamp="2026-08-08T10:00:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        transition_adr(
+            root, adr_id="adr_anchor", status="accepted",
+            decision_ref="mse_extension0000001:d1", update_entry_id="mse_extension0000001",
+            source="derived", timestamp="2026-08-08T10:01:00Z",
+        )
+        self.assertEqual(stale_adr_anchors(root), [])
+
+
 class ReproposeAfterRejectTests(ProjectFixture):
     """A revision's text is fixed at proposal time, so a rejected ref must be re-proposable.
 

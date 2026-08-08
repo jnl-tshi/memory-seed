@@ -1,0 +1,165 @@
+[
+ {
+  "adr_id": "adr_safe_process_and_upgrade_workflow",
+  "title": "Safe process and upgrade workflow: discover, dry-run, then confirm",
+  "live_chain": [
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d1",
+    "title": "D1 - Safe process MVP",
+    "date": "2026-07-08T07:49:00",
+    "body": "- D: Add shared conservative process discovery in `memory_seed/processes.py`, with `memory-seed processes`, `memory-seed shutdown --dry-run`, and `memory-seed upgrade --dry-run` plus JSON output; delegate equivalent `memory-trace` commands through the same shared helper. - R: The active P0 plan prioritizes release safety and executable-lock diagnosis before any destructive shutdown or package-manager upgrade execution. - A: Real process termination and upgrade execution were left guarded for a later pass; current non-dry-run shutdown/upgrade paths return a clear non-enabled message when matching processes are active. - F: `memory_seed/processes.py`, `memory_seed/cli.py`, `memory-trace/memory_trace/cli.py`, `tests/test_processes.py`, `memory-trace/tests/test_process_cli.py`, `README.md`, `memory-trace/README.md`, `CHANGELOG.md`, `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/3_Spec/functionality-audit.md`."
+   },
+   {
+    "ref": "mse_zx704zcr1sd3k91n:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-08T14:46:00",
+    "body": "- D: Implement confirmation-gated package process shutdown and package-manager-aware upgrade execution for both `memory-seed` and `memory-trace`. - R: The dry-run MVP already proved conservative process discovery; finishing P0 needed the actual release-safety path: default-no confirmation, `--yes`, failed-shutdown blocking, explicit manager execution, and tests for non-matches/current control-command exclusion. - A: The completed proposal copy was created under `docs/2_Todo/completed/`, but the original `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md` could not be removed because OneDrive exposes it as a reparse point and denied the move/delete. Left it as a redirect placeholder. - F: `memory_seed/processes.py`, `tests/test_processes.py`, `README.md`, `memory-trace/README.md`, `CHANGELOG.md`, `docs/2_Todo/0_NEXT_STEPS.md`, `docs/2_Todo/completed/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md`, `docs/3_Spec/functionality-audit.md`, `.memory-seed/sessions/2026-07-08.md`. - T: `python -m unittest tests.test_processes` passed; `PYTHONPATH=memory-trace python -m unittest memory-trace.tests.test_process_cli` passed; `python -m unittest discover -s tests` passed (269 tests); `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed (35 tests); dry-run JSON smokes for `memory-seed shutdown`, `memory-seed upgrade`, and `memory-trace upgrade` passed; `python -m memory_seed.cli links check` passed; `python -m memory_seed.cli doctor` passed; `git diff --check origin/main...HEAD` passed."
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d3",
+    "title": "D3 - Resolve process ownership through Memory Seed",
+    "date": "2026-07-12T00:38:00",
+    "body": "- D: `memory-trace upgrade` now upgrades the owning `memory-seed` package while process matching still targets active `memory-trace` UI processes. - R: The running command is `memory-trace`, but the installed distribution and upgrade target are now `memory-seed`. - F: `memory_seed/processes.py`, `tests/test_processes.py`, `memory-trace/tests/test_process_cli.py`."
+   }
+  ],
+  "summary": {
+   "decision": "Process discovery is conservative and shared, exposed through processes, shutdown --dry-run and upgrade --dry-run with JSON output. Nothing destructive runs without a dry-run first and an explicit confirmation. Trace ships as the memory-seed[trace] extra so upgrade is coordinated through the core package. Each worktree owns its own Trace process state, and memory-trace upgrade targets the owning memory-seed package while process matching still targets active memory-trace UI processes.",
+   "why": "Shutting down or upgrading the wrong process is unrecoverable in the moment, so inspection must precede execution rather than accompany it. Coordinating upgrade through one package removes a second release to keep in step. Per-worktree process ownership stops one worktree's upgrade from killing another's running UI. Confirmation-gating with explicit manager execution and failed-shutdown blocking ensure safe destructive operations.",
+   "evolution": "The decision began with conservative process discovery and dry-run commands for both shutdown and upgrade. It then evolved to implement confirmation-gating with default-no behavior, --yes flag, failed-shutdown blocking, and explicit package-manager execution. Finally it resolved process ownership by routing memory-trace upgrade through the owning memory-seed package.",
+   "covered": [
+    "mse_2rvggg1jy6y4m1g3:d1",
+    "mse_zx704zcr1sd3k91n:d1",
+    "mse_etm5m5682sseasgm:d3"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_session_layout",
+  "title": "Month-grouped session layout; per-user gated on 2+ participants",
+  "live_chain": [
+   {
+    "ref": "mse_ed8zaf52k3eyaxqv:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-15T02:43:00",
+    "body": "- D: Added a conservative migration API and CLI command. The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps entry `user_initials` through `.memory-seed/project.yaml` `participants:`, writes/appends to `sessions/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values, creates per-user file frontmatter with one `hash_id`, backs up each migrated flat file, then removes the flat source so dual-read does not surface duplicate entry IDs. - R: Migration has to be explicit and auditable; guessing unknown or ambiguous identity would misattribute history. Removing the flat source only after backup keeps permanent legacy dual-read support from reading migrated entries twice. - A: Silent migration during update was rejected by the roadmap and proposal; keeping migrated flat files in place was rejected because it would create duplicate IDs under dual-read. - F: `memory_seed/core.py`, `memory_seed/cli.py`, `tests/test_memory_seed.py`, `README.md`, `CHANGELOG.md`, `NEXT_STEPS.md`, `.memory-seed/index.md`, `docs/functionality-audit.md`, `docs/todo/3.0-plan.md`, `docs/todo/multi-user-session-memory-proposal.md`. - T: TDD RED checks failed first for missing `migrate_session_layout`, missing CLI command, and duplicate-initials ambiguity. `python -m unittest tests.test_memory_seed` passed (127 tests). `python -m unittest discover -s tests` passed (171 tests). `python -m memory_seed.cli doctor` healthy. `python -m memory_seed.cli links check` OK (15 files). Stale A-P5 wording scan clean. `git diff --check` reported no whitespace errors, only existing LF-to-CRLF warnings."
+   },
+   {
+    "ref": "mse_k2188xq5evwmdny9:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-09T20:30:00",
+    "body": "- D: Make `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` the new canonical write targets. - R: Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. - A: Historical files are not moved by init, update, hooks, MCP startup, or Memory Trace startup; `memory-seed migrate sessions-month-layout` is the explicit dry-run/backup migration path. - F: `memory_seed/core.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py`, `.memory-seed/hooks/session-start-context.py`, `.memory-seed/hooks/session-log-check.py`, `memory_seed/seed/.memory-seed/hooks/session-start-context.py`, `memory_seed/seed/.memory-seed/hooks/session-log-check.py`, `memory-trace/tests/test_lense.py`, `tests/test_memory_seed.py`, `tests/test_semantic_cache.py`, `tests/test_retrieval.py`, `README.md`, `CHANGELOG.md`, `docs/3_Spec/functionality-audit.md`, live and seed runtime docs. - T: `python -m unittest discover -s tests` passed 291 tests; `PYTHONPATH=memory-trace python -m unittest discover -s memory-trace/tests` passed 36 tests; `python -m memory_seed.cli links check` passed; `python -m memory_seed.cli doctor` passed with the known non-fatal 33-issue encoding warning; `git diff --check` passed with the existing CRLF warning on `tests/test_retrieval.py`."
+   }
+  ],
+  "summary": {
+   "decision": "Session document discovery reads legacy flat session files at sessions/YYYY-MM-DD.md, new month-grouped flat files at sessions/YYYY-MM/YYYY-MM-DD.md, and new month-grouped per-user files at sessions/YYYY-MM/YYYY-MM-DD/<user>.md. Per-user file layout activates only when two or more participants are registered. The new month-grouped structure with optional per-user files is the canonical write target, while discovery still supports reading legacy flat files for backward compatibility.",
+   "why": "Month folders keep session discovery manageable as logs grow without breaking old projects or forcing automatic migrations. Per-user layout in multi-participant projects avoids conflicts and improves navigation. The migration path is explicit and auditable with backups preventing data loss. Removal of migrated flat sources prevents duplicate entry IDs when dual-read is in effect, while keeping the legacy discovery path open for historical repositories.",
+   "evolution": "The decision began with a conservative migration API that maps legacy flat-file sessions through the participants registry and writes to per-user files with backup and cleanup. It then established month-grouped structure as the canonical write target with per-user files gated on 2+ participants, while discovery patterns adapted to read from both legacy and new locations.",
+   "covered": [
+    "mse_ed8zaf52k3eyaxqv:d1",
+    "mse_k2188xq5evwmdny9:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_session_layout_participant_gating",
+  "title": "Per-user session files activate only at two or more participants",
+  "live_chain": [
+   {
+    "ref": "ms-41f4f32a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-13T15:08:00",
+    "body": "- D: Authored `docs/todo/multi-user-session-memory-proposal.md` (refined, gap-fixed), cleaned the research report's citation artifacts, and recorded a Deferred-3.0 entry in `NEXT_STEPS.md`. - R: Proposal is well-engineered but a core-data-model change + product pivot (solo-first -> team-capable). User confirmed team-capable is worth exploring but chose to refine-then-hold until 2.6.0 ships and 2.7.0 lands. Refining now (while the analysis is fresh) makes it execution-ready later without committing to the high-blast-radius build. - A: Full implementation now (rejected: 2.6.0 uncommitted, high risk); decline outright (rejected: team-capable is a wanted direction). - F: `docs/todo/multi-user-session-memory-proposal.md` (new), `docs/todo/multi-user-deep-research-report.md` (citation cleanup), `NEXT_STEPS.md` (deferral entry)."
+   },
+   {
+    "ref": "ms-3cad2a35:d2",
+    "title": "D2 - 2.9.0 read-only dual discovery",
+    "date": "2026-06-14T16:52:00",
+    "body": "- D: Added `SessionDocument` / `iter_session_documents()` and routed package readers (`extract_memory_chunks()` / MCP and `compact_sessions()`) through it so both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` are read. Per-user filenames use the bare slug form (for example `jean.md`). Writes, hooks, active-user resolution, migration, and `session_path()` remain deferred. - R: This is the safe Phase 1 foundation: additive read compatibility with no file movement or write-target change. - A: Updating hooks in Phase 1 was deferred because `session-log-check.py` requires active-user identity and `session-start-context.py` semantics should be defined with the write/user-resolution phase. - F: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, tests, README, CHANGELOG, NEXT_STEPS, `.memory-seed/index.md`, `docs/todo/multi-user-session-memory-proposal.md`, version bumps to control-plane `2.9` / package `2.9.0`, and seed/live control-plane frontmatter sync. - T: New tests were written first and failed for missing discovery/MCP behavior; after implementation, targeted parser/compact/MCP tests passed. Full suite passed 139 tests; repo `doctor` healthy; version reports `2.9`. Manual temp-runtime check: search returned `ms-jean-manual` + `ms-flat-manual`, `memory_get_chunk` fetched `.memory-seed/sessions/2026-06-21/jean.md`, and compact listed `2026-06-20.md` + `2026-06-21/jean.md`."
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-14T18:18:00",
+    "body": "- D: Added opt-in local user identity, per-user session target creation, and user-aware hooks while keeping no-user installs on the legacy flat session file. - R: This advances the multi-user roadmap without silently moving existing users' write targets; a clone must opt in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or an explicit CLI/user argument. - A: Automatic user inference was not added; guessing would risk writing to the wrong contributor file. - F: `memory_seed/core.py`, `memory_seed/cli.py`, hook seed/live twins, tests, README, CHANGELOG, NEXT_STEPS, proposal docs, control-plane frontmatter/version files, and runtime index/rules. - T: Wrote failing tests first for target resolution, local user CLI, per-user file initialization, and hook scoping. `python -m unittest discover -s tests` passed 147 tests; `python -m memory_seed.cli doctor` healthy; `python -m memory_seed.cli version` reported `2.10`. Manual temp-project smoke confirmed `session target --create` writes `.memory-seed/sessions/2026-06-21/jean.md` with schema/user/hash frontmatter and hooks resolve the per-user path."
+   }
+  ],
+  "summary": {
+   "decision": "Per-user session files are written only when a user identity is explicitly configured via .memory-seed/local.yaml, MEMORY_SEED_USER environment variable, or command-line argument. Installs without user configuration remain on the flat session file. The split is a write-time change with no migration; reads discover both layouts, and an explicit --user flag bypasses the opt-in gate.",
+   "why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author exists. A single configured user represents deliberate intent rather than an active multi-user state, so waiting for explicit user configuration makes the layout change explicit and mechanical. Dual-read capability ensures reversibility without touching history.",
+   "evolution": "An initial proposal refined the multi-user approach for future implementation. Phase 1 added read-side compatibility for both file layouts without changing write targets. The final member implemented the write-side decision: opt-in user identity enables per-user files, while no-user installs stay on the legacy flat file.",
+   "covered": [
+    "ms-41f4f32a:d1",
+    "ms-3cad2a35:d2",
+    "ms-38098d7a:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_skill_registry_and_generic_skills",
+  "title": "Skills route through a deterministic registry, and seeded skills are written generic",
+  "live_chain": [
+   {
+    "ref": "ms-0bd3d8b2:d1",
+    "title": "D1 - Use a seeded trigger registry instead of only prose triggers",
+    "date": "2026-05-26T22:09:00",
+    "body": "- D: Add `.memory-seed/skills/index.md` and seed/package it as the deterministic trigger registry for bundled universal skills. - R: The user wanted a hook-like, one-stop skill trigger map that a fresh agent can evaluate predictably without loading every skill runbook. - A: Rejected moving all trigger logic into `agent-rules.md` because it would make the operating contract too large and less extensible for local skill overrides. - F: `.memory-seed/skills/index.md`, `memory_seed/seed/.memory-seed/skills/index.md`, `.memory-seed/agent-rules.md`, seed copy, `memory_seed/core.py`, `pyproject.toml`, tests. - T: `python -m unittest tests.test_session_schema`; `python -m unittest tests.test_memory_seed`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`."
+   },
+   {
+    "ref": "mse_vexkm8da35zj856x:d1",
+    "title": "D1 - Decision",
+    "date": "2026-06-29T21:37:00",
+    "body": "- D: Add rendered UI debugging checks to the developer persona and local skill registry. - R: Memory Lense graph/timeline fixes showed tests alone missed stale asset and hit-target issues; future rendered UI work needs browser asset and target verification. - F: `.agents/developer.md`, `.memory-seed/skills/developer-rendered-ui-debugging.md`, `.memory-seed/skills/index.md`, `.memory-seed/sessions/2026-06-29.md`. - T: `python -m memory_seed.cli doctor` reported healthy/bootstrap complete; `python -m memory_seed.cli links check` passed for 19 files after this entry. - Signed: user approved 2026-06-29 21:37."
+   },
+   {
+    "ref": "mse_fp32yxbxy3k3r5x1:d1",
+    "title": "D1 - Generic skill content, project specifics stripped",
+    "date": "2026-07-05T02:23:00",
+    "body": "- D: Wrote `.memory-seed/skills/docx_render_windows.md` (+ seed twin) from the source runtime's project-local skill and `render_docx_windows_safe.py`, but generalized: no hardcoded output paths, no machine-specific Poppler location, command pattern shown as inline Python with `Path(profile).as_uri()`, bounded per-step timeouts, and exists-and-non-empty output checks. Registered in the trigger registry (live + seed) with the proposal's Lesson-7 deterministic triggers; cross-referenced from `office_document_editing.md` (live + seed); wired into `SEED_FILES` (`core.py`), `pyproject.toml` package-data, and the seed-destinations test. - R: The proposal explicitly asked for a universal lazy skill, and seeded skills must work on any project — the source skill's paths were runtime-local. - A: Caught and reverted a blind live→seed copy of `skills/index.md` that would have leaked the project-local `developer-rendered-ui-debugging.md` persona entry into the seed registry (fresh installs would reference a skill file the seed does not ship). The seed twin got only the new `docx_render_windows.md` block. Standing lesson: live and seed `skills/index.md` are NOT identical twins — the live registry legitimately carries project-local persona entries; sync per-block, not per-file. - F: `.memory-seed/skills/docx_render_windows.md` (new), seed twin (new), `.memory-seed/skills/index.md` + seed twin, `.memory-seed/skills/office_document_editing.md` + seed twin, `memory_seed/core.py`, `pyproject.toml`, `tests/test_memory_seed.py`, `docs/todo/completed/docx-render-windows-seed-lessons.md` (moved + status), `docs/todo/NEXT_STEPS.md`, `docs/functionality-audit.md`, `CHANGELOG.md`. - T: Full `unittest discover tests` 243/243 OK. `links check` clean (25 files). `doctor` healthy — which also confirms no orphan-skill warning for the new registry pairing."
+   },
+   {
+    "ref": "mse_542z3qn0azma9mmx:d1",
+    "title": "D1 - Decision",
+    "date": "2026-07-07T12:52:00",
+    "body": "- D: Update `compact_mermaid_diagrams.md` in live and seed runtime files, route Mermaid-vs-D2 and D2 architecture diagram questions through the same skill registry entry, update the diagramming profile description, and move the evaluation proposal to completed. - R: This captures the useful D2 decision rule without creating a parallel diagram skill, adding a dependency, or expanding the current Mermaid-only session sidecar/rendering contract. - A: Did not rename the skill or add D2 sidecar validation/rendering; those remain future Memory Trace/export scope if explicitly accepted later. - F: `.memory-seed/skills/compact_mermaid_diagrams.md`, `memory_seed/seed/.memory-seed/skills/compact_mermaid_diagrams.md`, `.memory-seed/skills/index.md`, `memory_seed/seed/.memory-seed/skills/index.md`, `memory_seed/core.py`, `docs/functionality-audit.md`, `docs/todo/completed/structured-mermaid-d2-diagrams-skill-evaluation.md`, `docs/inbox/structured-mermaid-d2-diagrams-skill-evaluation.md`, `.memory-seed/sessions/2026-07-07.md`. - T: `python -m unittest tests.test_memory_seed`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli links check`; `git diff --check`; `git diff --check origin/main...HEAD`."
+   }
+  ],
+  "summary": {
+   "decision": "Skills route through a deterministic registry at .memory-seed/skills/index.md so fresh agents evaluate one map rather than loading all runbooks. Trigger logic lives in the registry, not scattered as prose. Skills shipped in the seed are written generic: no hardcoded output paths, no machine-specific tool locations, command patterns shown portably. Local skill registries can carry project-local entries like developer persona skills, but those are not exported to the seed.",
+   "why": "Reading every skill to evaluate triggers is expensive; the registry removes that cost. Moving all triggers to agent-rules.md was rejected for making the operating contract too large and less extensible. Generic skill content applies the same principle to bodies: a runbook with hardcoded paths only runs on one machine. Shipping skills in the seed requires them to work on any project.",
+   "evolution": "A registry was instituted as the deterministic skill trigger map. UI debugging checks were added to the developer persona and local registry. A skill was then generalized from project-local source code, establishing the pattern of stripping machine-specific paths and locations. The latest member unified diagram questions through the same registry without adding parallel logic.",
+   "covered": [
+    "ms-0bd3d8b2:d1",
+    "mse_vexkm8da35zj856x:d1",
+    "mse_fp32yxbxy3k3r5x1:d1",
+    "mse_542z3qn0azma9mmx:d1"
+   ]
+  }
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "live_chain": [
+   {
+    "ref": "ms-f776aff0:d1",
+    "title": "D1 - Restore operational guardrails in v2 language",
+    "date": "2026-05-26T21:49:00",
+    "body": "- D: Add public memory hygiene, explicit locked structure-change rules, immediate durable-memory update exception, skill trigger quick starts, stricter supersession criteria, sub-project inheritance conflict guidance, and target bootstrap boundaries. - R: The v2 architecture is cleaner, but the archived v1.4 rules had stronger safety and operational clarity for fresh agents. - A: Rejected copying v1.4 verbatim because it would reintroduce obsolete `.AGENTS` paths and old generated-file ownership. - F: `.memory-seed/agent-rules.md`, `memory_seed/seed/.memory-seed/agent-rules.md`, `tests/test_session_schema.py`. - T: `python -m unittest tests.test_session_schema`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.mcp_validate \"Restored v1.4 guardrails in v2 rules\" --cwd \".\" --top-k 2`."
+   },
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": "D2 - Keep sub-project logs local but summarize parent-visible changes",
+    "date": "2026-05-26T22:09:00",
+    "body": "- D: Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination summaries for root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. - R: This preserves localized context while keeping the root aware of cross-project consequences. - A: Rejected mirroring sub-project sessions into root memory because that would duplicate noise and weaken runtime isolation. - F: `.memory-seed/agent-rules.md`, seed copy, tests. - T: `python -m unittest tests.test_session_schema`; `python -m unittest tests.test_memory_seed`; `python -m unittest discover -s tests`; `python -m memory_seed.cli doctor`; `python -m memory_seed.cli init --dry-run`."
+   }
+  ],
+  "summary": {
+   "decision": "A sub-project is a normal folder carrying its own nested .memory-seed/ runtime scoped to its containing folder. Detailed session logs remain in the nearest active runtime; parent/root memory receives only coordination summaries addressing root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. Parent policy and skills are inherited by default; local skill files exist only to override parent behavior or hold genuinely local runbooks.",
+   "why": "Localized context is preserved while root awareness of cross-project consequences is maintained. Mirroring sub-project sessions into root memory would duplicate noise and weaken runtime isolation. Each runtime's nearest folder is read first, allowing inheritance while keeping detailed logs local.",
+   "evolution": "Operational guardrails were restored in v2 language, including sub-project inheritance conflict guidance. This was then distilled into the scoping rule: detailed logs stay in the nearest active runtime, and parent gets only coordination summaries for cross-project visibility.",
+   "covered": [
+    "ms-f776aff0:d1",
+    "ms-0bd3d8b2:d2"
+   ]
+  }
+ }
+]

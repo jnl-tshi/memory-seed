@@ -1,0 +1,34 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "decision": "Agent configuration files must be treated as merge targets during initialization and updates, preserving any existing project settings rather than overwriting them with seed content.",
+    "why": "Unable to synthesize from live chain members; the founding decision has been replaced and this ADR currently has no active chain to reference.",
+    "evolution": "No active evolution; the policy originated from a superseded decision.",
+    "covered": [],
+    "note": "This ADR has no live chain members; the founding decision has been replaced and cannot be cited per synthesis rules."
+  },
+  {
+    "adr_id": "adr_append_rule_is_an_invariant",
+    "decision": "The append rule is stated as a vendor-neutral invariant: session entries must be added at the physical end of their file, in chronological order, never inserted above existing content. The mechanism to achieve this—whether shell append (>>), Python append mode, or editor-based with an anchor—is left to each agent's available tooling.",
+    "why": "Mandating a specific tool like >> or Python append mode assumed shell or Python access and was platform-unsafe; Windows PowerShell's heredoc example fails or misencodes, making such requirements unsuitable for a cross-platform agent contract. The durable rule is the invariant itself; the property that actually matters is that nothing is inserted above existing content and chronological order is preserved, while the mechanism belongs to each agent's tools.",
+    "evolution": "Initially instituted as a requirement for >> or Python append mode because append operations write unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on editor care. Later recognized as platform-dependent and reframed to state the invariant itself, demoting the specific tool to an optional shell tip so any file-reading agent can satisfy it with whatever writing surface it has.",
+    "covered": ["ms-d15e8a03:d1", "ms-e30b9c47:d1"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "decision": "Before replacing versioned artifacts during a release, prior control-plane snapshots must be archived under .memory-seed/archive/<version>/ as a required procedure step.",
+    "why": "Version bumps affect reusable procedure files across many control-plane documents, and archiving prior snapshots preserves the historical record and enables rollback or auditing of changes across versions. This precondition was mentioned informally but lacked an owned procedure step.",
+    "evolution": "First implemented during the 2.5→2.6 version bump by archiving the true 2.5 reusable procedure files to .memory-seed/archive/2.5/ before replacement. Later formalized into release_publishing.md as a required step in the full version-bump and release procedure.",
+    "covered": ["ms-757053d4:d4", "mse_903jqy9v4pr8g388:d2"],
+    "note": ""
+  },
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "decision": "The memory-seed session fuse --branch <branch> command is an explicit Memory Seed-aware integration command, not a Git union merge driver or automatic notes mechanism. It validates that imported entries are branch-only, chronological, immutable relative to the base, and carry branch: <branch> metadata.",
+    "why": "Git can merge text and preserve branch topology, but it cannot validate entry_id uniqueness, branch: provenance, append-only and session-order semantics, diagram sidecars, or immutability of existing entries. These semantic constraints are essential to the integrity of session logs and cannot be enforced by Git's text merge alone.",
+    "evolution": "Established as a Memory Seed-aware command with explicit validation to add session-order and immutability semantics that Git's standard merge driver cannot provide.",
+    "covered": ["mse_9c151e4gbkkv1w5v:d1"],
+    "note": ""
+  }
+]

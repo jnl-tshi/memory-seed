@@ -1,0 +1,18 @@
+[
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "decision": "Trail generates display lanes derived from lifecycle edges and branch intervals without requiring authored graph edges. Each branch receives the lowest available lane via greedy interval packing, with lanes freed when the branch's visible lifecycle ends.",
+  "why": "The design implements a git-graph timeline format (vertical orientation, straight lanes, fixed row height) based on research of conventional git-graph tools. User direction called for an interactive gitgraph appearance reminiscent of GitKraken and similar tools, with recent-window focus and minimal UI chrome to support dense, readable git history.",
+  "evolution": "The single decision rebuilt Memory Trace's Trail view from a shared force-layout graph into a vertical git-graph timeline, establishing the lane-assignment algorithm and visual encoding: lifecycle arcs in a left gutter, branch tip chips marking each branch's timeline, day separators for temporal scoping, and a 60-entry bounded window with client-side loading.",
+  "covered": ["mse_37fpco0vvunilz5k:d1"],
+  "note": ""
+ },
+ {
+  "adr_id": "adr_trail_lifecycle_visualization",
+  "decision": "The Trail displays lifecycle edges (supersedes, evolves, related) at full visibility by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision—an anchor row holding entry metadata and full branch colour, plus one pastel-coloured subheading row for each decision D1 through DN—with edge selection and grouping scoped to the entry so clicking any row in a set lights the entire entry's lineage.",
+  "why": "Decision-level and entry-level lifecycle edges were recorded but invisible; evolves edges drew only on select, so the finest links were hidden until clicked. The three-class weighting lets opacity and weight carry hierarchy, allowing a screen of 200+ arcs to read as quiet background rather than an overwhelming wall. Multi-decision rows resolve the ambiguity where entry titles doubled as decision labels: by rendering the anchor separately from D1..DN, each row can display its actual title (entry summary vs. decision name), and grouping under entry identity keeps selection and filtering coherent.",
+  "evolution": "The chain began with a full timeline and layout model (mse_74fb71s2cdrwqrqp:d1), extended through scroll stabilization with distance-eased band movement and corpus resets (mse_dgc0zvchsqpvjpe7:d1, d2), then introduced decision-level granularity by surfacing the structured decision identity reusing chunks already computed at write time (mse_9wsn23n3k8txnm2m:d1), and culminated in full-visibility lifecycle edge rendering with three-class precision weighting (mse_zm2h343r4shfre3j:d2). Each step extended rendering: scroll added smooth movement with stability bands, decision rows exposed the D1/DN structure, and edge visibility completed the lineage signal by drawing all precision classes simultaneously.",
+  "covered": ["mse_74fb71s2cdrwqrqp:d1", "mse_dgc0zvchsqpvjpe7:d1", "mse_dgc0zvchsqpvjpe7:d2", "mse_9wsn23n3k8txnm2m:d1", "mse_zm2h343r4shfre3j:d2"],
+  "note": ""
+ }
+]
