@@ -1357,7 +1357,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(result.committed)
         self.assertTrue(result.merge_in_progress)
         self.assertTrue(result.issues)
-        self.assertIn("not recognized by any session/diagram/link/topic classifier", result.issues[0])
+        self.assertIn("not recognized by any session/diagram/link/topic/ADR classifier", result.issues[0])
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
     @pytest.mark.integration
