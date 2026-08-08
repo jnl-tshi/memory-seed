@@ -83,3 +83,20 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### context-added - 2026-08-08T17:00:00Z
+
+```json
+{
+  "event_id": "adre_49ca2d27eb906f00a26f",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_kdhw53hzp4nh8wwm:d1"
+  ],
+  "update_entry_id": "mse_x1ag0r38wr2cfym3"
+}
+```
+
+#### Reason
+
+Probe only: verifying the fuse handles a MODIFIED ADR record mechanically. Reverted after the check.
