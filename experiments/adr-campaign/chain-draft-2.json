@@ -1,0 +1,110 @@
+[
+ {
+  "area": "hooks",
+  "adr_id": "adr_hook_merge_framework",
+  "title": "Hook installation is a per-agent merge, idempotent on script filename",
+  "head": "ms-5e366ef4:d2",
+  "topics": [
+   "hooks",
+   "agent-collaboration",
+   "control-plane"
+  ],
+  "decision": "Hook configuration is merged per agent rather than copied, across every supported agent's own config file. Hooks install unconditionally for the selected agents, and update is idempotent by matching on the script filename rather than the full command, so a flag change in a later version upserts instead of appending a duplicate.",
+  "why": "Merging preserves configuration the project already owns, which copying would destroy. Matching on the script filename is what makes upgrade safe: the command line changes between versions, so comparing full commands would leave a stale entry beside the new one every time. Installing unconditionally keeps the seed model-agnostic rather than betting on which agent a contributor uses.",
+  "evolution": "2026-05-27 established merge-not-clobber for the Claude settings file, then added a Cursor session-start hook; 2026-05-29 made upsert idempotent by script filename; 2026-06-11 wired the remaining agents and brought Copilot into the supported set.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#ownership",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#prove-automation",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Wired the hook through `core.py` via the existing `_merge_grouped_hook`",
+  "quote_ref": "ms-5e366ef4:d2",
+  "note": "Quote replaced by the orchestrator: the worker's selection stood but its quote was not verbatim."
+ },
+ {
+  "area": "multi-user-sessions",
+  "adr_id": "adr_session_layout_participant_gating",
+  "title": "Per-user session files activate only at two or more participants",
+  "head": "ms-38098d7a:d1",
+  "topics": [
+   "multi-user-sessions",
+   "session-logging",
+   "continuity"
+  ],
+  "decision": "Per-user session files are written only when two or more participants are registered. A single configured user stays on the flat file, preserving the solo-first design. Reads discover both layouts, so the split is a write-time change rather than a migration, and an explicit `--user` bypasses the gate.",
+  "why": "Identity and layout are separable: recording who wrote an entry should not force a file split until a second author actually exists. One configured user is declarative intent, not yet multi-user, so waiting for the second participant makes the layout move explicit and mechanical rather than a surprise. Dual-read means the change is reversible without touching history.",
+  "evolution": "2026-06-13 proposed the layout as deferred work; 2026-06-14 implemented dual-read discovery so both layouts resolve, then added user-aware session targets with opt-in local identity; participant-count gating followed on 2026-07-02.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#ownership",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#append-only",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Per-user filenames use the bare slug form",
+  "quote_ref": "ms-3cad2a35:d2",
+  "note": ""
+ },
+ {
+  "area": "docs-lifecycle",
+  "adr_id": "adr_proposal_completion_moves_lane",
+  "title": "A proposal moves lane when its acceptance criteria are met, and stays there",
+  "head": "mse_9m2jk06hgx7ctrm1:d3",
+  "topics": [
+   "docs-lifecycle",
+   "proposal-lifecycle",
+   "decision-harvest"
+  ],
+  "decision": "A proposal moves to the completed lane when its acceptance criteria are fully met, and stays there as a historical record even when a newer active proposal cites it. A source report moves once its actionable recommendations have been split into their own plans.",
+  "why": "Separating unresolved from active from finished keeps the roadmap trustworthy - a reader can tell an open question from shipped work without reading either. Leaving a completed document in place because something still references it is what turns historical research into apparent current planning.",
+  "evolution": "2026-07-02 separated completed from active work; 2026-07-04 formalised the lifecycle as a seeded skill with a coverage matrix; 2026-07-05 moved the logic-capture source report across once all six of its recommendations had shipped.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#folder-lifecycle",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#explainability",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Moved `Memory-Seed Logic Capture Improvement.md` to `docs/todo/completed/`",
+  "quote_ref": "mse_9m2jk06hgx7ctrm1:d3",
+  "note": ""
+ },
+ {
+  "area": "memory-trace",
+  "adr_id": "adr_trace_trail_first_ui",
+  "title": "Memory Trace is Trail-first, with search a function over the open view",
+  "head": "mse_rqkgatgt5eh55yb8:d1",
+  "topics": [
+   "memory-trace",
+   "ui-design",
+   "graph"
+  ],
+  "decision": "Trail is the primary chronological evidence surface and Graph is secondary for exploration; the generic timeline is retired. Search is a function over whichever view is open rather than a destination of its own, returning a ranked dropdown plus in-place highlighting. The React workspace ships additively at its own route against v1 API contracts while the vanilla client keeps serving the root.",
+  "why": "Trail reads chronology without the temporal noise a generic timeline adds, which is why it earned the primary slot on use rather than on design taste. Search as a function keeps attention on the view the reader chose instead of throwing them into a third place. Shipping React additively avoids maintaining two clients that both claim to be current.",
+  "evolution": "2026-07-11 implemented the Trail's git-graph style and refined lane allocation, resting-edge treatment and selection; the timeline was then retired and search became a function over views; 2026-07-15 promoted the graph workspace proposals; 2026-07-16 shipped the React workspace and Cytoscape shell.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#immediate-value",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#expose-before-rank",
+    "role": "supporting"
+   }
+  ],
+  "quote": "while keeping `/` on the vanilla client",
+  "quote_ref": "mse_rqkgatgt5eh55yb8:d1",
+  "note": ""
+ }
+]

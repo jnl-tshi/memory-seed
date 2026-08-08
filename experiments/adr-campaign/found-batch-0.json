@@ -1,0 +1,111 @@
+[
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_2geqfa8tg182a77p:d1",
+  "members": [
+   {
+    "ref": "mse_d2daxtnv8eqx4vqr:d1",
+    "when": "2026-07-08 13:46",
+    "title": "D1 - Promote inbox items conservatively"
+   },
+   {
+    "ref": "mse_mazbt6cek8m8a6st:d1",
+    "when": "2026-07-16 22:24",
+    "title": "D1 - Sequence the surviving platform ideas after React Trail parity"
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d2",
+    "when": "2026-07-16 23:18",
+    "title": "D2 - Give every Inbox idea one coherent owner"
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d1",
+    "when": "2026-07-20 07:45",
+    "title": "D1 - Bring the roadmap and the inbox back into truth"
+   },
+   {
+    "ref": "mse_y9q4bnv2yckk6w74:d1",
+    "when": "2026-07-20 09:36",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_tx1c338ca1ybr666:d1",
+    "when": "2026-07-20 11:20",
+    "title": "D1 - Retire both proposal sets; the crosswalk becomes the surviving record"
+   },
+   {
+    "ref": "mse_2geqfa8tg182a77p:d1",
+    "when": "2026-07-20 19:03",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_djvwtfx02kjr5j1n:d2",
+  "members": [
+   {
+    "ref": "ms-a939b6b4:d2",
+    "when": "2026-06-14 09:52",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "when": "2026-06-14 18:45",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "when": "2026-07-02 18:51",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_djvwtfx02kjr5j1n:d2",
+    "when": "2026-07-03 11:18",
+    "title": "D2 - Refreshed functionality-audit.md"
+   }
+  ]
+ },
+ {
+  "area": "retrieval",
+  "suggested_head": "mse_dbt6c32kk5dk55xs:d1",
+  "members": [
+   {
+    "ref": "mse_77cn2v0rg9na3w0v:d2",
+    "when": "2026-06-15 02:26",
+    "title": "D2 - A-P4 MCP metadata and filters"
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d2",
+    "when": "2026-06-15 20:13",
+    "title": "D2 - Read-only filterable API surface"
+   },
+   {
+    "ref": "mse_dbt6c32kk5dk55xs:d1",
+    "when": "2026-07-04 15:08",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "upgrade-workflow",
+  "suggested_head": "mse_etm5m5682sseasgm:d3",
+  "members": [
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d1",
+    "when": "2026-07-08 07:49",
+    "title": "D1 - Safe process MVP"
+   },
+   {
+    "ref": "mse_zx704zcr1sd3k91n:d1",
+    "when": "2026-07-08 14:46",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d3",
+    "when": "2026-07-12 00:38",
+    "title": "D3 - Resolve process ownership through Memory Seed"
+   }
+  ]
+ }
+]

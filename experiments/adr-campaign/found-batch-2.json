@@ -1,0 +1,91 @@
+[
+ {
+  "area": "hooks",
+  "suggested_head": "ms-5e366ef4:d2",
+  "members": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "when": "2026-05-27 01:45",
+    "title": "D1 - Merge, don't clobber"
+   },
+   {
+    "ref": "ms-5e1a9d44:d1",
+    "when": "2026-05-27 14:57",
+    "title": "D1 - Cursor retrieval uses sessionStart, not beforeSubmitPrompt"
+   },
+   {
+    "ref": "ms-7b3f1e92:d1",
+    "when": "2026-05-29 14:07",
+    "title": "D1 - Script filename as the stable identifier for hook upsert"
+   },
+   {
+    "ref": "ms-5e366ef4:d2",
+    "when": "2026-06-11 16:58",
+    "title": "D2 - Multi-agent wiring reuses the existing merge framework; Copilot added as 5t"
+   }
+  ]
+ },
+ {
+  "area": "multi-user-sessions",
+  "suggested_head": "ms-38098d7a:d1",
+  "members": [
+   {
+    "ref": "ms-41f4f32a:d1",
+    "when": "2026-06-13 15:08",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-3cad2a35:d2",
+    "when": "2026-06-14 16:52",
+    "title": "D2 - 2.9.0 read-only dual discovery"
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "when": "2026-06-14 18:18",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_9m2jk06hgx7ctrm1:d3",
+  "members": [
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "when": "2026-07-02 19:55",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_r1ey59bbv1jsseth:d1",
+    "when": "2026-07-04 11:06",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_9m2jk06hgx7ctrm1:d3",
+    "when": "2026-07-05 02:27",
+    "title": "D3 - Logic-capture source report moved to completed"
+   }
+  ]
+ },
+ {
+  "area": "memory-trace",
+  "suggested_head": "mse_rqkgatgt5eh55yb8:d1",
+  "members": [
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d1",
+    "when": "2026-07-11 13:00",
+    "title": "D1 - Promote the new plan package"
+   },
+   {
+    "ref": "mse_rsjbgk4qnyrtvv09:d1",
+    "when": "2026-07-15 17:33",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d1",
+    "when": "2026-07-16 14:14",
+    "title": "D1 - Serve the React shell as an additive packaged route"
+   }
+  ]
+ }
+]

@@ -1,0 +1,304 @@
+[
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_2geqfa8tg182a77p:d1",
+  "members": [
+   {
+    "ref": "mse_d2daxtnv8eqx4vqr:d1",
+    "when": "2026-07-08 13:46",
+    "title": "D1 - Promote inbox items conservatively"
+   },
+   {
+    "ref": "mse_mazbt6cek8m8a6st:d1",
+    "when": "2026-07-16 22:24",
+    "title": "D1 - Sequence the surviving platform ideas after React Trail parity"
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d2",
+    "when": "2026-07-16 23:18",
+    "title": "D2 - Give every Inbox idea one coherent owner"
+   },
+   {
+    "ref": "mse_wjntbg88n3m0qjss:d1",
+    "when": "2026-07-20 07:45",
+    "title": "D1 - Bring the roadmap and the inbox back into truth"
+   },
+   {
+    "ref": "mse_y9q4bnv2yckk6w74:d1",
+    "when": "2026-07-20 09:36",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_tx1c338ca1ybr666:d1",
+    "when": "2026-07-20 11:20",
+    "title": "D1 - Retire both proposal sets; the crosswalk becomes the surviving record"
+   },
+   {
+    "ref": "mse_2geqfa8tg182a77p:d1",
+    "when": "2026-07-20 19:03",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "trail",
+  "suggested_head": "mse_zm2h343r4shfre3j:d2",
+  "members": [
+   {
+    "ref": "mse_74fb71s2cdrwqrqp:d1",
+    "when": "2026-07-18 10:30",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d1",
+    "when": "2026-07-19 13:11",
+    "title": "D1 - Middle-third stability band with distance-eased scrolling"
+   },
+   {
+    "ref": "mse_dgc0zvchsqpvjpe7:d2",
+    "when": "2026-07-19 13:11",
+    "title": "D2 - A new corpus opens at the top"
+   },
+   {
+    "ref": "mse_9wsn23n3k8txnm2m:d1",
+    "when": "2026-07-21 16:50",
+    "title": "D1 - Surface decisions as Trail rows via the section chunks that already carry t"
+   },
+   {
+    "ref": "mse_t5bbdstgmqzagn2y:d1",
+    "when": "2026-07-21 19:47",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d2",
+    "when": "2026-07-24 21:06",
+    "title": "D2 - The Trail draws all lifecycle edges by default, weighted by a three-class g"
+   }
+  ]
+ },
+ {
+  "area": "hooks",
+  "suggested_head": "ms-5e366ef4:d2",
+  "members": [
+   {
+    "ref": "ms-7c4e1f9a:d1",
+    "when": "2026-05-27 01:45",
+    "title": "D1 - Merge, don't clobber"
+   },
+   {
+    "ref": "ms-5e1a9d44:d1",
+    "when": "2026-05-27 14:57",
+    "title": "D1 - Cursor retrieval uses sessionStart, not beforeSubmitPrompt"
+   },
+   {
+    "ref": "ms-7b3f1e92:d1",
+    "when": "2026-05-29 14:07",
+    "title": "D1 - Script filename as the stable identifier for hook upsert"
+   },
+   {
+    "ref": "ms-5e366ef4:d2",
+    "when": "2026-06-11 16:58",
+    "title": "D2 - Multi-agent wiring reuses the existing merge framework; Copilot added as 5t"
+   }
+  ]
+ },
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_djvwtfx02kjr5j1n:d2",
+  "members": [
+   {
+    "ref": "ms-a939b6b4:d2",
+    "when": "2026-06-14 09:52",
+    "title": "D2 - Author the functionality audit with data-flow diagrams"
+   },
+   {
+    "ref": "ms-4e1b8a07:d1",
+    "when": "2026-06-14 18:45",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_21d4kcx6g1vxt0ky:d1",
+    "when": "2026-07-02 18:51",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_djvwtfx02kjr5j1n:d2",
+    "when": "2026-07-03 11:18",
+    "title": "D2 - Refreshed functionality-audit.md"
+   }
+  ]
+ },
+ {
+  "area": "topic-vocabulary",
+  "suggested_head": "mse_jz0pwv0ngzzxr484:d1",
+  "members": [
+   {
+    "ref": "mse_ehm67mqpmsqm00md:d1",
+    "when": "2026-07-10 16:13",
+    "title": "D1 - Vocabulary derived from usage, aliases preserve every observed slug"
+   },
+   {
+    "ref": "mse_vy8tq90rr4br8a0z:d1",
+    "when": "2026-07-12 11:49",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_ke0f6x2v8zmd3yrf:d1",
+    "when": "2026-07-19 20:15",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_jz0pwv0ngzzxr484:d1",
+    "when": "2026-07-25 11:13",
+    "title": "D1 - Raise the inferred-topic cap to 4 to match the corpus, not hold the machine"
+   }
+  ]
+ },
+ {
+  "area": "multi-user-sessions",
+  "suggested_head": "ms-38098d7a:d1",
+  "members": [
+   {
+    "ref": "ms-41f4f32a:d1",
+    "when": "2026-06-13 15:08",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-3cad2a35:d2",
+    "when": "2026-06-14 16:52",
+    "title": "D2 - 2.9.0 read-only dual discovery"
+   },
+   {
+    "ref": "ms-38098d7a:d1",
+    "when": "2026-06-14 18:18",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "retrieval",
+  "suggested_head": "mse_dbt6c32kk5dk55xs:d1",
+  "members": [
+   {
+    "ref": "mse_77cn2v0rg9na3w0v:d2",
+    "when": "2026-06-15 02:26",
+    "title": "D2 - A-P4 MCP metadata and filters"
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d2",
+    "when": "2026-06-15 20:13",
+    "title": "D2 - Read-only filterable API surface"
+   },
+   {
+    "ref": "mse_dbt6c32kk5dk55xs:d1",
+    "when": "2026-07-04 15:08",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "retrieval",
+  "suggested_head": "mse_pwwz3ys324ght2qs:d1",
+  "members": [
+   {
+    "ref": "ms-845042c7:d1",
+    "when": "2026-05-26 21:26",
+    "title": "D1 - Make entry chunks the default MCP memory unit"
+   },
+   {
+    "ref": "mse_3n3mp35ekz08t4zb:d2",
+    "when": "2026-07-05 12:20",
+    "title": "D2 - Retrieval service extracted; MCP is a wrapper; parity proven by tests"
+   },
+   {
+    "ref": "mse_pwwz3ys324ght2qs:d1",
+    "when": "2026-07-05 12:45",
+    "title": "D1 - Rollup lives in the service (EntryRollup), Lense adapts presentation only"
+   }
+  ]
+ },
+ {
+  "area": "docs-lifecycle",
+  "suggested_head": "mse_9m2jk06hgx7ctrm1:d3",
+  "members": [
+   {
+    "ref": "mse_bqc8am1yq8sv5s92:d1",
+    "when": "2026-07-02 19:55",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_r1ey59bbv1jsseth:d1",
+    "when": "2026-07-04 11:06",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_9m2jk06hgx7ctrm1:d3",
+    "when": "2026-07-05 02:27",
+    "title": "D3 - Logic-capture source report moved to completed"
+   }
+  ]
+ },
+ {
+  "area": "upgrade-workflow",
+  "suggested_head": "mse_etm5m5682sseasgm:d3",
+  "members": [
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d1",
+    "when": "2026-07-08 07:49",
+    "title": "D1 - Safe process MVP"
+   },
+   {
+    "ref": "mse_zx704zcr1sd3k91n:d1",
+    "when": "2026-07-08 14:46",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_etm5m5682sseasgm:d3",
+    "when": "2026-07-12 00:38",
+    "title": "D3 - Resolve process ownership through Memory Seed"
+   }
+  ]
+ },
+ {
+  "area": "windows-encoding",
+  "suggested_head": "mse_74ddxsena9nj2afk:d1",
+  "members": [
+   {
+    "ref": "mse_76r59d5yxcqy0kb8:d2",
+    "when": "2026-07-07 23:18",
+    "title": "D2 - Encoding policy implementation"
+   },
+   {
+    "ref": "mse_2rvggg1jy6y4m1g3:d2",
+    "when": "2026-07-08 07:49",
+    "title": "D2 - Encoding check slice"
+   },
+   {
+    "ref": "mse_74ddxsena9nj2afk:d1",
+    "when": "2026-07-08 18:40",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "area": "memory-trace",
+  "suggested_head": "mse_rqkgatgt5eh55yb8:d1",
+  "members": [
+   {
+    "ref": "mse_loe4c3vbaeeq22dt:d1",
+    "when": "2026-07-11 13:00",
+    "title": "D1 - Promote the new plan package"
+   },
+   {
+    "ref": "mse_rsjbgk4qnyrtvv09:d1",
+    "when": "2026-07-15 17:33",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_rqkgatgt5eh55yb8:d1",
+    "when": "2026-07-16 14:14",
+    "title": "D1 - Serve the React shell as an additive packaged route"
+   }
+  ]
+ }
+]
