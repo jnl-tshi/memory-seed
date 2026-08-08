@@ -117,3 +117,21 @@ Rests on the session decision that instituted it: "Keep encoding policy in Memor
 #### Evolution
 
 Founded from .memory-seed/index.md#L183; this revision moves the concern off that control-file line onto mse_74ddxsena9nj2afk:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### context-added - 2026-08-08T20:42:00Z
+
+```json
+{
+  "event_id": "adre_4dadabb7727548ddf0da",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_76r59d5yxcqy0kb8:d2",
+    "mse_2rvggg1jy6y4m1g3:d2"
+  ],
+  "update_entry_id": "mse_cq88k8kb8k3wp1cb"
+}
+```
+
+#### Reason
+
+Carried over when adr_windows_encoding_policy was folded into this concern: both records proposed the same head, mse_74ddxsena9nj2afk:d1. Two things from that record could NOT be folded, because the same decision cannot be proposed twice on one ADR - the clause that invalid UTF-8 and likely mojibake stay blocked for manual review rather than being repaired automatically (the intended characters cannot be inferred from corrupted bytes), and constitution:v1#prove-automation as a supporting binding. The next revision of this ADR should carry both.
