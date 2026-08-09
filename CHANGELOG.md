@@ -19,6 +19,14 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **`esr` reports an ADR review queue.** When the decision an ADR is headed by has an agreed
+  `refines` successor, the concern's current form has moved and the ADR has not — a mechanical
+  fact, reported the way `needs-diagram-review` reports a diagram invalidated by evolution. The
+  walk runs to the chain's terminus, not one hop, and non-head decisions attached to the ADR are
+  listed separately as secondary. **Flag only:** nothing here moves a head, and each line asks for
+  an authored revision or a recorded reviewed-no-change. On the control-plane corpus (57 ADRs, 109
+  agreed `refines` edges) this is six lines — a queue that gets read, not a firehose.
+
 - **Typed evolution: `refines` and `builds-on`.** An `evolves` ref may carry its kind as a trailing
   `(refines)` / `(builds-on)`, and the decisions envelope requires one on every new `evolves` edge.
   `refines` is the next form of a decision and is capped at **one successor per target**;
