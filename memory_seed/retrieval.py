@@ -2056,15 +2056,24 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     # removed from the effective set, the append-only way to downgrade/delete a
     # published edge. A downgrade pairs this with a fresh edge of the new kind.
     # Decision-level retractions apply FIRST, because the entry-level drop below
-    # consults what survives them.
+    # consults what survives them. Each set is ALSO exported on the sidecar
+    # (`retracted_decision_edges` / `retracted_entry_edges`): a retract may name
+    # an edge authored in the ENTRY's own YAML, which lives on the chunk rather
+    # than in any sidecar list, so `augment_chunks_with_link_sidecars` must see
+    # the sets to apply them there - without the export, retracting an
+    # entry-YAML edge was a silent no-op.
     for eid, ids in retract_decision.items():
         sidecar = sidecars.get(eid)
-        if sidecar and sidecar.get("decision_edges"):
+        if not sidecar:
+            continue
+        if sidecar.get("decision_edges"):
             sidecar["decision_edges"] = tuple(e for e in sidecar["decision_edges"] if tuple(e) not in ids)
+        sidecar["retracted_decision_edges"] = tuple(sorted(ids))
     for eid, keys in retract_entry.items():
         sidecar = sidecars.get(eid)
         if not sidecar:
             continue
+        sidecar["retracted_entry_edges"] = tuple(sorted(keys))
         # An entry-level list holds bare target ids and therefore carries no
         # type, so "retract the untyped edge to X" cannot be told apart from
         # "retract the typed one" at this level. The entry-level list is a
@@ -2094,10 +2103,13 @@ def augment_chunks_with_link_sidecars(
     """Union entry YAML edges with append-only link sidecar edges.
 
     Link sidecars are authored after a session entry is written, so the
-    effective graph is ``union(entry YAML, sidecar)`` at read time. This helper
-    augments the input chunks before callers build ``build_related_entry_graph``
-    so outbound edges, inverse freshness fields, and result payloads all agree
-    without teaching ``semantic_cache`` how to read sidecar files.
+    effective graph is ``union(entry YAML, sidecar) minus retracts`` at read
+    time. This helper augments the input chunks before callers build
+    ``build_related_entry_graph`` so outbound edges, inverse freshness fields,
+    and result payloads all agree without teaching ``semantic_cache`` how to
+    read sidecar files. Retract sets apply to the chunk's own entry-YAML lists
+    too (scoped to the same ``entry_id``): a sidecar is the only append-only
+    surface that can downgrade a published edge, wherever it was authored.
     """
     entries = list(chunks)
     sidecars = entry_link_sidecars(cwd)
@@ -2131,16 +2143,46 @@ def augment_chunks_with_link_sidecars(
         if not extra:
             augmented.append(chunk)
             continue
+        # Retractions reach the CHUNK's entry-YAML edges here (2026-08-09).
+        # `entry_link_sidecars` subtracts them from the sidecar's own lists, but
+        # an edge authored in the entry's YAML lives on the chunk, so applying
+        # them only there made such a retract a silent no-op. Scoped to this
+        # entry_id by construction: the sets ride on the sidecar keyed to it.
+        retract_dec = {tuple(e) for e in extra.get("retracted_decision_edges", ())}
+        retract_ent = {tuple(k) for k in extra.get("retracted_entry_edges", ())}
+        merged_decisions = union_decisions(chunk.decision_edges, extra.get("decision_edges", ()))
+        if retract_dec:
+            merged_decisions = tuple(
+                e for e in merged_decisions
+                if tuple(e) + ("",) * (5 - len(tuple(e))) not in retract_dec
+            )
+        related = union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id)
+        replaces = union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id)
+        evolves = union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id)
+        if retract_ent:
+            # Mirror of the sidecar-side rule: an entry-level list is a
+            # PROJECTION of the edges, so a target drops only when no decision
+            # edge of that kind to it survived - otherwise a retract-and-retype
+            # deletes its own replacement's projection.
+            surviving = {(e[0], e[2]) for e in merged_decisions if len(e) > 2}
+
+            def _drop(kind: str, values: tuple[str, ...]) -> tuple[str, ...]:
+                gone = {
+                    t for k, t in retract_ent
+                    if k == kind and (kind, t) not in surviving
+                }
+                return tuple(t for t in values if t not in gone) if gone else values
+
+            related = _drop("related", related)
+            replaces = _drop("replaces", replaces)
+            evolves = _drop("evolves", evolves)
         augmented.append(
             replace(
                 chunk,
-                related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
-                replaces=union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id),
-                evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
-                decision_edges=union_decisions(
-                    chunk.decision_edges,
-                    extra.get("decision_edges", ()),
-                ),
+                related_entries=related,
+                replaces=replaces,
+                evolves=evolves,
+                decision_edges=merged_decisions,
             )
         )
     return augmented
