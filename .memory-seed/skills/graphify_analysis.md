@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_optional_skill_profiles
 tags: [memory-seed, skill, graphify]
 ---
 
