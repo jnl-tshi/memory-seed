@@ -309,3 +309,40 @@ is now on the critical path rather than being a principle.
    the gate, not `links check`.
 3. Re-key the lineage walk to decisions.
 4. ESR trigger: ADRs whose authoritative decision has a `refines` successor.
+
+### Investigated: does linking the two systems pay? Yes - on precision, not volume
+
+Measured the 109 agreed-refines edges against all 57 ADRs:
+
+| | count |
+|---|---|
+| ADRs whose AUTHORITATIVE head has a refines successor | **3** |
+| ADRs where a non-head MEMBER has one | 3 |
+| untouched | 51 |
+
+Low volume, and that is the point: this is a review queue, not a firehose. Six
+items is actionable; six hundred would be ignored.
+
+**The first hit is independently verified as a true positive.**
+`adr_decision_identity` is headed by `mse_kdhw53hzp4nh8wwm:d1` - the 2026-07-24
+mandate requiring an explicit `:d1` on every target - and the proposed successor
+is `mse_h297nf3qghp7ysyk:d1`, the decision that RELAXED exactly that rule to
+"name a decision only when there is a choice". Both were read from source earlier
+in this session for an unrelated reason, so this is not the swarm marking its own
+homework: the ADR really is pointing at a superseded form, and the chain found it.
+That single case is worth more than the count, because it is the shape the trigger
+exists to catch.
+
+**Caveats that bound the claim:**
+- One hop, not a walk to the terminus. A real chain may run further.
+- The TARGET side is decision-exact (`mse_x:dN`); the SOURCE ordinal was inferred
+  as `d1` where the source entry has a single decision. Re-keying the walk to
+  decisions removes that inference.
+- 109 agreed edges is the current ceiling; it rises once retraction reaches the
+  232 entry-YAML edges and the backfill lands.
+
+**Verdict: build it.** The chains already encode "what is the current form of this
+decision", which is the same question an ADR head answers for a concern - deriving
+one from the other is reusing a fact, not inventing one. It stays FLAG-ONLY: the
+ESR report names the ADR, its head, and the proposed successor, and an ADR swarm
+adjudicates each. Nothing writes to a ledger without an authored revision.
