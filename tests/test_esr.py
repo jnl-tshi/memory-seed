@@ -451,16 +451,34 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
         self._refines(self.MID, self.HEAD)
         self._accepted_adr("adr_moved", self.HEAD)
 
+        # Break the spine for THIS section only. `build_refines_spine` has one
+        # module-global name and three callers now (`_adr_head_reviews` here,
+        # `audit_link_gaps` in retrieval, `check_session_links` in core); a
+        # blanket side_effect fails the other two as well and would prove
+        # nothing about which one failed open. The section's own frame is the
+        # discriminator - each caller imports the symbol inside its own function.
+        import inspect
+
+        from memory_seed.semantic_cache import build_refines_spine as real_spine
+
+        raised_for_the_section = []
+
+        def raise_for_the_adr_section_only(*args, **kwargs):
+            if any(frame.function == "_adr_head_reviews" for frame in inspect.stack()):
+                raised_for_the_section.append(True)
+                raise RuntimeError("spine unavailable")
+            return real_spine(*args, **kwargs)
+
         with patch(
             "memory_seed.semantic_cache.build_refines_spine",
-            side_effect=RuntimeError("spine unavailable"),
-        ) as spine:
+            side_effect=raise_for_the_adr_section_only,
+        ):
             report = esr_report(cwd=self.cwd, session_date="2026-06-01")
         text = format_esr_report(report)
 
         # The raising path was actually taken - an empty section that never
         # reached the spine would prove nothing about failing open.
-        self.assertTrue(spine.called)
+        self.assertTrue(raised_for_the_section)
         self.assertEqual(report.adr_head_reviews, [])
         self.assertNotIn("## ADR review queue", text)
         self.assertIn("## Integrity (links check)", text)

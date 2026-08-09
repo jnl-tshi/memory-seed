@@ -407,7 +407,7 @@ class LinkAuditTests(unittest.TestCase):
         links_dir.mkdir(parents=True, exist_ok=True)
         sidecar = links_dir / "2026-06-02.md"
         # Two passes over C, appended newest-first: out of chronological order.
-        second_pass = f"## 2026-07-25 20:02 - second pass\n\n```yaml\nentry_id: {C}\nevolves:\n  - {A}\n```"
+        second_pass = f"## 2026-07-25 20:02 - second pass\n\n```yaml\nentry_id: {C}\nevolves:\n  - {A} (builds-on)\n```"
         first_pass = f"## 2026-07-25 17:58 - first pass\n\n```yaml\nentry_id: {C}\nrelated_entries:\n  - {B}\n```"
         sidecar.write_text(
             f"---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n\n{second_pass}\n\n{first_pass}\n",
@@ -481,7 +481,7 @@ class LinkAuditTests(unittest.TestCase):
 
         text = applied.path.read_text(encoding="utf-8")
         applied.path.write_text(
-            text.replace("classify_pending: true", f"evolves:\n  - {A}"),
+            text.replace("classify_pending: true", f"evolves:\n  - {A} (builds-on)"),
             encoding="utf-8",
         )
 
@@ -1108,3 +1108,21 @@ class ChainPositionCandidateTests(unittest.TestCase):
         text = applied.path.read_text(encoding="utf-8")
         self.assertIn("INTERIOR chain member - related-only", text)
         self.assertIn(f"refines taken by {B}:d1", text)
+
+    def test_spine_failure_degrades_to_unannotated_candidates(self):
+        # Fail-open like the sibling spine call sites: annotation is advisory
+        # context, so a spine failure must not take down the audit (or the ESR
+        # preflight that calls it).
+        from unittest import mock
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 11:00", C, files=["pkg/foo.py"]),
+        )
+        with mock.patch(
+            "memory_seed.semantic_cache.build_refines_spine",
+            side_effect=RuntimeError("boom"),
+        ):
+            gaps = audit_link_gaps(cwd=self.cwd, entry_id=C, semantic_enabled=False)
+        cands = {c.entry_id: c for c in gaps[0].candidates}
+        self.assertIn(A, cands)
+        self.assertEqual(cands[A].chain_position, "head")

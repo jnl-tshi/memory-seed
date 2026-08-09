@@ -224,6 +224,9 @@ def _entry_title(block: str) -> str:
     return heading.split(" - ", 1)[1]
 
 
+_EVOLUTION_TYPES = ("(refines)", "(builds-on)")
+
+
 def _target_entry(ref: str) -> str:
     target = ref.split("->", 1)[-1].strip()
     return target.split(":", 1)[0]
@@ -232,6 +235,16 @@ def _target_entry(ref: str) -> str:
 def _render_link(raw: str, decision_counts: Mapping[str, int], source_entry: str) -> str:
     source_ordinal = ""
     target = raw.strip()
+    # An evolution type (` (refines)` / ` (builds-on)`) rides at the end of the
+    # ref and survives every rewrite below - collapsing a single-decision target
+    # to its bare entry id used to take the suffix with it, which authored an
+    # untyped edge `links check` now rejects outright.
+    suffix = ""
+    for evolution_type in _EVOLUTION_TYPES:
+        if target.endswith(evolution_type):
+            suffix = f" {evolution_type}"
+            target = target[: -len(evolution_type)].strip()
+            break
     if "->" in target:
         source_ordinal, target = (part.strip() for part in target.split("->", 1))
     target_entry = _target_entry(target)
@@ -239,7 +252,7 @@ def _render_link(raw: str, decision_counts: Mapping[str, int], source_entry: str
         target = target_entry
     if decision_counts.get(source_entry, 0) <= 1:
         source_ordinal = ""
-    return f"{source_ordinal} -> {target}" if source_ordinal else target
+    return (f"{source_ordinal} -> {target}" if source_ordinal else target) + suffix
 
 
 def _render_entry(
