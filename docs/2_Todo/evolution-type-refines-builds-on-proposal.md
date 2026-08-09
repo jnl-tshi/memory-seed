@@ -262,3 +262,50 @@ edge" is a capability the mechanism needs and does not have. Either:
   sidecar-authored ones, and let the gate's cutoff cover the rest permanently.
 
 The verdicts do not need re-running either way - they are preserved and validated.
+
+## JNL, 2026-08-09: no cutoff, and `refines` becomes an ADR review trigger
+
+Two directions, taken together.
+
+### 1. The cutoff is rejected - extend retraction to entry-YAML edges
+
+All 807 edges get typed, so the mechanism must be fixed rather than worked
+around: `augment_chunks_with_link_sidecars` applies a sidecar's retract set to the
+CHUNK's lists, not only to the sidecar's own. That is the honest reading of what a
+retraction means - a later block retracts an edge, wherever it was authored - and
+it is the only way to reach the 232 entry-YAML edges, which are permanent.
+
+It widens what a sidecar can undo, so it needs its own test: a sidecar block must
+be able to retract an edge declared in an entry's YAML, and must not be able to
+retract one from a DIFFERENT entry (the retract set is keyed by the block's
+`entry_id`, and that scoping is what keeps it honest).
+
+### 2. `refines` deterministically flags an ADR as needing revision
+
+An ADR's `authoritative_decision` is a decision ref. If that decision has a
+`refines` successor, the concern's current form has moved on and the ADR has not:
+that is a mechanical fact, not a judgement, so ESR should report it the way
+`needs-diagram-review` already reports a diagram answer invalidated by evolution.
+
+**It FLAGS; it never moves a head.** Only an authored `revision-proposed` +
+`revision-accepted` pair changes `authoritative_decision`, and that stays true
+even when the refines edge came from a swarm - `feedback_machine_edges_never_move_heads`
+was written after a 0.75-confidence edge moved an ADR onto an unrelated concern in
+one hop. A deterministic trigger is safe precisely because its output is a
+question for a human, not a write.
+
+**Blocking dependency, and it is JNL's original point.** An ADR head is
+decision-level (`mse_x:d3`), but `refined_by` is entry-keyed: it records THAT an
+entry refines another, not WHICH decision refines which. `decision_edges` carries
+both ordinals, so the information exists - the walk simply does not use it. So
+this trigger cannot be built until `refined_by` and `refines_lineage_head` are
+keyed by `mse_x:dN` rather than by entry. That is the decision-level graph, and it
+is now on the critical path rather than being a principle.
+
+### Order
+
+1. Retraction reaches entry-YAML edges (+ test).
+2. Apply the backfill - verdicts are validated and waiting; the graph assertion is
+   the gate, not `links check`.
+3. Re-key the lineage walk to decisions.
+4. ESR trigger: ADRs whose authoritative decision has a `refines` successor.
