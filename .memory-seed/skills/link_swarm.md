@@ -42,7 +42,20 @@ write + check
 
 Run `memory-seed link audit --json --date <today>` (or `--for <entry_id>` to scope to one entry). The
 JSON emits each gap as a judgment-ready task: both ends' `decisions` (ordinal + name + body), the
-overlap evidence (files/topics/title), and a `criteria` block. Pre-filter before fan-out: skip a gap
+overlap evidence (files/topics/title), and a `criteria` block.
+
+**Candidates arrive from TWO sources, and the payload must keep them apart.** Most come through the
+lexical gate — a shared file, a distinctive title term, or an unsuppressed topic — and carry that
+overlap as evidence a worker can check. Up to two more per gap carry `"ungated": true`: the gate
+could not have surfaced them at all, and they are there on semantic rank alone. That second source
+exists because the gate's blind spot is structural, not unlikely — an entry sharing none of those
+three signals can never appear however related it is, so without it the gate, not the swarm's
+judgement, sets the ceiling on every campaign.
+
+Tell the worker which kind it is holding. An ungated candidate is a RECALL widening, never a
+stronger signal: it offers nothing to verify, so it must be judged on the decision bodies alone and
+should draw a `none` verdict more readily than a gated one. Say so in the brief rather than hoping
+the flag speaks for itself. Pre-filter before fan-out: skip a gap
 whose pair already carries a recorded edge, and skip a milestone/no-decision pair the criteria exclude
 (see rules 5-6). One surviving gap = one agent.
 

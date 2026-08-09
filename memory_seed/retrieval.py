@@ -2150,6 +2150,13 @@ TITLE_OVERLAP_BOOST = 2.0
 # [0,1] while an idf sum is not; the two are on different scales, not
 # different importances.
 SEMANTIC_OVERLAP_BOOST = 160.0
+# How many purely-semantic candidates may join a gap that the lexical gate could
+# never have surfaced. A SEPARATE cap, applied after the gated `top_k` slice, so
+# an ungated candidate widens recall but can never displace evidence a human can
+# check. Two, because the gate misses rarely and an unfiltered suggestion costs a
+# reader more than a gated one: it carries no shared file, topic or title to
+# justify itself, only a cosine.
+UNGATED_CANDIDATE_CAP = 2
 
 
 def _embed_entries_for_link_audit(
@@ -2251,6 +2258,15 @@ class LinkGapCandidate:
     # here on shared-file evidence they can check or on an opaque cosine, nor
     # whether the ranking silently degraded to lexical.
     semantic_score: float | None = None
+    # True when the lexical gate could NOT have surfaced this pair - it shares no
+    # file and no distinctive title term, and any topic it shares was suppressed
+    # because the pair is already `related`. It arrived on semantic rank alone.
+    # A gated set cannot contain such a pair BY CONSTRUCTION however related the
+    # two entries are, so without this second source the swarm's ceiling is set
+    # by the gate rather than by its own judgement. Flagged rather than silently
+    # mixed in: an ungated candidate offers a reader no evidence they can check,
+    # so it must not read like one that does.
+    ungated: bool = False
 
 
 @dataclass(frozen=True)
@@ -2292,6 +2308,16 @@ def audit_link_gaps(
     all-pairs cosine matrix IS computed for it; what the lexical gate rules out
     is cosine deciding *whether* a pair is a candidate. Cosine is dense, so that
     would make every earlier entry a candidate for every later one.)
+
+    SINCE 2026-08-09 a bounded second source runs after that gated set: up to
+    ``UNGATED_CANDIDATE_CAP`` further candidates on semantic rank ALONE, flagged
+    ``ungated=True``. The paragraph above rules out an unbounded cosine
+    THRESHOLD, which is still ruled out; a bounded top-N is a different thing
+    and does not make every earlier entry a candidate. It exists because the
+    gate's blind spot is structural rather than unlikely - a genuinely related
+    entry sharing no file, title term or unsuppressed topic can never appear,
+    however related it is, so the gate silently caps what any downstream
+    judgment can reach. Skipped entirely when semantic ranking is off.
     File overlap qualifies a pair even when no
     topic is shared - matching files override the absence of a topic link.
     Candidates already captured by any edge (``related_entries`` /
@@ -2508,13 +2534,78 @@ def audit_link_gaps(
                 )
             )
         candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
-        if candidates:
+        selected = candidates[:top_k]
+
+        # THE UNGATED PASS. Everything above is bounded by the lexical gate, so a
+        # genuinely related entry sharing no file, title term or unsuppressed
+        # topic is invisible to it however related it is - the swarm cannot judge
+        # what it is never shown. This adds a bounded top-N on semantic rank
+        # alone, appended AFTER the slice so it neither competes in the sort
+        # above (which has no stable tie-break beyond score and topic count) nor
+        # displaces a gated candidate.
+        #
+        # The docstring's objection to semantic membership - "cosine is dense, so
+        # that would make every earlier entry a candidate for every later one" -
+        # is an argument against an unbounded cosine THRESHOLD, which this is
+        # not. Cost is already sunk: the all-pairs matrix is computed for
+        # ranking regardless.
+        #
+        # Skipped outright when `vectors` is empty (--no-semantic, or a provider
+        # that failed to load), because `semantic_similarity` returns 0.0 for
+        # every pair there and a top-N over all-zeros is an arbitrary set wearing
+        # the authority of a ranking.
+        if vectors:
+            gated_ids = {candidate.entry_id for candidate in candidates}
+            pool: list[tuple[float, str, Any]] = []
+            for chunk in chunks:
+                cid = chunk.entry_id or ""
+                if cid == tid or order[cid] >= target_key:
+                    continue
+                if cid in target_lifecycle or cid in gated_ids:
+                    continue
+                # Also skip a pair the target already calls `related`. The gate
+                # suppresses topic-only candidates for exactly that reason - "it
+                # isn't worth flagging a topic-mate you already linked" - and an
+                # ungated candidate carries strictly WEAKER evidence than a
+                # topic-only one, so it cannot justify a laxer rule. The
+                # upgrade case (related -> lifecycle) is still surfaced by the
+                # gated path whenever files or title terms back it.
+                if cid in target_related:
+                    continue
+                similarity = semantic_similarity(tid, cid)
+                if similarity <= 0.0:
+                    continue
+                pool.append((similarity, cid, chunk))
+            # entry_id breaks a cosine tie, so the set is reproducible run to run.
+            pool.sort(key=lambda item: (item[0], item[1]), reverse=True)
+            for similarity, cid, chunk in pool[:UNGATED_CANDIDATE_CAP]:
+                selected.append(
+                    LinkGapCandidate(
+                        entry_id=cid,
+                        title=chunk.title,
+                        session_date=chunk.session_date.isoformat(),
+                        # Recomputed rather than assumed empty: a pair suppressed
+                        # for being already-`related` can still share topics, and
+                        # the reader should see them.
+                        shared_files=tuple(sorted(target_files & file_refs.get(cid, set()))),
+                        shared_topics=tuple(sorted(target_topics & topics_of.get(cid, set()))),
+                        shared_title_terms=tuple(sorted(target_title_terms & title_terms.get(cid, set()))),
+                        file_overlap_score=round(SEMANTIC_OVERLAP_BOOST * similarity, 6),
+                        already_related=cid in target_related,
+                        decisions=decisions_of.get(cid, ()),
+                        lexical_score=0.0,
+                        semantic_score=round(similarity, 6),
+                        ungated=True,
+                    )
+                )
+
+        if selected:
             gaps.append(
                 LinkGap(
                     entry_id=tid,
                     title=target.title,
                     session_date=target.session_date.isoformat(),
-                    candidates=tuple(candidates[:top_k]),
+                    candidates=tuple(selected),
                     decisions=decisions_of.get(tid, ()),
                 )
             )
@@ -2637,6 +2728,11 @@ def apply_link_gap_stubs(
                 evidence.append(f"topics: {', '.join(candidate.shared_topics)}")
             if candidate.already_related:
                 evidence.append("already related; consider a lifecycle upgrade")
+            if candidate.ungated:
+                # Stated first on read even though it is appended last: a reader
+                # must know this pair carries no checkable overlap before they
+                # weigh whatever else the line says.
+                evidence.insert(0, "UNGATED - semantic rank only, no shared file/title/topic gate")
             suffix = f"  # {' | '.join(evidence)}" if evidence else ""
             lines.append(f"#   - {candidate.entry_id}{suffix}")
         lines.extend(["```", ""])

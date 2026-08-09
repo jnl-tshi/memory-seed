@@ -92,6 +92,17 @@ class LinkAuditTests(unittest.TestCase):
         gaps = audit_link_gaps(cwd=self.cwd, entry_id=entry_id)
         return gaps[0] if gaps else None
 
+    def _gated(self, entry_id):
+        """Only the candidates the LEXICAL GATE admitted.
+
+        A gap can now hold two kinds of candidate, so "did a gap appear" stopped
+        being the same question as "did the gate admit anything". A test about
+        gate behaviour has to ask the second one explicitly or it silently
+        starts measuring the semantic pass instead.
+        """
+        gap = self._gap(entry_id)
+        return [c for c in gap.candidates if not c.ungated] if gap else []
+
     def _run_cli(self, *args, cwd=None):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -154,7 +165,9 @@ class LinkAuditTests(unittest.TestCase):
             _entry("2026-06-01 09:00", A, title="alpha"),
             _entry("2026-06-01 10:00", B, title="beta"),
         )
-        self.assertIsNone(self._gap(B))
+        # Asserted against the GATED set: the semantic pass may still offer this
+        # pair, which is its job, but no shared TERM may put it there.
+        self.assertEqual(self._gated(B), [])
 
     def test_topic_only_is_suppressed_when_already_related(self):
         self._write(
@@ -312,9 +325,12 @@ class LinkAuditTests(unittest.TestCase):
             encoding="utf-8",
         )
         gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
-        # Only B gapped (C shares nothing); B's candidate A is from the PRIOR session.
-        self.assertEqual([g.entry_id for g in gaps], [B])
-        self.assertEqual([c.entry_id for c in gaps[0].candidates], [A])
+        # Only B gapped ON THE GATE (C shares nothing); B's candidate A is from
+        # the PRIOR session. Filtered to gated candidates because the semantic
+        # pass is corpus-wide by design and would otherwise mask the scoping.
+        gated = {g.entry_id: [c for c in g.candidates if not c.ungated] for g in gaps}
+        self.assertEqual([eid for eid, cands in gated.items() if cands], [B])
+        self.assertEqual([c.entry_id for c in gated[B]], [A])
         # And the earlier session's entry is never a target under the scope.
         self.assertEqual(audit_link_gaps(cwd=self.cwd, session_date="2026-06-01"), [])
 
@@ -864,6 +880,94 @@ class LinkAuditSemanticExposureTests(unittest.TestCase):
         self.assertEqual(with_semantic[0], B, "semantically the near neighbour should lead")
         self.assertEqual(set(with_semantic), set(lexical_only), "membership stays lexical")
         self.assertNotEqual(with_semantic, lexical_only, "ranking differs, membership does not")
+
+    def test_ungated_pass_surfaces_a_pair_the_gate_cannot_see(self):
+        """The blind spot the second source exists to cover.
+
+        D shares no file, no topic and no title term with C, so the lexical gate
+        can never admit it however related the two are. Semantic rank can.
+        """
+        self._write(
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], title="alpha"),
+            _entry("2026-06-01 09:00", D, files=["pkg/other.py"], title="delta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma"),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+
+        gap = audit_link_gaps(cwd=self.cwd, entry_id=C)[0]
+        by_id = {c.entry_id: c for c in gap.candidates}
+
+        self.assertIn(D, by_id, "the semantic pass must reach past the gate")
+        self.assertTrue(by_id[D].ungated)
+        self.assertEqual(by_id[D].shared_files, ())
+        self.assertEqual(by_id[D].shared_title_terms, ())
+        self.assertEqual(by_id[D].lexical_score, 0.0)
+        # A is still here on file overlap, and is NOT mislabelled.
+        self.assertIn(A, by_id)
+        self.assertFalse(by_id[A].ungated)
+
+    def test_ungated_candidates_never_displace_gated_ones(self):
+        """A separate cap, so recall widening cannot cost checkable evidence."""
+        self._write(
+            _entry("2026-06-01 07:00", A, files=["pkg/foo.py"], title="alpha"),
+            _entry("2026-06-01 08:00", B, files=["pkg/foo.py"], title="beta"),
+            _entry("2026-06-01 09:00", D, files=["pkg/other.py"], title="delta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma"),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+
+        gap = audit_link_gaps(cwd=self.cwd, entry_id=C, top_k=2)[0]
+        gated = [c.entry_id for c in gap.candidates if not c.ungated]
+        ungated = [c.entry_id for c in gap.candidates if c.ungated]
+
+        self.assertEqual(sorted(gated), sorted([A, B]), "top_k gated survivors are untouched")
+        self.assertEqual(ungated, [D])
+        self.assertEqual([c.ungated for c in gap.candidates], [False, False, True],
+                         "ungated candidates are appended after the gated slice")
+
+    def test_no_ungated_candidates_when_semantic_is_off(self):
+        """A top-N over all-zero cosines is an arbitrary set wearing a ranking's
+        authority, so the pass is skipped rather than degraded."""
+        self._write(
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], title="alpha"),
+            _entry("2026-06-01 09:00", D, files=["pkg/other.py"], title="delta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma"),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+
+        gap = audit_link_gaps(cwd=self.cwd, entry_id=C, semantic_enabled=False)[0]
+
+        self.assertEqual([c.ungated for c in gap.candidates], [False])
+        self.assertNotIn(D, [c.entry_id for c in gap.candidates])
+
+    def test_ungated_candidate_is_labelled_in_the_written_stub(self):
+        """A reader of the sidecar must see that this line has no checkable
+        overlap behind it."""
+        self._write(
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], title="alpha"),
+            _entry("2026-06-01 09:00", D, files=["pkg/other.py"], title="delta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma"),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+
+        gaps = [g for g in audit_link_gaps(cwd=self.cwd, session_date="2026-06-01") if g.entry_id == C]
+        result = apply_link_gap_stubs(gaps, session_date="2026-06-01", cwd=self.cwd)
+        text = result.path.read_text(encoding="utf-8")
+
+        self.assertIn(f"#   - {D}  # UNGATED - semantic rank only", text)
+        self.assertIn(f"#   - {A}  # files: pkg/foo.py", text)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_ungated_pass_never_resurfaces_an_already_related_pair(self):
+        """It carries strictly weaker evidence than a topic-only candidate, so
+        it cannot justify a laxer rule than the one that suppresses those."""
+        self._write(
+            _entry("2026-06-01 09:00", D, title="delta"),
+            _entry("2026-06-01 10:00", C, title="gamma", related=[D]),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+
+        self.assertEqual(audit_link_gaps(cwd=self.cwd, entry_id=C), [])
 
     def test_cli_reports_ranking_provenance_and_cosine(self):
         self._patch_provider(self._pair())

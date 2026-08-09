@@ -1923,6 +1923,12 @@ def main(argv: list[str] | None = None) -> int:
                                     "lexical_score": c.lexical_score,
                                     "semantic_score": c.semantic_score,
                                     "already_related": c.already_related,
+                                    # True when the lexical gate could not have
+                                    # surfaced this pair at all - it is here on
+                                    # semantic rank alone. A judging agent must
+                                    # be told, because such a candidate offers
+                                    # no shared file/title/topic to check.
+                                    "ungated": c.ungated,
                                     "decisions": [_dec(d) for d in c.decisions],
                                 }
                                 for c in g.candidates
@@ -1969,6 +1975,11 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"    decisions: {_fmt_decisions(gap.decisions)}")
                 for cand in gap.candidates:
                     evidence = []
+                    # An ungated candidate leads with that fact. It carries no
+                    # overlap a reader can check, so presenting it like a gated
+                    # one would overstate it.
+                    if cand.ungated:
+                        evidence.append("UNGATED - semantic rank only")
                     # Shared title terms lead: they are the strongest signal
                     # for a lifecycle predecessor, and the one a human can
                     # judge at a glance without opening either entry.

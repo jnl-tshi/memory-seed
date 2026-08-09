@@ -662,6 +662,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
                         # the order. `None` when semantic ranking was unavailable.
                         "semantic_score": cand.semantic_score,
                         "already_related": cand.already_related,
+                        "ungated": cand.ungated,
                     }
                     for cand in gap.candidates
                 ],
@@ -833,6 +834,11 @@ def format_esr_report(report: EsrReport) -> str:
             lines.append(f"- {gap['entry_id']}  {gap['title']}")
             for cand in gap["candidates"]:
                 evidence = []
+                # An ungated candidate leads with that fact - it carries no
+                # overlap the reader can check. `.get` for the same reason as
+                # shared_title_terms below.
+                if cand.get("ungated"):
+                    evidence.append("UNGATED - semantic rank only")
                 # Title terms lead - see the matching comment in cli.py. Read
                 # with `.get` because an ESR payload written before this field
                 # existed must still render rather than KeyError on replay.
