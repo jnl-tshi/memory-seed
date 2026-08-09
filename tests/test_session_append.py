@@ -914,3 +914,82 @@ class BranchProvenanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OneLinkPerChainGuardTests(unittest.TestCase):
+    """Within one chain, a decision links its evolution once - at the head.
+    Two evolves targets where one is a chain-ancestor of the other restate
+    history the chain already carries, and are refused at write time."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-chainguard-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            "schema_version: 2\ntopics:\n  - slug: schema\n    axis: area\n"
+            "  - slug: feature-build\n    axis: activity\n",
+            encoding="utf-8",
+        )
+
+    def _append(self, **overrides):
+        kwargs = dict(
+            cwd=self.cwd,
+            title="A decision",
+            body=BODY,
+            user_initials="JN",
+            agent_type="claude",
+            auto_branch=False,
+        )
+        kwargs.update(overrides)
+        return session_append_entry(**kwargs)
+
+    def _decision(self, evolves_items):
+        return [
+            {
+                "decision": "d1",
+                "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
+                "links": {"evolves": evolves_items},
+            }
+        ]
+
+    def test_two_targets_in_one_chain_are_refused_with_the_fix(self):
+        root = self._append(title="Root", timestamp="2026-06-13 08:00")
+        mid = self._append(
+            title="Mid",
+            timestamp="2026-06-13 08:30",
+            decisions=self._decision(
+                [{"ref": root.entry_id, "type": "refines", "why": "next form"}]
+            ),
+        )
+        self.assertTrue(mid.ok, mid.issues)
+        result = self._append(
+            title="Restates the chain",
+            timestamp="2026-06-13 09:00",
+            decisions=self._decision(
+                [
+                    {"ref": mid.entry_id, "type": "builds-on", "why": "rests on it"},
+                    {"ref": root.entry_id, "type": "builds-on", "why": "and its root"},
+                ]
+            ),
+        )
+        self.assertFalse(result.ok)
+        joined = " ".join(result.issues)
+        self.assertIn("ONE chain", joined)
+        self.assertIn(f"Keep the edge to d1 -> {mid.entry_id}", joined)
+        self.assertIn("related_entries", joined)
+
+    def test_two_targets_in_different_chains_pass(self):
+        # Cross-chain multi-evolves is a merge and stays fully legal.
+        one = self._append(title="Chain one", timestamp="2026-06-13 08:00")
+        two = self._append(title="Chain two", timestamp="2026-06-13 08:30")
+        result = self._append(
+            title="Merges two concerns",
+            timestamp="2026-06-13 09:00",
+            decisions=self._decision(
+                [
+                    {"ref": one.entry_id, "type": "builds-on", "why": "x"},
+                    {"ref": two.entry_id, "type": "builds-on", "why": "y"},
+                ]
+            ),
+        )
+        self.assertTrue(result.ok, result.issues)

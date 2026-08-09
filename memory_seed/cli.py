@@ -517,6 +517,12 @@ def main(argv: list[str] | None = None) -> int:
         "check",
         help="report duplicate/dangling IDs and per-user frontmatter problems (exit 1 on any issue)",
     )
+    links_chain = links_sub.add_parser(
+        "chain",
+        help="show the refines chain a decision belongs to (root -> head, owning ADRs)",
+    )
+    links_chain.add_argument("ref", help="decision ref: mse_x or mse_x:dN")
+    links_chain.add_argument("--json", action="store_true", help="emit the derived chain view as JSON")
 
     migrate_parser = subparsers.add_parser("migrate", help="migrate Memory Seed data layouts")
     migrate_sub = migrate_parser.add_subparsers(dest="migrate_command", required=True)
@@ -1644,6 +1650,28 @@ def main(argv: list[str] | None = None) -> int:
             for issue in errors:
                 print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
             return 1
+        if args.links_command == "chain":
+            from .retrieval import describe_refines_chain
+
+            view = describe_refines_chain(Path(".").resolve(), args.ref)
+            if view is None:
+                print(f"{args.ref}: not part of any refines chain (no refines predecessor or successor).")
+                return 0
+            if args.json:
+                import json as _json
+
+                print(_json.dumps(view, indent=2))
+                return 0
+            print(f"Chain {view['root']} — {view['length']} members, head {view['head']}")
+            last = len(view["members"]) - 1
+            for index, member in enumerate(view["members"]):
+                marker = "root" if index == 0 else ("head" if index == last else "    ")
+                date = member["session_date"] or "?"
+                title = member["title"] or "(unknown entry)"
+                print(f"  {marker}  {member['ref']}  {date}  {title}")
+            for adr in view["adrs"]:
+                print(f"  ADR: {adr['adr_id']} (authoritative decision {adr['member']})")
+            return 0
 
     if args.command == "migrate":
         if args.migrate_command == "sessions-layout":
@@ -1904,6 +1932,7 @@ def main(argv: list[str] | None = None) -> int:
                         "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
                         "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
                         "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
+                        "chain_position": "every lifecycle edge into a refines chain attaches at its HEAD - a candidate marked interior has its refines slot taken and may receive only related; replaced candidates are never offered (their terminal replacement substitutes)",
                     },
                     "gaps": [
                         {
@@ -1929,6 +1958,16 @@ def main(argv: list[str] | None = None) -> int:
                                     # be told, because such a candidate offers
                                     # no shared file/title/topic to check.
                                     "ungated": c.ungated,
+                                    # Position in a refines chain constrains the
+                                    # verdict space: interior members take only
+                                    # `related` (the refines slot is filled; the
+                                    # chain lives at current_form). Replaced
+                                    # candidates never appear - substitute_for
+                                    # marks the replacement offered instead.
+                                    "chain_position": c.chain_position,
+                                    "refines_taken_by": c.refines_taken_by,
+                                    "current_form": c.current_form,
+                                    "substitute_for": c.substitute_for,
                                     "decisions": [_dec(d) for d in c.decisions],
                                 }
                                 for c in g.candidates
@@ -1980,6 +2019,15 @@ def main(argv: list[str] | None = None) -> int:
                     # one would overstate it.
                     if cand.ungated:
                         evidence.append("UNGATED - semantic rank only")
+                    # Chain position next: it changes what may be recorded at
+                    # all, so it outranks any evidence weighing.
+                    if cand.chain_position == "interior":
+                        evidence.append(
+                            f"INTERIOR chain member - related-only (refines taken by {cand.refines_taken_by}; "
+                            f"chain lives at {cand.current_form})"
+                        )
+                    if cand.substitute_for:
+                        evidence.append(f"substitute for replaced {cand.substitute_for}")
                     # Shared title terms lead: they are the strongest signal
                     # for a lifecycle predecessor, and the one a human can
                     # judge at a glance without opening either entry.

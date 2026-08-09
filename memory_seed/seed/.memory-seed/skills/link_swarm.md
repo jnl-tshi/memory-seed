@@ -90,6 +90,22 @@ mse_x:d2`), so a `related` verdict SHOULD name the specific decisions it connect
 multi-decision, exactly as the reasoning already identifies them. This is why one swarm run suffices:
 it emits the finest granularity the grammar allows, and the corpus never needs a second pass to add it.
 
+**Chain position closes part of the verdict space** (2026-08-09). Candidates arrive annotated from the
+decision-keyed `refines` spine (`chain_position` in the payload), and every lifecycle edge into a chain
+attaches at its HEAD - `refines` takes the single successor slot, `builds-on` forks a new line from it,
+and interior members receive only `related`:
+
+- `head` - the full verdict space applies.
+- `interior` - this candidate's `refines` slot is taken (`refines_taken_by` names the holder); the
+  chain lives at `current_form`. The only recordable verdicts are `related` or `none`. Never propose
+  `replaces` or `evolves` onto an interior member - if the real relationship is to the chain, the edge
+  belongs at `current_form`.
+- Replaced candidates never appear at all; their terminal replacement is offered instead, carrying
+  `substitute_for` so the provenance stays visible. Judge the replacement on its own body.
+
+This is the closed-list rule applied to verdicts: the invalid option is removed from the menu rather
+than left for the judge to remember to avoid.
+
 The `quote` field must be a verbatim phrase from the entry that grounds the verdict — if the agent
 cannot quote something specific, the verdict is `none`.
 

@@ -2345,6 +2345,26 @@ class LinkGapCandidate:
     # mixed in: an ungated candidate offers a reader no evidence they can check,
     # so it must not read like one that does.
     ungated: bool = False
+    # Chain-position awareness (2026-08-09): the lifecycle graph knows each
+    # candidate's position in a `refines` chain, and position constrains what
+    # kind of edge is coherent - every lifecycle edge into a chain attaches at
+    # its HEAD; interior members take only `related`; a replaced decision is
+    # not a lifecycle target at all. Removing the invalid option from the menu
+    # beats asking a judge to avoid it (the closed-list lesson).
+    #   "head"     - open: the full verdict space applies.
+    #   "interior" - a refines successor holds this candidate's slot; the chain
+    #                lives at `current_form`. Related-only.
+    #   "replaced" - retired; never surfaced (its terminal replacement is
+    #                offered instead, carrying `substitute_for`).
+    chain_position: str = "head"
+    # The decision ref occupying this candidate's refines slot, when interior.
+    refines_taken_by: str | None = None
+    # The current form of the candidate's own lineage: the chain head for an
+    # interior member, the terminal replacement for a replaced one.
+    current_form: str | None = None
+    # Set on a candidate surfaced IN PLACE OF a replaced one: the replaced
+    # entry's id, so the reader knows why this candidate is here.
+    substitute_for: str | None = None
 
 
 @dataclass(frozen=True)
@@ -2444,6 +2464,43 @@ def audit_link_gaps(
         raise LookupError(f"entry_id {entry_id} not found")
 
     sidecars = entry_link_sidecars(cwd)
+
+    # Chain-position context (2026-08-09): each candidate is annotated from the
+    # decision-keyed refines spine and the replacement graph, so an incoherent
+    # lifecycle target is marked (interior member: related-only, the chain lives
+    # at its head) or never offered at all (replaced: its terminal replacement
+    # is surfaced instead) at candidate-generation time - the closed-list
+    # lesson: do not ask a judge to avoid an answer you can remove from the
+    # menu. This filters a CANDIDATE list; retrieval elsewhere is untouched.
+    from .semantic_cache import (
+        build_refines_spine,
+        build_related_entry_graph,
+        replacing_lineage_heads,
+    )
+
+    augmented_chunks = augment_chunks_with_link_sidecars(chunks, cwd)
+    spine = build_refines_spine(augmented_chunks)
+    lineage_graph = build_related_entry_graph(cwd, chunks=augmented_chunks)
+    taken_by_entry: dict[str, list[tuple[tuple[str, str], tuple[tuple[str, str], ...]]]] = {}
+    for spine_key, spine_successors in spine.successors.items():
+        taken_by_entry.setdefault(spine_key[0], []).append((spine_key, spine_successors))
+
+    def _decision_ref(key: tuple[str, str]) -> str:
+        return f"{key[0]}:{key[1]}" if key[1] else key[0]
+
+    def _annotate_chain_position(candidate: LinkGapCandidate) -> LinkGapCandidate:
+        taken = taken_by_entry.get(candidate.entry_id)
+        if not taken:
+            return candidate
+        spine_key, spine_successors = taken[0]
+        walked = spine.head(*spine_key)
+        return replace(
+            candidate,
+            chain_position="interior",
+            refines_taken_by=", ".join(_decision_ref(s) for s in spine_successors),
+            current_form=_decision_ref(walked[0]) if walked else _decision_ref(spine_successors[0]),
+        )
+
     alias = _continuity_alias_map(chunks)
     file_refs: dict[str, set[str]] = {}
     topics_of: dict[str, set[str]] = {}
@@ -2677,13 +2734,63 @@ def audit_link_gaps(
                     )
                 )
 
-        if selected:
+        # Chain-position pass over the finished selection: replaced candidates
+        # are dropped (their terminal replacement substitutes when it is itself
+        # a valid, unlinked, OLDER candidate); interior chain members stay but
+        # carry the position and the reason. Runs after the gated + ungated
+        # assembly so neither source escapes it.
+        final: list[LinkGapCandidate] = []
+        selected_ids = {candidate.entry_id for candidate in selected}
+        for candidate in selected:
+            node = lineage_graph.get(candidate.entry_id)
+            if node is not None and node.replaced_by:
+                for rep in replacing_lineage_heads(lineage_graph, candidate.entry_id):
+                    if (
+                        rep == tid
+                        or rep in selected_ids
+                        or rep in target_lifecycle
+                        or rep not in by_id
+                        or order[rep] >= target_key
+                    ):
+                        continue
+                    rep_chunk = by_id[rep]
+                    rep_files = tuple(sorted(target_files & file_refs.get(rep, set())))
+                    rep_topics = tuple(sorted(target_topics & topics_of.get(rep, set())))
+                    rep_title = tuple(sorted(target_title_terms & title_terms.get(rep, set())))
+                    rep_lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in rep_files) + TITLE_OVERLAP_BOOST * sum(
+                        title_idf(term) for term in rep_title
+                    )
+                    rep_similarity = semantic_similarity(tid, rep)
+                    final.append(
+                        _annotate_chain_position(
+                            LinkGapCandidate(
+                                entry_id=rep,
+                                title=rep_chunk.title,
+                                session_date=rep_chunk.session_date.isoformat(),
+                                shared_files=rep_files,
+                                shared_topics=rep_topics,
+                                shared_title_terms=rep_title,
+                                file_overlap_score=round(rep_lexical + SEMANTIC_OVERLAP_BOOST * rep_similarity, 6),
+                                already_related=rep in target_related,
+                                decisions=decisions_of.get(rep, ()),
+                                lexical_score=round(rep_lexical, 6),
+                                semantic_score=round(rep_similarity, 6) if vectors else None,
+                                substitute_for=candidate.entry_id,
+                            )
+                        )
+                    )
+                    selected_ids.add(rep)
+                    break
+                continue
+            final.append(_annotate_chain_position(candidate))
+
+        if final:
             gaps.append(
                 LinkGap(
                     entry_id=tid,
                     title=target.title,
                     session_date=target.session_date.isoformat(),
-                    candidates=tuple(selected),
+                    candidates=tuple(final),
                     decisions=decisions_of.get(tid, ()),
                 )
             )
@@ -2806,6 +2913,16 @@ def apply_link_gap_stubs(
                 evidence.append(f"topics: {', '.join(candidate.shared_topics)}")
             if candidate.already_related:
                 evidence.append("already related; consider a lifecycle upgrade")
+            if candidate.substitute_for:
+                evidence.append(f"substitute for replaced {candidate.substitute_for}")
+            if candidate.chain_position == "interior":
+                # Position first among the flags below: it changes the verdict
+                # space itself (related-only), not just the evidence weight.
+                evidence.insert(
+                    0,
+                    "INTERIOR chain member - related-only; refines taken by "
+                    f"{candidate.refines_taken_by}; the chain lives at {candidate.current_form}",
+                )
             if candidate.ungated:
                 # Stated first on read even though it is appended last: a reader
                 # must know this pair carries no checkable overlap before they
@@ -2845,6 +2962,69 @@ def apply_link_gap_stubs(
         added_entry_ids=tuple(item[1] for item in rendered),
         skipped_entry_ids=skipped,
     )
+
+
+def describe_refines_chain(cwd: str | Path, ref: str) -> dict[str, Any] | None:
+    """Derived view of the refines chain a decision belongs to.
+
+    A chain is a thing, not just a path you can walk: the life of one decision
+    through its successive forms. Its identity is its ROOT decision - the one
+    member with no `refines` predecessor - which is stable under growth, where
+    an id keyed to the head would be renamed by every extension. Entirely
+    derivable from the edges (Constitution #6: a derived, rebuildable
+    projection, never a second source of truth).
+
+    ``ref`` is ``mse_x`` or ``mse_x:dN``. Returns None when the decision
+    belongs to no chain (no refines predecessor or successor). The view carries
+    root, ordered members (with dates/titles), head, length, and which ADR(s)
+    hold a member as their authoritative decision.
+    """
+    from .semantic_cache import build_refines_spine, extract_memory_chunks
+
+    chunks = augment_chunks_with_link_sidecars(
+        extract_memory_chunks(cwd, granularity="entry"), cwd
+    )
+    entry_id, _, ordinal = ref.strip().partition(":")
+    spine = build_refines_spine(chunks)
+    chain = spine.chain_through(entry_id, ordinal or None)
+    if not chain:
+        return None
+    by_id = {chunk.entry_id: chunk for chunk in chunks if chunk.entry_id}
+
+    def _ref(key: tuple[str, str]) -> str:
+        return f"{key[0]}:{key[1]}" if key[1] else key[0]
+
+    members = [
+        {
+            "ref": _ref(key),
+            "session_date": by_id[key[0]].session_date.isoformat() if key[0] in by_id else None,
+            "title": by_id[key[0]].title if key[0] in by_id else None,
+        }
+        for key in chain
+    ]
+    adrs: list[dict[str, str]] = []
+    try:
+        from .adr import iter_adrs
+
+        chain_keys = set(chain)
+        for record in iter_adrs(cwd):
+            head_ref = record.authoritative_decision
+            if not head_ref:
+                continue
+            adr_entry, _, adr_ordinal = head_ref.partition(":")
+            if spine.key(adr_entry, adr_ordinal or None) in chain_keys:
+                adrs.append({"adr_id": record.adr_id, "member": head_ref})
+    except Exception:
+        # The ADR overlay is context, not the chain: a malformed ADR store must
+        # not make the chain itself unreadable.
+        adrs = []
+    return {
+        "root": members[0]["ref"],
+        "head": members[-1]["ref"],
+        "length": len(chain),
+        "members": members,
+        "adrs": adrs,
+    }
 
 
 def format_search_results(

@@ -663,6 +663,13 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
                         "semantic_score": cand.semantic_score,
                         "already_related": cand.already_related,
                         "ungated": cand.ungated,
+                        # Chain position constrains the verdict space (interior:
+                        # related-only; replaced never appears - substitute_for
+                        # names what the offered replacement stands in for).
+                        "chain_position": cand.chain_position,
+                        "refines_taken_by": cand.refines_taken_by,
+                        "current_form": cand.current_form,
+                        "substitute_for": cand.substitute_for,
                     }
                     for cand in gap.candidates
                 ],
@@ -839,6 +846,15 @@ def format_esr_report(report: EsrReport) -> str:
                 # shared_title_terms below.
                 if cand.get("ungated"):
                     evidence.append("UNGATED - semantic rank only")
+                # Chain position next - it changes what may be recorded at all.
+                # `.get` for replay of pre-field payloads, like the rest.
+                if cand.get("chain_position") == "interior":
+                    evidence.append(
+                        f"INTERIOR - related-only (refines taken by {cand.get('refines_taken_by')}; "
+                        f"chain lives at {cand.get('current_form')})"
+                    )
+                if cand.get("substitute_for"):
+                    evidence.append(f"substitute for replaced {cand['substitute_for']}")
                 # Title terms lead - see the matching comment in cli.py. Read
                 # with `.get` because an ESR payload written before this field
                 # existed must still render rather than KeyError on replay.
