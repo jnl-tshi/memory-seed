@@ -727,6 +727,7 @@ _ARROW_BARE_ITEM_RE = re.compile(r"^(d\d+)\s*->\s*(ms-[0-9a-f]{8}|mse_[0-9a-z]{8
 # WHICH words are legal and `links check` enforces that; this only has to peel
 # the suffix off so the ref body parses as it always has.
 _EVOLUTION_TYPE_ITEM_RE = re.compile(r"^(.*?)\s*\(\s*([a-z-]+)\s*\)$")
+_BARE_ENTRY_ID_ONLY_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
 
 
 def _normalize_file_ref(value: str) -> str:
@@ -1334,6 +1335,12 @@ def _extract_entry_chunks_from_file(
                     entry_decision_edges.append((kind, m.group(1), m.group(2), "", m_type))
                     continue
                 sink.append(raw)
+                # Plain bare ref carrying only a TYPE (`mse_x (refines)`). It stays
+                # entry-level, but the type is decision-level information with
+                # nowhere else to go, so it also records a decision edge with both
+                # ordinals empty - the same shape the arrow-bare case above uses.
+                if m_type and _BARE_ENTRY_ID_ONLY_RE.match(raw):
+                    entry_decision_edges.append((kind, "", raw, "", m_type))
         replaces = tuple(replaces_list)
         evolves = tuple(evolves_list)
         related_entries = tuple(related_list)

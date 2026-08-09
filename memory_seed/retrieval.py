@@ -1987,7 +1987,14 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                         # Bare target: the edge is entry-level on that side
                         # even when an arrow names the authoring decision.
                         entry_level.append(parsed.entry_id)
-                    if parsed.decision is not None or parsed.source_decision is not None:
+                    # A TYPE alone makes an edge decision-level information even
+                    # when neither ordinal is named: `mse_x (refines)` says which
+                    # kind of evolution this is, and that fact has nowhere else to
+                    # live - the entry-level list is bare ids. Without this the
+                    # survivor check below cannot see a typed bare edge, and a
+                    # retract-and-retype deletes it.
+                    if (parsed.decision is not None or parsed.source_decision is not None
+                            or parsed.evolution_type):
                         # Fifth element is the evolution type (2026-08-09). This
                         # is the SECOND parser building decision_edges - the
                         # other lives in `semantic_cache` - and the two must
