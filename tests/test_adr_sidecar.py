@@ -222,7 +222,7 @@ topics:
             "decisions": [{
                 "decision": "d1",
                 "topics": {"area": "schema", "activity": "feature-build"},
-                "links": {"evolves": ["mse_12345678"]},
+                "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]},
             }],
         }
 
@@ -477,7 +477,7 @@ topics:
             "decisions": [{
                 "decision": "d1",
                 "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
-                "links": {"evolves": ["mse_12345678"]},
+                "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]},
             }],
         }
         before_gate = self._workspace_snapshot(self.root)
@@ -544,7 +544,7 @@ topics:
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:00",
             "auto_branch": False,
-            "decisions": [{"decision": "d1", "topics": {"area": "schema", "activity": "feature-build"}, "links": {"evolves": ["mse_12345678"]}}],
+            "decisions": [{"decision": "d1", "topics": {"area": "schema", "activity": "feature-build"}, "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]}}],
         }
         first = call_tool("memory_session_append", payload)
         payload["adr_review_receipt"] = first["adr_review_receipt"]
@@ -761,7 +761,7 @@ topics:
                 outside = self._review_payload(
                     title=f"Outside lineage {kind}", timestamp=f"2026-07-30 12:1{index}"
                 )
-                outside["decisions"][0]["links"] = {kind: ["mse_outside1"]}
+                outside["decisions"][0]["links"] = {kind: [dict({"ref": "mse_outside1", "why": "test fixture edge"}, **({"type": "builds-on"} if kind == "evolves" else {}))]}
                 result = call_tool("memory_session_append", outside)
                 self.assertTrue(result["ok"], result["issues"])
                 self.assertNotIn("review_required", result)
@@ -800,7 +800,7 @@ topics:
             self.assertEqual(self._workspace_snapshot(alternate), before_alternate)
 
         changed_link = copy.deepcopy(payload)
-        changed_link["decisions"][0]["links"] = {"replaces": ["mse_12345678"]}
+        changed_link["decisions"][0]["links"] = {"replaces": [{"ref": "mse_12345678", "why": "test fixture edge"}]}
         changed_link["adr_review_receipt"] = receipt
         changed_link["decisions"][0]["adrs"] = [self._no_change()]
         before_link = self._workspace_snapshot(self.root)

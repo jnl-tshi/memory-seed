@@ -100,7 +100,13 @@ topics:
                     "topics": {"area": "schema", "activity": "feature-build"},
                     "links": {
                         "related_entries": [first["entry_id"]],
-                        "evolves": [first["entry_id"]],
+                        "evolves": [
+                            {
+                                "ref": first["entry_id"],
+                                "type": "refines",
+                                "why": "test fixture edge",
+                            }
+                        ],
                     },
                 }
             ],
@@ -119,7 +125,7 @@ topics:
                 {
                     "decision": "d1",
                     "topics": {"area": "schema", "activity": "feature-build"},
-                    "links": {"evolves": [older["entry_id"]]},
+                    "links": {"evolves": [{"ref": older["entry_id"], "type": "refines", "why": "test fixture edge"}]},
                 }
             ]
         }

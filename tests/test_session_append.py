@@ -89,7 +89,7 @@ topics:
                 {
                     "decision": "d1",
                     "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
-                    "links": {"evolves": [older.entry_id]},
+                    "links": {"evolves": [{"ref": older.entry_id, "type": "refines", "why": "test fixture edge"}]},
                 }
             ],
         )
@@ -267,7 +267,7 @@ topics:
             "decisions": [{
                 "decision": "d1",
                 "topics": {"area": "schema", "activity": "feature-build"},
-                "links": {"evolves": [older.entry_id]},
+                "links": {"evolves": [{"ref": older.entry_id, "type": "refines", "why": "test fixture edge"}]},
             }],
         }
         from memory_seed.core import _write_chronological_topic_sidecar_file as real_write_topic_sidecar
@@ -308,14 +308,107 @@ topics:
         self.assertTrue(result.ok, result.issues)
         return result.entry_id
 
+    def _append_links(self, kind, refs, *, edge_type="builds-on", **overrides):
+        """Author lifecycle links the only way that still exists: the envelope.
+
+        Entry YAML stopped accepting them on 2026-08-09, so the grammar rules
+        these tests cover are exercised through `decisions[].links` - the rules
+        are unchanged, only the surface that carries them moved. Evidence and (on
+        evolves) an evolution type are mandatory, so the helper supplies both.
+        """
+        self._vocabulary()
+        items = []
+        for ref in refs:
+            item = {"ref": ref}
+            if kind in {"replaces", "evolves"}:
+                item["why"] = "fixture edge"
+            if kind == "evolves":
+                item["type"] = edge_type
+            items.append(item)
+        return self._append(
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                    "links": {kind: items},
+                }
+            ],
+            **overrides,
+        )
+
+    def _sidecar_text(self, result):
+        return "\n".join(
+            Path(path).read_text(encoding="utf-8") for path in result.sidecar_paths
+        )
+
     def test_append_accepts_decision_ref_in_evolves(self):
         # Write-time grammar (2026-07-24): `:dN` on an existing ordinal of an
-        # older entry passes the guards and is written verbatim.
+        # older entry passes the guards and is written verbatim - now into the
+        # link sidecar, with the source ordinal the envelope supplies.
         older = self._append_multi_decision_older()
-        result = self._append(evolves=[f"{older}:d2"])
+        result = self._append_links("evolves", [f"{older}:d2"])
         self.assertTrue(result.ok, result.issues)
-        text = result.path.read_text(encoding="utf-8")
-        self.assertIn(f"- {older}:d2", text)
+        self.assertIn(f"- d1 -> {older}:d2 (builds-on)", self._sidecar_text(result))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_records_evidence_and_evolution_type_for_a_lifecycle_edge(self):
+        # The write-time mandate (JNL 2026-08-09): an evolves edge names WHY it
+        # was drawn and WHICH kind of evolution it is. Both are refused when
+        # missing, because the author knows each exactly once and append-only
+        # makes the omission permanent.
+        older = self._append_multi_decision_older()
+        ok = self._append_links("evolves", [f"{older}:d2"], edge_type="refines")
+        self.assertTrue(ok.ok, ok.issues)
+        text = self._sidecar_text(ok)
+        self.assertIn(f"- d1 -> {older}:d2 (refines)", text)
+        self.assertIn('why: "fixture edge"', text)
+
+        for links, expected in (
+            ({"evolves": [{"ref": f"{older}:d2", "why": "reason"}]}, "needs type"),
+            ({"evolves": [{"ref": f"{older}:d2", "type": "refines"}]}, "needs 'why'"),
+            ({"replaces": [{"ref": f"{older}:d2"}]}, "needs 'why'"),
+        ):
+            with self.subTest(expected=expected):
+                bad = self._append(
+                    title="Missing metadata",
+                    timestamp="2026-06-13 11:00",
+                    decisions=[
+                        {
+                            "decision": "d1",
+                            "topics": {"area": "schema", "activity": "feature-build"},
+                            "links": links,
+                        }
+                    ],
+                )
+                self.assertFalse(bad.ok)
+                self.assertTrue(any(expected in issue for issue in bad.issues), bad.issues)
+
+    def test_a_decision_may_be_refined_only_once(self):
+        # The rule that makes a lineage a line rather than a fan. `builds-on` is
+        # deliberately unlimited, so the second edge is refused only when it too
+        # claims to be the next form.
+        older = self._append_multi_decision_older()
+        first = self._append_links("evolves", [f"{older}:d2"], edge_type="refines")
+        self.assertTrue(first.ok, first.issues)
+
+        rival = self._append_links(
+            "evolves",
+            [f"{older}:d2"],
+            edge_type="refines",
+            title="Rival successor",
+            timestamp="2026-06-13 11:00",
+        )
+        self.assertFalse(rival.ok)
+        self.assertTrue(any("is already refined by" in issue for issue in rival.issues), rival.issues)
+
+        alongside = self._append_links(
+            "evolves",
+            [f"{older}:d2"],
+            edge_type="builds-on",
+            title="Later work",
+            timestamp="2026-06-13 12:00",
+        )
+        self.assertTrue(alongside.ok, alongside.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
     def test_append_rejects_decision_ref_to_missing_ordinal(self):
@@ -329,20 +422,23 @@ topics:
         # allowed but never mandated. A valid ordinal on a 2-decision target
         # passes; a nonexistent one is still dangling.
         older = self._append_multi_decision_older()  # has d1, d2
-        ok = self._append(related_entries=[f"{older}:d2"])
+        ok = self._append_links("related_entries", [f"{older}:d2"])
         self.assertTrue(ok.ok, ok.issues)
-        self.assertIn(f"- {older}:d2", ok.path.read_text(encoding="utf-8"))
+        self.assertIn(f"- d1 -> {older}:d2", self._sidecar_text(ok))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
-        bad = self._append(title="Bad ord", timestamp="2026-06-13 10:00", related_entries=[f"{older}:d9"])
+        bad = self._append_links(
+            "related_entries", [f"{older}:d9"], title="Bad ord", timestamp="2026-06-13 10:00"
+        )
         self.assertFalse(bad.ok)
         self.assertTrue(any("has no d9" in issue for issue in bad.issues), bad.issues)
 
     def test_append_does_not_mandate_decision_ref_in_related_entries(self):
         # Unlike replaces/evolves, related is NOT required to name the decision
-        # on a multi-decision target - it stays casual for hand-authoring.
+        # on a multi-decision target - it stays casual for hand-authoring. It
+        # needs no evidence either, for the same reason.
         older = self._append_multi_decision_older()  # 2 decisions
-        ok = self._append(related_entries=[older])  # bare, no :dN
+        ok = self._append_links("related_entries", [older])  # bare, no :dN
         self.assertTrue(ok.ok, ok.issues)
 
     # --- Grammar v2 (2026-07-24): granularity is mandated at write time ---
@@ -358,7 +454,7 @@ topics:
             title="Note only", body="### Summary\n\n- a plain note.", timestamp="2026-06-13 08:00"
         )
         self.assertTrue(summary_only.ok, summary_only.issues)
-        result = self._append(replaces=[summary_only.entry_id])
+        result = self._append_links("replaces", [summary_only.entry_id])
         self.assertTrue(result.ok, result.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
@@ -369,92 +465,85 @@ topics:
         single = self._append(title="One call", timestamp="2026-06-13 08:00")  # BODY is singular
         self.assertTrue(single.ok, single.issues)
 
-        bare = self._append(title="Refines it", timestamp="2026-06-13 10:00", evolves=[single.entry_id])
+        bare = self._append_links(
+            "evolves", [single.entry_id], title="Refines it", timestamp="2026-06-13 10:00"
+        )
         self.assertTrue(bare.ok, bare.issues)
-        self.assertIn(f"- {single.entry_id}", bare.path.read_text(encoding="utf-8"))
+        self.assertIn(f"- d1 -> {single.entry_id} (builds-on)", self._sidecar_text(bare))
 
-        redundant = self._append(
-            title="Over-specified", timestamp="2026-06-13 11:00", evolves=[f"{single.entry_id}:d1"]
+        redundant = self._append_links(
+            "evolves", [f"{single.entry_id}:d1"], title="Over-specified", timestamp="2026-06-13 11:00"
         )
         self.assertFalse(redundant.ok)
         self.assertTrue(any("single decision" in issue and "bare id" in issue for issue in redundant.issues), redundant.issues)
 
     def test_append_accepts_comma_multi_ordinal_and_validates_each(self):
         older = self._append_multi_decision_older()
-        ok = self._append(evolves=[f"{older}:d1,d2"])
+        ok = self._append_links("evolves", [f"{older}:d1,d2"])
         self.assertTrue(ok.ok, ok.issues)
-        self.assertIn(f"- {older}:d1,d2", ok.path.read_text(encoding="utf-8"))
+        self.assertIn(f"- d1 -> {older}:d1,d2 (builds-on)", self._sidecar_text(ok))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
-        bad = self._append(title="Bad ordinal", timestamp="2026-06-13 10:00", evolves=[f"{older}:d1,d9"])
+        bad = self._append_links(
+            "evolves", [f"{older}:d1,d9"], title="Bad ordinal", timestamp="2026-06-13 10:00"
+        )
         self.assertFalse(bad.ok)
         self.assertTrue(any("has no d9" in issue for issue in bad.issues))
 
-    def test_append_mandates_arrow_source_prefix_for_multi_decision_body(self):
+    def test_the_envelope_owns_the_source_ordinal_and_refuses_an_inline_one(self):
+        # The source side is no longer hand-written: `decisions[].decision` names
+        # the authoring ordinal and the renderer prefixes every ref with it. An
+        # inline `dN -> ` would be a second, contradictable spelling of the same
+        # fact, so it is refused rather than merged.
         older = self._append_multi_decision_older()
-        multi_body = (
-            "### Summary\n\n- Context.\n\n### Decisions\n\n"
-            "#### D1 - keep\n\n- D: a\n- R: because\n\n"
-            "#### D2 - change\n\n- D: b\n- R: reasons\n"
+        result = self._append_links("evolves", [f"d2 -> {older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(
+            any("must omit the source prefix" in issue for issue in result.issues), result.issues
         )
-        # Without the arrow nobody knows which decision authors the edge.
-        result = self._append(body=multi_body, evolves=[f"{older}:d1"])
-        self.assertFalse(result.ok)
-        self.assertTrue(any("prefix which one authors the edge" in issue for issue in result.issues), result.issues)
 
-        # With it, the ref is written verbatim and the corpus stays clean.
-        ok = self._append(body=multi_body, evolves=[f"d2 -> {older}:d1"])
-        self.assertTrue(ok.ok, ok.issues)
-        self.assertIn(f"- d2 -> {older}:d1", ok.path.read_text(encoding="utf-8"))
-        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+        # And an authoring ordinal the body does not have is caught on the
+        # envelope's own field, which is where it now lives.
+        self._vocabulary()
+        missing = self._append(
+            title="No such ordinal",
+            timestamp="2026-06-13 10:00",
+            decisions=[
+                {
+                    "decision": "d9",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                    "links": {"evolves": [{"ref": older, "type": "builds-on", "why": "x"}]},
+                }
+            ],
+        )
+        self.assertFalse(missing.ok)
+        self.assertTrue(
+            any("is not recorded in the body" in issue for issue in missing.issues), missing.issues
+        )
 
-    def test_append_rejects_arrow_ordinal_absent_from_own_body(self):
+    def test_entry_yaml_lifecycle_flags_are_refused(self):
+        # Entry YAML stopped accepting lifecycle links on 2026-08-09: a raw ref
+        # in an entry's frontmatter tells a human reading the Markdown nothing,
+        # and the flags have nowhere to put the evidence and evolution type the
+        # envelope now mandates. The refusal has to name the replacement, or it
+        # is just a wall.
         older = self._append_multi_decision_older()
-        # The default BODY is single-decision: it has d1 and nothing else.
-        result = self._append(evolves=[f"d9 -> {older}:d1"])
-        self.assertFalse(result.ok)
-        self.assertTrue(any("this entry has no d9" in issue for issue in result.issues), result.issues)
-
-    def test_cli_ref_flags_are_repeatable_and_survive_intra_ref_commas(self):
-        # The flag's comma has always separated ITEMS, but grammar v2 puts a
-        # comma INSIDE a ref (`mse_x:d1,d4`). Splitting naively turns that one
-        # ref into a valid ref plus the garbage token `d4`. Found by
-        # dogfooding: three --evolves flags collapsed to one before the fix.
-        import contextlib
-        import io
-        import os
-
-        from memory_seed.cli import main as cli_main
-
-        older = self._append_multi_decision_older()
-        body_file = self.cwd / "body.md"
-        body_file.write_text(BODY, encoding="utf-8")
-
-        previous = Path.cwd()
-        out = io.StringIO()
-        try:
-            os.chdir(self.cwd)
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-                code = cli_main([
-                    "session", "append",
-                    "--title", "Repeated refs",
-                    "--user-initials", "JN",
-                    "--agent-type", "claude",
-                    "--timestamp", "2026-06-13 09:30",
-                    "--no-branch",
-                    "--body-file", str(body_file),
-                    "--evolves", f"{older}:d1,d2",
-                    "--evolves", f"{older}:d2",
-                    "--dry-run",
-                ])
-        finally:
-            os.chdir(previous)
-
-        self.assertEqual(code, 0, out.getvalue())
-        rendered = out.getvalue()
-        self.assertIn(f"- {older}:d1,d2", rendered)  # comma kept inside the ref
-        self.assertIn(f"- {older}:d2", rendered)  # the second flag is not lost
-        self.assertNotIn("- d2\n", rendered)  # never split into a bare ordinal
+        for kind in ("related_entries", "replaces", "evolves"):
+            with self.subTest(kind=kind):
+                result = self._append(
+                    title=f"Flag {kind}",
+                    timestamp="2026-06-13 10:00",
+                    **{kind: [f"{older}:d1"]},
+                )
+                self.assertFalse(result.ok)
+                self.assertTrue(
+                    any(
+                        f"{kind} is no longer accepted in entry YAML" in issue
+                        and f"decisions[].links.{kind}" in issue
+                        for issue in result.issues
+                    ),
+                    result.issues,
+                )
 
     def test_second_append_separates_blocks_and_stays_clean(self):
         self._append()
@@ -497,8 +586,8 @@ topics:
         # A later entry exists...
         later = self._append(title="Later", timestamp="2026-06-13 12:00")
         # ...and a new 10:00 entry may not replace it.
-        result = self._append(
-            title="Middle", timestamp="2026-06-13 10:00", replaces=(later.entry_id,)
+        result = self._append_links(
+            "replaces", [later.entry_id], title="Middle", timestamp="2026-06-13 10:00"
         )
 
         self.assertFalse(result.ok)
@@ -507,8 +596,8 @@ topics:
         # `first` is single-decision, so the ref stays BARE - :d1 there is
         # redundant and rejected (2026-07-24: name a decision only on a
         # choice).
-        ok = self._append(
-            title="Replacement", timestamp="2026-06-13 13:00", replaces=(first.entry_id,)
+        ok = self._append_links(
+            "replaces", [first.entry_id], title="Replacement", timestamp="2026-06-13 13:00"
         )
         self.assertTrue(ok.ok, ok.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
