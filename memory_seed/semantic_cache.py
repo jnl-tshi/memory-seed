@@ -648,6 +648,134 @@ def refines_lineage_head(
     return tuple(sorted(heads))
 
 
+@dataclass(frozen=True)
+class RefinesSpine:
+    """The `refines` lineage keyed by DECISION, not entry.
+
+    An ADR's authoritative head is a decision ref (``mse_x:dN``), and the
+    one-successor cap is a per-decision contract, so the walk that answers
+    "what does this decision say now" must key on ``(entry_id, ordinal)`` -
+    the entry-keyed ``refined_by`` on ``RelatedEntryNode`` is a projection
+    that collapses a multi-decision entry's spines into one node and forced
+    the 2026-08-09 measurement to infer source ordinals it never had.
+
+    A missing ordinal on a SINGLE-decision entry normalises to ``d1`` (the
+    2026-07-24 relaxation: bare id and ``:d1`` denote the same node). On a
+    multi-decision entry it stays ``""`` - an entry-level attach the grammar
+    warns about; folding it into any one decision would fabricate precision.
+    """
+
+    successors: dict[tuple[str, str], tuple[tuple[str, str], ...]]
+    predecessors: dict[tuple[str, str], tuple[tuple[str, str], ...]]
+    # entry_id -> default ordinal for a bare ref ("d1" single-decision, "" multi)
+    ordinal_default: dict[str, str]
+
+    def key(self, entry_id: str, ordinal: str | None = None) -> tuple[str, str]:
+        if ordinal:
+            return (entry_id, ordinal.lower())
+        return (entry_id, self.ordinal_default.get(entry_id, "d1"))
+
+    def successors_of(self, entry_id: str, ordinal: str | None = None) -> tuple[tuple[str, str], ...]:
+        return self.successors.get(self.key(entry_id, ordinal), ())
+
+    def head(self, entry_id: str, ordinal: str | None = None) -> tuple[tuple[str, str], ...]:
+        """Walk the spine to its terminus - the decision's current form.
+
+        Returns the terminal decision key(s), excluding the start; empty when
+        nothing refines this decision. Normally a single key (the cap makes the
+        spine a linked list); a corpus holding a second claim surfaces both.
+        """
+        start = self.key(entry_id, ordinal)
+        if not self.successors.get(start):
+            return ()
+        heads: set[tuple[str, str]] = set()
+        seen: set[tuple[str, str]] = {start}
+        stack = list(self.successors[start])
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            nxt = self.successors.get(current)
+            if not nxt:
+                heads.add(current)
+            else:
+                stack.extend(nxt)
+        return tuple(sorted(heads))
+
+    def chain_through(self, entry_id: str, ordinal: str | None = None) -> tuple[tuple[str, str], ...]:
+        """The ordered chain this decision belongs to: root -> ... -> head.
+
+        Walks predecessors to the root (the member with no `refines`
+        predecessor), then successors to the terminus. On the rare branched
+        shape (two predecessors: a chain merge; two successors: an unfixed
+        double claim) the walk takes the sorted-first branch, so the result is
+        deterministic and always a line.
+        """
+        start = self.key(entry_id, ordinal)
+        if not self.successors.get(start) and not self.predecessors.get(start):
+            return ()
+        root = start
+        seen = {root}
+        while True:
+            prev = tuple(sorted(self.predecessors.get(root, ())))
+            if not prev or prev[0] in seen:
+                break
+            root = prev[0]
+            seen.add(root)
+        chain = [root]
+        seen = {root}
+        current = root
+        while True:
+            nxt = tuple(sorted(self.successors.get(current, ())))
+            if not nxt or nxt[0] in seen:
+                break
+            current = nxt[0]
+            seen.add(current)
+            chain.append(current)
+        return tuple(chain)
+
+
+def build_refines_spine(chunks: Sequence[MemoryChunk]) -> RefinesSpine:
+    """Build the decision-keyed `refines` spine from entry-granularity chunks.
+
+    Reads only ``decision_edges`` (the sole surface a type survives on) and
+    keeps edges whose target entry exists - same known-entry rule as
+    ``build_related_entry_graph``.
+    """
+    by_id: dict[str, MemoryChunk] = {}
+    for chunk in chunks:
+        if chunk.entry_id and chunk.entry_id not in by_id:
+            by_id[chunk.entry_id] = chunk
+    ordinal_default: dict[str, str] = {}
+    for entry_id, chunk in by_id.items():
+        numbered = sum(
+            1 for line in chunk.text.splitlines() if _DECISION_HEADING_RE.match(line)
+        )
+        ordinal_default[entry_id] = "d1" if numbered <= 1 else ""
+    spine = RefinesSpine(successors={}, predecessors={}, ordinal_default=ordinal_default)
+    successors: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    predecessors: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for chunk in chunks:
+        if not chunk.entry_id or chunk.entry_id not in by_id:
+            continue
+        for edge in chunk.decision_edges:
+            kind, src_ord, target = edge[0], edge[1], edge[2]
+            tgt_ord = edge[3] if len(edge) > 3 else ""
+            edge_type = edge[4] if len(edge) > 4 else ""
+            if kind != "evolves" or edge_type != "refines":
+                continue
+            if target not in by_id or target == chunk.entry_id:
+                continue
+            source_key = spine.key(chunk.entry_id, src_ord or None)
+            target_key = spine.key(target, tgt_ord or None)
+            successors.setdefault(target_key, []).append(source_key)
+            predecessors.setdefault(source_key, []).append(target_key)
+    spine.successors.update({k: tuple(dict.fromkeys(v)) for k, v in successors.items()})
+    spine.predecessors.update({k: tuple(dict.fromkeys(v)) for k, v in predecessors.items()})
+    return spine
+
+
 def replacing_lineage_heads(
     graph: dict[str, RelatedEntryNode], entry_id: str
 ) -> tuple[str, ...]:

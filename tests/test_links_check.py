@@ -2174,3 +2174,88 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         self.assertEqual(after.evolves, ())
         self.assertNotIn(("evolves", "d1", old, "", ""), tuple(after.decision_edges))
         self.assertEqual(self._graph()[old].evolved_by, ())
+
+
+class RefinesSpineTests(unittest.TestCase):
+    """The decision-keyed spine: ADR heads are `mse_x:dN`, so the walk that
+    answers "what does this decision say now" must key on (entry_id, ordinal).
+    The entry-keyed RelatedEntryNode.refined_by collapses a multi-decision
+    entry's spines into one node; this structure does not."""
+
+    MULTI = ("### Decisions\n\n#### D1 - first\n\n- D: a.\n- R: b.\n\n"
+             "#### D2 - second\n\n- D: a.\n- R: b.\n")
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-refines-spine-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+
+    def _entry(self, entry_id, ts, *, body="### Decision\n\n- D: a.\n- R: b.\n"):
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        block = f"## {ts} - entry {entry_id}\n\n```yaml\nentry_id: {entry_id}\n```\n\n{body}\n"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8")
+
+    def _sidecar(self, lines):
+        d = self.cwd / MEMORY_DIR_NAME / "sessions" / "links"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "2026-06-13.md"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + "\n".join(lines) + "\n",
+                        encoding="utf-8")
+
+    def _spine(self):
+        from memory_seed.retrieval import augment_chunks_with_link_sidecars
+        from memory_seed.semantic_cache import build_refines_spine, extract_memory_chunks
+        return build_refines_spine(
+            augment_chunks_with_link_sidecars(extract_memory_chunks(self.cwd, granularity="entry"), self.cwd)
+        )
+
+    def test_spine_is_decision_exact_on_a_multi_decision_entry(self):
+        target, refiner, builder = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        self._entry(target, "2026-06-13 09:00", body=self.MULTI)
+        self._entry(refiner, "2026-06-13 10:00")
+        self._entry(builder, "2026-06-13 11:00")
+        self._sidecar([
+            "## 2026-06-13 12:00 - typed edges", "", "```yaml", f"entry_id: {refiner}",
+            "evolves:", f"  - d1 -> {target}:d2 (refines)", "```", "",
+            "## 2026-06-13 12:01 - more", "", "```yaml", f"entry_id: {builder}",
+            "evolves:", f"  - d1 -> {target}:d1 (builds-on)", "```", "",
+        ])
+        spine = self._spine()
+        self.assertEqual(spine.successors_of(target, "d2"), ((refiner, "d1"),))
+        self.assertEqual(spine.successors_of(target, "d1"), (), "builds-on never joins the spine")
+        self.assertEqual(spine.head(target, "d2"), ((refiner, "d1"),))
+        self.assertEqual(spine.head(target, "d1"), ())
+
+    def test_bare_ref_normalises_to_d1_on_single_decision_entries(self):
+        # The 2026-07-24 relaxation: on a single-decision entry the bare id and
+        # :d1 denote the same node, so a bare typed edge and a :d1 ADR head meet.
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00")
+        self._sidecar([
+            "## 2026-06-13 12:00 - typed", "", "```yaml", f"entry_id: {new}",
+            "evolves:", f"  - {old} (refines)", "```", "",
+        ])
+        spine = self._spine()
+        self.assertEqual(spine.head(old, "d1"), ((new, "d1"),))
+        self.assertEqual(spine.head(old), ((new, "d1"),))
+
+    def test_head_walks_to_the_terminus_and_chain_is_ordered(self):
+        a, b, c = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        self._entry(a, "2026-06-13 09:00", body=self.MULTI)
+        self._entry(b, "2026-06-13 10:00")
+        self._entry(c, "2026-06-13 11:00")
+        self._sidecar([
+            "## 2026-06-13 12:00 - hop 1", "", "```yaml", f"entry_id: {b}",
+            "evolves:", f"  - d1 -> {a}:d2 (refines)", "```", "",
+            "## 2026-06-13 12:01 - hop 2", "", "```yaml", f"entry_id: {c}",
+            "evolves:", f"  - {b} (refines)", "```", "",
+        ])
+        spine = self._spine()
+        self.assertEqual(spine.head(a, "d2"), ((c, "d1"),))
+        self.assertEqual(
+            spine.chain_through(b), ((a, "d2"), (b, "d1"), (c, "d1")),
+            "chain runs root -> head whichever member you enter from",
+        )
+        self.assertEqual(spine.chain_through(a, "d2"), ((a, "d2"), (b, "d1"), (c, "d1")))
+        self.assertEqual(spine.chain_through(a, "d1"), (), "the other decision is not in any chain")
