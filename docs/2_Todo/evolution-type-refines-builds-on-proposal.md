@@ -185,3 +185,37 @@ not landed fails on merge.
 - `mse_kdhw53hzp4nh8wwm:d1` / `mse_h297nf3qghp7ysyk:d1` - the 2026-07-24 granularity mandate and its
   relaxation. Orthogonal to this proposal: for a single-decision entry `mse_x` and `mse_x:d1` denote
   the same node, so the ref-grammar question is separate from the graph-granularity one.
+
+## Backfill attempt, 2026-08-09: classification done, write mechanism blocked
+
+The haiku swarm ran and its verdicts are sound. 24 batches over 461 target-units and **807 untyped
+`evolves` edges**; every batch validated mechanically against its closed candidate list (target
+membership, edge-id set equality, no duplicates, no invented ids, one-`refines` cap). Result:
+**173 `refines` (21%), 634 `builds-on`**, zero unresolved edges, and zero cap violations when the cap
+was re-checked across the whole plan rather than per batch. Verdicts are preserved in the session
+scratchpad under `results_VALIDATED_KEEP/`.
+
+**The retract-and-re-author write was applied to 52 sidecar files, measured, and REVERTED.** It
+silently deleted the edges instead of typing them. Two compounding causes, both in the reader:
+
+1. **`evolution_type` never reaches the graph.** `entry_link_sidecars` parses a sidecar ref into
+   entry-level lists of bare target ids and `decision_edges` 4-tuples `(kind, source_ordinal,
+   target, target_ordinal)`. Neither has a slot for the type, so a re-authored
+   `d1 -> mse_x (refines)` arrives at `build_related_entry_graph` indistinguishable from an untyped
+   edge. The write grammar and `links check` shipped without the read path.
+2. **A retract's identity ignores the type**, so `retracts: evolves d1 -> mse_x` matches the typed
+   replacement authored in the same block and removes it too.
+
+Measured before the revert: effective typed edges **0**, nodes with successors fell **303 → 139**,
+max lineage heads **25 → 4**. `links check` reported OK throughout - the corpus looked healthy while
+807 edges had been dropped, which is the worst failure shape available and the reason this needed a
+graph-level assertion rather than an integrity check.
+
+**What must land before the backfill can be re-applied** (the verdicts do not need re-running):
+
+- Carry `evolution_type` through `entry_link_sidecars` into the graph. `decision_edges` is a fixed
+  4-tuple that `edge_confidence` deliberately declined to widen, so this is a real schema decision:
+  widen the tuple and fix its consumers, or carry a parallel type map as `edge_confidence` does.
+- Make the retract key type-aware, so retracting an untyped edge leaves a typed one standing.
+- Add a graph-level regression test: after any backfill, assert the effective `evolves` edge count is
+  unchanged and the typed count equals the intended one. `links check` passing is not sufficient.
