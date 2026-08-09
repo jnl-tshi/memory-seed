@@ -219,3 +219,46 @@ graph-level assertion rather than an integrity check.
 - Make the retract key type-aware, so retracting an untyped edge leaves a typed one standing.
 - Add a graph-level regression test: after any backfill, assert the effective `evolves` edge count is
   unchanged and the typed count equals the intended one. `links check` passing is not sufficient.
+
+## Second apply attempt, 2026-08-09: one defect left, and it is in `retracts:`
+
+The campaign is COMPLETE and validated: 47 batches, 461 target-units, **807 edges**,
+zero invalid. Under the two-run agreement rule the plan is **110 `refines` / 697
+`builds-on`**, with **157 refines claims demoted** because only one run made them
+(63 run-1-only, 94 run-2-only) - 59% of all refines claims fail agreement, which
+is the whole justification for the rule.
+
+Two write attempts, both caught by the graph assertion and both reverted:
+
+1. **534 -> 236 edges.** A bare ref carrying only a type (`mse_x (refines)`) named
+   no ordinal on either end, so neither sidecar parser recorded a decision edge -
+   the type had nowhere to live, and the survivor check could not see it. Fixed
+   in `f665237`; the same write now lands **537/304 with 104 nodes gaining a
+   refines successor**.
+2. **534 -> 537 edges (+3).** Still aborts, and the cause is a genuine limitation
+   nobody had hit before: **a sidecar `retracts:` prunes only the SIDECAR's own
+   lists.** `retract_entry` / `retract_decision` are applied to
+   `sidecars.get(eid)`, so an edge authored in an entry's own YAML cannot be
+   retracted by a later sidecar block at all. 232 of the 807 edges are entry-YAML
+   edges, and for those the retract is a silent no-op - the typed re-author simply
+   unions alongside the original.
+
+That the drift is only +3 rather than +232 is incidental: the entry-level union
+dedupes by target id, so a re-authored edge to the same target collapses. The
+three survivors are where that coincidence does not hold.
+
+### What must be decided before the third attempt
+
+`retracts:` was specified when links lived in sidecars. Entry YAML is now closed
+to new lifecycle links (`adr_lifecycle_edges_live_in_sidecars`), but the 772
+published entry-YAML refs are permanent, so "a sidecar can retract an entry-YAML
+edge" is a capability the mechanism needs and does not have. Either:
+
+- **Extend retraction to entry-YAML edges** - `augment_chunks_with_link_sidecars`
+  applies the sidecar's retract set to the CHUNK's lists, not just the sidecar's.
+  This is the honest reading of what a retraction means, and it is what the
+  backfill needs. It also widens what a sidecar can undo, so it wants its own test.
+- **Leave the 232 entry-YAML edges unclassified.** Type only the 575
+  sidecar-authored ones, and let the gate's cutoff cover the rest permanently.
+
+The verdicts do not need re-running either way - they are preserved and validated.
