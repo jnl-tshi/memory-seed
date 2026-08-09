@@ -268,6 +268,29 @@ class DecisionRowPairTests(unittest.TestCase):
     areas genuinely differ; all of them were averaged away.
     """
 
+    def _topic_index(self):
+        """A real `TopicIndex` over a fixture vocabulary.
+
+        `_expand_decision_rows` splits a decision's topics into area and activity through
+        `topic_index.axis_of(slug)`, and assigns no axis at all when given no index - so without
+        this the assertions below compared `[]` against the expected slugs. Built from a real
+        `topics.yaml` rather than stubbed, because that axis lookup is the thing under test.
+        """
+        from memory_seed.topics import load_topic_index
+
+        root = Path(tempfile.mkdtemp(prefix="memory-trace-topic-axis-"))
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        (root / ".memory-seed").mkdir(parents=True)
+        (root / ".memory-seed" / "topics.yaml").write_text(
+            "schema_version: 2\ntopics:\n"
+            "  - slug: memory-trace\n    description: Trace surface.\n    axis: area\n"
+            "  - slug: graph\n    description: Graph view.\n    axis: area\n"
+            "  - slug: bugfix\n    description: Defect repair.\n    axis: activity\n"
+            "  - slug: ui-design\n    description: Interface design.\n    axis: activity\n",
+            encoding="utf-8",
+        )
+        return load_topic_index(root)
+
     def _entry_chunk(self, pairs):
         from datetime import date, datetime
 
@@ -349,7 +372,9 @@ class DecisionRowPairTests(unittest.TestCase):
         )
         node = {"id": PAIRED, "entry_id": PAIRED, "topics": ["memory-trace", "bugfix"]}
 
-        rows = _expand_decision_rows([node], _Cache(), attributions={PAIRED: entry})
+        rows = _expand_decision_rows(
+            [node], _Cache(), attributions={PAIRED: entry}, topic_index=self._topic_index()
+        )
         by = {r["decision_ordinal"]: r for r in rows if r.get("decision_ordinal")}
 
         self.assertEqual(by["d1"]["decision_area"], ["memory-trace"])

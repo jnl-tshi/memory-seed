@@ -69,6 +69,9 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 ## Python And Release Policy
 
 - Use tests before behavior changes.
+- `python -m pytest` from the repo root runs BOTH suites - `tests/` and `memory-trace/tests/` - because `pythonpath = ["memory-trace"]` in `pyproject.toml` makes the Trace package importable. Do not gate on `pytest tests` alone: that is what let three Trace failures sit on `main` from 2026-07-28 until a push finally ran CI's Verify job.
+- To reproduce CI's Trace step exactly: `python -m unittest discover -s memory-trace/tests -p "test_*.py"`.
+- Read the suite's own exit code, never a pipeline's - `pytest ... | tail` reports tail's status, which has hidden a failing suite behind a chained `&&`.
 - Keep CLI output explicit about what writes and what does not write.
 - Publishing should be triggered by GitHub Release creation, not direct workflow dispatch. (ADR [`adr_release_topology`](decisions/adr_release_topology.md))
 - Package version and git tag must match for release work.

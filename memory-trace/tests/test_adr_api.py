@@ -19,6 +19,15 @@ class AdrApiTests(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(self.cache_root, ignore_errors=True))
         sessions = self.cwd / ".memory-seed" / "sessions"
         sessions.mkdir(parents=True)
+        # An ADR carrying topics requires a canonical vocabulary to validate them against
+        # (`validate_adr`: "ADR topics require .memory-seed/topics.yaml", 2026-08-03). The rule is
+        # deliberate - a topic outside the vocabulary is an error, not a free-text label - so the
+        # fixture supplies one rather than the ADR dropping its topic.
+        (self.cwd / ".memory-seed" / "topics.yaml").write_text(
+            "schema_version: 2\ntopics:\n"
+            "  - slug: cache\n    description: Caching and projections.\n    axis: area\n",
+            encoding="utf-8",
+        )
         (sessions / "2026-08-03.md").write_text(
             """---
 tags:

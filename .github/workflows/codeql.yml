@@ -20,6 +20,9 @@ jobs:
       contents: read
       security-events: write # upload SARIF results
       packages: read # CodeQL packs
+      actions: read # read workflow-run metadata when uploading results; without it the
+      # analyze step fails after a clean scan with "Resource not accessible by
+      # integration" against /repos/{owner}/{repo}/actions/runs
 
     strategy:
       fail-fast: false
