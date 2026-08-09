@@ -204,7 +204,7 @@ class LinkAuditTests(unittest.TestCase):
         chunk = next(
             c for c in extract_memory_chunks(self.cwd, granularity="entry") if c.entry_id == B
         )
-        self.assertEqual(chunk.decision_edges, (("evolves", "", A, "d1"),))
+        self.assertEqual(chunk.decision_edges, (("evolves", "", A, "d1", ""),))
         self.assertEqual(chunk.evolves, ())  # no projection to entry level
         self.assertIsNone(self._gap(B))
 
@@ -228,9 +228,9 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(
             chunk.decision_edges,
             (
-                ("evolves", "d2", A, "d1"),
-                ("evolves", "d2", A, "d2"),
-                ("evolves", "d1", B, ""),
+                ("evolves", "d2", A, "d1", ""),
+                ("evolves", "d2", A, "d2", ""),
+                ("evolves", "d1", B, "", ""),
             ),
         )
         self.assertEqual(chunk.evolves, (B,))  # arrow-bare stays entry-level

@@ -966,7 +966,7 @@ def _build_retrieval_plan(
         str, list[tuple[str, str, str, str]]
     ] = {}
     for source_id, chunk in sorted(by_id.items()):
-        for kind, source_ordinal, target_id, target_ordinal in sorted(
+        for kind, source_ordinal, target_id, target_ordinal, *_ in sorted(
             set(chunk.decision_edges)
         ):
             if target_id in by_id and target_id != source_id:
@@ -1012,6 +1012,7 @@ def _build_retrieval_plan(
             source_ordinal,
             target_id,
             target_ordinal,
+            *_,
         ) in sorted(set(by_id[entry_id].decision_edges)):
             if source_ordinal and source_ordinal != ordinal:
                 continue
@@ -1987,8 +1988,14 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                         # even when an arrow names the authoring decision.
                         entry_level.append(parsed.entry_id)
                     if parsed.decision is not None or parsed.source_decision is not None:
+                        # Fifth element is the evolution type (2026-08-09). This
+                        # is the SECOND parser building decision_edges - the
+                        # other lives in `semantic_cache` - and the two must
+                        # agree on arity, or a retract key built here can never
+                        # match an edge built there.
                         decisions.append(
-                            (decision_kind, parsed.source_decision or "", parsed.entry_id, parsed.decision or "")
+                            (decision_kind, parsed.source_decision or "", parsed.entry_id,
+                             parsed.decision or "", parsed.evolution_type or "")
                         )
                 found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
@@ -2014,11 +2021,13 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     # retract must remove both twins or the decision one survives.
                     if retract.ref.source_decision is not None:
                         retract_decision.setdefault(entry_id, set()).add(
-                            (retract.kind, retract.ref.source_decision, retract.ref.entry_id, "")
+                            (retract.kind, retract.ref.source_decision, retract.ref.entry_id, "",
+                             retract.ref.evolution_type or "")
                         )
                 else:
                     retract_decision.setdefault(entry_id, set()).add(
-                        (retract.kind, retract.ref.source_decision or "", retract.ref.entry_id, retract.ref.decision)
+                        (retract.kind, retract.ref.source_decision or "", retract.ref.entry_id,
+                         retract.ref.decision, retract.ref.evolution_type or "")
                     )
             existing = sidecars.get(entry_id)
             if existing:
@@ -2050,6 +2059,12 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     for eid, ids in retract_decision.items():
         sidecar = sidecars.get(eid)
         if sidecar and sidecar.get("decision_edges"):
+            # The key includes the evolution type, so `retracts: evolves d1 -> X`
+            # (untyped) removes the untyped edge and LEAVES a `d1 -> X (refines)`
+            # authored in the same block standing. Without that, retract-and-
+            # re-author annihilated itself: the 2026-08-09 backfill retracted 807
+            # edges and its replacements were removed by their own retraction,
+            # silently deleting the lineage graph while `links check` read OK.
             sidecar["decision_edges"] = tuple(e for e in sidecar["decision_edges"] if tuple(e) not in ids)
     return sidecars
 
@@ -2079,12 +2094,15 @@ def augment_chunks_with_link_sidecars(
         return tuple(merged)
 
     def union_decisions(
-        base: tuple[tuple[str, str, str, str], ...],
-        extra: Iterable[tuple[str, str, str, str]],
-    ) -> tuple[tuple[str, str, str, str], ...]:
+        base: tuple[tuple[str, str, str, str, str], ...],
+        extra: Iterable[tuple[str, str, str, str, str]],
+    ) -> tuple[tuple[str, str, str, str, str], ...]:
+        # Arity-tolerant on input: a caller holding a pre-2026-08-09 4-tuple
+        # (a cached corpus, a test fixture) is padded rather than crashed, since
+        # "no type recorded" and "typed empty" are the same statement here.
         merged = list(base)
-        for kind, source_ordinal, target_id, target_ordinal in extra:
-            canonical = (kind, source_ordinal, target_id, target_ordinal)
+        for edge in extra:
+            canonical = tuple(edge) + ("",) * (5 - len(tuple(edge)))
             if canonical not in merged:
                 merged.append(canonical)
         return tuple(merged)
@@ -2419,8 +2437,8 @@ def audit_link_gaps(
             # Decision-level related refs (`<id>:dN`, since 2026-07-25) never
             # project to the entry-level related list, but for gap-finding the
             # pair is linked - same rule as lifecycle_of below.
-            | {eid for kind, _src, eid, _ordinal in sidecar.get("decision_edges", ()) if kind == "related"}
-            | {eid for kind, _src, eid, _ordinal in chunk.decision_edges if kind == "related"}
+            | {eid for kind, _src, eid, *_ in sidecar.get("decision_edges", ()) if kind == "related"}
+            | {eid for kind, _src, eid, *_ in chunk.decision_edges if kind == "related"}
         )
 
     def lifecycle_of(chunk: MemoryChunk) -> set[str]:
@@ -2438,12 +2456,12 @@ def audit_link_gaps(
             # grammar (2026-07-24), the entry's own yaml.
             | {
                 eid
-                for kind, _src, eid, _ordinal in sidecar.get("decision_edges", ())
+                for kind, _src, eid, *_ in sidecar.get("decision_edges", ())
                 if kind in ("replaces", "evolves")
             }
             | {
                 eid
-                for kind, _src, eid, _ordinal in chunk.decision_edges
+                for kind, _src, eid, *_ in chunk.decision_edges
                 if kind in ("replaces", "evolves")
             }
         )

@@ -333,7 +333,7 @@ class TrailDecisionEdgeTests(unittest.TestCase):
         # fresh process sees, and the only path that deserializes chunks.
         cold = TraceCache(self.cwd, cache_root=self.cache_root)
         chunk = next(c for c in cold.chunks() if c.entry_id == "mse_yaml0000000ffff")
-        self.assertEqual(chunk.decision_edges, (("evolves", "", "mse_tgt00000000aaaa", "d2"),))
+        self.assertEqual(chunk.decision_edges, (("evolves", "", "mse_tgt00000000aaaa", "d2", ""),))
         self.assertEqual(len(set(chunk.decision_edges)), 1, "edges must be hashable after a load")
 
         trail = TraceService(cold).graph(edge_types=EDGE_TYPES, limit=1000, include_decisions=True)

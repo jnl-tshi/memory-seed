@@ -4843,7 +4843,7 @@ def stale_adr_anchors(cwd: Path | str = ".") -> list[tuple[str, str, str]]:
     # one: `<entry>:<ord> --replaces--> <target>` retires the target.
     retired: set[str] = set()
     for entry_id, sidecar in sidecars.items():
-        for kind, source_ord, target_entry, target_ord in sidecar.get("decision_edges", ()):
+        for kind, source_ord, target_entry, target_ord, *_ in sidecar.get("decision_edges", ()):
             if kind == "replaces":
                 retired.add(f"{target_entry}:{target_ord}")
 

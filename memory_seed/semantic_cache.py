@@ -173,7 +173,7 @@ class MemoryChunk:
     # replaces d2 of A" does not license "B replaces A" (the ratified
     # decision-refs contract), so consumers that do not model decisions keep
     # seeing the same edge set as before.
-    decision_edges: tuple[tuple[str, str, str, str], ...] = ()
+    decision_edges: tuple[tuple[str, str, str, str, str], ...] = ()
     commits: tuple[str, ...] = ()
     # Stored artifact-lineage blocks (rename/migration/removal); see
     # ContinuityBlock. A label family like ``branch:``, not an entry edge.
@@ -661,6 +661,12 @@ _DECISION_REF_ITEM_RE = re.compile(
 # decision-level on its source side. The target id stays in the entry-level
 # list; the source attribution peels into decision_edges.
 _ARROW_BARE_ITEM_RE = re.compile(r"^(d\d+)\s*->\s*(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
+# Trailing evolution type on an `evolves` item: `d1 -> mse_x:d2 (refines)`.
+# Duplicated rather than imported from `core` because this module is the lower
+# layer - core imports it, not the other way round. `core.EVOLUTION_TYPES` owns
+# WHICH words are legal and `links check` enforces that; this only has to peel
+# the suffix off so the ref body parses as it always has.
+_EVOLUTION_TYPE_ITEM_RE = re.compile(r"^(.*?)\s*\(\s*([a-z-]+)\s*\)$")
 
 
 def _normalize_file_ref(value: str) -> str:
@@ -1232,7 +1238,7 @@ def _extract_entry_chunks_from_file(
         replaces_list: list[str] = []
         evolves_list: list[str] = []
         related_list: list[str] = []
-        entry_decision_edges: list[tuple[str, str, str, str]] = []
+        entry_decision_edges: list[tuple[str, str, str, str, str]] = []
         # `related_entries` joins replaces/evolves here since 2026-07-25: a
         # `:dN` related ref peels into decision_edges exactly like a lifecycle
         # one (kind="related"), so a decision-level related edge terminates on
@@ -1244,20 +1250,28 @@ def _extract_entry_chunks_from_file(
             ("evolves", _evolves_raw, evolves_list),
             ("related", _related_raw, related_list),
         ):
-            for raw in raw_refs:
+            for authored in raw_refs:
+                # The evolution type (`(refines)` / `(builds-on)`, 2026-08-09)
+                # is peeled FIRST so every ref spelling below sees the body it
+                # always did - and so a typed BARE ref cannot fall through to
+                # `sink.append` with the suffix still attached, which would put a
+                # token no ref parser accepts into the entry-level list.
+                suffix = _EVOLUTION_TYPE_ITEM_RE.match(authored)
+                raw = suffix.group(1).strip() if suffix else authored
+                m_type = suffix.group(2) if suffix else ""
                 m = _DECISION_REF_ITEM_RE.match(raw)
                 if m:
                     source_ordinal = m.group(1) or ""
                     for ordinal in (part.strip() for part in m.group(3).split(",")):
                         if ordinal:
-                            entry_decision_edges.append((kind, source_ordinal, m.group(2), ordinal))
+                            entry_decision_edges.append((kind, source_ordinal, m.group(2), ordinal, m_type))
                     continue
                 m = _ARROW_BARE_ITEM_RE.match(raw)
                 if m:
                     # Entry-level edge (bare target id, arrow stripped) plus a
                     # source-attributed decision edge with no target ordinal.
                     sink.append(m.group(2))
-                    entry_decision_edges.append((kind, m.group(1), m.group(2), ""))
+                    entry_decision_edges.append((kind, m.group(1), m.group(2), "", m_type))
                     continue
                 sink.append(raw)
         replaces = tuple(replaces_list)

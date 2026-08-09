@@ -17,9 +17,9 @@ source: write-time
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `mse_g01sqaac2c10ejd5:d3`
 
 ### Decision
 
@@ -59,3 +59,18 @@ A raw ref in an entry's YAML gives a human reading the Markdown nothing, and Inv
 #### Evolution
 
 This is the first revision of this architectural concern.
+
+### revision-accepted - 2026-08-09T16:53:51Z
+
+```json
+{
+  "decision_ref": "mse_g01sqaac2c10ejd5:d3",
+  "event_id": "adre_59133bd6b1f26a7e4910",
+  "source": "write-time",
+  "update_entry_id": "mse_g01sqaac2c10ejd5"
+}
+```
+
+#### Reason
+
+JNL accepted 2026-08-09: the entry-YAML closure is merged and shipped, so the ADR records standing authority rather than a pending proposal.

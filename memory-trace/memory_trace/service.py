@@ -1888,7 +1888,7 @@ class TraceService:
             reach = list(scope_edges)
             if include_decisions:
                 for source_entry_id, sidecar in self._link_sidecars().items():
-                    for kind, _src_ordinal, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
+                    for kind, _src_ordinal, target_entry_id, *_ in sidecar.get("decision_edges", ()):
                         reach.append({"source": source_entry_id, "target": target_entry_id, "type": kind})
             base_visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
             base_limited_ids = set(base_visible_ids[: _limit(limit, maximum=1000)])
@@ -2022,7 +2022,7 @@ class TraceService:
                         only_entries.add(entry_id)
 
                 for source_entry_id, sidecar in self._link_sidecars().items():
-                    for _kind, src_ordinal, target_entry_id, tgt_ordinal in sidecar.get("decision_edges", ()):
+                    for _kind, src_ordinal, target_entry_id, tgt_ordinal, *_ in sidecar.get("decision_edges", ()):
                         _want(source_entry_id, src_ordinal)
                         _want(target_entry_id, tgt_ordinal)
                 for chunk in self._entry_chunks():
@@ -4181,7 +4181,7 @@ def _decision_edges_for_rows(
     for source_entry_id, sidecar in sidecars.items():
         if source_entry_id not in entry_row and source_entry_id not in expanded_entries:
             continue
-        for kind, source_ordinal, target_entry_id, ordinal in sidecar.get("decision_edges", ()):
+        for kind, source_ordinal, target_entry_id, ordinal, *_ in sidecar.get("decision_edges", ()):
             edge_type = kind_to_type.get(kind)
             if not edge_type or edge_type not in edge_types:
                 continue
