@@ -365,6 +365,11 @@ def _adr_head_reviews(cwd: Path) -> list[str]:
             if state.superseded_by:
                 continue
             head = state.authoritative_decision
+            if not head:
+                # An ADR still only proposed has no authority to be behind. The
+                # member pass below would otherwise report its own pending
+                # decision as "secondary - the authoritative head is unchanged".
+                continue
             parts = _decision_ref_parts(head)
             heads = spine.head(*parts) if parts else ()
             for key in heads:
