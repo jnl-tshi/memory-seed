@@ -2048,24 +2048,35 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     # Apply retractions to the completed union: an edge a `retracts:` named is
     # removed from the effective set, the append-only way to downgrade/delete a
     # published edge. A downgrade pairs this with a fresh edge of the new kind.
+    # Decision-level retractions apply FIRST, because the entry-level drop below
+    # consults what survives them.
+    for eid, ids in retract_decision.items():
+        sidecar = sidecars.get(eid)
+        if sidecar and sidecar.get("decision_edges"):
+            sidecar["decision_edges"] = tuple(e for e in sidecar["decision_edges"] if tuple(e) not in ids)
     for eid, keys in retract_entry.items():
         sidecar = sidecars.get(eid)
         if not sidecar:
             continue
+        # An entry-level list holds bare target ids and therefore carries no
+        # type, so "retract the untyped edge to X" cannot be told apart from
+        # "retract the typed one" at this level. The entry-level list is a
+        # PROJECTION of the edges, so the rule follows from that: drop the target
+        # only when no decision edge of that kind to it survived. Otherwise a
+        # retract-and-retype in one block deleted its own replacement's
+        # projection - which is how the 2026-08-09 backfill removed 807 edges
+        # with `links check` reading OK throughout.
+        surviving = {
+            (edge[0], edge[2]) for edge in sidecar.get("decision_edges", ()) if len(edge) > 2
+        }
         for canonical, list_key in (("replaces", "replaces"), ("evolves", "evolves"), ("related", "related_entries")):
-            drop = {target for kind, target in keys if kind == canonical}
+            drop = {
+                target
+                for kind, target in keys
+                if kind == canonical and (canonical, target) not in surviving
+            }
             if drop and sidecar.get(list_key):
                 sidecar[list_key] = tuple(t for t in sidecar[list_key] if t not in drop)
-    for eid, ids in retract_decision.items():
-        sidecar = sidecars.get(eid)
-        if sidecar and sidecar.get("decision_edges"):
-            # The key includes the evolution type, so `retracts: evolves d1 -> X`
-            # (untyped) removes the untyped edge and LEAVES a `d1 -> X (refines)`
-            # authored in the same block standing. Without that, retract-and-
-            # re-author annihilated itself: the 2026-08-09 backfill retracted 807
-            # edges and its replacements were removed by their own retraction,
-            # silently deleting the lineage graph while `links check` read OK.
-            sidecar["decision_edges"] = tuple(e for e in sidecar["decision_edges"] if tuple(e) not in ids)
     return sidecars
 
 

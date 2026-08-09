@@ -1972,3 +1972,93 @@ class LinksCheckTests(unittest.TestCase):
         redundant = [i for i in result.issues if i.kind == "redundant-decision-ref"]
         self.assertEqual(len(redundant), 1)
         self.assertEqual(redundant[0].severity, "warning")
+
+
+class TypedEvolutionGraphTests(unittest.TestCase):
+    """The graph-level guarantees `links check` cannot see.
+
+    On 2026-08-09 a backfill retracted 807 `evolves` edges and re-authored them
+    with a type. `links check` reported OK across 181 files while the effective
+    lineage graph lost every one of those edges - the retract removed the typed
+    replacement authored beside it, because its identity ignored the type. An
+    integrity check validates what each file SAYS; only a graph assertion catches
+    an edge that parses fine and then vanishes.
+    """
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-typed-evolves-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+
+    def _entry(self, entry_id, ts, *, body="### Decision\n\n- D: a call.\n- R: a reason.\n"):
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        block = f"## {ts} - entry {entry_id}\n\n```yaml\nentry_id: {entry_id}\n```\n\n{body}\n"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8")
+
+    def _sidecar(self, name, lines):
+        d = self.cwd / MEMORY_DIR_NAME / "sessions" / "links"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "2026-06-13.md"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + "\n".join(lines) + "\n",
+                        encoding="utf-8")
+
+    def _graph(self):
+        from memory_seed.retrieval import augment_chunks_with_link_sidecars
+        from memory_seed.semantic_cache import build_related_entry_graph, extract_memory_chunks
+        chunks = augment_chunks_with_link_sidecars(
+            extract_memory_chunks(self.cwd, granularity="entry"), self.cwd
+        )
+        return build_related_entry_graph(self.cwd, chunks=chunks)
+
+    def test_retract_and_retype_keeps_the_edge_and_records_its_type(self):
+        # The exact shape of the reverted backfill: one block retracts the
+        # untyped edge and re-authors it typed. The edge must SURVIVE.
+        from memory_seed.semantic_cache import refines_lineage_head
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00")
+        self._sidecar("original", [
+            "## 2026-06-13 10:05 - original untyped edge", "", "```yaml",
+            f"entry_id: {new}", "evolves:", f"  - d1 -> {old}", "```", "",
+        ])
+        before = self._graph()
+        self.assertEqual(before[old].evolved_by, (new,))
+        self.assertEqual(before[old].refined_by, ())
+        self.assertEqual(refines_lineage_head(before, old), ())
+
+        self._sidecar("backfill", [
+            "## 2026-06-13 11:00 - evolution type backfilled", "", "```yaml",
+            f"entry_id: {new}", "source: derived",
+            "retracts:", f"  - evolves d1 -> {old}",
+            "evolves:", f"  - d1 -> {old} (refines)", "```", "",
+        ])
+        after = self._graph()
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+        # The edge is still there - this is the assertion the backfill needed.
+        self.assertEqual(after[old].evolved_by, (new,), "retype must not delete the edge")
+        # ...and it is now typed, so the spine is walkable.
+        self.assertEqual(after[old].refined_by, (new,))
+        self.assertEqual(refines_lineage_head(after, old), (new,))
+
+    def test_builds_on_never_joins_the_spine(self):
+        # `builds-on` is the unbounded relation. It stays in evolved_by, so
+        # nothing is hidden, and stays OUT of refined_by, so it cannot fan the
+        # lineage walk - which is the whole point of the split.
+        from memory_seed.semantic_cache import refines_lineage_head
+        root = "mse_cccccccccccccccc"
+        self._entry(root, "2026-06-13 09:00")
+        later = []
+        for i, sid in enumerate(("mse_dddddddddddddddd", "mse_eeeeeeeeeeeeeeee", "mse_ffffffffffffffff")):
+            self._entry(sid, f"2026-06-13 1{i}:00")
+            later.append(sid)
+        for i, sid in enumerate(later):
+            kind = "refines" if i == 0 else "builds-on"
+            self._sidecar(f"b{i}", [
+                f"## 2026-06-13 1{i}:30 - typed", "", "```yaml", f"entry_id: {sid}",
+                "evolves:", f"  - d1 -> {root} ({kind})", "```", "",
+            ])
+        g = self._graph()
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+        self.assertEqual(len(g[root].evolved_by), 3, "every successor stays visible")
+        self.assertEqual(g[root].refined_by, (later[0],), "only the refines edge is the spine")
+        self.assertEqual(refines_lineage_head(g, root), (later[0],))

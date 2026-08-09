@@ -480,6 +480,13 @@ class RelatedEntryNode:
     replaced_by: tuple[str, ...] = ()
     evolves: tuple[str, ...] = ()
     evolved_by: tuple[str, ...] = ()
+    # The subset of `evolved_by` whose edge declares `refines` - the NEXT FORM
+    # of this decision, as opposed to later work that merely builds on it. At
+    # most one by contract (`session append` refuses a second, `links check`
+    # raises multiple-refines-successors), which is what makes the lineage a
+    # line rather than the 25-wide fan `evolved_by` produces. Sourced only from
+    # decision_edges: an entry-level list is a bare id and carries no type.
+    refined_by: tuple[str, ...] = ()
     importance_score: float = 0.0
 
 
@@ -511,6 +518,7 @@ def build_related_entry_graph(
         if chunk.entry_id and chunk.entry_id not in by_id:
             by_id[chunk.entry_id] = chunk
 
+    refined_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     inbound: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     replaced_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     evolved_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
@@ -526,12 +534,24 @@ def build_related_entry_graph(
         for ref in chunk.evolves:
             if ref in by_id and ref != chunk.entry_id:
                 evolved_by[ref].append(chunk.entry_id)
+        # Typed evolution (2026-08-09). The entry-level lists above cannot
+        # carry a type, so the spine is read from decision_edges - the only
+        # place a `(refines)` survives. A target ordinal is not needed here:
+        # this graph is entry-keyed, and the cap is enforced per DECISION by
+        # `links check`, which is stricter than anything asserted at this level.
+        for edge in chunk.decision_edges:
+            kind, _src, target = edge[0], edge[1], edge[2]
+            edge_type = edge[4] if len(edge) > 4 else ""
+            if kind == "evolves" and edge_type == "refines":
+                if target in by_id and target != chunk.entry_id:
+                    refined_by[target].append(chunk.entry_id)
 
     graph: dict[str, RelatedEntryNode] = {}
     for entry_id, chunk in by_id.items():
         inbound_ids = tuple(dict.fromkeys(inbound[entry_id]))
         replaced_by_ids = tuple(dict.fromkeys(replaced_by[entry_id]))
         evolved_by_ids = tuple(dict.fromkeys(evolved_by[entry_id]))
+        refined_by_ids = tuple(dict.fromkeys(refined_by[entry_id]))
         importance = float(len(inbound_ids))
         if replaced_by_ids:
             # evolved_by deliberately does not dampen: an evolved decision is
@@ -548,6 +568,7 @@ def build_related_entry_graph(
             replaced_by=replaced_by_ids,
             evolves=tuple(chunk.evolves),
             evolved_by=evolved_by_ids,
+            refined_by=refined_by_ids,
             importance_score=importance,
         )
     return graph
@@ -585,6 +606,45 @@ def evolves_lineage_heads(
             heads.add(current)
         else:
             stack.extend(successor.evolved_by)
+    return tuple(sorted(heads))
+
+
+def refines_lineage_head(
+    graph: dict[str, RelatedEntryNode], entry_id: str
+) -> tuple[str, ...]:
+    """Walk the `refines` spine to the current form of ``entry_id``.
+
+    The typed counterpart to ``evolves_lineage_heads``, and the reason the type
+    exists. `evolves` was carrying two relations at once - "the next version of
+    this decision" and "later work that builds on it" - so following it to the
+    terminus returned a FAN: 13 entries in this corpus produced 10 or more heads,
+    the worst 25, over chains up to 15 hops (measured 2026-08-09). Only the first
+    of those relations is a lineage; the second is unbounded by construction.
+
+    A decision has at most one `refines` successor, so this walk is a linked list
+    and normally returns exactly one id - "what does this decision say now". It
+    returns a tuple rather than a scalar so a corpus that somehow holds a second
+    claim (two branches each authored one, and `links check` has not been run
+    since) surfaces both rather than silently picking. Empty when nothing refines
+    this entry, which includes every edge written before the type existed -
+    unclassified, never "not refined".
+    """
+    node = graph.get(entry_id)
+    if node is None or not node.refined_by:
+        return ()
+    heads: set[str] = set()
+    seen: set[str] = {entry_id}
+    stack = list(node.refined_by)
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        successor = graph.get(current)
+        if successor is None or not successor.refined_by:
+            heads.add(current)
+        else:
+            stack.extend(successor.refined_by)
     return tuple(sorted(heads))
 
 
