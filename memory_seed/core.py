@@ -812,6 +812,13 @@ class ListRef:
     ok: bool
     reason: str = ""
     source_decision: str | None = None
+    # Which KIND of evolution this edge records - see EVOLUTION_TYPES. None on
+    # every ref written before 2026-08-09 and on every non-`evolves` kind, where
+    # the distinction does not apply. `ok` stays True for an unrecognised word:
+    # the token still parses as a ref, and naming the bad value is `links
+    # check`'s job, not the parser's.
+    evolution_type: str | None = None
+    evolution_type_ok: bool = True
 
 
 # When the decision-granularity mandate takes effect (JNL 2026-07-24): every
@@ -894,6 +901,22 @@ _DECISION_SLUG_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})#decisions/
 # entry's decisions the edge belongs to. Spaces around the arrow optional.
 _SOURCE_DECISION_PREFIX_RE = re.compile(r"^(d\d+)\s*->\s*(.+)$")
 
+# The two evolution types (grammar v3, JNL 2026-08-09). `refines` is the next
+# form of the same decision and is capped at ONE successor per target, which is
+# what makes a lineage walkable as a line; `builds-on` is later work resting on
+# a decision that stays valid, and is unlimited. Absent means NOT YET CLASSIFIED
+# - never "neither" - because the 534 edges published before this grammar
+# existed cannot be restamped.
+EVOLUTION_TYPES = ("refines", "builds-on")
+# Rides on the item as a trailing `(refines)`, beside the arrow prefix that
+# already carries the source ordinal, following the 2026-07-24 precedent that
+# withdrew a block-level `source_decision:` field for the same reason: a
+# parallel map is a second spelling of the same fact and unreadable in a diff.
+# Prose evidence does NOT ride here - a sentence on this line would be
+# unreadable, so it goes in the `edge_evidence:` list instead. Tokens inline,
+# prose parallel.
+_EVOLUTION_TYPE_SUFFIX_RE = re.compile(r"^(.*?)\s*\(\s*([a-z-]+)\s*\)$")
+
 
 def _parse_list_ref_multi(token: str) -> list[ListRef]:
     """Grammar v2 parse of one authored item into one ListRef per ordinal.
@@ -913,18 +936,32 @@ def _parse_list_ref_multi(token: str) -> list[ListRef]:
     if arrow:
         source_decision = arrow.group(1)
         body = arrow.group(2).strip().strip("'\"")
+    # Peeled off BEFORE the ref forms are tried, so every spelling below picks up
+    # the type for free rather than each growing its own optional group.
+    evolution_type: str | None = None
+    evolution_type_ok = True
+    suffix = _EVOLUTION_TYPE_SUFFIX_RE.match(body)
+    if suffix:
+        body = suffix.group(1).strip().strip("'\"")
+        evolution_type = suffix.group(2)
+        evolution_type_ok = evolution_type in EVOLUTION_TYPES
+    extra = {
+        "source_decision": source_decision,
+        "evolution_type": evolution_type,
+        "evolution_type_ok": evolution_type_ok,
+    }
     if _BARE_ENTRY_ID_RE.match(body):
-        return [ListRef(raw, body, None, True, source_decision=source_decision)]
+        return [ListRef(raw, body, None, True, **extra)]
     match = _DECISION_REF_RE.match(body)
     if match:
         ordinals = [part.strip() for part in match.group(2).split(",") if part.strip()]
         return [
-            ListRef(raw, match.group(1), ordinal, True, source_decision=source_decision)
+            ListRef(raw, match.group(1), ordinal, True, **extra)
             for ordinal in ordinals
         ]
     match = _DECISION_SLUG_RE.match(body)
     if match:
-        return [ListRef(raw, match.group(1), match.group(2), True, source_decision=source_decision)]
+        return [ListRef(raw, match.group(1), match.group(2), True, **extra)]
     if "#decision" in body:
         # The singular `### Decision` shape yields `#decision` with no ordinal,
         # so the slug cannot address it - see the draft spec's "Why not the
@@ -1978,6 +2015,65 @@ def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
     return out
 
 
+def _note_evolution_type(
+    parsed: ListRef,
+    rel: str,
+    kind: str,
+    source_id: str,
+    refines_successors: dict[tuple[str, str], list[tuple[str, str, str]]],
+    evolution_type_issues: list[tuple[str, str, str, str]],
+) -> None:
+    """Record one ref's evolution type, for the two checks that need it.
+
+    Shared by the entry-YAML and link-sidecar collection loops so an edge is
+    judged identically wherever it was authored - the same reason the granularity
+    mandate refused to let the two surfaces spell an edge differently.
+
+    The target ordinal defaults to ``d1`` for a bare ref, because on a
+    single-decision entry the bare id and ``:d1`` denote the same node (the
+    2026-07-24 relaxation), and a `refines` cap that a bare ref could dodge would
+    not be a cap at all.
+    """
+    if parsed.evolution_type is None:
+        return
+    if kind != "evolves" or not parsed.evolution_type_ok:
+        evolution_type_issues.append((rel, kind, parsed.raw, parsed.evolution_type))
+        return
+    if parsed.evolution_type == "refines":
+        key = (parsed.entry_id, parsed.decision or "d1")
+        refines_successors.setdefault(key, []).append((rel, source_id, parsed.raw))
+
+
+def existing_refines_targets(sessions_dir: Path) -> dict[tuple[str, str], str]:
+    """(target_entry_id, target_ordinal) -> the entry_id that already refines it.
+
+    The write-time half of the one-`refines`-successor rule. Scans both surfaces
+    an edge can be authored on, because a cap one file could dodge is not a cap.
+    Best-effort by design: an unreadable file is skipped rather than blocking a
+    write, since `links check` re-derives this over the whole corpus and is the
+    authoritative surface for the rule.
+    """
+    found: dict[tuple[str, str], str] = {}
+
+    def absorb(text: str, block_entry_id: str) -> None:
+        for parsed in _frontmatter_list_refs(text, "evolves"):
+            if parsed.ok and parsed.evolution_type == "refines":
+                found.setdefault((parsed.entry_id, parsed.decision or "d1"), block_entry_id)
+
+    paths = [doc.path for doc in iter_session_documents(sessions_dir)]
+    paths.extend(doc.path for doc in iter_link_sidecar_documents(sessions_dir))
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for block in _ENTRY_TS_YAML_RE.finditer(text):
+            yaml_block = block.group(2)
+            found_id = _ENTRY_ID_RE.search(yaml_block)
+            absorb(yaml_block, found_id.group(1) if found_id else "")
+    return found
+
+
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
@@ -2045,6 +2141,16 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     entry_yaml_lifecycle_refs: list[
         tuple[str, str, str, str, str, str | None, str | None]
     ] = []
+    # (target_entry_id, target_ordinal) -> [(file, source_entry_id, raw ref)].
+    # A decision may be refined by at most ONE successor - that cap is what makes
+    # a lineage walkable as a line rather than a fan, and it is checkable here
+    # rather than only at write time because two branches can each author a
+    # `refines` without either being refused. Collected from BOTH the entry-YAML
+    # and the sidecar loop, since an edge means the same thing wherever authored.
+    refines_successors: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+    # (file, kind, raw ref, bad word) for a `(...)` suffix that is not one of
+    # EVOLUTION_TYPES, or one on a kind where the distinction does not apply.
+    evolution_type_issues: list[tuple[str, str, str, str]] = []
     # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
     entry_decision_ordinals: dict[str, set[str]] = {}
     # entry_id -> the topic slugs the AUTHOR wrote in the entry's own yaml, so
@@ -2228,6 +2334,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 for parsed in _frontmatter_list_refs(yaml_block, key):
                     if not parsed.ok or not source_id:
                         continue
+                    _note_evolution_type(
+                        parsed, rel, kind, source_id, refines_successors, evolution_type_issues
+                    )
                     if parsed.decision is None and edge_list is not None:
                         edge_list.append((rel, source_id, parsed.entry_id))
                     if parsed.decision is not None or parsed.source_decision is not None:
@@ -2702,6 +2811,14 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             LinkIssue(rel, "malformed-link-ref", f"{kind} -> {parsed.raw!r}: {parsed.reason}")
                         )
                         continue
+                    _note_evolution_type(
+                        parsed,
+                        rel,
+                        "replaces" if kind == "supersedes" else kind,
+                        entry_id,
+                        refines_successors,
+                        evolution_type_issues,
+                    )
                     if parsed.entry_id not in known_entries:
                         issues.append(
                             LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {parsed.entry_id} (no such entry_id)")
@@ -2961,6 +3078,41 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     _forward_only_guard(replaces_edges, "replaces", "entry replaces itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
+    # An unrecognised type, or a type on a kind that has none. ERROR rather than
+    # advisory: unlike the granularity mandate this is not a fact that was
+    # unrecoverably omitted, it is a word nobody can act on, and `retracts:`
+    # gives an append-only route to replace the edge with a well-formed one.
+    for rel_path, kind, raw, word in evolution_type_issues:
+        if kind == "evolves":
+            detail = f"'{word}' is not an evolution type; use {' or '.join(EVOLUTION_TYPES)}"
+        else:
+            detail = (
+                f"'{word}' names a kind of evolution, so it cannot ride on a {kind} edge"
+            )
+        issues.append(LinkIssue(rel_path, "unknown-evolution-type", f"{kind} -> {raw}: {detail}"))
+
+    # At most one `refines` successor per decision. This is the whole point of
+    # the type: `refines` is the spine and must stay a line, while `builds-on` is
+    # unbounded by design. Enforced as an ERROR because it is satisfiable -
+    # `retracts:` downgrades the loser to `builds-on` in a new block, without
+    # editing the published one. `session append` refuses the same thing at write
+    # time, but two branches can each author a `refines` with neither refused, so
+    # this is the primary surface rather than the backstop.
+    for (target_id, target_ordinal), claims in sorted(refines_successors.items()):
+        if len(claims) < 2:
+            continue
+        listed = "; ".join(f"{source_id} ({raw})" for _, source_id, raw in sorted(claims))
+        for rel_path, _, _ in claims:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "multiple-refines-successors",
+                    f"{target_id}:{target_ordinal} is refined by {len(claims)} decisions - {listed}. "
+                    "A decision has at most one next form; retract all but one and re-author them "
+                    "as builds-on",
+                )
+            )
+
     # Entry-yaml lifecycle refs validate here, mirroring the sidecar checks
     # exactly (dangling target, dangling ordinal, intra-entry, arrow source
     # ordinal); decision-targeting refs then join decision_edges so the
@@ -3199,6 +3351,11 @@ class _DecisionSidecarWrite:
     related_entries: tuple[str, ...]
     replaces: tuple[str, ...]
     evolves: tuple[str, ...]
+    # (rendered_ref, why) for every edge that carried evidence. Prose, so it
+    # renders into the parallel `edge_evidence:` list rather than onto the ref
+    # line - a sentence inline would make the item unreadable, which is the
+    # opposite of what put the evolution type inline.
+    evidence: tuple[tuple[str, str], ...] = ()
     adr: "_AdrPromotionWrite | None" = None
     # Kept apart from `topics` so the sidecar can DECLARE each slug's axis
     # instead of leaving a reader to look it up. `topics` stays as the flat
@@ -3380,23 +3537,69 @@ def _normalise_decision_sidecars(
             )
 
         rendered_links: dict[str, tuple[str, ...]] = {}
+        evidence_pairs: list[tuple[str, str]] = []
         for kind in sorted(allowed_link_keys):
             raw_refs = raw_links.get(kind, [])
             if raw_refs is None:
                 raw_refs = []
             if not isinstance(raw_refs, Sequence) or isinstance(raw_refs, (str, bytes)) or not all(
-                isinstance(value, str) and value.strip() for value in raw_refs
+                isinstance(value, (str, Mapping)) for value in raw_refs
             ):
-                issues.append(f"decisions[{index}].links.{kind} must be a list of non-empty references")
+                issues.append(
+                    f"decisions[{index}].links.{kind} must be a list of references "
+                    "(a string, or an object {ref, why, type})"
+                )
                 raw_refs = []
+            # A lifecycle edge must say WHY, on the same argument that put the
+            # granularity mandate at write time: the author knows the reason
+            # exactly once, and append-only makes it unrecoverable afterwards.
+            # `related_entries` stays casual and needs none - the same
+            # lifecycle-only split the 2026-07-24 mandate already draws.
+            evidence_required = kind in {"replaces", "evolves"}
             refs: list[str] = []
-            for ref in raw_refs:
+            for item in raw_refs:
+                if isinstance(item, Mapping):
+                    unknown = set(item) - {"ref", "why", "type"}
+                    if unknown:
+                        issues.append(
+                            f"decisions[{index}].links.{kind} has unsupported field(s): "
+                            f"{', '.join(sorted(str(key) for key in unknown))}"
+                        )
+                    ref, why, edge_type = item.get("ref"), item.get("why"), item.get("type")
+                else:
+                    ref, why, edge_type = item, None, None
+                if not isinstance(ref, str) or not ref.strip():
+                    issues.append(f"decisions[{index}].links.{kind} needs a non-empty ref")
+                    continue
+                ref = ref.strip()
                 if "->" in ref:
                     issues.append(
                         f"decisions[{index}].links.{kind} must omit the source prefix; decision '{decision}' supplies it"
                     )
                     continue
-                refs.append(f"{decision} -> {ref}")
+                if edge_type is not None and kind != "evolves":
+                    issues.append(
+                        f"decisions[{index}].links.{kind} -> {ref}: 'type' applies only to evolves "
+                        f"({' / '.join(EVOLUTION_TYPES)} name a kind of evolution)"
+                    )
+                    edge_type = None
+                elif kind == "evolves":
+                    if not isinstance(edge_type, str) or edge_type not in EVOLUTION_TYPES:
+                        issues.append(
+                            f"decisions[{index}].links.evolves -> {ref}: needs type "
+                            f"'{EVOLUTION_TYPES[0]}' (the next form of that decision, at most one "
+                            f"per target) or '{EVOLUTION_TYPES[1]}' (later work resting on it)"
+                        )
+                        edge_type = None
+                if evidence_required and (not isinstance(why, str) or not why.strip()):
+                    issues.append(
+                        f"decisions[{index}].links.{kind} -> {ref}: needs 'why' - one line of "
+                        "evidence for the edge, recorded now because it is unrecoverable later"
+                    )
+                rendered = f"{decision} -> {ref}" + (f" ({edge_type})" if edge_type else "")
+                refs.append(rendered)
+                if isinstance(why, str) and why.strip():
+                    evidence_pairs.append((rendered, " ".join(why.split())))
             rendered_links[kind] = tuple(refs)
 
         adr_write: _AdrPromotionWrite | None = None
@@ -3460,6 +3663,7 @@ def _normalise_decision_sidecars(
                 related_entries=rendered_links["related_entries"],
                 replaces=rendered_links["replaces"],
                 evolves=rendered_links["evolves"],
+                evidence=tuple(evidence_pairs),
                 adr=adr_write,
                 area=topic_resolution.get(raw_area) if isinstance(raw_area, str) else None,
                 activities=tuple(
@@ -3674,6 +3878,67 @@ def session_append_entry(
     sidecar_replaces = [ref for decision in decision_writes for ref in decision.replaces]
     sidecar_evolves = [ref for decision in decision_writes for ref in decision.evolves]
 
+    # Write-time half of the one-`refines`-successor rule. Refused here because
+    # this is the one moment the ref is unwritten and a keystroke fixes it; the
+    # corpus-wide guarantee is `links check`'s, since two branches can each get
+    # past this check independently.
+    claimed_refines = [
+        parsed
+        for ref in sidecar_evolves
+        for parsed in _parse_list_ref_multi(ref)
+        if parsed.ok and parsed.evolution_type == "refines"
+    ]
+    if claimed_refines:
+        taken = existing_refines_targets(sessions_dir)
+        # An interrupted write is recovered by replaying the SAME payload, and a
+        # replay re-authors its own edges. An entry does not conflict with
+        # itself, so its own id is not a rival claim - without this, recovery
+        # would be refused by the very rule the first attempt satisfied.
+        own_id = generate_session_entry_id(
+            timestamp=ts,
+            title=title,
+            user_initials=user_initials,
+            agent_type=agent_type,
+            project_path=project_path,
+            subproject_path=subproject_path,
+        )
+        seen_here: dict[tuple[str, str], str] = {}
+        for parsed in claimed_refines:
+            key = (parsed.entry_id, parsed.decision or "d1")
+            holder = taken.get(key) or seen_here.get(key)
+            if holder == own_id:
+                holder = None
+            if holder:
+                issues.append(
+                    f"evolves -> {parsed.raw}: {key[0]}:{key[1]} is already refined by {holder}. "
+                    "A decision has one next form - record this as (builds-on), or retract the "
+                    "existing edge first if this is genuinely the successor"
+                )
+            else:
+                seen_here[key] = "this entry"
+
+    # Entry YAML no longer accepts lifecycle links (JNL 2026-08-09). A raw ref in
+    # an entry's own frontmatter gives a human reading the Markdown nothing - the
+    # id is opaque without a lookup, and an agent resolves it through MCP either
+    # way - so it is noise in the file that holds narrative. Invariant #6 already
+    # draws this line: "narrow sidecars may own explicit promotion or lifecycle
+    # facts while referenced entries own narrative rationale and evidence". The
+    # decisions envelope becomes the sole write path, which also makes the
+    # per-edge `why` and evolution type reachable - the flags have nowhere to put
+    # them. Published entries keep their 772 refs and are read forever; only new
+    # writes are closed off.
+    for arg_name, values in (
+        ("related_entries", related_entries),
+        ("replaces", replaces),
+        ("evolves", evolves),
+    ):
+        if values:
+            issues.append(
+                f"{arg_name} is no longer accepted in entry YAML; declare the edge on the decision "
+                f"it belongs to via the decisions envelope (decisions[].links.{arg_name}), which is "
+                "where its evidence and evolution type live"
+            )
+
     # The granularity mandate (JNL 2026-07-24) is HARD here, unlike the
     # links-check advisory: this is the one moment the ref is still unwritten,
     # so demanding precision costs a keystroke now instead of a permanent gap.
@@ -3846,6 +4111,20 @@ def session_append_entry(
             if values:
                 link_lines.append(f"{key}:")
                 link_lines.extend(f"  - {value}" for value in values)
+        # Prose evidence, keyed by the exact rendered ref token so it joins the
+        # edge with the ordinary ref grammar - the same identity `edge_confidence`
+        # uses. A sibling key `links check` does not collect, so it costs no
+        # parser change to write.
+        evidence_lines = [pair for decision in decision_writes for pair in decision.evidence]
+        if evidence_lines:
+            link_lines.append("edge_evidence:")
+            for ref, why in evidence_lines:
+                # Backslash-escaped rather than stripped: a double-quoted YAML
+                # scalar accepts \" and \\, and silently dropping a character an
+                # author wrote would corrupt the evidence to protect the parser.
+                escaped = why.replace("\\", "\\\\").replace('"', '\\"')
+                link_lines.append(f'  - ref: "{ref}"')
+                link_lines.append(f'    why: "{escaped}"')
         rendered_sidecars["links"] = "\n".join([*link_lines, "```", ""])
 
     # A reviewed MCP retry publishes its ADR ledger events in the same
@@ -3905,9 +4184,16 @@ def session_append_entry(
                     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
                         continue
                     for raw_ref in values:
-                        if not isinstance(raw_ref, str):
+                        # Bare ref string, or the {ref, why, type} object the
+                        # evidence mandate introduced. Same reason as
+                        # `adr.lifecycle_targets`: an unrecognised shape here
+                        # reads as "no assertion" and would fail the write for a
+                        # link the author did supply.
+                        if isinstance(raw_ref, Mapping):
+                            raw_ref = raw_ref.get("ref")
+                        if not isinstance(raw_ref, str) or not raw_ref.strip():
                             continue
-                        for target_ref in canonical_decision_refs(cwd, raw_ref):
+                        for target_ref in canonical_decision_refs(cwd, raw_ref.strip()):
                             if target_ref in matched_decisions:
                                 assertions[target_ref] = (
                                     f"link:{entry_id}:{ordinal}:{kind}:{target_ref}"

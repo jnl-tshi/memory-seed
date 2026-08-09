@@ -849,8 +849,15 @@ def lifecycle_targets(cwd: str | Path, decisions: Sequence[Mapping[str, Any]]) -
             values = links.get(kind, [])
             if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
                 for value in values:
-                    if isinstance(value, str):
-                        result.extend(canonical_decision_refs(cwd, value))
+                    # A link item is a bare ref string OR the {ref, why, type}
+                    # object the evidence mandate introduced (2026-08-09). This
+                    # gate is mandatory, so a shape it does not understand must
+                    # never read as "no lifecycle target" - that would silently
+                    # disable the review rather than fail loudly.
+                    if isinstance(value, Mapping):
+                        value = value.get("ref")
+                    if isinstance(value, str) and value.strip():
+                        result.extend(canonical_decision_refs(cwd, value.strip()))
     return tuple(dict.fromkeys(result))
 
 

@@ -89,7 +89,7 @@ topics:
                 {
                     "decision": "d1",
                     "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
-                    "links": {"evolves": [older.entry_id]},
+                    "links": {"evolves": [{"ref": older.entry_id, "type": "refines", "why": "test fixture edge"}]},
                 }
             ],
         )
@@ -267,7 +267,7 @@ topics:
             "decisions": [{
                 "decision": "d1",
                 "topics": {"area": "schema", "activity": "feature-build"},
-                "links": {"evolves": [older.entry_id]},
+                "links": {"evolves": [{"ref": older.entry_id, "type": "refines", "why": "test fixture edge"}]},
             }],
         }
         from memory_seed.core import _write_chronological_topic_sidecar_file as real_write_topic_sidecar
