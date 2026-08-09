@@ -42,9 +42,6 @@
 | [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
 | [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
-| [adr-refines-review-trigger-plan.md](adr-refines-review-trigger-plan.md) | — | — | — |
-| [chain-position-aware-link-candidates-proposal.md](chain-position-aware-link-candidates-proposal.md) | — | — | — |
-| [chains-as-artifacts-proposal.md](chains-as-artifacts-proposal.md) | — | — | — |
 | [evolution-type-refines-builds-on-proposal.md](evolution-type-refines-builds-on-proposal.md) | — | — | — |
 | [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |
 | [memory-trace-ai-timeline-summarisation-plan.md](memory-trace-ai-timeline-summarisation-plan.md) | — | — | Phase 2: implement a disabled-by-default provider interface and local-model adapter over determ… |

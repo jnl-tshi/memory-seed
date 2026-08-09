@@ -2478,17 +2478,28 @@ def audit_link_gaps(
         replacing_lineage_heads,
     )
 
-    augmented_chunks = augment_chunks_with_link_sidecars(chunks, cwd)
-    spine = build_refines_spine(augmented_chunks)
-    lineage_graph = build_related_entry_graph(cwd, chunks=augmented_chunks)
+    # Fail-open like the sibling call sites (`check_session_links`,
+    # `_adr_head_reviews`): the annotation is advisory context on a candidate
+    # list, not a gate, so a spine failure degrades to unannotated candidates
+    # rather than taking down the audit (and the whole ESR preflight with it).
+    try:
+        augmented_chunks = augment_chunks_with_link_sidecars(chunks, cwd)
+        spine = build_refines_spine(augmented_chunks)
+        lineage_graph = build_related_entry_graph(cwd, chunks=augmented_chunks)
+    except Exception:
+        spine = None
+        lineage_graph = {}
     taken_by_entry: dict[str, list[tuple[tuple[str, str], tuple[tuple[str, str], ...]]]] = {}
-    for spine_key, spine_successors in spine.successors.items():
-        taken_by_entry.setdefault(spine_key[0], []).append((spine_key, spine_successors))
+    if spine is not None:
+        for spine_key, spine_successors in spine.successors.items():
+            taken_by_entry.setdefault(spine_key[0], []).append((spine_key, spine_successors))
 
     def _decision_ref(key: tuple[str, str]) -> str:
         return f"{key[0]}:{key[1]}" if key[1] else key[0]
 
     def _annotate_chain_position(candidate: LinkGapCandidate) -> LinkGapCandidate:
+        if spine is None:
+            return candidate
         taken = taken_by_entry.get(candidate.entry_id)
         if not taken:
             return candidate

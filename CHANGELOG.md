@@ -19,6 +19,37 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Retractions reach entry-YAML edges.** A link sidecar's `retracts:` now removes an edge authored
+  in the entry's own YAML, not only edges declared in sidecar lists — previously a silent no-op
+  covering 232 of the 807 evolution-type backfill edges. Scoped strictly to the retracting block's
+  own `entry_id`, and mirroring the surviving-projection rule so a retract-and-retype keeps its
+  typed replacement.
+- **The evolution-type backfill is applied.** Every effective untyped `evolves` edge is typed via
+  retract-and-retype sidecar blocks: 109 `refines` / 692 `builds-on` across 471 entries, under the
+  two-run agreement rule (`refines` only where both independent judgment runs said so). Six edges
+  the snapshot carried but hand audits had already retracted were left dead rather than
+  resurrected. Gated on a graph assertion — effective edge set byte-identical before and after;
+  nodes carrying a `refines` successor went 1 → 105.
+- **The `refines` lineage walk is decision-keyed.** `build_refines_spine` / `RefinesSpine` in
+  `semantic_cache` key successors and predecessors by `(entry_id, ordinal)` — an ADR head is
+  `mse_x:dN`, and the one-successor cap is a per-decision contract. `head()` walks to the terminus;
+  `chain_through()` returns the ordered root → head chain. A missing ordinal on a single-decision
+  entry normalises to `d1`.
+- **Chains are artifacts, and a chain takes one link — at its head.** `links chain <ref>` renders
+  the refines chain a decision belongs to (root, ordered members, head, length, owning ADRs),
+  derived entirely from the edges. `session append` refuses a decision whose `evolves` names two
+  members of one chain, with the fix in the message; `links check` raises the same shape as the
+  `redundant-chain-edge` warning on published history. Cross-chain multi-evolves (a merge) stays
+  fully legal.
+- **Link-audit candidates know their chain position.** `link audit` annotates every candidate from
+  the decision-keyed spine: interior chain members arrive marked **related-only** (`refines` slot
+  taken, chain lives at `current_form`), replaced decisions never arrive at all — their terminal
+  replacement substitutes, marked `substitute_for`. Carried on all five projections and taught to
+  the swarm in `link_swarm.md`.
+- **Untyped `evolves` is now a `links check` error.** With the backfill landed, an EFFECTIVE
+  `evolves` edge carrying no type raises `untyped-evolves` at error severity, with no cutoff.
+  Judged over the effective graph, so retracted untyped originals in published files do not fire;
+  any instance is closable append-only via retract-and-retype.
 - **`esr` reports an ADR review queue.** When the decision an ADR is headed by has an agreed
   `refines` successor, the concern's current form has moved and the ADR has not — a mechanical
   fact, reported the way `needs-diagram-review` reports a diagram invalidated by evolution. The

@@ -33,11 +33,14 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [3.0-plan.md](3.0-plan.md) | — | — | — |
+| [adr-refines-review-trigger-plan.md](adr-refines-review-trigger-plan.md) | — | — | — |
 | [agent-fanout-workflow-plan.md](agent-fanout-workflow-plan.md) | — | — | — |
 | [agent-rules-lazy-loading-recommendations.md](agent-rules-lazy-loading-recommendations.md) | — | — | — |
 | [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | complete |
 | [agent-worktree-namespace-guard-plan.md](agent-worktree-namespace-guard-plan.md) | — | — | — |
 | [baseline-seed-promotions.md](baseline-seed-promotions.md) | — | — | — |
+| [chain-position-aware-link-candidates-proposal.md](chain-position-aware-link-candidates-proposal.md) | — | — | — |
+| [chains-as-artifacts-proposal.md](chains-as-artifacts-proposal.md) | — | — | — |
 | [cheap-tooling-hardening-proposals.md](cheap-tooling-hardening-proposals.md) | — | — | — |
 | [compact-mermaid-diagram-skill-proposal.md](compact-mermaid-diagram-skill-proposal.md) | — | — | — |
 | [confidence-signaling-protocol-proposal.md](confidence-signaling-protocol-proposal.md) | — | — | — |
