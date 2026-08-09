@@ -3113,6 +3113,61 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 )
             )
 
+    # One-link-per-chain (JNL 2026-08-09), retrospective surface: a decision
+    # that evolves two targets where one is a chain-ancestor of the other
+    # restates history the chain already carries - within one chain, an entry
+    # links its evolution once, at the head. WARNING on published history (the
+    # corpus predates the rule and append-only makes the shapes permanent);
+    # `session append` refuses the same shape hard - the two-tier pattern.
+    try:
+        from .retrieval import augment_chunks_with_link_sidecars
+        from .semantic_cache import build_refines_spine, extract_memory_chunks
+
+        chain_chunks = augment_chunks_with_link_sidecars(
+            extract_memory_chunks(cwd, granularity="entry"), cwd
+        )
+        chain_spine = build_refines_spine(chain_chunks)
+    except Exception:
+        chain_chunks, chain_spine = [], None
+    if chain_spine is not None:
+        for chunk in chain_chunks:
+            if not chunk.entry_id:
+                continue
+            grouped: dict[str, dict[tuple[str, str], str]] = {}
+            for edge in chunk.decision_edges:
+                if not edge or edge[0] != "evolves" or len(edge) < 3:
+                    continue
+                source_ordinal = edge[1] or ""
+                target_ordinal = edge[3] if len(edge) > 3 else ""
+                decision_key = chain_spine.key(edge[2], target_ordinal or None)
+                raw = f"{edge[2]}:{target_ordinal}" if target_ordinal else edge[2]
+                grouped.setdefault(source_ordinal, {}).setdefault(decision_key, raw)
+            for source_ordinal, targets in grouped.items():
+                if len(targets) < 2:
+                    continue
+                unique = list(targets.items())
+                for first in range(len(unique)):
+                    key_a, raw_a = unique[first]
+                    chain = chain_spine.chain_through(*key_a)
+                    if not chain:
+                        continue
+                    chain_set = set(chain)
+                    for second in range(first + 1, len(unique)):
+                        key_b, raw_b = unique[second]
+                        if key_b not in chain_set:
+                            continue
+                        source = f"{chunk.entry_id}:{source_ordinal}" if source_ordinal else chunk.entry_id
+                        issues.append(
+                            LinkIssue(
+                                chunk.source_path,
+                                "redundant-chain-edge",
+                                f"{source} evolves both {raw_a} and {raw_b}, members of ONE chain - "
+                                "the chain already carries that history; the edge belongs at the "
+                                "head, the earlier member is `related` at most",
+                                severity="warning",
+                            )
+                        )
+
     # Entry-yaml lifecycle refs validate here, mirroring the sidecar checks
     # exactly (dangling target, dangling ordinal, intra-entry, arrow source
     # ordinal); decision-targeting refs then join decision_edges so the
@@ -3916,6 +3971,48 @@ def session_append_entry(
                 )
             else:
                 seen_here[key] = "this entry"
+
+    # One-link-per-chain (JNL 2026-08-09): within one chain, a decision links
+    # its evolution ONCE - at the head. Two evolves targets where one is a
+    # chain-ancestor of the other restate history the chain already carries -
+    # redundant at best, head-ambiguity at worst. Refused here for the same
+    # reason as the granularity mandate: this is the one moment the edge is
+    # unwritten and a keystroke fixes it. Cross-chain multi-evolves stays fully
+    # legal - the rule is per chain, not per entry. The corpus is read only
+    # when some decision actually names two or more evolves targets.
+    multi_target_decisions = [
+        (decision, [p for ref in decision.evolves for p in _parse_list_ref_multi(ref) if p.ok])
+        for decision in decision_writes
+        if len(decision.evolves) >= 2
+    ]
+    if any(len(parsed_refs) >= 2 for _d, parsed_refs in multi_target_decisions):
+        try:
+            from .retrieval import augment_chunks_with_link_sidecars
+            from .semantic_cache import build_refines_spine, extract_memory_chunks
+
+            spine = build_refines_spine(
+                augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+            )
+        except Exception:
+            spine = None  # best-effort like existing_refines_targets; links check re-derives
+        if spine is not None:
+            for decision, parsed_refs in multi_target_decisions:
+                keys = [(spine.key(p.entry_id, p.decision or None), p) for p in parsed_refs]
+                for first in range(len(keys)):
+                    for second in range(first + 1, len(keys)):
+                        (key_a, parsed_a), (key_b, parsed_b) = keys[first], keys[second]
+                        if key_a == key_b:
+                            continue
+                        chain = spine.chain_through(*key_a)
+                        if key_b not in chain:
+                            continue
+                        nearer = parsed_a if chain.index(key_a) > chain.index(key_b) else parsed_b
+                        farther = parsed_b if nearer is parsed_a else parsed_a
+                        issues.append(
+                            f"decision {decision.decision}: evolves -> {parsed_a.raw} and {parsed_b.raw} "
+                            "are members of ONE chain - a chain is linked once, at its head. Keep the "
+                            f"edge to {nearer.raw} and move {farther.raw} to related_entries"
+                        )
 
     # Entry YAML no longer accepts lifecycle links (JNL 2026-08-09). A raw ref in
     # an entry's own frontmatter gives a human reading the Markdown nothing - the

@@ -1015,3 +1015,96 @@ class LinkAuditSemanticExposureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChainPositionCandidateTests(unittest.TestCase):
+    """Candidates are annotated from the decision-keyed refines spine: interior
+    members are related-only, replaced ones are never offered (their terminal
+    replacement substitutes). The invalid option leaves the menu at
+    candidate-generation time - the closed-list lesson applied to verdicts."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-chainpos-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        self.sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        self.sessions.mkdir(parents=True, exist_ok=True)
+
+    def _write(self, *entries):
+        (self.sessions / "2026-06-01.md").write_text("\n".join(entries), encoding="utf-8")
+
+    def _sidecar_lines(self, *lines):
+        d = self.sessions / "links" / "2026-06"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "2026-06-01.md"
+        # Frontmatter on first write: apply_link_gap_stubs refuses an existing
+        # sidecar file without it.
+        head = (
+            path.read_text(encoding="utf-8")
+            if path.exists()
+            else "---\ntags:\n  - session-log-links\nlink_date: 2026-06-01\n---\n\n"
+        )
+        path.write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
+
+    def _candidates(self, entry_id):
+        gaps = audit_link_gaps(cwd=self.cwd, entry_id=entry_id, semantic_enabled=False)
+        return {c.entry_id: c for c in (gaps[0].candidates if gaps else ())}
+
+    def test_interior_chain_member_is_annotated_related_only(self):
+        # B refines A, so A's slot is taken: A is interior, the chain lives at B.
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 10:00", B),
+            _entry("2026-06-01 11:00", C, files=["pkg/foo.py"]),
+        )
+        self._sidecar_lines(
+            "## 2026-06-01 12:00 - typed", "", "```yaml", f"entry_id: {B}",
+            "evolves:", f"  - {A} (refines)", "```", "",
+        )
+        cands = self._candidates(C)
+        self.assertIn(A, cands)
+        self.assertEqual(cands[A].chain_position, "interior")
+        self.assertEqual(cands[A].refines_taken_by, f"{B}:d1")
+        self.assertEqual(cands[A].current_form, f"{B}:d1")
+
+    def test_open_head_keeps_default_position(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 11:00", C, files=["pkg/foo.py"]),
+        )
+        cands = self._candidates(C)
+        self.assertEqual(cands[A].chain_position, "head")
+        self.assertIsNone(cands[A].refines_taken_by)
+
+    def test_replaced_candidate_is_dropped_and_its_replacement_substitutes(self):
+        # A is replaced by B. B shares nothing with the target, so only the
+        # substitution can surface it - and A itself must never appear.
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 10:00", B),
+            _entry("2026-06-01 11:00", C, files=["pkg/foo.py"]),
+        )
+        self._sidecar_lines(
+            "## 2026-06-01 12:00 - replacement", "", "```yaml", f"entry_id: {B}",
+            "replaces:", f"  - {A}", "```", "",
+        )
+        cands = self._candidates(C)
+        self.assertNotIn(A, cands, "a replaced decision is not a lifecycle target")
+        self.assertIn(B, cands)
+        self.assertEqual(cands[B].substitute_for, A)
+        self.assertEqual(cands[B].chain_position, "head")
+
+    def test_stub_renderer_carries_the_position_flags(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 10:00", B),
+            _entry("2026-06-01 11:00", C, files=["pkg/foo.py"]),
+        )
+        self._sidecar_lines(
+            "## 2026-06-01 12:00 - typed", "", "```yaml", f"entry_id: {B}",
+            "evolves:", f"  - {A} (refines)", "```", "",
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, entry_id=C, semantic_enabled=False)
+        applied = apply_link_gap_stubs(gaps, session_date="2026-06-01", cwd=self.cwd)
+        text = applied.path.read_text(encoding="utf-8")
+        self.assertIn("INTERIOR chain member - related-only", text)
+        self.assertIn(f"refines taken by {B}:d1", text)

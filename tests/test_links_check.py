@@ -2259,3 +2259,91 @@ class RefinesSpineTests(unittest.TestCase):
         )
         self.assertEqual(spine.chain_through(a, "d2"), ((a, "d2"), (b, "d1"), (c, "d1")))
         self.assertEqual(spine.chain_through(a, "d1"), (), "the other decision is not in any chain")
+
+
+class RedundantChainEdgeTests(unittest.TestCase):
+    """`links check` warns when a decision evolves two members of one chain -
+    advisory on published history; `session append` refuses the same shape."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-chainedge-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+
+    def _entry(self, entry_id, ts):
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        block = (f"## {ts} - entry {entry_id}\n\n```yaml\nentry_id: {entry_id}\n```\n\n"
+                 "### Decision\n\n- D: a.\n- R: b.\n\n")
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8")
+
+    def _sidecar(self, lines):
+        d = self.cwd / MEMORY_DIR_NAME / "sessions" / "links"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "2026-06-13.md"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + "\n".join(lines) + "\n",
+                        encoding="utf-8")
+
+    def test_two_edges_into_one_chain_warn(self):
+        root, mid, restater = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        self._entry(root, "2026-06-13 09:00")
+        self._entry(mid, "2026-06-13 10:00")
+        self._entry(restater, "2026-06-13 11:00")
+        self._sidecar([
+            "## 2026-06-13 12:00 - spine", "", "```yaml", f"entry_id: {mid}",
+            "evolves:", f"  - {root} (refines)", "```", "",
+            "## 2026-06-13 12:01 - restates", "", "```yaml", f"entry_id: {restater}",
+            "evolves:", f"  - {mid} (builds-on)", f"  - {root} (builds-on)", "```", "",
+        ])
+        result = check_session_links(cwd=self.cwd)
+        self.assertTrue(result.ok, "advisory must not fail the gate")
+        redundant = [i for i in result.issues if i.kind == "redundant-chain-edge"]
+        self.assertEqual(len(redundant), 1)
+        self.assertEqual(redundant[0].severity, "warning")
+        self.assertIn("ONE chain", redundant[0].detail)
+
+    def test_edges_into_two_chains_do_not_warn(self):
+        a, b, merger = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        self._entry(a, "2026-06-13 09:00")
+        self._entry(b, "2026-06-13 10:00")
+        self._entry(merger, "2026-06-13 11:00")
+        self._sidecar([
+            "## 2026-06-13 12:00 - merge", "", "```yaml", f"entry_id: {merger}",
+            "evolves:", f"  - {a} (builds-on)", f"  - {b} (builds-on)", "```", "",
+        ])
+        result = check_session_links(cwd=self.cwd)
+        self.assertTrue(result.ok)
+        self.assertNotIn("redundant-chain-edge", [i.kind for i in result.issues])
+
+
+class DescribeRefinesChainTests(unittest.TestCase):
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-chainview-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+
+    def test_chain_view_names_root_head_and_members(self):
+        from memory_seed.retrieval import describe_refines_chain
+        root, mid, head = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        blocks = []
+        for eid, ts in ((root, "09:00"), (mid, "10:00"), (head, "11:00")):
+            blocks.append(f"## 2026-06-13 {ts} - entry {eid}\n\n```yaml\nentry_id: {eid}\n```\n\n"
+                          "### Decision\n\n- D: a.\n- R: b.\n\n")
+        (sessions / "2026-06-13.md").write_text("".join(blocks), encoding="utf-8")
+        links = sessions / "links"
+        links.mkdir(parents=True, exist_ok=True)
+        (links / "2026-06-13.md").write_text(
+            f"## 2026-06-13 12:00 - a\n\n```yaml\nentry_id: {mid}\nevolves:\n  - {root} (refines)\n```\n\n"
+            f"## 2026-06-13 12:01 - b\n\n```yaml\nentry_id: {head}\nevolves:\n  - {mid} (refines)\n```\n",
+            encoding="utf-8",
+        )
+        # Entering from any member returns the same chain.
+        for ref in (root, f"{mid}:d1", head):
+            view = describe_refines_chain(self.cwd, ref)
+            self.assertIsNotNone(view, ref)
+            self.assertEqual(view["root"], f"{root}:d1")
+            self.assertEqual(view["head"], f"{head}:d1")
+            self.assertEqual(view["length"], 3)
+            self.assertEqual([m["ref"] for m in view["members"]],
+                             [f"{root}:d1", f"{mid}:d1", f"{head}:d1"])
+        self.assertIsNone(describe_refines_chain(self.cwd, "mse_zzzzzzzzzzzzzzzz"))
