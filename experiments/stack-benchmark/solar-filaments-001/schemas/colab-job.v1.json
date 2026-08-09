@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solar-colab-job.v1",
+  "type": "object",
+  "required": ["schema", "job_id", "experiment_id", "benchmark_sha256", "command", "expected_artifacts"],
+  "properties": {
+    "schema": {"const": "solar-colab-job.v1"},
+    "job_id": {"type": "string", "minLength": 1},
+    "command": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "payload": {"type": "array", "items": {"type": "string"}},
+    "expected_artifacts": {"type": "array", "items": {"type": "string"}}
+  }
+}

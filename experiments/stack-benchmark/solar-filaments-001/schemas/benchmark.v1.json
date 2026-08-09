@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solar-stack-benchmark.v1",
+  "type": "object",
+  "required": ["schema", "status", "experiment_id", "competition", "freeze", "arms"],
+  "properties": {
+    "schema": {"const": "solar-stack-benchmark.v1"},
+    "status": {"enum": ["DRAFT", "FROZEN", "RETIRED"]},
+    "experiment_id": {"const": "solar-filaments-001"},
+    "competition": {
+      "type": "object",
+      "required": ["slug", "url", "deadline", "rules_accepted", "metric", "submission_columns", "mask_size"]
+    },
+    "freeze": {"type": "object"},
+    "arms": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true}
+  },
+  "additionalProperties": true
+}

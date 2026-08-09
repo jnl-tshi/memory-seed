@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solar-run-metrics.v1",
+  "type": "object",
+  "required": ["schema", "run_id", "arm", "attempt", "status", "best_validation_dice", "final_validation_dice", "submission_valid", "input_tokens", "output_tokens", "estimated_cost"],
+  "properties": {
+    "schema": {"const": "solar-run-metrics.v1"},
+    "arm": {"enum": ["baseline", "icm", "memory-seed", "graphify", "semble", "memory-seed-icm", "memory-seed-graphify", "memory-seed-semble"]},
+    "status": {"enum": ["complete", "substantive-failure", "harness-failure", "invalid"]},
+    "best_validation_dice": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "final_validation_dice": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "submission_valid": {"type": "boolean"}
+  }
+}
