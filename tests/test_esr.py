@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import pytest
 from pathlib import Path
+from unittest.mock import patch
 
 from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.esr import esr_report, format_esr_report
@@ -324,6 +325,146 @@ class EsrReportTests(unittest.TestCase):
         self.assertEqual(report.to_dict()["worktrees"]["residues"][0]["namespace"], ".codex/worktrees")
         self.assertIn("ORPHAN RESIDUE CANDIDATE", text)
         self.assertNotIn(f"{registered}  [.codex/worktrees]  ORPHAN", text)
+
+
+class AdrHeadReviewQueueTests(unittest.TestCase):
+    """ESR flags an ADR whose authoritative head has a `refines` successor.
+
+    A mechanical fact only: the concern's current form moved and the ADR did
+    not. Nothing in the report moves a head - the flag is answered by an
+    authored revision or a recorded reviewed-no-change, which is why the line
+    says exactly that.
+    """
+
+    HEAD = "mse_" + "1" * 16       # ADR head, refined twice
+    MID = "mse_" + "2" * 16        # the intermediate hop - must never be reported
+    TERMINUS = "mse_" + "3" * 16   # the chain's current form
+    STABLE = "mse_" + "4" * 16     # a head nothing refines
+    MEMBER = "mse_" + "5" * 16     # attached predecessor, refined
+    MEMBER_NEW = "mse_" + "6" * 16  # that predecessor's current form
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-esr-adr-head-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        self.sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        self.sessions.mkdir(parents=True, exist_ok=True)
+        for index, entry_id in enumerate(
+            (self.HEAD, self.MID, self.TERMINUS, self.STABLE, self.MEMBER, self.MEMBER_NEW)
+        ):
+            self._entry(entry_id, f"2026-06-01 0{index}:00")
+
+    def _entry(self, entry_id, timestamp):
+        path = self.sessions / "2026-06-01.md"
+        block = (
+            f"## {timestamp} - entry {entry_id[-4:]}\n\n```yaml\nentry_id: {entry_id}\n"
+            "user_initials: JNL\nagent_type: codex\n```\n\n"
+            "### Decision\n\n- D: Something.\n- R: Because.\n\n"
+        )
+        path.write_text(
+            (path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8"
+        )
+
+    def _refines(self, source, target):
+        """Author a typed `refines` edge in a link sidecar, the way the corpus does."""
+        directory = self.sessions / "links"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "2026-06-01.md"
+        block = (
+            f"## 2026-06-01 12:00 - typed edge {source[-4:]}\n\n```yaml\n"
+            f"entry_id: {source}\nsource: derived\nevolves:\n  - {target} (refines)\n```\n\n"
+        )
+        path.write_text(
+            (path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8"
+        )
+
+    def _accepted_adr(self, adr_id, entry_id, *, predecessors=()):
+        from memory_seed.adr import promote_decision, transition_adr
+
+        promoted = promote_decision(
+            self.cwd, adr_id=adr_id, source_entry_id=entry_id, source_decision="d1",
+            title=f"Concern {adr_id}", topics=(), user_initials="JNL", agent_type="codex",
+            source="write-time", direct_predecessors=predecessors,
+            timestamp="2026-06-01T13:00:00",
+        )
+        self.assertTrue(promoted.ok, promoted.issues)
+        accepted = transition_adr(
+            self.cwd, adr_id=adr_id, status="accepted", decision_ref=f"{entry_id}:d1",
+            update_entry_id=entry_id, expected_previous_status="proposed",
+            source="write-time", timestamp="2026-06-01T14:00:00",
+        )
+        self.assertTrue(accepted.ok, accepted.issues)
+
+    def test_head_with_a_refines_successor_is_flagged_at_the_chain_terminus(self):
+        # Two hops: a one-hop implementation would name MID, which is itself
+        # already superseded - an ADR two refinements behind is further behind.
+        self._refines(self.MID, self.HEAD)
+        self._refines(self.TERMINUS, self.MID)
+        self._accepted_adr("adr_moved", self.HEAD)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        text = format_esr_report(report)
+
+        self.assertEqual(report.adr_head_reviews, [
+            f"ADR adr_moved: head {self.HEAD}:d1 has current form {self.TERMINUS}:d1 "
+            "- propose a revision or record reviewed-no-change"
+        ])
+        self.assertIn("## ADR review queue", text)
+        self.assertIn(f"has current form {self.TERMINUS}:d1", text)
+        self.assertNotIn(f"has current form {self.MID}:d1", text)
+        # Flag only, and the wording has to keep saying so.
+        self.assertIn("propose a revision or record reviewed-no-change", text)
+
+    def test_head_without_a_successor_produces_nothing(self):
+        # The edge exists in the corpus but touches a decision this ADR does
+        # not hold: a review queue that fires on unrelated lineage is noise.
+        self._refines(self.MID, self.HEAD)
+        self._accepted_adr("adr_stable", self.STABLE)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(report.adr_head_reviews, [])
+        self.assertNotIn("## ADR review queue", format_esr_report(report))
+
+    def test_non_head_attached_member_is_flagged_as_secondary(self):
+        from memory_seed.adr import AdrPredecessor
+
+        self._refines(self.MEMBER_NEW, self.MEMBER)
+        self._accepted_adr(
+            "adr_member", self.STABLE,
+            predecessors=(AdrPredecessor(
+                f"{self.MEMBER}:d1",
+                f"link:{self.STABLE}:d1:evolves:{self.MEMBER}:d1",
+            ),),
+        )
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(report.adr_head_reviews, [
+            f"ADR adr_member: member {self.MEMBER}:d1 has current form "
+            f"{self.MEMBER_NEW}:d1 (secondary - the authoritative head is unchanged)"
+        ])
+        self.assertIn("secondary", format_esr_report(report))
+
+    def test_section_fails_open_leaving_the_rest_of_the_report_usable(self):
+        # The section rides in a preflight. It may report nothing; it may never
+        # take the preflight down with it.
+        self._refines(self.MID, self.HEAD)
+        self._accepted_adr("adr_moved", self.HEAD)
+
+        with patch(
+            "memory_seed.semantic_cache.build_refines_spine",
+            side_effect=RuntimeError("spine unavailable"),
+        ) as spine:
+            report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        text = format_esr_report(report)
+
+        # The raising path was actually taken - an empty section that never
+        # reached the spine would prove nothing about failing open.
+        self.assertTrue(spine.called)
+        self.assertEqual(report.adr_head_reviews, [])
+        self.assertNotIn("## ADR review queue", text)
+        self.assertIn("## Integrity (links check)", text)
+        self.assertIn("## Topics", text)
 
 
 if __name__ == "__main__":

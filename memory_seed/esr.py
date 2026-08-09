@@ -131,6 +131,10 @@ class EsrReport:
     skills_with_dangling_governing_adr: list[str] = field(default_factory=list)
     # ADRs carrying no decision at all, with ranked candidates to attach.
     adr_attachment_candidates: list[str] = field(default_factory=list)
+    # ADRs whose authoritative head (or an attached non-head member) has an
+    # agreed `refines` successor - the concern's current form moved, the ADR
+    # did not. Flag only; a head moves by authored revision and nothing else.
+    adr_head_reviews: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -281,6 +285,121 @@ def _adr_attachment_candidates(cwd: Path, memory_dir: Path, limit: int = 10) -> 
         if len(pending) > limit:
             lines.append(f"  ({len(pending) - limit} further ADR(s) not shown)")
         return lines
+    except Exception:  # noqa: BLE001 - a report must never fail the preflight it rides in
+        return []
+
+
+def _decision_ref_parts(ref: str | None) -> tuple[str, str | None] | None:
+    """Split a decision ref into (entry_id, ordinal-or-None), or None if it is not one.
+
+    `founding:<source>` is a PLACEHOLDER head meaning "this concern as recorded
+    in the control file", not a decision in the lineage graph - the state
+    machine special-cases it in the descent rule for exactly that reason. Split
+    it naively and it yields entry_id `founding`, which resolves to nothing and
+    would quietly answer "no successor" for every founded ADR.
+
+    A missing ordinal stays None rather than becoming `d1`: the spine's own
+    default knows whether the entry holds one decision (`d1`) or several (`""`),
+    and hardcoding d1 here would fabricate precision on a multi-decision entry.
+    """
+    if not ref or ref.startswith("founding:"):
+        return None
+    entry_id, _, ordinal = ref.partition(":")
+    if not entry_id:
+        return None
+    return entry_id, (ordinal.strip().lower() or None)
+
+
+def _render_decision_key(key: tuple[str, str]) -> str:
+    entry_id, ordinal = key
+    return f"{entry_id}:{ordinal}" if ordinal else entry_id
+
+
+def _adr_head_reviews(cwd: Path) -> list[str]:
+    """ADRs whose authoritative head has an agreed `refines` successor.
+
+    A mechanical fact, reported the way `needs-diagram-review` reports a diagram
+    invalidated by evolution: if the decision an ADR is headed by has been
+    refined, the concern's current form has moved and the ADR has not. Measured
+    on 2026-08-09 over 109 agreed-refines edges and 57 ADRs: 3 heads and 3
+    non-head members - a queue that gets read, not a firehose.
+
+    FLAG ONLY, and the wording says so. Nothing moves an ADR head but an
+    authored `revision-proposed` + `revision-accepted` pair
+    (`feedback_machine_edges_never_move_heads`: one 0.75 machine edge moved an
+    ADR onto an unrelated concern in a single hop). The flag is answered either
+    way - a revision, or a recorded reviewed-no-change - so an ADR that
+    genuinely still holds is retired from the queue by a review, not by silence.
+
+    The walk runs to the chain's TERMINUS, not one hop: an ADR two refinements
+    behind is further behind, not differently behind.
+    """
+    try:
+        from .adr import adr_membership, iter_adrs
+
+        records = list(iter_adrs(cwd))
+        if not records:
+            # Ahead of the corpus pass, deliberately: most projects (and nearly
+            # every ESR test) carry no ADRs and should not pay a full chunk
+            # extraction to be told so.
+            return []
+
+        from .retrieval import augment_chunks_with_link_sidecars
+        from .semantic_cache import build_refines_spine, extract_memory_chunks
+
+        # Never `extract_memory_chunks` alone - the sidecar augmentation is
+        # where an edge authored in a link sidecar (most of them) becomes
+        # visible at all.
+        spine = build_refines_spine(
+            augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="entry"), cwd
+            )
+        )
+
+        primary: list[str] = []
+        secondary: list[str] = []
+        for record in records:
+            state = record.state
+            # A superseded ADR still carries its last head; it is retired, and
+            # asking for a revision on it is noise.
+            if state.superseded_by:
+                continue
+            head = state.authoritative_decision
+            if not head:
+                # An ADR still only proposed has no authority to be behind. The
+                # member pass below would otherwise report its own pending
+                # decision as "secondary - the authoritative head is unchanged".
+                continue
+            parts = _decision_ref_parts(head)
+            heads = spine.head(*parts) if parts else ()
+            for key in heads:
+                primary.append(
+                    f"ADR {record.adr_id}: head {head} has current form "
+                    f"{_render_decision_key(key)} - propose a revision or record "
+                    "reviewed-no-change"
+                )
+            if heads:
+                # The secondary line's parenthetical would be false here, and
+                # the ADR is already queued for the stronger reason.
+                continue
+            # The ADR's other attached decisions: every proposed ref plus the
+            # predecessors a proposal declared. `revision_statuses` alone is the
+            # wrong set - it never holds a predecessor, and on the live corpus
+            # it finds none of the three measured non-head hits. A REJECTED ref
+            # is attached to nothing and is skipped.
+            for ref in sorted(adr_membership(record)):
+                if ref == head or state.revision_statuses.get(ref) == "rejected":
+                    continue
+                parts = _decision_ref_parts(ref)
+                if not parts:
+                    continue
+                for key in spine.head(*parts):
+                    secondary.append(
+                        f"ADR {record.adr_id}: member {ref} has current form "
+                        f"{_render_decision_key(key)} (secondary - the "
+                        "authoritative head is unchanged)"
+                    )
+        return primary + secondary
     except Exception:  # noqa: BLE001 - a report must never fail the preflight it rides in
         return []
 
@@ -749,6 +868,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         runtime.memory_dir, adr_ids
     )
     report.adr_attachment_candidates = _adr_attachment_candidates(Path(cwd).resolve(), runtime.memory_dir)
+    report.adr_head_reviews = _adr_head_reviews(Path(cwd).resolve())
     return report
 
 
@@ -922,6 +1042,16 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append("a second UNGATED pass catches decisions the topic family cannot see (STRAY).")
         lines.append("A weak top score means the corpus has no good match. Attaching moves an ADR head.")
         lines.extend(report.adr_attachment_candidates)
+        lines.append("")
+
+    if report.adr_head_reviews:
+        lines.append("## ADR review queue")
+        lines.append(
+            "A `refines` successor on an ADR's head is a mechanical fact, not a verdict: the "
+            "concern's current form moved and the ADR did not. Nothing here moves a head - "
+            "answer each with an authored revision, or by recording reviewed-no-change."
+        )
+        lines.extend(report.adr_head_reviews)
         lines.append("")
 
     lines.append("## Skill governance")
