@@ -45,6 +45,13 @@ memory_trace = "memory-trace/memory_trace"
 # Pytest's cacheprovider can hang on shutdown in Windows OneDrive worktrees
 # after tests pass. Keep validation deterministic by disabling repo-local cache.
 addopts = ["-p", "no:cacheprovider"]
+# `memory-trace/` is a source root, not an installed package, so a bare `pytest`
+# from the repo root failed to collect its 23 test modules with "No module named
+# 'memory_trace'". CI runs that suite through `unittest discover` with the package
+# importable, so CI saw failures a local run structurally could not - three of them
+# sat on main from 2026-07-28 until the next push surfaced them. One line here means
+# `pytest` from the root runs what CI runs.
+pythonpath = ["memory-trace"]
 markers = [
   "integration: spawns real git subprocesses across a multi-step workflow (>=0.5s measured); run the fast loop with `pytest -m \"not integration\"`, full suite (default `pytest`) still runs everything.",
 ]

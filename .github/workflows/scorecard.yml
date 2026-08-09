@@ -13,6 +13,12 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    # Scorecard analyses PUBLIC repositories; on a private one its checkout fails with git exit
+    # 128 before analysis starts, which is how this job went red on every scheduled run from
+    # 2026-08-04. Skipped rather than deleted: this project is open-core and intended to go
+    # public, so the workflow stays ready and starts running the day visibility flips. A skipped
+    # job is green; a permanently failing one just teaches everyone to ignore red CI.
+    if: github.event.repository.visibility == 'public'
     permissions:
       security-events: write # upload SARIF results
       id-token: write # publish results to the OpenSSF REST API
