@@ -792,7 +792,7 @@ class LinksCheckTests(unittest.TestCase):
         # Append-only forbids editing a stub to record its own resolution, so the
         # answer arrives as a later sibling block. The warning is therefore an
         # ENTRY-level question; decided per block it could never be cleared.
-        for resolution in (["evolves:", "  - mse_aaaaaaaaaaaaaaaa"], ["edge_status: not_applicable"]):
+        for resolution in (["evolves:", "  - mse_aaaaaaaaaaaaaaaa (builds-on)"], ["edge_status: not_applicable"]):
             with self.subTest(resolution=resolution[0]):
                 cwd = self.make_project()
                 self._flat_session(
@@ -828,7 +828,7 @@ class LinksCheckTests(unittest.TestCase):
             cwd,
             "2026-06-13",
             "mse_ffffffffffffffff",
-            ("10:00", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"]),
+            ("10:00", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa (builds-on)"]),
             ("18:30", ["classify_pending: true"]),
         )
 
@@ -909,7 +909,9 @@ class LinksCheckTests(unittest.TestCase):
             ("2026-06-13 09:00 - base", "mse_0123456789abcdef", ()),
             ("2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", ()),
         )
-        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", evolves=("mse_0123456789abcdef",))
+        self._link_sidecar(
+            cwd, "2026-06-13", "mse_ffffffffffffffff", evolves=("mse_0123456789abcdef (builds-on)",)
+        )
 
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
@@ -1025,7 +1027,10 @@ class LinksCheckTests(unittest.TestCase):
             "2026-06-13.md",
             self._entry_yaml("2026-06-13 09:00 - original", "mse_0123456789abcdef")
             + self._entry_yaml(
-                "2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", "evolves:", "  - mse_0123456789abcdef"
+                "2026-06-13 10:00 - refinement",
+                "mse_ffffffffffffffff",
+                "evolves:",
+                "  - mse_0123456789abcdef (builds-on)",
             ),
         )
 
@@ -1038,7 +1043,12 @@ class LinksCheckTests(unittest.TestCase):
         self._flat_session_raw(
             cwd,
             "2026-06-13.md",
-            self._entry_yaml("2026-06-13 09:00 - only", "mse_0123456789abcdef", "evolves:", "  - mse_zzzzzzzzzzzzzzzz"),
+            self._entry_yaml(
+                "2026-06-13 09:00 - only",
+                "mse_0123456789abcdef",
+                "evolves:",
+                "  - mse_zzzzzzzzzzzzzzzz (builds-on)",
+            ),
         )
 
         issues = check_session_links(cwd=cwd).issues
@@ -1051,7 +1061,12 @@ class LinksCheckTests(unittest.TestCase):
         self._flat_session_raw(
             cwd,
             "2026-06-13.md",
-            self._entry_yaml("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", "evolves:", "  - mse_ffffffffffffffff")
+            self._entry_yaml(
+                "2026-06-13 09:00 - earlier",
+                "mse_0123456789abcdef",
+                "evolves:",
+                "  - mse_ffffffffffffffff (builds-on)",
+            )
             + self._entry_yaml("2026-06-13 10:00 - later", "mse_ffffffffffffffff"),
         )
 
@@ -1064,7 +1079,12 @@ class LinksCheckTests(unittest.TestCase):
         self._flat_session_raw(
             cwd,
             "2026-06-13.md",
-            self._entry_yaml("2026-06-13 09:00 - self", "mse_0123456789abcdef", "evolves:", "  - mse_0123456789abcdef"),
+            self._entry_yaml(
+                "2026-06-13 09:00 - self",
+                "mse_0123456789abcdef",
+                "evolves:",
+                "  - mse_0123456789abcdef (builds-on)",
+            ),
         )
 
         issues = check_session_links(cwd=cwd).issues
@@ -1334,7 +1354,7 @@ class LinksCheckTests(unittest.TestCase):
         d.mkdir(parents=True, exist_ok=True)
         (d / "2026-06-02.md").write_text(
             "## 2026-06-02 10:00 - edge\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
-            "  - mse_aaaaaaaaaaaaaaaa\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n",
+            "  - mse_aaaaaaaaaaaaaaaa (builds-on)\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n",
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
@@ -1346,7 +1366,7 @@ class LinksCheckTests(unittest.TestCase):
         self._decision_corpus(cwd)
         self._link_sidecar(
             cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
-            evolves=["mse_aaaaaaaaaaaaaaaa:d2"],
+            evolves=["mse_aaaaaaaaaaaaaaaa:d2 (builds-on)"],
         )
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
@@ -1375,7 +1395,7 @@ class LinksCheckTests(unittest.TestCase):
         # extraction would surface it as dangling-evolves.
         (sessions / "2026-06-02.md").write_text(
             "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
-            "  - mse_aaaaaaaaaaaaaaaa\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n\n"
+            "  - mse_aaaaaaaaaaaaaaaa (builds-on)\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n\n"
             "### Decision\n\n- D: x\n- R: y\n",
             encoding="utf-8",
         )
@@ -1393,7 +1413,7 @@ class LinksCheckTests(unittest.TestCase):
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         (sessions / "2026-06-02.md").write_text(
             "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
-            "  - mse_aaaaaaaaaaaaaaaa:d2\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            "  - mse_aaaaaaaaaaaaaaaa:d2 (builds-on)\n```\n\n### Decision\n\n- D: x\n- R: y\n",
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
@@ -1489,7 +1509,7 @@ class LinksCheckTests(unittest.TestCase):
         )
         self._link_sidecar(
             cwd, "2026-06-03", "mse_cccccccccccccccc",
-            evolves=["mse_bbbbbbbbbbbbbbbb:d1"],
+            evolves=["mse_bbbbbbbbbbbbbbbb:d1 (builds-on)"],
         )
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
@@ -1499,7 +1519,7 @@ class LinksCheckTests(unittest.TestCase):
         # d1 and nothing else, so d2 must be rejected.
         self._link_sidecar(
             cwd, "2026-06-03", "mse_cccccccccccccccc",
-            evolves=["mse_bbbbbbbbbbbbbbbb:d2"], heading_time="11:00",
+            evolves=["mse_bbbbbbbbbbbbbbbb:d2 (builds-on)"], heading_time="11:00",
         )
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
@@ -1847,13 +1867,13 @@ class LinksCheckTests(unittest.TestCase):
         self._decision_corpus(cwd)
         self._link_sidecar(
             cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
-            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d2"],
+            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d2 (builds-on)"],
         )
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
         self._link_sidecar(
             cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
-            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d9"], heading_time="11:00",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d9 (builds-on)"], heading_time="11:00",
         )
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
@@ -1867,14 +1887,14 @@ class LinksCheckTests(unittest.TestCase):
         self._decision_corpus(cwd)
         self._link_sidecar(
             cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
-            evolves=["d1 -> mse_aaaaaaaaaaaaaaaa:d2"],
+            evolves=["d1 -> mse_aaaaaaaaaaaaaaaa:d2 (builds-on)"],
         )
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
         # The newer entry is single-decision: it has d1 and nothing else.
         self._link_sidecar(
             cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
-            evolves=["d3 -> mse_aaaaaaaaaaaaaaaa:d2"], heading_time="11:00",
+            evolves=["d3 -> mse_aaaaaaaaaaaaaaaa:d2 (builds-on)"], heading_time="11:00",
         )
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
@@ -1888,7 +1908,7 @@ class LinksCheckTests(unittest.TestCase):
         # plus an arrow-prefixed BARE ref - entry-level on the target side.
         (sessions / "2026-06-03.md").write_text(
             "## 2026-06-03 09:00 - Multi\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
-            "  - d2 -> mse_aaaaaaaaaaaaaaaa:d1\n  - d1 -> mse_bbbbbbbbbbbbbbbb\n```\n\n"
+            "  - d2 -> mse_aaaaaaaaaaaaaaaa:d1 (builds-on)\n  - d1 -> mse_bbbbbbbbbbbbbbbb (builds-on)\n```\n\n"
             "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
             encoding="utf-8",
         )
@@ -1898,7 +1918,7 @@ class LinksCheckTests(unittest.TestCase):
         # A source ordinal the entry does not have is dangling.
         (sessions / "2026-06-03.md").write_text(
             "## 2026-06-03 09:00 - Multi\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
-            "  - d9 -> mse_aaaaaaaaaaaaaaaa:d1\n```\n\n"
+            "  - d9 -> mse_aaaaaaaaaaaaaaaa:d1 (builds-on)\n```\n\n"
             "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
             encoding="utf-8",
         )
@@ -1916,7 +1936,7 @@ class LinksCheckTests(unittest.TestCase):
         # :dN) and no arrow despite being multi-decision itself.
         (sessions / "2026-07-25.md").write_text(
             "## 2026-07-25 09:00 - Post-cutoff\n\n```yaml\nentry_id: mse_dddddddddddddddd\nevolves:\n"
-            "  - mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "  - mse_aaaaaaaaaaaaaaaa (builds-on)\n```\n\n"
             "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
             encoding="utf-8",
         )
@@ -1933,7 +1953,7 @@ class LinksCheckTests(unittest.TestCase):
         (sessions / "2026-07-25.md").unlink()
         (sessions / "2026-06-03.md").write_text(
             "## 2026-06-03 09:00 - Pre-cutoff\n\n```yaml\nentry_id: mse_dddddddddddddddd\nevolves:\n"
-            "  - mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "  - mse_aaaaaaaaaaaaaaaa (builds-on)\n```\n\n"
             "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
             encoding="utf-8",
         )
@@ -1953,7 +1973,7 @@ class LinksCheckTests(unittest.TestCase):
         # Bare ref to the single-decision target: clean, no advisory.
         (sessions / "2026-06-03.md").write_text(
             "## 2026-06-03 09:00 - Bare is right\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
-            "  - mse_bbbbbbbbbbbbbbbb\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            "  - mse_bbbbbbbbbbbbbbbb (builds-on)\n```\n\n### Decision\n\n- D: x\n- R: y\n",
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
@@ -1964,7 +1984,7 @@ class LinksCheckTests(unittest.TestCase):
         # :d1 on that same single-decision target: redundant, warns.
         (sessions / "2026-06-03.md").write_text(
             "## 2026-07-25 09:00 - Over-specified\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
-            "  - mse_bbbbbbbbbbbbbbbb:d1\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            "  - mse_bbbbbbbbbbbbbbbb:d1 (builds-on)\n```\n\n### Decision\n\n- D: x\n- R: y\n",
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
@@ -2347,3 +2367,65 @@ class DescribeRefinesChainTests(unittest.TestCase):
             self.assertEqual([m["ref"] for m in view["members"]],
                              [f"{root}:d1", f"{mid}:d1", f"{head}:d1"])
         self.assertIsNone(describe_refines_chain(self.cwd, "mse_zzzzzzzzzzzzzzzz"))
+
+
+class UntypedEvolvesGateTests(unittest.TestCase):
+    """The gate flip, last step of the 2026-08-09 critical path: an EFFECTIVE
+    untyped evolves edge is an ERROR with no cutoff. Judged over the effective
+    graph - a retracted untyped original must not fire."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-untyped-gate-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+
+    def _entry(self, entry_id, ts, *, yaml_extra=""):
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        block = (f"## {ts} - entry {entry_id}\n\n```yaml\nentry_id: {entry_id}{yaml_extra}\n```\n\n"
+                 "### Decision\n\n- D: a.\n- R: b.\n\n")
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + block, encoding="utf-8")
+
+    def _sidecar(self, lines):
+        d = self.cwd / MEMORY_DIR_NAME / "sessions" / "links"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "2026-06-13.md"
+        path.write_text((path.read_text(encoding="utf-8") if path.exists() else "") + "\n".join(lines) + "\n",
+                        encoding="utf-8")
+
+    def test_untyped_effective_edge_is_an_error(self):
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00", yaml_extra=f"\nevolves:\n  - {old}")
+        result = check_session_links(cwd=self.cwd)
+        self.assertFalse(result.ok)
+        untyped = [i for i in result.issues if i.kind == "untyped-evolves"]
+        self.assertEqual(len(untyped), 1)
+        self.assertEqual(untyped[0].severity, "error")
+
+    def test_typed_edge_passes(self):
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00")
+        self._sidecar([
+            "## 2026-06-13 11:00 - typed", "", "```yaml", f"entry_id: {new}",
+            "evolves:", f"  - {old} (builds-on)", "```", "",
+        ])
+        result = check_session_links(cwd=self.cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues])
+        self.assertNotIn("untyped-evolves", [i.kind for i in result.issues])
+
+    def test_retracted_untyped_original_does_not_fire(self):
+        # The backfill shape: the untyped token still sits in the published
+        # file, but it is retracted - only the typed re-author is effective.
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00", yaml_extra=f"\nevolves:\n  - {old}")
+        self._sidecar([
+            "## 2026-06-13 11:00 - retype", "", "```yaml", f"entry_id: {new}",
+            "source: derived",
+            "retracts:", f"  - evolves {old}",
+            "evolves:", f"  - {old} (refines)", "```", "",
+        ])
+        result = check_session_links(cwd=self.cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues])
+        self.assertNotIn("untyped-evolves", [i.kind for i in result.issues])

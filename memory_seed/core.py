@@ -3168,6 +3168,55 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             )
                         )
 
+        # The gate flip (JNL 2026-08-09, LAST step of the critical path): an
+        # EFFECTIVE `evolves` edge without a type is an ERROR, with no cutoff -
+        # the cutoff was explicitly rejected. Judged over the effective graph,
+        # never over authored tokens: the backfill typed every live edge via
+        # retract-and-retype, so the untyped originals still sitting in
+        # published files are retracted and must not fire. It is satisfiable
+        # corpus-wide for the same reason every hard link rule is - `retracts:`
+        # plus a typed re-author closes any instance without editing a
+        # published block. An entry-level target counts as typed when ANY typed
+        # evolves decision edge covers that target.
+        for chunk in chain_chunks:
+            if not chunk.entry_id:
+                continue
+            typed_targets: set[str] = set()
+            untyped_decision_edges: list[str] = []
+            for edge in chunk.decision_edges:
+                if not edge or edge[0] != "evolves" or len(edge) < 3:
+                    continue
+                edge_type = edge[4] if len(edge) > 4 else ""
+                if edge_type:
+                    typed_targets.add(edge[2])
+                else:
+                    target_ordinal = edge[3] if len(edge) > 3 else ""
+                    untyped_decision_edges.append(
+                        f"{edge[2]}:{target_ordinal}" if target_ordinal else edge[2]
+                    )
+            for raw in untyped_decision_edges:
+                issues.append(
+                    LinkIssue(
+                        chunk.source_path,
+                        "untyped-evolves",
+                        f"{chunk.entry_id} evolves {raw} with no evolution type - every effective "
+                        "evolves edge carries (refines) or (builds-on); retract the untyped edge "
+                        "and re-author it typed in a new sidecar block",
+                    )
+                )
+            for target in chunk.evolves:
+                if target in typed_targets:
+                    continue
+                issues.append(
+                    LinkIssue(
+                        chunk.source_path,
+                        "untyped-evolves",
+                        f"{chunk.entry_id} evolves {target} with no evolution type - every effective "
+                        "evolves edge carries (refines) or (builds-on); retract the untyped edge "
+                        "and re-author it typed in a new sidecar block",
+                    )
+                )
+
     # Entry-yaml lifecycle refs validate here, mirroring the sidecar checks
     # exactly (dangling target, dangling ordinal, intra-entry, arrow source
     # ordinal); decision-targeting refs then join decision_edges so the

@@ -407,7 +407,7 @@ class LinkAuditTests(unittest.TestCase):
         links_dir.mkdir(parents=True, exist_ok=True)
         sidecar = links_dir / "2026-06-02.md"
         # Two passes over C, appended newest-first: out of chronological order.
-        second_pass = f"## 2026-07-25 20:02 - second pass\n\n```yaml\nentry_id: {C}\nevolves:\n  - {A}\n```"
+        second_pass = f"## 2026-07-25 20:02 - second pass\n\n```yaml\nentry_id: {C}\nevolves:\n  - {A} (builds-on)\n```"
         first_pass = f"## 2026-07-25 17:58 - first pass\n\n```yaml\nentry_id: {C}\nrelated_entries:\n  - {B}\n```"
         sidecar.write_text(
             f"---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n\n{second_pass}\n\n{first_pass}\n",
@@ -481,7 +481,7 @@ class LinkAuditTests(unittest.TestCase):
 
         text = applied.path.read_text(encoding="utf-8")
         applied.path.write_text(
-            text.replace("classify_pending: true", f"evolves:\n  - {A}"),
+            text.replace("classify_pending: true", f"evolves:\n  - {A} (builds-on)"),
             encoding="utf-8",
         )
 
