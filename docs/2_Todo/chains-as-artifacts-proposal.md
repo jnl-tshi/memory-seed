@@ -29,8 +29,22 @@ If decision 5 continues a chain that runs 1 -> 2 -> 3 -> 4, its `refines` edge
 attaches to 4, because that is where the chain lives. A simultaneous "evolves 3"
 and "evolves 1" from the same entry is backwards: the chain already carries that
 history, so restating it as extra lifecycle edges is redundant at best and
-head-ambiguity at worst. If the connection to 3 or 1 is worth recording, it is
-`related` - annotation, not lineage.
+head-ambiguity at worst.
+
+The connection to an earlier member, if worth recording, takes one of two forms
+(JNL, 2026-08-09):
+
+- **`related`** - annotation, not lineage.
+- **`builds-on` at the head** - a FORK: new work departing from the chain into
+  its own line. But the fork also springs from the head, because the head IS the
+  most recent iteration of that specific idea - forking from decision 3 would be
+  building on a form the chain has already superseded. So the rule generalises
+  cleanly: **every lifecycle edge into a chain attaches at its head** - `refines`
+  takes the (single) successor slot, `builds-on` forks a new line from it, and
+  interior members receive only `related`.
+
+This collapses the chain-position candidate split into one sentence: interior
+members are `related`-only, heads take everything.
 
 **Cross-chain multi-evolves stays fully legal.** One entry may evolve several
 DIFFERENT chains - that is a merge, and merges are how concerns consolidate
