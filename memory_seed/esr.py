@@ -129,6 +129,8 @@ class EsrReport:
     # rejection has since overtaken - which happened on 2026-08-07.
     skills_without_governing_adr: list[str] = field(default_factory=list)
     skills_with_dangling_governing_adr: list[str] = field(default_factory=list)
+    # ADRs carrying no decision at all, with ranked candidates to attach.
+    adr_attachment_candidates: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -189,6 +191,98 @@ class EsrReport:
                 "skills_with_dangling_governing_adr": self.skills_with_dangling_governing_adr,
             },
         }
+
+
+def _adr_attachment_candidates(cwd: Path, memory_dir: Path, limit: int = 10) -> list[str]:
+    """Ranked attachment candidates for ADRs carrying no decision at all.
+
+    TWO PASSES, deliberately, because they fail in opposite directions.
+
+    GATED - topics decide membership, the ranker decides order. This is the
+    split `link audit` already uses, and the 2026-08-07 attachment review
+    measured the case for it: topic overlap surfaced 5 of 5 approved picks out
+    of ~1050 topiced decisions, while every topic-derived SCORER ranked those
+    picks at chance. Topics answer "could this be relevant"; `search_memory`
+    answers "which one first". Neither does the other's job.
+
+    UNGATED - the same query with no topic filter at all. A gated pass can only
+    ever return decisions inside the ADR's own topic family, so a genuinely
+    related decision that was attributed to a different area is invisible to it
+    by construction, however relevant its text. That should be rare; being rare
+    is not the same as being impossible, and a filter that silently cannot see a
+    class of answer needs a companion that can. Anything ranking well here but
+    absent from the gated pass is marked STRAY - it is either a real attachment
+    the topic family would have hidden, or a sign the ADR's topics are wrong.
+
+    The top SCORE carries information and is printed: a tight high cluster means
+    the corpus holds the decision, a weak top score means it does not.
+    Candidates only - attaching moves an ADR head and is never done by a report.
+    """
+    try:
+        import yaml
+
+        from .retrieval import entry_topic_sidecars, search_memory
+
+        decisions_dir = memory_dir / "decisions"
+        if not decisions_dir.is_dir():
+            return []
+        ref_re = re.compile(r"(?:mse_[a-z0-9]+|ms-[a-z0-9]+):d[0-9]+")
+        front_re = re.compile(r"\A---\s*\n(.*?)^---\s*\n", re.MULTILINE | re.DOTALL)
+        decision_re = re.compile(r"### Decision\n\n(.*?)\n\n", re.DOTALL)
+        word_re = re.compile(r"[a-zA-Z][a-zA-Z_-]{3,}")
+        stop = {
+            "the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "is",
+            "are", "be", "that", "this", "it", "as", "by", "from", "not", "never", "only",
+        }
+
+        vocabulary = yaml.safe_load((memory_dir / "topics.yaml").read_text(encoding="utf-8"))
+        alias = {a: t["slug"] for t in vocabulary["topics"] for a in (t.get("aliases") or [])}
+        topics_of: dict[str, set[str]] = {}
+        for entry_id, record in entry_topic_sidecars(cwd).items():
+            for ordinal, slug in record.get("decision_topics", ()):
+                if ordinal:
+                    topics_of.setdefault(f"{entry_id}:{ordinal}", set()).add(alias.get(slug, slug))
+
+        pending = [
+            (path, text)
+            for path in sorted(decisions_dir.glob("*.md"))
+            if not ref_re.search(text := path.read_text(encoding="utf-8"))
+        ]
+        if not pending:
+            return []
+
+        lines: list[str] = []
+        for path, text in pending[:limit]:
+            front = front_re.match(text)
+            meta = (yaml.safe_load(front.group(1)) if front else {}) or {}
+            adr_topics = {alias.get(t, t) for t in (meta.get("topics") or [])}
+            decision = decision_re.search(text)
+            query = " ".join(
+                word
+                for word in word_re.findall(
+                    f"{meta.get('title') or path.stem} {decision.group(1) if decision else ''}"
+                )
+                if word.lower() not in stop
+            )[:400]
+
+            ranked = search_memory(query, cwd=cwd, top_k=40, granularity="decision")["results"]
+            gated = [r for r in ranked if adr_topics & topics_of.get(r["chunk_id"], set())]
+            gated_ids = {r["chunk_id"] for r in gated[:3]}
+            stray = [r for r in ranked if r["chunk_id"] not in gated_ids][:2]
+
+            if not (gated or stray):
+                continue
+            lines.append(f"- {path.stem}" + ("" if adr_topics else "  (ADR carries no topics)"))
+            for row in gated[:3]:
+                shared = sorted(adr_topics & topics_of.get(row["chunk_id"], set()))
+                lines.append(f"    [{row['score']:>5.1f}] {row['chunk_id']}  {row['date']}  shared: {', '.join(shared)}")
+            for row in stray:
+                lines.append(f"    [{row['score']:>5.1f}] {row['chunk_id']}  {row['date']}  STRAY - outside the ADR's topic family")
+        if len(pending) > limit:
+            lines.append(f"  ({len(pending) - limit} further ADR(s) not shown)")
+        return lines
+    except Exception:  # noqa: BLE001 - a report must never fail the preflight it rides in
+        return []
 
 
 def _skill_governance(memory_dir: Path, known_adrs: set[str]) -> tuple[list[str], list[str]]:
@@ -646,6 +740,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.skills_without_governing_adr, report.skills_with_dangling_governing_adr = _skill_governance(
         runtime.memory_dir, adr_ids
     )
+    report.adr_attachment_candidates = _adr_attachment_candidates(Path(cwd).resolve(), runtime.memory_dir)
     return report
 
 
@@ -798,6 +893,14 @@ def format_esr_report(report: EsrReport) -> str:
     else:
         lines.extend(f"- {item}" for item in report.docs_errors)
     lines.append("")
+
+    if report.adr_attachment_candidates:
+        lines.append("## ADR attachment candidates")
+        lines.append("ADRs with no decision attached. Topics gate membership and the ranker orders;")
+        lines.append("a second UNGATED pass catches decisions the topic family cannot see (STRAY).")
+        lines.append("A weak top score means the corpus has no good match. Attaching moves an ADR head.")
+        lines.extend(report.adr_attachment_candidates)
+        lines.append("")
 
     lines.append("## Skill governance")
     if report.skills_with_dangling_governing_adr:
