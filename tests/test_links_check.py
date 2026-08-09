@@ -2062,3 +2062,115 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         self.assertEqual(len(g[root].evolved_by), 3, "every successor stays visible")
         self.assertEqual(g[root].refined_by, (later[0],), "only the refines edge is the spine")
         self.assertEqual(refines_lineage_head(g, root), (later[0],))
+
+    def _chunks(self):
+        from memory_seed.retrieval import augment_chunks_with_link_sidecars
+        from memory_seed.semantic_cache import extract_memory_chunks
+        return {
+            c.entry_id: c
+            for c in augment_chunks_with_link_sidecars(
+                extract_memory_chunks(self.cwd, granularity="entry"), self.cwd
+            )
+        }
+
+    def test_retract_reaches_an_entry_yaml_edge(self):
+        # 232 of the 807 backfill edges were authored in ENTRY YAML, not in a
+        # sidecar. A retract must remove those too - before 2026-08-09 it was a
+        # silent no-op because the retract sets were applied only to the
+        # sidecar's own lists.
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(
+            new, "2026-06-13 10:00",
+            body=f"evolves? no - in yaml\n### Decision\n\n- D: a call.\n- R: a reason.\n",
+        )
+        # Author the edge in the entry's own YAML block.
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        text = path.read_text(encoding="utf-8").replace(
+            f"entry_id: {new}", f"entry_id: {new}\nevolves:\n  - {old}"
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertEqual(self._chunks()[new].evolves, (old,))
+
+        self._sidecar("retract-only", [
+            "## 2026-06-13 11:00 - entry-YAML edge withdrawn", "", "```yaml",
+            f"entry_id: {new}", "source: derived",
+            "retracts:", f"  - evolves {old}", "```", "",
+        ])
+        after = self._chunks()[new]
+        self.assertEqual(after.evolves, (), "the entry-YAML edge must be retractable")
+        self.assertEqual(self._graph()[old].evolved_by, ())
+
+    def test_retract_and_retype_of_entry_yaml_edge_keeps_typed_replacement(self):
+        # The backfill shape applied to an entry-YAML edge: the retract names
+        # the untyped edge, the typed replacement survives as the projection.
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00")
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        text = path.read_text(encoding="utf-8").replace(
+            f"entry_id: {new}", f"entry_id: {new}\nevolves:\n  - {old}"
+        )
+        path.write_text(text, encoding="utf-8")
+
+        self._sidecar("backfill", [
+            "## 2026-06-13 11:00 - evolution type backfilled", "", "```yaml",
+            f"entry_id: {new}", "source: derived",
+            "retracts:", f"  - evolves {old}",
+            "evolves:", f"  - {old} (refines)", "```", "",
+        ])
+        after = self._chunks()[new]
+        self.assertEqual(after.evolves, (old,), "the typed replacement's projection survives")
+        self.assertIn(("evolves", "", old, "", "refines"), tuple(after.decision_edges))
+        g = self._graph()
+        self.assertEqual(g[old].evolved_by, (new,))
+        self.assertEqual(g[old].refined_by, (new,))
+
+    def test_retract_is_scoped_to_its_own_entry(self):
+        # A sidecar keyed to one entry must not reach an identical edge another
+        # entry authored in its own YAML.
+        old = "mse_aaaaaaaaaaaaaaaa"
+        first, second = "mse_bbbbbbbbbbbbbbbb", "mse_cccccccccccccccc"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(first, "2026-06-13 10:00")
+        self._entry(second, "2026-06-13 10:30")
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        text = path.read_text(encoding="utf-8")
+        for eid in (first, second):
+            text = text.replace(f"entry_id: {eid}", f"entry_id: {eid}\nevolves:\n  - {old}")
+        path.write_text(text, encoding="utf-8")
+
+        self._sidecar("retract-first", [
+            "## 2026-06-13 11:00 - only first's edge withdrawn", "", "```yaml",
+            f"entry_id: {first}", "source: derived",
+            "retracts:", f"  - evolves {old}", "```", "",
+        ])
+        chunks = self._chunks()
+        self.assertEqual(chunks[first].evolves, ())
+        self.assertEqual(chunks[second].evolves, (old,), "another entry's edge is out of scope")
+        self.assertEqual(self._graph()[old].evolved_by, (second,))
+
+    def test_decision_level_retract_reaches_an_entry_yaml_edge(self):
+        # Same reach for a decision-level retract: `d1 -> X` authored in entry
+        # YAML is removed by `retracts: - evolves d1 -> X` in a sidecar.
+        old, new = "mse_aaaaaaaaaaaaaaaa", "mse_bbbbbbbbbbbbbbbb"
+        self._entry(old, "2026-06-13 09:00")
+        self._entry(new, "2026-06-13 10:00")
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13.md"
+        text = path.read_text(encoding="utf-8").replace(
+            f"entry_id: {new}", f"entry_id: {new}\nevolves:\n  - d1 -> {old}"
+        )
+        path.write_text(text, encoding="utf-8")
+        before = self._chunks()[new]
+        self.assertEqual(before.evolves, (old,))
+        self.assertIn(("evolves", "d1", old, "", ""), tuple(before.decision_edges))
+
+        self._sidecar("retract-decision", [
+            "## 2026-06-13 11:00 - decision edge withdrawn", "", "```yaml",
+            f"entry_id: {new}", "source: derived",
+            "retracts:", f"  - evolves d1 -> {old}", "```", "",
+        ])
+        after = self._chunks()[new]
+        self.assertEqual(after.evolves, ())
+        self.assertNotIn(("evolves", "d1", old, "", ""), tuple(after.decision_edges))
+        self.assertEqual(self._graph()[old].evolved_by, ())
