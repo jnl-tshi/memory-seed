@@ -4001,11 +4001,13 @@ def session_append_entry(
                     f"{kind} -> {ref}: {target_id} has {len(target_ordinals)} decisions ({listed}); name the "
                     f"one affected - '{target_id}:d1' style, comma-separated for several (2026-07-24 grammar)"
                 )
-            if first.source_decision is None and len(own_ordinals) >= 2:
-                issues.append(
-                    f"{kind} -> {ref}: this entry has multiple decisions ({own_listed}); "
-                    f"prefix which one authors the edge - 'dN -> {ref}'"
-                )
+            # The source-ordinal mandate that used to live here is GONE, not
+            # relaxed. Every ref now arrives from the decisions envelope, which
+            # renders `f"{decision} -> {ref}"` unconditionally, so
+            # `first.source_decision` can never be None and the branch could not
+            # fire. A guard that cannot fire is worse than no guard: it reads as
+            # covered. `links check` keeps its advisory, which still speaks to
+            # the 772 refs published while entry YAML accepted them.
 
     entry_id = generate_session_entry_id(
         timestamp=ts,

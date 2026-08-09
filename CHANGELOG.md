@@ -4,7 +4,42 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **`session append` no longer accepts entry-level lifecycle links.** `--related` / `--replaces` /
+  `--evolves` (and the matching `related_entries` / `replaces` / `evolves` arguments to
+  `session_append_entry`) are refused; declare the edge on the decision that owns it via
+  `--decisions-file` / MCP `decisions[].links`, which is where its evidence and evolution type now
+  live. A raw ref in an entry's YAML tells a human reading the Markdown nothing, and Invariant #6
+  already assigns lifecycle facts to sidecars and narrative rationale to entries. **Published
+  entries are unaffected** — the 772 refs already in entry YAML are read exactly as before,
+  forever; only new writes are closed off. The arguments stay on `session_append_entry` for one
+  release as the refusal surface, so a direct Python caller gets a message naming the replacement
+  rather than a `TypeError`.
+
 ### Added
+
+- **Typed evolution: `refines` and `builds-on`.** An `evolves` ref may carry its kind as a trailing
+  `(refines)` / `(builds-on)`, and the decisions envelope requires one on every new `evolves` edge.
+  `refines` is the next form of a decision and is capped at **one successor per target**;
+  `builds-on` is later work resting on a decision that stays valid, and is unlimited. That cap is
+  what makes a lineage walkable as a line: following `evolves` to its terminus currently returns up
+  to 25 unrelated heads, because one edge name has been carrying both relations. Enforced at
+  `session append` and, corpus-wide, by the new `multiple-refines-successors` error in
+  `links check` — two branches can each author a `refines` without either being refused, so write
+  time cannot be the only guard. An unrecognised word raises `unknown-evolution-type`. Edges
+  written before this grammar are *unclassified*, never "neither".
+- **Write-time link evidence.** A `replaces` or `evolves` item in the decisions envelope requires
+  `why` — one line for why the edge was drawn — rendered into the link sidecar's `edge_evidence:`
+  list, keyed by the exact ref token. `related_entries` needs none. The author knows the reason
+  exactly once, at authoring, and append-only makes it unrecoverable afterwards.
+
+### Fixed
+
+- **The mandatory ADR review gate could be bypassed by a link shape it did not recognise.**
+  `adr.lifecycle_targets` and the lifecycle-assertion builder both read only bare ref strings, so a
+  structured link item read as "no lifecycle target" and the gate silently did not fire. Both now
+  accept either shape.
 
 - **Decision-level retrieval is the default memory unit** (`granularity="decision"`). `memory_search`
   now returns one result per recorded decision, keyed by the canonical `mse_<entry>:dN` identity that
