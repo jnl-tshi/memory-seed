@@ -146,6 +146,15 @@ block identity is `(entry_id, heading timestamp)`, so a later pass needs a disti
 second block for the same entry. Never reopen a written entry — append-only. Then run
 `memory-seed links check` and confirm integrity OK before merging.
 
+**`links check` alone is NOT sufficient for a bulk write.** It validates what each file SAYS, not
+what the effective graph MEANS — it read OK across two silent corruptions caught only by a graph
+assertion: 807 `evolves` edges vanished in the 2026-08-09 backfill, and separately a +3 edge
+resurrection. Bracket every bulk sidecar write with `memory-seed links graph-diff`: run
+`--snapshot <path>` before the campaign and `--against <path>` after. Exit 0 means the effective
+`evolves` edge set is unchanged (a pure retype, e.g. untyped → `refines`/`builds-on`, still passes —
+typing deltas are reported but informational); exit 1 names every node whose edges actually moved
+and must be explained before merging.
+
 ## Guardrails
 
 - Run on the trunk / integration checkout, not a task branch — link sidecars belong on main (see

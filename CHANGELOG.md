@@ -19,6 +19,14 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **`links graph-diff` snapshots and gates the effective evolves graph.** `--snapshot <path>` writes
+  `effective_graph_snapshot()` (the same effective corpus every graph reader uses) to JSON;
+  `--against <path>` rebuilds it and diffs. Exit 1 iff the entry-level `evolves` edge set changed —
+  a per-node addition/removal or either evolves aggregate — naming every changed node; `refines`
+  typing deltas are always reported but never gate, so a retract-and-retype campaign passes by
+  design. Promotes an assertion that had only ever lived in throwaway campaign scripts, despite
+  catching two silent corruptions (the 807-edge vanishing, a +3 edge resurrection) that `links
+  check` read as OK.
 - **Retractions reach entry-YAML edges.** A link sidecar's `retracts:` now removes an edge authored
   in the entry's own YAML, not only edges declared in sidecar lists — previously a silent no-op
   covering 232 of the 807 evolution-type backfill edges. Scoped strictly to the retracting block's
