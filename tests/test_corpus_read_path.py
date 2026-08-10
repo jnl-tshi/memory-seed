@@ -41,6 +41,12 @@ LOOKBEHIND = 3
 
 # module -> (permitted raw calls, why)
 ALLOWLIST: dict[str, tuple[int, str]] = {
+    "corpus_cache.py": (
+        1,
+        "The reconstructable projection is the one intentional raw builder: it must persist both "
+        "raw and augmented views so callers that deliberately measure provenance can retain their "
+        "raw contract while the public loader defaults to the fully sidecar-augmented canonical view.",
+    ),
     "semantic_cache.py": (
         4,
         "Cannot import retrieval - retrieval imports this module, so the augmenters are "
@@ -126,11 +132,11 @@ def test_every_allowlist_entry_states_a_reason():
         assert not reason.lower().startswith(("legacy", "todo", "historical")), name
 
 
-def test_the_canonical_reader_applies_both_augmentations():
+def test_the_canonical_reader_uses_the_verified_projection_defaulting_to_augmented():
     source = (PACKAGE / "retrieval.py").read_text(encoding="utf-8")
     body = source.split("def load_corpus(", 1)[1].split("\ndef ", 1)[0]
-    assert "augment_chunks_with_link_sidecars" in body
-    assert "augment_chunks_with_topic_sidecars" in body
+    assert "get_corpus_snapshot" in body
+    assert "snapshot.chunks(granularity, view)" in body
 
 
 def test_search_memory_reads_through_the_canonical_path():

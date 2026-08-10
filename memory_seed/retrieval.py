@@ -25,6 +25,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
 
+from .corpus_cache import CorpusSnapshot, get_corpus_snapshot
+
 if TYPE_CHECKING:
     from .core import DecisionSummary
 
@@ -2188,7 +2190,13 @@ def augment_chunks_with_link_sidecars(
     return augmented
 
 
-def load_corpus(cwd: str | Path = ".", granularity: str = "decision") -> list[MemoryChunk]:
+def load_corpus(
+    cwd: str | Path = ".",
+    granularity: str = "decision",
+    *,
+    view: str = "augmented",
+    snapshot: "CorpusSnapshot | None" = None,
+) -> list[MemoryChunk]:
     """The canonical corpus read: extraction plus EVERY sidecar augmentation.
 
     Sidecars are append-only edits authored after an entry is written - link sidecars carry the
@@ -2206,12 +2214,13 @@ def load_corpus(cwd: str | Path = ".", granularity: str = "decision") -> list[Me
     holds the allowlist of the remaining direct callers and the reason each is exempt; adding a new
     one fails that test.
     """
-    return augment_chunks_with_topic_sidecars(
-        augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity=granularity), cwd
-        ),
-        cwd,
-    )
+    # The projection validates its full source manifest before every persistent
+    # hit; absent/corrupt/unprovable artifacts reconstruct from authority.
+    # Supplying a snapshot lets one invocation share its verified corpus rather
+    # than repeatedly deserialize or rebuild it.
+    if snapshot is None:
+        snapshot = get_corpus_snapshot(cwd)
+    return list(snapshot.chunks(granularity, view))
 
 
 # Weight on idf-summed shared TITLE terms, alongside FILE_OVERLAP_BOOST on
