@@ -38,6 +38,20 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self._git(cwd, "add", "-A")
         self._git(cwd, "commit", "-q", "-m", message)
 
+    def _landed_merge_for_reconciliation(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        before = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "-c", "feature-merge")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(cwd, "feature session")
+        source_tip = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "main")
+        self.assertTrue(session_merge_branch(cwd=cwd, branch="feature-merge").committed)
+        return cwd, before, source_tip, ["mse_1111111111111111"]
+
     def _write_grouped_session(self, cwd, date, entry_id, *, branch, title="Entry", time="09:00", body="- Body."):
         path = cwd / MEMORY_DIR_NAME / "sessions" / date[:7] / f"{date}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1186,6 +1200,51 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(core._reconcile_failed_merge_commit(cwd, before, source_tip, expected + ["mse_2222222222222222"]))
         (cwd / ".git" / "MERGE_HEAD").write_text(source_tip + "\n", encoding="utf-8")
         self.assertFalse(core._reconcile_failed_merge_commit(cwd, before, source_tip, expected))
+
+    @pytest.mark.integration
+    def test_failed_commit_reconciliation_uses_only_final_canonical_trailers(self):
+        cwd, before, source_tip, expected = self._landed_merge_for_reconciliation()
+        from memory_seed import core
+
+        subject = self._git(cwd, "log", "-1", "--format=%s").stdout.strip()
+        messages = [
+            f"{subject}\n\nMemory-Entry: {expected[0]}\n\nThis is body prose.",
+            f"{subject}\n\nMemory-Entry: {expected[0]}\nMemory-Entry: {expected[0]}",
+            f"{subject}\n\nMemory-Entry: {expected[0]}\nMemory-Entry: mse_2222222222222222",
+            f"{subject}\n\nMemory-Entry: {expected[0]}\nMemory-Entry: malformed!",
+        ]
+        for message in messages:
+            self._git(cwd, "commit", "--amend", "-m", message)
+            self.assertFalse(core._reconcile_failed_merge_commit(cwd, before, source_tip, expected))
+
+    @pytest.mark.integration
+    def test_failed_commit_reconciliation_requires_parent_order(self):
+        cwd, before, source_tip, expected = self._landed_merge_for_reconciliation()
+        from memory_seed import core
+
+        tree = self._git(cwd, "show", "-s", "--format=%T", "HEAD").stdout.strip()
+        reversed_merge = self._git(
+            cwd,
+            "commit-tree",
+            tree,
+            "-p",
+            source_tip,
+            "-p",
+            before,
+            "-m",
+            f"Merge branch 'feature-merge'\n\nMemory-Entry: {expected[0]}",
+        ).stdout.strip()
+        self._git(cwd, "update-ref", "HEAD", reversed_merge)
+
+        self.assertFalse(core._reconcile_failed_merge_commit(cwd, before, source_tip, expected))
+
+    @pytest.mark.integration
+    def test_failed_commit_reconciliation_rejects_unreadable_merge_state(self):
+        cwd, before, source_tip, expected = self._landed_merge_for_reconciliation()
+        from memory_seed import core
+
+        with mock.patch("memory_seed.core._git_dir", return_value=None):
+            self.assertFalse(core._reconcile_failed_merge_commit(cwd, before, source_tip, expected))
 
     @pytest.mark.integration
     def test_session_merge_branch_dry_run_reports_plan_without_merging(self):
