@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 import subprocess
 import tempfile
 import time
@@ -29,10 +30,21 @@ from .semantic_cache import ContinuityBlock, MemoryChunk
 
 
 CACHE_SCHEMA_VERSION = 1
-SERIALIZER_VERSION = 1
+SERIALIZER_VERSION = 2
 _GRANULARITIES = ("entry", "section", "decision")
 _VIEWS = ("raw", "augmented")
-_CHUNK_FIELDS = tuple(field.name for field in fields(MemoryChunk))
+# This literal is intentionally not derived from ``fields(MemoryChunk)``.  A
+# new field is a serializer contract change: make its representation explicit
+# and bump SERIALIZER_VERSION rather than silently emitting an incomplete view.
+_SERIALIZED_CHUNK_FIELDS = (
+    "chunk_id", "source_path", "source_file", "session_date", "entry_datetime", "heading_path",
+    "heading_level", "title", "text", "tags", "contexts", "lexical_terms", "start_line",
+    "end_line", "entry_id", "user_initials", "agent_type", "project_path", "subproject_path",
+    "user", "file_hash_id", "related_entries", "replaces", "evolves", "decision_edges",
+    "commits", "continuity", "topics", "inferred_topics", "inferred_decision_topics", "branch",
+    "entry_title", "entry_line_range", "sections", "granularity",
+)
+_CHUNK_FIELDS = _SERIALIZED_CHUNK_FIELDS
 _TUPLE_FIELDS = {
     "heading_path", "tags", "contexts", "lexical_terms", "related_entries", "replaces",
     "evolves", "decision_edges", "commits", "continuity", "topics", "inferred_topics",
@@ -142,6 +154,8 @@ def _default_source_builder(cwd: str | Path) -> Mapping[tuple[str, str], tuple[M
 
 
 def _encode_chunk(chunk: MemoryChunk) -> dict[str, Any]:
+    if tuple(field.name for field in fields(MemoryChunk)) != _SERIALIZED_CHUNK_FIELDS:
+        raise RuntimeError("MemoryChunk serializer is incomplete; update fields and serializer version")
     value = {name: getattr(chunk, name) for name in _CHUNK_FIELDS}
     value["session_date"] = chunk.session_date.isoformat()
     value["entry_datetime"] = chunk.entry_datetime.isoformat() if chunk.entry_datetime else None
@@ -182,25 +196,45 @@ def _decode_chunk(value: Any) -> MemoryChunk:
     return chunk
 
 
+def _integrity_binding(document: Mapping[str, Any]) -> str:
+    """Digest the complete persisted envelope, excluding the digest itself.
+
+    This detects accidental corruption, not a hostile writer: the cache is not
+    signed and source reconstruction remains the authority on a mismatch.
+    """
+    protected = {key: value for key, value in document.items() if key != "integrity"}
+    encoded = json.dumps(protected, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _payload(snapshot: CorpusSnapshot, identity: Mapping[str, str], manifest: list[dict[str, str]]) -> bytes:
     views = {
         f"{granularity}/{view}": [_encode_chunk(chunk) for chunk in snapshot.chunks(granularity, view)]
         for granularity in _GRANULARITIES for view in _VIEWS
     }
-    return json.dumps({
+    document: dict[str, Any] = {
         "schema_version": CACHE_SCHEMA_VERSION,
         "serializer_version": SERIALIZER_VERSION,
         "identity": dict(identity),
         "manifest": manifest,
         "fingerprint": snapshot.fingerprint,
         "views": views,
-    }, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        "view_counts": {key: len(value) for key, value in views.items()},
+    }
+    document["integrity"] = _integrity_binding(document)
+    return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def _load(path: Path, identity: Mapping[str, str], manifest: list[dict[str, str]], fingerprint: str) -> CorpusSnapshot | None:
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(document, dict) or document.get("schema_version") != CACHE_SCHEMA_VERSION:
+        expected_keys = {
+            "schema_version", "serializer_version", "identity", "manifest", "fingerprint", "views",
+            "view_counts", "integrity",
+        }
+        if not isinstance(document, dict) or set(document) != expected_keys:
+            return None
+        if document.get("schema_version") != CACHE_SCHEMA_VERSION:
             return None
         if document.get("serializer_version") != SERIALIZER_VERSION or document.get("identity") != dict(identity):
             return None
@@ -208,6 +242,11 @@ def _load(path: Path, identity: Mapping[str, str], manifest: list[dict[str, str]
             return None
         views = document.get("views")
         if not isinstance(views, dict) or set(views) != {f"{g}/{v}" for g in _GRANULARITIES for v in _VIEWS}:
+            return None
+        if document.get("view_counts") != {key: len(value) for key, value in views.items()}:
+            return None
+        integrity = document.get("integrity")
+        if not isinstance(integrity, str) or integrity != _integrity_binding(document):
             return None
         rebuilt = {
             (granularity, view): tuple(_decode_chunk(chunk) for chunk in views[f"{granularity}/{view}"])
@@ -229,13 +268,14 @@ class _Lease:
     def __init__(self, target: Path) -> None:
         self.path = target.with_suffix(target.suffix + ".lease")
         self.acquired = False
+        self.owner_token = secrets.token_hex(16)
 
     def acquire(self, attempts: int = 4) -> bool:
         for attempt in range(attempts):
             try:
                 fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                    handle.write(str(os.getpid()))
+                    handle.write(self.owner_token)
                     handle.flush()
                     try:
                         os.fsync(handle.fileno())
@@ -252,9 +292,12 @@ class _Lease:
     def release(self) -> None:
         if self.acquired:
             try:
-                self.path.unlink()
+                if self.path.read_text(encoding="utf-8") == self.owner_token:
+                    self.path.unlink()
             except OSError:
                 pass
+            finally:
+                self.acquired = False
 
 
 def _cache_dir(override: str | Path | None) -> Path:
@@ -372,7 +415,12 @@ def get_corpus_snapshot(
         if _git_identity(runtime.workspace_root, runtime.memory_dir) != identity or current_manifest_result is None or current_manifest_result[0] != manifest:
             late_views = builder(cwd)
             return CorpusSnapshot("isolated", None, MappingProxyType(dict(late_views)))
-        _publish(artifact, _payload(snapshot, identity, manifest), replace)
+        try:
+            payload = _payload(snapshot, identity, manifest)
+        except (RuntimeError, TypeError, ValueError, OverflowError, UnicodeError):
+            return CorpusSnapshot("isolated", snapshot.fingerprint, snapshot._views)
+        if not _publish(artifact, payload, replace):
+            return CorpusSnapshot("isolated", snapshot.fingerprint, snapshot._views)
         return snapshot
     finally:
         lease.release()

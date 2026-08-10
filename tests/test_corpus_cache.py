@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from memory_seed.corpus_cache import CorpusSnapshot, _git_identity, get_corpus_snapshot
+import memory_seed.corpus_cache as corpus_cache
+from memory_seed.corpus_cache import CorpusSnapshot, _Lease, _git_identity, get_corpus_snapshot
 from memory_seed.core import resolve_runtime
 from memory_seed.retrieval import (
     augment_chunks_with_link_sidecars, augment_chunks_with_topic_sidecars, load_corpus,
@@ -122,6 +123,7 @@ def test_corruption_and_replace_failure_reconstruct_without_failing_consumers(tm
         replace=lambda _source, _target: (_ for _ in ()).throw(PermissionError()),
     )
     assert failed.chunks("decision", "augmented") == _views()["decision", "augmented"]
+    assert failed.origin == "isolated"
 
 
 @pytest.mark.parametrize("mutation", [
@@ -143,6 +145,48 @@ def test_schema_or_wrong_field_artifacts_reconstruct(tmp_path, mutation):
     snapshot = get_corpus_snapshot(project, cache_dir=cache, source_builder=build)
     assert snapshot.chunks("entry", "raw") == _views()["entry", "raw"]
     assert calls == [1, 1]
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda document: document["views"]["decision/raw"][0].update(text="tampered"),
+    lambda document: document["views"]["entry/augmented"][0].update(replaces=["different"]),
+    lambda document: document["views"]["section/raw"][0].update(tags=["second", "tag"]),
+])
+def test_valid_looking_view_tampering_reconstructs(tmp_path, mutation):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    calls = []
+    build = lambda _cwd: (calls.append(1) or _views())
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=build)
+    artifact = next(cache.glob("*.json"))
+    document = json.loads(artifact.read_text(encoding="utf-8"))
+    mutation(document)
+    artifact.write_text(json.dumps(document), encoding="utf-8")
+
+    snapshot = get_corpus_snapshot(project, cache_dir=cache, source_builder=build)
+    assert snapshot.chunks("decision", "raw") == _views()["decision", "raw"]
+    assert calls == [1, 1]
+
+
+def test_payload_serialization_failure_keeps_the_authoritative_snapshot_usable(tmp_path, monkeypatch):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(corpus_cache, "_payload", lambda *_args: (_ for _ in ()).throw(TypeError("not json")))
+
+    snapshot = get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    assert snapshot.chunks("entry", "augmented") == _views()["entry", "augmented"]
+    assert snapshot.origin == "isolated"
+    assert not list(cache.glob("*.json"))
+    assert not list(cache.glob("*.tmp"))
+    assert not list(cache.glob("*.lease"))
+
+
+def test_lease_release_does_not_remove_a_replaced_owner_token(tmp_path):
+    lease = _Lease(tmp_path / "snapshot.json")
+    assert lease.acquire()
+    lease.path.write_text("replacement-owner", encoding="utf-8")
+    lease.release()
+    assert lease.path.read_text(encoding="utf-8") == "replacement-owner"
 
 
 def test_head_change_and_runtime_keys_never_reuse_another_projection(tmp_path):
