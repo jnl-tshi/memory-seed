@@ -3038,6 +3038,160 @@ def describe_refines_chain(cwd: str | Path, ref: str) -> dict[str, Any] | None:
     }
 
 
+GRAPH_SNAPSHOT_SCHEMA_VERSION = 1
+
+
+def effective_graph_snapshot(cwd: str | Path = ".") -> dict[str, Any]:
+    """A structural snapshot of the effective evolves/refines graph.
+
+    Built for `links graph-diff`, whose reason for existing is a corpus
+    invariant that has caught silent corruption twice - once as 807 vanished
+    `evolves` edges while `links check` read OK throughout, once as a +3 edge
+    resurrection - and until now only lived in throwaway campaign scripts.
+
+    Read over the SAME effective corpus every graph consumer reads:
+    ``augment_chunks_with_link_sidecars(extract_memory_chunks(cwd,
+    granularity="entry"), cwd)`` feeding ``build_related_entry_graph`` and
+    ``build_refines_spine``. A snapshot taken before a bulk sidecar write and
+    one taken after therefore go through the identical union/retract
+    pipeline; any difference is a real graph change, not a reader difference.
+
+    ``evolves`` carries each node's stored outbound edges (the entry-level
+    lifecycle facts `links graph-diff` gates on); ``refines_successors``
+    carries the decision-keyed typed spine (informational - a retype
+    campaign changes this by design). ``aggregates`` gives quick corpus-wide
+    counts a human can sanity-check without diffing the maps by eye. A plain
+    rebuildable projection (Constitution #6) - no automated baseline
+    persistence exists anywhere in this codebase (`quality.py`'s report is
+    the closest precedent and it, too, is recomputed on demand rather than
+    stored), so this is a `json.dump`/`json.load` shape and nothing more.
+    """
+    from .core import _git_text
+    from .semantic_cache import build_refines_spine
+
+    chunks = augment_chunks_with_link_sidecars(
+        extract_memory_chunks(cwd, granularity="entry"), cwd
+    )
+    graph = build_related_entry_graph(cwd, chunks=chunks)
+    spine = build_refines_spine(chunks)
+
+    code, head = _git_text(Path(cwd).resolve(), ("rev-parse", "HEAD"))
+    corpus_revision = head if code == 0 and head else None
+
+    def _spine_ref(key: tuple[str, str]) -> str:
+        return f"{key[0]}:{key[1]}" if key[1] else key[0]
+
+    evolves = {
+        entry_id: sorted(node.evolves)
+        for entry_id, node in graph.items()
+        if node.evolves
+    }
+    refines_successors: dict[str, list[str]] = {}
+    for key, successors in spine.successors.items():
+        if not successors:
+            continue
+        refines_successors[_spine_ref(key)] = sorted(_spine_ref(s) for s in successors)
+
+    return {
+        "schema_version": GRAPH_SNAPSHOT_SCHEMA_VERSION,
+        "corpus_revision": corpus_revision,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "aggregates": {
+            "evolves_refs": sum(len(node.evolves) for node in graph.values()),
+            "nodes_with_successors": sum(1 for node in graph.values() if node.evolved_by),
+            "nodes_refined": sum(1 for successors in spine.successors.values() if successors),
+        },
+        "evolves": evolves,
+        "refines_successors": refines_successors,
+    }
+
+
+def diff_graph_snapshots(before: Mapping[str, Any], after: Mapping[str, Any]) -> dict[str, Any]:
+    """Structural diff between two ``effective_graph_snapshot()`` payloads.
+
+    THE GATE (approved design): verdict is ``"changed"`` iff the entry-level
+    `evolves` edge set differs - any per-node addition/removal in ``evolves``,
+    or either evolves-related aggregate (``evolves_refs``,
+    ``nodes_with_successors``) differing. This is exactly the historical
+    campaign assertion that caught both the 807-edge vanishing and the +3
+    edge resurrection.
+
+    `refines_successors` deltas (and the `nodes_refined` aggregate) are always
+    reported but never flip the verdict - a retype campaign (untyped ->
+    `refines`/`builds-on`) changes typing BY DESIGN, and gating on it would
+    fail a correct campaign. This mirrors `augment_chunks_with_link_sidecars`:
+    a retract-and-retype must leave the effective `evolves` edge set alone
+    while changing its recorded type.
+
+    A ``schema_version`` mismatch is a hard error - per-node shapes are not
+    guaranteed comparable across versions - and short-circuits before any
+    other comparison. Reported as ``verdict: "error"`` in the return dict
+    rather than raised, so a CLI caller can render it as an ordinary payload.
+    """
+    before_schema = before.get("schema_version")
+    after_schema = after.get("schema_version")
+    if before_schema != after_schema:
+        return {
+            "verdict": "error",
+            "error": f"schema_version mismatch: before={before_schema!r} after={after_schema!r}",
+            "aggregate_deltas": {},
+            "evolves_added": {},
+            "evolves_removed": {},
+            "refines_successors_added": {},
+            "refines_successors_removed": {},
+        }
+
+    def _agg_delta(key: str) -> dict[str, int]:
+        b = int(before.get("aggregates", {}).get(key, 0) or 0)
+        a = int(after.get("aggregates", {}).get(key, 0) or 0)
+        return {"before": b, "after": a, "delta": a - b}
+
+    aggregate_deltas = {
+        key: _agg_delta(key)
+        for key in ("evolves_refs", "nodes_with_successors", "nodes_refined")
+    }
+
+    def _set_deltas(
+        before_map: Mapping[str, Any], after_map: Mapping[str, Any]
+    ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        added: dict[str, list[str]] = {}
+        removed: dict[str, list[str]] = {}
+        for node_id in sorted(set(before_map) | set(after_map)):
+            b = set(before_map.get(node_id) or ())
+            a = set(after_map.get(node_id) or ())
+            gained = sorted(a - b)
+            lost = sorted(b - a)
+            if gained:
+                added[node_id] = gained
+            if lost:
+                removed[node_id] = lost
+        return added, removed
+
+    evolves_added, evolves_removed = _set_deltas(
+        before.get("evolves", {}), after.get("evolves", {})
+    )
+    refines_added, refines_removed = _set_deltas(
+        before.get("refines_successors", {}), after.get("refines_successors", {})
+    )
+
+    edge_set_changed = (
+        bool(evolves_added)
+        or bool(evolves_removed)
+        or aggregate_deltas["evolves_refs"]["delta"] != 0
+        or aggregate_deltas["nodes_with_successors"]["delta"] != 0
+    )
+
+    return {
+        "verdict": "changed" if edge_set_changed else "unchanged",
+        "error": None,
+        "aggregate_deltas": aggregate_deltas,
+        "evolves_added": evolves_added,
+        "evolves_removed": evolves_removed,
+        "refines_successors_added": refines_added,
+        "refines_successors_removed": refines_removed,
+    }
+
+
 def format_search_results(
     query: str,
     ranked: list[RankedMemoryChunk],

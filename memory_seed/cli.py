@@ -523,6 +523,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     links_chain.add_argument("ref", help="decision ref: mse_x or mse_x:dN")
     links_chain.add_argument("--json", action="store_true", help="emit the derived chain view as JSON")
+    links_graph_diff = links_sub.add_parser(
+        "graph-diff",
+        help="snapshot the effective evolves/refines graph, or compare against a prior snapshot",
+    )
+    links_graph_diff.add_argument(
+        "--snapshot",
+        metavar="PATH",
+        default=None,
+        help="write the current effective graph snapshot to PATH",
+    )
+    links_graph_diff.add_argument(
+        "--against",
+        metavar="PATH",
+        default=None,
+        help="diff a fresh snapshot against the baseline snapshot at PATH",
+    )
+    links_graph_diff.add_argument(
+        "--json", action="store_true", help="with --against, emit the diff as JSON"
+    )
 
     migrate_parser = subparsers.add_parser("migrate", help="migrate Memory Seed data layouts")
     migrate_sub = migrate_parser.add_subparsers(dest="migrate_command", required=True)
@@ -1672,6 +1691,79 @@ def main(argv: list[str] | None = None) -> int:
             for adr in view["adrs"]:
                 print(f"  ADR: {adr['adr_id']} (authoritative decision {adr['member']})")
             return 0
+        if args.links_command == "graph-diff":
+            import json as _json
+
+            from .retrieval import diff_graph_snapshots, effective_graph_snapshot
+
+            if bool(args.snapshot) == bool(args.against):
+                print(
+                    "links graph-diff requires exactly one of --snapshot PATH or --against PATH",
+                    file=sys.stderr,
+                )
+                return 2
+            if args.snapshot:
+                snapshot = effective_graph_snapshot(Path(".").resolve())
+                snapshot_path = Path(args.snapshot)
+                snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+                snapshot_path.write_text(
+                    _json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                print(
+                    f"Graph snapshot written: {snapshot_path.as_posix()} "
+                    f"({snapshot['aggregates']['evolves_refs']} evolves refs, "
+                    f"{snapshot['aggregates']['nodes_with_successors']} nodes with successors, "
+                    f"{snapshot['aggregates']['nodes_refined']} nodes refined)."
+                )
+                return 0
+            # args.against
+            against_path = Path(args.against)
+            try:
+                before = _json.loads(against_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, ValueError) as exc:
+                print(f"links graph-diff: cannot read baseline {against_path.as_posix()}: {exc}", file=sys.stderr)
+                return 2
+            if not isinstance(before, dict):
+                print(
+                    f"links graph-diff: baseline {against_path.as_posix()} is not a snapshot object",
+                    file=sys.stderr,
+                )
+                return 2
+            after = effective_graph_snapshot(Path(".").resolve())
+            diff = diff_graph_snapshots(before, after)
+            if diff["verdict"] == "error":
+                print(f"links graph-diff: {diff['error']}", file=sys.stderr)
+                return 2
+            if args.json:
+                print(_json.dumps(diff, indent=2, sort_keys=True))
+                return 0 if diff["verdict"] == "unchanged" else 1
+            if diff["verdict"] == "unchanged":
+                print("Effective evolves edge set unchanged.")
+            else:
+                print("Effective evolves edge set CHANGED:", file=sys.stderr)
+                for node_id, targets in sorted(diff["evolves_added"].items()):
+                    print(f"  + {node_id} evolves {', '.join(targets)}", file=sys.stderr)
+                for node_id, targets in sorted(diff["evolves_removed"].items()):
+                    print(f"  - {node_id} evolves {', '.join(targets)}", file=sys.stderr)
+                deltas = diff["aggregate_deltas"]
+                if deltas["evolves_refs"]["delta"] != 0:
+                    print(
+                        f"  evolves_refs: {deltas['evolves_refs']['before']} -> {deltas['evolves_refs']['after']}",
+                        file=sys.stderr,
+                    )
+                if deltas["nodes_with_successors"]["delta"] != 0:
+                    print(
+                        "  nodes_with_successors: "
+                        f"{deltas['nodes_with_successors']['before']} -> {deltas['nodes_with_successors']['after']}",
+                        file=sys.stderr,
+                    )
+            if diff["refines_successors_added"] or diff["refines_successors_removed"]:
+                print("Refines/typing deltas (informational, does not affect verdict):")
+                for node_id, targets in sorted(diff["refines_successors_added"].items()):
+                    print(f"  + {node_id} refines-successor {', '.join(targets)}")
+                for node_id, targets in sorted(diff["refines_successors_removed"].items()):
+                    print(f"  - {node_id} refines-successor {', '.join(targets)}")
+            return 0 if diff["verdict"] == "unchanged" else 1
 
     if args.command == "migrate":
         if args.migrate_command == "sessions-layout":
