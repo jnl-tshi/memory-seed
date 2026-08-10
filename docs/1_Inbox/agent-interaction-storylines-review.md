@@ -5,26 +5,29 @@ Status: Living document (updated 2026-08-10; kept true as storylines change)
 Every distinct way an agent interacts with Memory Seed, defined as a named **storyline**: what
 triggers it, the steps it walks, which tool surface carries each step (MCP / CLI / convention), a
 diagram, and an evaluation. The final sections cross-cut: a tool inventory mapped to storylines, a
-surface-parity matrix, a numbered list of redundancies and inefficiencies (**R1–R12**) with
+surface-parity matrix, a numbered list of redundancies and inefficiencies (**R1–R13**) with
 streamlining recommendations, and a separate redundancy audit of tools and endpoints considered for
 outright deletion.
 
-Ground truth: `memory_seed/mcp_server.py` (19 MCP tools), `memory-seed --help` (CLI tree),
+Ground truth: `memory_seed/mcp_server.py` (20 MCP tools), `memory-seed --help` (CLI tree),
 `.memory-seed/skills/` (the prose that scripts each flow). Convention-only steps — ones no tool
 enforces — are marked, because they are where process drift starts.
 
 **Method note.** The original R1–R12 recommendations were written from code reading alone. A memory
 pass on 2026-08-10 checked every open recommendation against recorded decisions and refuted R1, R2,
 and R12 outright, and reframed R5 and R6 — the premise held but the proposed mechanism did not.
-Recommendations in this document are trustworthy only once checked against recorded decisions, not
-on code reading alone.
+The implementation pass later that day closed R6 on the unconditional append-response path, gave
+CLI and MCP one shared content-bound ADR review preflight, and added a standalone reviewed-no-change
+parity pair. This refresh adds R13 from an observed integration false negative, checked against the
+recorded commit-failure and safe-cleanup decisions. Recommendations in this document are trustworthy
+only once checked against recorded decisions, not on code reading alone.
 
 The eight storylines:
 
 | # | Name | One line | Trigger |
 |---|------|----------|---------|
 | S1 | **ORIENT** | Establish where and when you are | Session start / re-entry |
-| S2 | **RECALL** | Retrieve the *why* behind existing work | Before design/change on non-obvious code |
+| S2 | **RECALL** | Retrieve the *why* behind existing work | Before consequential conclusions on non-obvious behavior |
 | S3 | **LOG** | Record a unit of work as a decision-carrying entry | After each meaningful unit of work |
 | S4 | **SWEEP** | Find and judge missing lifecycle edges at scale | ESR gap report / periodic campaign |
 | S5 | **CORRECT** | Downgrade or retype a published edge, append-only | A published edge is wrong |
@@ -80,7 +83,9 @@ so an MCP-only agent assembles orientation from three narrower tools (**R8**).
 
 ## S2 RECALL — retrieve the *why* behind existing work
 
-**Trigger:** before designing or changing anything non-obvious; answering "why was X decided".
+**Trigger:** before a consequential review, recommendation, design, or change on non-obvious
+behavior; answering "why was X decided"; concluding that behavior is redundant, obsolete,
+removable, replaceable, or ready to consolidate.
 
 **Flow**
 
@@ -114,9 +119,13 @@ flowchart TD
 ```
 
 **Evaluation.** Solid: search is freshness-aware (heads boosted, replaced dampened), and the chain
-view finally makes "what does this decision say NOW" one command. Weaknesses: search exists only on
-MCP while chain exists only on CLI — the two halves of one storyline live on different surfaces
-(**R8**); the recall-before-linking discipline is convention-only (**R6**).
+view finally makes "what does this decision say NOW" one command. The control plane now treats this
+recall as a prerequisite for every consequential conclusion, and Decision Harvest requires an
+explicit `replaces` / typed `evolves` / `related` / authoring-only `no-edge` disposition for every
+consequential fetched entry. That remains behavioral governance rather than a hard tool gate by
+design; S3's unconditional response nudge catches unlinked appends without pretending a hook can
+infer task intent (**R6 resolved**). The remaining weakness is surface split: search exists only on
+MCP while chain exists only on CLI (**R8**).
 
 ---
 
@@ -127,19 +136,20 @@ MCP while chain exists only on CLI — the two halves of one storyline live on d
 **Flow** (this is the storyline JNL described, as actually implemented)
 
 1. Draft the entry: title + D/R/A/F/T body (agent voice; tool owns structure).
-2. **Recall pass:** `memory_search` on the entry's topic to find candidate predecessors — the
-   entry being written usually refines, builds on, replaces, or relates to something. (Convention;
-   `link suggest` can rank candidates mechanically.)
-3. Classify each edge: `replaces` / `evolves (refines|builds-on)` / `related` — one `refines`
-   successor per target decision; every lifecycle edge carries a `why`; chain rule: link a chain
-   once, at its head.
+2. **Recall pass:** `memory_search`, then `memory_get_chunk` for every consequential hit, before
+   deriving the conclusion. Carry the fetched ids into authoring as the `consulted` set.
+3. Classify every consequential fetched entry as `replaces` / `evolves (refines|builds-on)` /
+   `related` / authoring-only `no-edge`. Stored lifecycle edges carry a `why`; one `refines`
+   successor is allowed per target decision; chain rule: link a chain once, at its head.
 4. Pick topics per decision from the controlled vocabulary (area + activity axes).
 5. Append through the guards: `memory_session_append` (or CLI with `--decisions-file`). The tool
    mints the id, stamps the clock, validates refs/topics/caps/chains, renders the entry AND both
-   sidecars (links, topics) in one transaction.
-6. If a lifecycle target is attached to an ADR: the **mandatory ADR review gate** fires —
-   `memory_adr_review` context must be answered (revision / reviewed-no-change) before the write
-   lands.
+   sidecars (links, topics) in one transaction. If any decision is still unlinked, every passing
+   dry-run and real-write MCP response returns the same draft-ranked `link_suggestions`, with
+   consulted ids first and no edge auto-written.
+6. If a lifecycle target is attached to an ADR, the **shared mandatory ADR review preflight** fires
+   on both CLI and MCP. The first call returns every matched context plus a content-bound receipt
+   while writing zero bytes; the retry supplies one revision or reviewed-no-change outcome per ADR.
 7. If the decision earns a diagram (ADR attachment): diagram sidecar obligation (answer, not
    necessarily draw).
 
@@ -147,10 +157,10 @@ MCP while chain exists only on CLI — the two halves of one storyline live on d
 
 | Step | Surface |
 |------|---------|
-| Recall pass | MCP `memory_search` (convention that it runs); MCP `memory_link_suggest` / CLI `link suggest` |
+| Recall pass | MCP `memory_search` + `memory_get_chunk`; MCP `memory_link_suggest` / CLI `link suggest` |
 | Topic check | MCP `memory_topics_list` / `memory_topic_inspect`; CLI `topics list` |
 | Append + guards | MCP `memory_session_append`; CLI `session append --decisions-file` |
-| ADR gate | MCP `memory_adr_review`; CLI `adr revise` / `adr transition` for the outcome |
+| ADR append preflight | MCP `memory_session_append` (`memory_adr_review` is optional pre-draft inspection); CLI `session append --adr-review-receipt` |
 | Verify | CLI `links check` (fast confirmation, optional — guards already ran) |
 
 ```mermaid
@@ -166,14 +176,19 @@ flowchart TD
     H -- yes --> I["ADR review gate:<br/>revision or<br/>reviewed-no-change"]
     H -- no --> J["Entry + links sidecar<br/>+ topics sidecar written"]
     I --> J
+    J --> K{"Any decision<br/>still unlinked?"}
+    K -- yes --> L["Response includes ranked<br/>link_suggestions;<br/>classify or no-edge"]
+    K -- no --> M["Done"]
+    L --> M
 ```
 
 **Evaluation.** This is the most guarded storyline in the system and the guards are genuinely
-write-time (the cheapest moment). Weaknesses: the recall pass (step 2) — the heart of JNL's
-description — is **pure convention**; nothing in `memory_session_append` asks "did you look"
-(**R6**, mechanism reframed — see the R-list). `link suggest` and `link audit` are not overlapping
+write-time (the cheapest moment). **R6 CLOSED**: memory retrieval now precedes consequential
+conclusions in the universal workflow, and every passing MCP append response nudges an unlinked
+decision with draft-ranked candidates on both dry-run and real write. It still never fabricates an
+edge or treats retrieval as proof of relatedness. `link suggest` and `link audit` are not overlapping
 candidate rankers but two structurally different ones answering different questions (**R2**,
-refuted). One append re-reads the corpus several times across independent guards (**R5**).
+refuted). One append still re-reads the corpus several times across independent guards (**R5**).
 
 ---
 
@@ -287,17 +302,18 @@ three different `links check` errors, so this closes the clearest single gap the
 2. Head movement is authored-only: `revision-proposed` + `revision-accepted` (`adr revise`,
    `adr transition`). Machine edges NEVER move heads.
 3. Standing review inputs, all mechanical, all flag-only:
-   - **ADR review queue** (new): head has a `refines` successor → propose a revision or record
+   - **ADR review queue**: head has a `refines` successor → propose a revision or record
      reviewed-no-change. The preamble names both answer paths verbatim: the revision path
-     (author the successor decision, then `adr revise` + `adr transition`) and the
-     reviewed-no-change path (MCP `memory_session_append`'s review gate, `{"outcome": "no-change",
-     "reason": ...}` — the CLI has no equivalent).
+     (author the successor decision, then `adr revise` + `adr transition`), the shared CLI/MCP
+     append-review outcome, and the standalone `adr reviewed` / `memory_adr_reviewed` parity pair
+     for a review that warrants no new session decision.
    - **Attachment candidates**: ADRs with no decision, ranked topic-gated + ungated.
    - **Diagram review**: `needs-diagram-review` when evolution invalidates the answer.
    - Both queues are now also machine-readable: `esr --json` carries `adr_attachment_candidates`
      and `adr_head_reviews` as top-level keys, not prose-only.
-4. Write-time interlock with S3: touching an ADR-attached decision's lifecycle fires the mandatory
-   review gate (`memory_adr_review`).
+4. Write-time interlock with S3: touching an ADR-attached decision's lifecycle fires the same
+   content-bound mandatory review preflight on CLI and MCP. `memory_adr_review` remains available
+   to inspect impact before a draft exists.
 5. Validate: `adr check` / `memory_adrs_check`.
 
 **Tools**
@@ -305,7 +321,9 @@ three different `links check` errors, so this closes the clearest single gap the
 | Step | Surface |
 |------|---------|
 | Promote / revise / transition | CLI `adr promote` / `revise` / `transition` — **no MCP write twin** |
-| Review gate contexts | MCP `memory_adr_review` |
+| Append review preflight | MCP `memory_session_append`; CLI `session append --adr-review-receipt` |
+| Standalone reviewed-no-change | MCP `memory_adr_reviewed`; CLI `adr reviewed` |
+| Pre-draft review contexts | MCP `memory_adr_review` |
 | Read | MCP `memory_adr_show` / `memory_adrs_list`; CLI `adr show` / `list` |
 | Queues | CLI `esr` sections (review queue, attachment candidates) |
 | Validate | MCP `memory_adrs_check`; CLI `adr check` |
@@ -383,7 +401,7 @@ corpus builds per run, **R5**).
 
 ## S8 LAND — integrate branch-local memory into main
 
-**Trigger:** a stable, tested stopping point on a `claude/<kind>/<topic>` branch.
+**Trigger:** a stable, tested stopping point on an `<agent>/<kind>/<topic>` branch.
 
 **Flow**
 
@@ -391,8 +409,8 @@ corpus builds per run, **R5**).
    session may have moved it — if dirty, hand the merge to JNL).
 2. `session merge-branch --branch <b>` from the primary: validates the branch's entries and
    sidecars **with main's parser**, imports them block-by-block, git-merges code, stamps
-   `Memory-Entry` trailers, deregisters the source worktree.
-3. Failure paths (all hit this session, now revised):
+   `Memory-Entry` trailers, then attempts safe source-worktree cleanup.
+3. Failure paths:
    - Non-chronological sidecar (or any other fuse/staging refusal) on MAIN blocks the fuse — the
      refusal message says WHICH side it validated (`the BASE side` vs `branch <label>`, gated on
      both "the working tree was reset to base" and "the path exists on base") so a repair lands on
@@ -401,12 +419,15 @@ corpus builds per run, **R5**).
      automatically and the result reports `merge aborted automatically; nothing was committed`.
    - A GENUINE non-session content conflict is the one case still left in progress, for the named
      conflict owner to resolve by hand — it is not a refusal this code path can auto-resolve.
-   - A post-fuse `git commit` failure also leaves the merge in progress (the fused tree is worth
-     inspecting before deciding how to proceed) — this is a narrow, deliberate exception, not a
-     gap.
+   - A genuine post-fuse `git commit` failure also leaves the merge in progress (the fused tree is
+     worth inspecting before deciding how to proceed). A 30-second subprocess timeout can currently
+     return the same failure result after Git has already created the merge commit; reconcile the
+     repository state before treating that report as authoritative (**R13**).
    - Schema/parser changes must still merge BEFORE data that needs them.
-4. Post-merge: worktree dir needs manual cleanup on Windows (`rm -rf`); delete the merged branch;
-   verify the changeset actually landed.
+4. Post-merge: verify the changeset actually landed. The command safely attempts to remove only a
+   clean, merged, registered source worktree and reports its cleanup status; Windows/OneDrive may
+   leave a deregistered residue for separately approved exact-path cleanup. Branch deletion remains
+   a separate deliberate choice.
 
 **Tools**
 
@@ -424,10 +445,10 @@ flowchart TD
     D --> E{"Fuse validation<br/>on MAIN's files"}
     E -- "refusal (BASE-<br/>or branch-attributed)" --> F["Auto-abort:<br/>merge --abort,<br/>nothing committed"]
     E -- "genuine content<br/>conflict" --> G["Left in progress<br/>for conflict owner"]
-    E -- "commit fails<br/>after fuse" --> H["Left in progress;<br/>fused tree worth<br/>inspecting"]
+    E -- "commit reports<br/>failure after fuse" --> H["Reconcile Git state:<br/>landed commit or<br/>true in-progress failure"]
     E -- ok --> I["Entries + sidecars<br/>imported,<br/>trailers stamped"]
-    I --> J["Worktree deregistered;<br/>rm -rf dir,<br/>delete branch"]
-    J --> K["Verify landed<br/>on main"]
+    I --> J["Verify landed<br/>on main"]
+    J --> K["Safe worktree cleanup<br/>attempted and reported"]
 ```
 
 **Evaluation.** The fuse's validation is the right gate and trailer stamping preserves provenance.
@@ -436,7 +457,9 @@ reset to base" and "does the path exist on base", so a BASE-side repair is never
 the branch. **R11 CLOSED**: a refusal auto-aborts its own half-started merge instead of leaving
 `MERGE_HEAD` behind — genuine content conflicts are still (correctly) left in progress for their
 named owner, and a post-fuse commit failure is the one deliberate exception, also left in progress
-so the fused tree can be inspected. **R12 STALE**: worktree cleanup already runs automatically
+so the fused tree can be inspected. **R13 OPEN**: the commit subprocess's 30-second timeout can
+misclassify a completed merge as failed and bypass the otherwise-safe cleanup path. **R12 STALE**:
+worktree cleanup already runs automatically
 inside `session merge-branch`'s post-merge step; what remains is an honestly-surfaced
 `deregistered-with-residue` case on Windows/OneDrive, not a missing feature.
 
@@ -444,18 +467,19 @@ inside `session merge-branch`'s post-merge step; what remains is an honestly-sur
 
 ## Cross-cutting: tool inventory by storyline
 
-**MCP (19):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve` (S2);
+**MCP (20):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve` (S2);
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
 `memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
-`memory_adrs_list`, `memory_adrs_check` (S6); `memory_branch_status`, `memory_worktree_guard`,
+`memory_adrs_list`, `memory_adr_reviewed`, `memory_adrs_check` (S6); `memory_branch_status`,
+`memory_worktree_guard`,
 `memory_session_fuse_preview`, `memory_session_integrate` (S1/S8). (`memory_dir` is a `Runtime`
 dataclass field in `memory_seed/core.py`, not a tool — it was previously miscounted into this list;
-the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 19 and no more.)
+the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 20 and no more.)
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
 retract/show/commits`, `links check/graph-diff` (S4/S5); `adr promote/revise/transition/show/list/
-check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8).
+reviewed/check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8).
 Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `migrate`, `encoding`,
 `doctor`, `version`, `help`, `processes`, `shutdown`) sit outside the storylines.
 
@@ -472,8 +496,9 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 | Edge retract | ✓ | ✓ |
 | Graph snapshot/diff | — | ✓ |
 | ADR read / check | ✓ | ✓ |
-| ADR write (promote/revise/transition) | — | ✓ |
-| ADR review gate | ✓ | — |
+| ADR head write (promote/revise/transition) | — | ✓ |
+| ADR append review preflight | ✓ | ✓ |
+| Standalone reviewed-no-change | ✓ | ✓ |
 | ESR report | — | ✓ (`--json` now carries both ADR queues — see R7) |
 | Merge / integrate | ✓ | ✓ |
 
@@ -548,10 +573,12 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   review queue render only in prose; automation can't consume them. *Recommend:* add both fields.
   **RESOLVED (2026-08-10)** — both fields shipped: `adr_attachment_candidates` and
   `adr_head_reviews` are top-level keys on `esr --json` / `EsrReport.to_dict()`.
-- **R8 — Surface split mid-storyline.** Search (MCP-only) to chain view (CLI-only) in S2; review
-  gate (MCP) to revision write (CLI) in S6; the whole of S4 and S7 CLI-only. Where a storyline
+- **R8 — Surface split mid-storyline.** Search (MCP-only) to chain view (CLI-only) in S2; ADR
+  head-changing writes (CLI-only) in S6; the whole of S4 and S7 CLI-only. The append review gate
+  and standalone reviewed-no-change path now have parity, so they are no longer part of this gap.
+  Where a storyline
   crosses surfaces, an agent confined to one stalls. Read-only twins face no governance obstacle:
-  `test_exactly_three_tools_can_write` pins only tools carrying a `dry_run` schema field, and
+  `test_exactly_four_tools_can_write` pins only tools carrying a `dry_run` schema field, and
   Invariant #2's write-surface-parity clause binds only writes, so a `links chain` / `link audit` /
   `esr` MCP twin trips neither. *Recommend:* ship read-only MCP twins for those three now, and treat
   any future MCP twin for a WRITE surface (`adr promote`/`revise`/`transition`) as a separate,
@@ -586,16 +613,28 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   `memory_seed/worktree_gc.py` ("an escape hatch is how that rule gets bypassed later"). Closed; if
   residue volume ever matters operationally, track it through ESR residue reporting rather than
   reopening the fallback question.
+- **R13 — A commit timeout can report failure after the merge already landed.** The integration of
+  `codex/feature/memory-grounded-conclusions` produced merge commit `c79b0627` with both expected
+  `Memory-Entry` trailers, but `session merge-branch` returned `git commit failed: (no output)` and
+  skipped source-worktree cleanup. The reason is structural: `_git_text` gives every Git command a
+  30-second timeout and converts `TimeoutExpired` to `(1, "")`; `session_merge_branch` trusts that
+  return code without checking whether `HEAD` advanced to the expected merge commit. A slow
+  post-commit hook can therefore turn success into a reported failure. *Recommend:* after a
+  non-zero/timeout commit result, inspect repository state. If `HEAD` is a new merge containing the
+  expected source tip and trailers, report the operation committed and continue through the
+  existing exact, clean, merged-worktree cleanup. Otherwise preserve the current fail-closed result
+  and leave the genuine in-progress merge for inspection. Do not weaken the timeout or introduce a
+  raw-filesystem cleanup fallback.
 
-**Priority if streamlining now:** seven of twelve items are now closed (R3, R4, R6, R7, R9, R10,
+**Priority if streamlining now:** seven of thirteen items are now closed (R3, R4, R6, R7, R9, R10,
 R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
 ESR ADR queues are JSON-visible and self-routing, and S8's two worst failure modes (misattribution,
 stranded merges) are fixed. The 2026-08-10 memory pass then removed three more from the open list
 by refuting them against recorded decisions (R1, R2) or finding they had already shipped (R12), and
 reframed two others where the premise held but the proposed mechanism did not (R5, R6 — see their
-entries above for the corrected recommendation). What remains open: **R8** (surface split) is the
-sharpest item — R4 shipped CLI-only and *enlarged* it rather than shrinking it, on top of the
-pre-existing search/chain, ADR-write, and whole-storyline splits; then **R5** (consolidate the
+entries above for the corrected recommendation). What remains open: **R13** is the sharpest
+correctness issue because an already-landed merge is reported as failed and safe cleanup is skipped;
+then **R8** (surface split), which R4 enlarged by shipping CLI-only; then **R5** (consolidate the
 shared-build load, not each call site's configuration). **R6 is now resolved** on the unconditional
 append response path.
 
