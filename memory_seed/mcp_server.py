@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from .core import (
     MEMORY_DIR_NAME,
+    RETRACTABLE_KINDS,
     _git_text,
     branch_status,
     commit_reference_ids,
@@ -512,6 +513,59 @@ TOOLS: list[dict[str, Any]] = [
                 "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
             "required": ["title", "body", "user_initials", "agent_type", "decisions"],
+        },
+    },
+    {
+        "name": "memory_link_retract",
+        "description": (
+            "Retract a published lifecycle edge, append-only, and optionally re-author it under the right kind or "
+            "evolution type in the same block. THIS IS THE MANDATED FIX for the `links check` errors "
+            "`untyped-evolves`, `unknown-evolution-type` and `multiple-refines-successors`: the declaring block is "
+            "never reopened, so the correction is a fresh block in the SOURCE entry's dated link sidecar that names "
+            "the old edge under `retracts:` and re-authors it beside. Do not hand-write retract blocks. "
+            "`ref` is the retracted edge's target in the ordinary ref grammar (`mse_x`, `mse_x:d1`, `mse_x:d1,d3`, "
+            "optionally `dM -> ` prefixed and `(type)` suffixed) written EXACTLY as the edge was authored - a "
+            "comma-separated ref fans out to one retract line per ordinal, because a retract names exactly one edge, "
+            "while the re-authored line keeps the comma form. Guards run before anything is written and report "
+            "together: unknown kind or unparseable ref, an unknown source entry, an edge the corpus never declared "
+            "(the checker's dangling-retract), a retraction that would pre-date its declaration, a date_pin that is "
+            "not the declaration date, and a `refines` retype whose one successor slot another entry already holds. "
+            "Set dry_run to run every guard and get `rendered` - the exact block a real call would append - back "
+            "without writing."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "from_entry": {
+                    "type": "string",
+                    "description": "The edge's SOURCE entry_id; its session date selects the sidecar file.",
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": list(RETRACTABLE_KINDS),
+                    "description": "The kind of edge being retracted, as authored ('supersedes'/'related' are the legacy spellings).",
+                },
+                "ref": {
+                    "type": "string",
+                    "description": "The retracted edge's target ref, spelled as the edge was authored.",
+                },
+                "retype": {
+                    "type": "string",
+                    "description": "Re-author the same ref under a new kind (replaces/evolves/related_entries) or with an evolution type (refines/builds-on). Omit for a pure retraction.",
+                },
+                "note": {"type": "string", "description": "One-line note recorded beside the correction."},
+                "date_pin": {
+                    "type": "string",
+                    "description": "The ORIGINAL declaration date (YYYY-MM-DD), recorded on each retract line and validated against it.",
+                },
+                "timestamp": {
+                    "type": "string",
+                    "description": "Block heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Block identity is (entry_id, heading timestamp), so a fresh stamp lets a later correction join the same entry.",
+                },
+                "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report `rendered` without writing."},
+            },
+            "required": ["from_entry", "kind", "ref"],
         },
     },
     {
@@ -1112,6 +1166,56 @@ def call_tool(
             if drift:
                 payload["clock_drift_warning"] = drift
         return payload
+
+    if name == "memory_link_retract":
+        # The first MCP link-WRITE tool. No merge_trigger gate: an append-only
+        # correction publishes nothing and lands nothing, so the authorization
+        # the integrate path needs has no counterpart here.
+        from .core import apply_link_retract
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        # Same cwd hazard memory_session_append guards: resolve_runtime fails
+        # open and the writer does mkdir(parents=True), so a wrong cwd would
+        # mint a phantom .memory-seed tree rather than error - and the
+        # declaration guard would then read that empty tree and refuse every
+        # real edge as dangling, which reads like a corpus problem.
+        runtime = resolve_runtime(cwd)
+        if not runtime.memory_dir.is_dir():
+            return {
+                "ok": False,
+                "written": False,
+                "issues": [
+                    f"no Memory Seed runtime at {cwd} (looked for {MEMORY_DIR_NAME}/); "
+                    "pass cwd pointing at the project root - refusing rather than creating an empty one"
+                ],
+            }
+        for field_name in ("from_entry", "kind", "ref"):
+            value = args.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                return {"ok": False, "written": False, "issues": [f"{field_name} is required"]}
+        result = apply_link_retract(
+            cwd,
+            from_entry=str(args["from_entry"]).strip(),
+            kind=str(args["kind"]).strip(),
+            ref=str(args["ref"]).strip(),
+            retype=_optional_str(args, "retype"),
+            note=_optional_str(args, "note"),
+            date_pin=_optional_str(args, "date_pin"),
+            timestamp=_optional_str(args, "timestamp") or args.get("_now"),
+            dry_run=bool(args.get("dry_run", False)),
+        )
+        return {
+            "ok": result.ok,
+            "written": result.written,
+            "entry_id": result.entry_id,
+            "timestamp": result.timestamp,
+            "path": str(result.path) if result.path else None,
+            "retracted": list(result.retracted),
+            "reauthored": result.reauthored,
+            "reauthored_key": result.reauthored_key,
+            "rendered": result.rendered,
+            "issues": list(result.issues),
+        }
 
     raise ValueError(f"Unknown tool: {name}")
 

@@ -312,6 +312,26 @@ class LinksCheckResult:
 
 
 @dataclass(frozen=True)
+class LinkRetractResult:
+    """One append-only edge correction: what was retracted, and what replaced it."""
+
+    ok: bool
+    written: bool
+    path: Path | None
+    entry_id: str
+    timestamp: str | None
+    rendered: str | None
+    # The rendered `retracts:` items, one per ordinal after the comma fan-out.
+    retracted: tuple[str, ...] = ()
+    # The single re-authored item, comma form intact, or None for retract-only.
+    reauthored: str | None = None
+    # The authored key the replacement landed under (evolves / replaces /
+    # related_entries), or None for retract-only.
+    reauthored_key: str | None = None
+    issues: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ProjectParticipant:
     slug: str
     initials: str
@@ -990,6 +1010,10 @@ _RETRACT_KINDS = {
 _RETRACT_RE = re.compile(
     r"^(replaces|supersedes|evolves|related_entries|related)\s+(.+?)(?:\s*\((\d{4}-\d{2}-\d{2})\))?\s*$"
 )
+# The authored spellings a caller may name, published so the CLI and the MCP twin
+# advertise exactly what this grammar accepts instead of restating it in two more
+# places that can drift.
+RETRACTABLE_KINDS = tuple(sorted(_RETRACT_KINDS))
 
 
 @dataclass(frozen=True)
@@ -2337,6 +2361,29 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     _note_evolution_type(
                         parsed, rel, kind, source_id, refines_successors, evolution_type_issues
                     )
+                    # Retraction bookkeeping. An edge authored in the entry's
+                    # OWN yaml is declared every bit as much as a sidecar one,
+                    # and the reader honours a `retracts:` that names it (see
+                    # retrieval.entry_link_sidecars' retracted_* exports).
+                    # Recording only the sidecar half made every such retract
+                    # report `dangling-retract`. Latent rather than observed -
+                    # this corpus carries no entry-YAML retract today, and its
+                    # issue set is unchanged by this line - but the refusal
+                    # reproduces on a two-file fixture and would have blocked
+                    # every entry-YAML correction `apply_link_retract` writes.
+                    # Identity matches the sidecar loop exactly: entry-level
+                    # ignores the source ordinal, decision uses the 4-tuple.
+                    if parsed.decision is None:
+                        yaml_edge_identity: tuple = (kind, parsed.entry_id)
+                    else:
+                        yaml_edge_identity = (
+                            kind, parsed.source_decision or "", parsed.entry_id, parsed.decision
+                        )
+                    if parsed.decision is None:
+                        declared_entry_edges.setdefault(source_id, set()).add(yaml_edge_identity)
+                    else:
+                        declared_decision_edges.setdefault(source_id, set()).add(yaml_edge_identity)
+                    declared_edge_dates.setdefault((source_id, yaml_edge_identity), heading_ts[:10])
                     if parsed.decision is None and edge_list is not None:
                         edge_list.append((rel, source_id, parsed.entry_id))
                     if parsed.decision is not None or parsed.source_decision is not None:
@@ -5715,6 +5762,337 @@ def _write_chronological_topic_sidecar_file(path: Path, date_str: str, records: 
     ordered = sorted(records, key=_session_record_sort_key)
     body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
+
+
+# The authored spelling a writer emits for each canonical retract kind. Readers
+# accept five spellings (`supersedes`/`related` are legacy aliases); writers emit
+# one, the same discipline `replaces` has carried since the 2026-07-24 rename.
+_RETRACT_AUTHORED_KIND = {"replaces": "replaces", "evolves": "evolves", "related": "related_entries"}
+# What a retype may name: an evolution TYPE (which implies the `evolves:` key and
+# rides as a trailing token) or an edge KIND (which names the key outright).
+_RETYPE_KEYS = {
+    "replaces": "replaces",
+    "supersedes": "replaces",
+    "evolves": "evolves",
+    "related": "related_entries",
+    "related_entries": "related_entries",
+}
+_LINK_HEADING_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
+
+def _link_ref_token(ref: ListRef) -> str:
+    """Render one parsed ref back to its authored spelling.
+
+    Arrow prefix first, type suffix last - the order `_parse_list_ref_multi`
+    peels them off in, so a token round-trips through the parser unchanged.
+    """
+    body = ref.entry_id
+    if ref.decision:
+        body = f"{body}:{ref.decision}"
+    if ref.source_decision:
+        body = f"{ref.source_decision} -> {body}"
+    if ref.evolution_type:
+        body = f"{body} ({ref.evolution_type})"
+    return body
+
+
+@dataclass(frozen=True)
+class _DeclaredEdgeIndex:
+    entry_timestamps: dict[str, str]
+    entry_edges: dict[str, set[tuple[str, str]]]
+    decision_edges: dict[str, set[tuple[str, str, str, str]]]
+    dates: dict[tuple[str, tuple], str]
+
+
+def _declared_lifecycle_edges(sessions_dir: Path) -> _DeclaredEdgeIndex:
+    """Write-time twin of the declaration bookkeeping inside ``check_session_links``.
+
+    Same two surfaces (entry YAML and link sidecars), same identity - entry-level
+    ignores the source ordinal, decision-level is the exact 4-tuple - and the same
+    first-declaration-wins date, with the entry pass running first so an edge
+    authored in an entry's own YAML dates from that entry. Existing at all is the
+    point: a retract must name an edge the corpus really declared, and the write
+    path has to answer that question BEFORE it appends, using the same vocabulary
+    the checker would use afterwards. Best-effort like ``existing_refines_targets``:
+    an unreadable file is skipped rather than blocking a write, because
+    ``links check`` re-derives all of this and remains the authoritative surface.
+    """
+    entry_timestamps: dict[str, str] = {}
+    entry_edges: dict[str, set[tuple[str, str]]] = {}
+    decision_edges: dict[str, set[tuple[str, str, str, str]]] = {}
+    dates: dict[tuple[str, tuple], str] = {}
+
+    def absorb(yaml_block: str, source_id: str, declared_date: str) -> None:
+        for key, kind in (
+            ("replaces", "replaces"),
+            ("supersedes", "replaces"),
+            ("evolves", "evolves"),
+            ("related_entries", "related"),
+        ):
+            for parsed in _frontmatter_list_refs(yaml_block, key):
+                if not parsed.ok:
+                    continue
+                identity: tuple
+                if parsed.decision is None:
+                    identity = (kind, parsed.entry_id)
+                    entry_edges.setdefault(source_id, set()).add(identity)
+                else:
+                    identity = (kind, parsed.source_decision or "", parsed.entry_id, parsed.decision)
+                    decision_edges.setdefault(source_id, set()).add(identity)
+                dates.setdefault((source_id, identity), declared_date)
+
+    def blocks(path: Path) -> list[tuple[str, str]]:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return []
+        return _ENTRY_TS_YAML_RE.findall(text)
+
+    for doc in iter_session_documents(sessions_dir):
+        for heading_ts, yaml_block in blocks(doc.path):
+            found = _ENTRY_ID_RE.search(yaml_block)
+            if not found:
+                continue
+            entry_timestamps.setdefault(found.group(1), heading_ts)
+            absorb(yaml_block, found.group(1), heading_ts[:10])
+    for link_doc in iter_link_sidecar_documents(sessions_dir):
+        if link_doc.malformed_reason:
+            continue
+        file_date = link_doc.link_date or ""
+        for heading_ts, yaml_block in blocks(link_doc.path):
+            found = _ENTRY_ID_RE.search(yaml_block)
+            if not found:
+                continue
+            absorb(yaml_block, found.group(1), file_date or heading_ts[:10])
+    return _DeclaredEdgeIndex(entry_timestamps, entry_edges, decision_edges, dates)
+
+
+def apply_link_retract(
+    cwd: str | Path = ".",
+    *,
+    from_entry: str,
+    kind: str,
+    ref: str,
+    retype: str | None = None,
+    note: str | None = None,
+    date_pin: str | None = None,
+    timestamp: str | None = None,
+    dry_run: bool = False,
+) -> LinkRetractResult:
+    """Append one `retracts:` correction block, optionally re-typing the edge.
+
+    Retract-and-retype is the mandated append-only fix for
+    ``multiple-refines-successors``, ``unknown-evolution-type`` and
+    ``untyped-evolves``: the published block is never reopened, so the correction
+    is a fresh block that names the old edge in ``retracts:`` and re-authors it
+    under the key it should have had. Every such block was hand-formatted markdown
+    until this writer existed.
+
+    The block lands in the SOURCE entry's dated link sidecar under a fresh
+    authoring wall-clock heading (block identity is ``(entry_id, heading
+    timestamp)``, so a later correction joins the same entry rather than colliding
+    with it). A comma multi-ordinal ``ref`` (``mse_x:d1,d3``) fans out to one
+    retract line per ordinal, because ``_parse_retract`` refuses a retract that
+    names more than one edge, while the re-authored line keeps the comma form,
+    which the ordinary ref grammar allows.
+
+    Refuses BEFORE writing anything - malformed kind or ref, unknown source entry,
+    an edge the corpus never declared (the checker's ``dangling-retract``), a
+    retraction that pre-dates its declaration (``retract-before-declaration``), a
+    ``--date-pin`` that is not the declaration date, and a ``refines`` retype whose
+    successor slot another entry already holds.
+    """
+    runtime = resolve_runtime(cwd)
+    sessions_dir = runtime.memory_dir / "sessions"
+    issues: list[str] = []
+
+    def refusal() -> LinkRetractResult:
+        return LinkRetractResult(
+            ok=False,
+            written=False,
+            path=None,
+            entry_id=from_entry,
+            timestamp=None,
+            rendered=None,
+            issues=tuple(issues),
+        )
+
+    authored = kind.strip()
+    canonical_kind = _RETRACT_KINDS.get(authored)
+    if canonical_kind is None:
+        issues.append(
+            f"kind {authored!r} is not retractable (expected one of: {', '.join(sorted(_RETRACT_KINDS))})"
+        )
+    refs = _parse_list_ref_multi(ref)
+    for item in refs:
+        if not item.ok:
+            issues.append(f"ref {item.raw!r}: {item.reason}")
+    if date_pin is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_pin.strip()):
+        issues.append(f"date-pin {date_pin!r} is not YYYY-MM-DD")
+    retype_key: str | None = None
+    retype_type: str | None = None
+    if retype is not None:
+        cleaned = retype.strip()
+        if cleaned in EVOLUTION_TYPES:
+            retype_key, retype_type = "evolves", cleaned
+        elif cleaned in _RETYPE_KEYS:
+            retype_key = _RETYPE_KEYS[cleaned]
+        else:
+            issues.append(
+                f"retype {cleaned!r} is neither an edge kind ({', '.join(sorted(set(_RETYPE_KEYS.values())))}) "
+                f"nor an evolution type ({', '.join(EVOLUTION_TYPES)})"
+            )
+    stamp = (timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")).strip()
+    if not _LINK_HEADING_TS_RE.match(stamp):
+        issues.append(f"timestamp {stamp!r} is not 'YYYY-MM-DD HH:MM'")
+    if issues:
+        return refusal()
+
+    index = _declared_lifecycle_edges(sessions_dir)
+    entry_ts = index.entry_timestamps.get(from_entry)
+    if entry_ts is None:
+        issues.append(f"from_entry {from_entry}: no such entry_id - a retract is authored by the edge's SOURCE entry")
+        return refusal()
+    date_str = entry_ts[:10]
+    pin = date_pin.strip() if date_pin else None
+
+    for item in refs:
+        identity: tuple
+        if item.decision is None:
+            identity = (canonical_kind, item.entry_id)
+            declared = index.entry_edges.get(from_entry, set())
+        else:
+            identity = (canonical_kind, item.source_decision or "", item.entry_id, item.decision)
+            declared = index.decision_edges.get(from_entry, set())
+        target = f"{item.entry_id}{':' + item.decision if item.decision else ''}"
+        if identity not in declared:
+            issues.append(
+                f"retracts -> {authored} {_link_ref_token(item)}: {from_entry} never declared a "
+                f"{canonical_kind} edge to {target} - nothing to retract"
+            )
+            continue
+        declared_date = index.dates.get((from_entry, identity), "")
+        if not declared_date:
+            continue
+        if date_str < declared_date:
+            issues.append(
+                f"retracts -> {authored} {_link_ref_token(item)}: would be filed {date_str} but the edge was "
+                f"first declared {declared_date}; a retraction cannot pre-date the edge it removes"
+            )
+        if pin and pin != declared_date:
+            issues.append(
+                f"date-pin {pin} is not the declaration date of {canonical_kind} {target} "
+                f"(first declared {declared_date}); the pin names the ORIGINAL declaration"
+            )
+    if retype_type == "refines":
+        # Write-time half of the one-refines-successor cap. The holder that
+        # matters is a DIFFERENT source entry: when the slot is held by the very
+        # edge being retracted here, this call IS the retype, not a conflict.
+        taken = existing_refines_targets(sessions_dir)
+        for item in refs:
+            holder = taken.get((item.entry_id, item.decision or "d1"))
+            if holder and holder != from_entry:
+                issues.append(
+                    f"retype refines refused: {item.entry_id}:{item.decision or 'd1'} is already refined by "
+                    f"{holder}; a decision has at most one refines successor"
+                )
+    if issues:
+        return refusal()
+
+    rel = _link_target_relative_path(date_str)
+    path = runtime.workspace_root / rel
+    existing = read_text_file(path) if path.exists() else ""
+    if existing.strip():
+        frontmatter = _FILE_FRONTMATTER_RE.match(existing)
+        scalars = _parse_frontmatter_scalars(frontmatter.group(1)) if frontmatter else {}
+        if scalars.get("link_date") and scalars["link_date"] != date_str:
+            issues.append(f"{rel}: existing link_date {scalars['link_date']} does not match {date_str}")
+        body_after_frontmatter = existing[frontmatter.end():] if frontmatter else existing
+        if body_after_frontmatter.strip() and not _ENTRY_TS_YAML_RE.search(existing):
+            # Rewriting the file from parsed records would silently drop content
+            # the parser cannot see, so an unparseable sidecar refuses the write.
+            issues.append(f"{rel}: existing link sidecar has no parseable '## <timestamp>' + ```yaml blocks")
+        for heading_ts, yaml_block in _ENTRY_TS_YAML_RE.findall(existing):
+            found = _ENTRY_ID_RE.search(yaml_block)
+            if heading_ts == stamp and found and found.group(1) == from_entry:
+                issues.append(
+                    f"{rel}: a link block for {from_entry} already carries heading timestamp {stamp}; "
+                    "block identity is (entry_id, heading timestamp) - pass a distinct timestamp"
+                )
+        if issues:
+            return refusal()
+
+    retract_items = [
+        f"{_RETRACT_AUTHORED_KIND[canonical_kind]} {_link_ref_token(item)}" + (f" ({pin})" if pin else "")
+        for item in refs
+    ]
+    reauthored: str | None = None
+    if retype_key:
+        base = refs[0]
+        ordinals = [item.decision for item in refs if item.decision]
+        token = base.entry_id
+        if ordinals:
+            token = f"{token}:{','.join(ordinals)}"
+        if base.source_decision:
+            token = f"{base.source_decision} -> {token}"
+        if retype_type:
+            token = f"{token} ({retype_type})"
+        reauthored = token
+
+    lines = [
+        f"## {stamp} - edge retracted{' and retyped' if retype_key else ''}",
+        "",
+        "```yaml",
+        f"entry_id: {from_entry}",
+        "retracts:",
+    ]
+    lines.extend(f"  - {item}" for item in retract_items)
+    if retype_key and reauthored:
+        lines.append(f"{retype_key}:")
+        lines.append(f"  - {reauthored}")
+    if note:
+        lines.append(f"note: {note.strip()}")
+    lines.extend(["```", ""])
+    block = "\n".join(lines) + "\n"
+
+    result = LinkRetractResult(
+        ok=True,
+        written=False,
+        path=path,
+        entry_id=from_entry,
+        timestamp=stamp,
+        rendered=block,
+        retracted=tuple(retract_items),
+        reauthored=reauthored,
+        reauthored_key=retype_key,
+    )
+    if dry_run:
+        return result
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    records = _split_link_sidecar_records(existing, source_path=rel, link_date=date_str)
+    records.append(
+        _LinkSidecarRecord(
+            text=block,
+            entry_id=from_entry,
+            timestamp=stamp,
+            link_date=date_str,
+            source_path=rel,
+            target_path=rel,
+        )
+    )
+    _write_chronological_link_sidecar_file(path, date_str, records)
+    return LinkRetractResult(
+        ok=True,
+        written=True,
+        path=path,
+        entry_id=from_entry,
+        timestamp=stamp,
+        rendered=block,
+        retracted=result.retracted,
+        reauthored=reauthored,
+        reauthored_key=retype_key,
+    )
 
 
 def _git_dir(root: Path) -> Path | None:

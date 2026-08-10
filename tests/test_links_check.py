@@ -563,6 +563,58 @@ class LinksCheckTests(unittest.TestCase):
         result = check_session_links(cwd=cwd)
         self.assertIn("dangling-retract", [i.kind for i in result.issues])
 
+    def test_retract_filed_before_the_declaration_is_reported(self):
+        # Forward-only, applied to the retraction itself: the correction cannot
+        # sit in a file dated before the day the edge was declared, or the
+        # append-only history reads as undoing something that had not happened
+        # yet. The rule shipped with `retracts:` and had no test until the
+        # `link retract` writer needed the same refusal at write time.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd, "2026-06-13.md", ("2026-06-13 09:00 - target", "mse_0123456789abcdef", ()),
+        )
+        self._flat_session(
+            cwd, "2026-06-14.md", ("2026-06-14 09:00 - source", "mse_ffffffffffffffff", ()),
+        )
+        # Declared on the 14th...
+        self._raw_sidecar(cwd, "2026-06-14", "\n".join([
+            "## 2026-06-14 10:00 - declare", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "evolves:", "  - mse_0123456789abcdef", "```", "",
+        ]) + "\n")
+        # ...retracted in a file dated the 13th.
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "retracts:", "  - evolves mse_0123456789abcdef", "```", "",
+        ]) + "\n")
+
+        result = check_session_links(cwd=cwd)
+        issue = next(i for i in result.issues if i.kind == "retract-before-declaration")
+        self.assertEqual(issue.severity, "error")
+        self.assertIn("2026-06-14", issue.detail)
+        self.assertFalse(result.ok)
+
+    def test_retract_of_an_entry_yaml_edge_is_not_dangling(self):
+        # The declaration bookkeeping used to read link sidecars only, so a
+        # retract naming an edge authored in the entry's OWN yaml - which the
+        # reader has honoured since 2026-08-09 - was falsely reported dangling.
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-13.md").write_text(
+            "## 2026-06-13 09:00 - target\n\n```yaml\nentry_id: mse_0123456789abcdef\n```\n\n- note\n\n"
+            "## 2026-06-13 10:00 - source\n\n```yaml\nentry_id: mse_ffffffffffffffff\n"
+            "evolves:\n  - mse_0123456789abcdef\n```\n\n- note\n",
+            encoding="utf-8",
+        )
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "retracts:", "  - evolves mse_0123456789abcdef", "```", "",
+        ]) + "\n")
+
+        result = check_session_links(cwd=cwd)
+        self.assertNotIn("dangling-retract", [i.kind for i in result.issues])
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
     def test_malformed_retract_is_reported(self):
         cwd = self.make_project()
         self._flat_session(
@@ -2120,6 +2172,10 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         after = self._chunks()[new]
         self.assertEqual(after.evolves, (), "the entry-YAML edge must be retractable")
         self.assertEqual(self._graph()[old].evolved_by, ())
+        # ...and the CHECKER must agree it was a real edge. Every retract test in
+        # this class asserted reader behaviour only, which is how a false
+        # `dangling-retract` on entry-YAML edges lived undetected.
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
     def test_retract_and_retype_of_entry_yaml_edge_keeps_typed_replacement(self):
         # The backfill shape applied to an entry-YAML edge: the retract names
@@ -2145,6 +2201,7 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         g = self._graph()
         self.assertEqual(g[old].evolved_by, (new,))
         self.assertEqual(g[old].refined_by, (new,))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
     def test_retract_is_scoped_to_its_own_entry(self):
         # A sidecar keyed to one entry must not reach an identical edge another
@@ -2169,6 +2226,10 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         self.assertEqual(chunks[first].evolves, ())
         self.assertEqual(chunks[second].evolves, (old,), "another entry's edge is out of scope")
         self.assertEqual(self._graph()[old].evolved_by, (second,))
+        # The surviving second edge is legitimately untyped-evolves here, so the
+        # assertion is scoped: the retract itself must not read as dangling.
+        kinds = [i.kind for i in check_session_links(cwd=self.cwd).issues]
+        self.assertNotIn("dangling-retract", kinds)
 
     def test_decision_level_retract_reaches_an_entry_yaml_edge(self):
         # Same reach for a decision-level retract: `d1 -> X` authored in entry
@@ -2194,6 +2255,7 @@ class TypedEvolutionGraphTests(unittest.TestCase):
         self.assertEqual(after.evolves, ())
         self.assertNotIn(("evolves", "d1", old, "", ""), tuple(after.decision_edges))
         self.assertEqual(self._graph()[old].evolved_by, ())
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
 
 class RefinesSpineTests(unittest.TestCase):

@@ -11,8 +11,10 @@ from pathlib import Path
 from . import processes as process_tools
 from .core import (
     KNOWN_AGENTS,
+    RETRACTABLE_KINDS,
     add_agent,
     add_skill,
+    apply_link_retract,
     branch_status,
     check_session_links,
     clear_local_user,
@@ -597,6 +599,53 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="ENTRY_ID",
         help="source entry (default: the newest entry; older entries are refused)",
+    )
+    link_retract = link_sub.add_parser(
+        "retract",
+        help="retract a published lifecycle edge (append-only), optionally re-authoring it retyped",
+    )
+    link_retract.add_argument(
+        "kind",
+        choices=list(RETRACTABLE_KINDS),
+        help="the kind of edge being retracted, as it was authored",
+    )
+    link_retract.add_argument(
+        "ref",
+        help="the retracted edge's target: <entry_id>, <entry_id>:dN, or <entry_id>:d1,d3 "
+        "(the comma form fans out to one retract line per ordinal); may carry a 'dM -> ' "
+        "source prefix and a trailing '(type)' exactly as the edge was authored",
+    )
+    link_retract.add_argument(
+        "--from",
+        dest="from_entry",
+        required=True,
+        metavar="ENTRY_ID",
+        help="the edge's SOURCE entry - the entry whose dated link sidecar carries the correction",
+    )
+    link_retract.add_argument(
+        "--retype",
+        dest="retype",
+        default=None,
+        metavar="KIND_OR_TYPE",
+        help="re-author the same ref under a new kind (replaces/evolves/related_entries) or with an "
+        "evolution type (refines/builds-on) - the mandated fix for untyped-evolves, "
+        "unknown-evolution-type and multiple-refines-successors",
+    )
+    link_retract.add_argument(
+        "--note", dest="note", default=None, help="one-line note recorded beside the correction"
+    )
+    link_retract.add_argument(
+        "--date-pin",
+        dest="date_pin",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="the ORIGINAL declaration date, recorded on each retract line and validated against it",
+    )
+    link_retract.add_argument(
+        "--dry-run",
+        dest="retract_dry_run",
+        action="store_true",
+        help="validate and print the block that would be appended, writing nothing",
     )
     link_show = link_sub.add_parser(
         "show",
@@ -1836,6 +1885,43 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{source_id} already links to {target_id}; nothing to do.")
                 return 0
             print(f"Added related_entries edge {source_id} -> {target_id}")
+            print(f"  {result.path}")
+            check = check_session_links(cwd=cwd)
+            errors = [issue for issue in check.issues if issue.severity == "error"]
+            if errors:
+                print("links check reported errors after the write:", file=sys.stderr)
+                for issue in errors:
+                    print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
+                return 1
+            return 0
+        if args.link_command == "retract":
+            result = apply_link_retract(
+                cwd,
+                from_entry=args.from_entry,
+                kind=args.kind,
+                ref=args.ref,
+                retype=args.retype,
+                note=args.note,
+                date_pin=args.date_pin,
+                dry_run=args.retract_dry_run,
+            )
+            if not result.ok:
+                # Every guard reports at once: each line is independently
+                # fixable, so flattening them into one message would cost the
+                # caller a round trip per problem.
+                print("link retract refused; nothing was written:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  {issue}", file=sys.stderr)
+                return 1
+            if not result.written:
+                print(f"Would append to {result.path}:")
+                print()
+                print(result.rendered.rstrip())
+                return 0
+            for item in result.retracted:
+                print(f"Retracted {result.entry_id}: {item}")
+            if result.reauthored:
+                print(f"Re-authored under {result.reauthored_key}: {result.reauthored}")
             print(f"  {result.path}")
             check = check_session_links(cwd=cwd)
             errors = [issue for issue in check.issues if issue.severity == "error"]

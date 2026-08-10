@@ -56,8 +56,62 @@ note: hand-audit rule 5
   `(kind, dN, X, "")` — so retracting it removes both twins, or the decision edge would silently survive.
 - **`links check`** validates: `malformed-retract` (unparseable item); `dangling-retract` (names an edge
   the corpus never declared for this entry — nothing to remove); `retract-before-declaration` (filed
-  earlier than the edge it removes — forward-only, like every lifecycle statement).
+  earlier than the edge it removes — forward-only, like every lifecycle statement). "Declared" spans
+  BOTH surfaces an edge can be authored on — the entry's own YAML and the link sidecars. Reading only
+  the sidecar half (the shape shipped 2026-07-25) reported a false `dangling-retract` for every
+  entry-YAML edge — a refusal the reader had already stopped agreeing with on 2026-08-09, when
+  retracts gained their reach into entry YAML.
 - **Fuse**: the correction is a new block, so `session merge-branch` accepts it — no bypass needed.
+
+## The command
+
+Hand-formatting the correction block was the only way to author one until 2026-08-10, while
+retract-and-retype is the *mandated* fix for three `links check` errors — `untyped-evolves`,
+`unknown-evolution-type` and `multiple-refines-successors`. `link retract` (CLI) and
+`memory_link_retract` (MCP) write it:
+
+```
+memory-seed link retract <kind> <ref> --from <entry_id>
+    [--retype <kind-or-evolution-type>] [--note ...] [--date-pin YYYY-MM-DD] [--dry-run]
+```
+
+`--from` is the edge's SOURCE entry; its session date selects the sidecar file
+(`sessions/links/YYYY-MM/YYYY-MM-DD.md`), and the block heading carries the **authoring** wall clock, so
+a later correction joins the same entry rather than colliding with an earlier block — block identity is
+`(entry_id, heading timestamp)`. `<ref>` is spelled exactly as the edge was authored, arrow prefix and
+`(type)` suffix included. `--retype` names either an edge kind (`replaces` / `evolves` /
+`related_entries`) or an evolution type (`refines` / `builds-on`, which imply the `evolves:` key and ride
+as a trailing token); omitting it leaves a pure retraction.
+
+**Comma fan-out.** A retract names exactly ONE edge, so `mse_x:d1,d3` becomes one retract line per
+ordinal — while the re-authored line keeps the comma form, which the ordinary ref grammar allows:
+
+```yaml
+## 2026-08-10 12:00 - edge retracted and retyped
+
+entry_id: mse_source
+retracts:
+  - evolves mse_x:d1
+  - evolves mse_x:d3
+evolves:
+  - mse_x:d1,d3 (refines)
+```
+
+**Guards, all before any byte is written**, reported together so each is independently fixable: unknown
+kind or unparseable ref; unknown source entry; an edge the corpus never declared (the checker's
+`dangling-retract`, using the same vocabulary); a retraction that would pre-date its declaration; a
+`--date-pin` that is not the declaration date; a `refines` retype whose one successor slot **another**
+entry already holds (the holder is named — when the current holder is the very edge being retracted,
+that call IS the retype and is allowed); and a heading stamp already taken by a block for that entry.
+After a successful write the CLI re-runs `links check` and exits non-zero if the write introduced an
+error, the same contract `link add` carries. `--dry-run` / `dry_run` runs every guard and returns the
+rendered block without writing.
+
+`memory_link_retract` is the first MCP link-WRITE tool. It takes the same parameters, returns the
+`memory_session_append` shape (`ok` / `written` / `path` / `issues` / `rendered`, plus `retracted`,
+`reauthored` and `reauthored_key`), and carries **no** `merge_trigger` gate: an append-only correction
+lands nothing and publishes nothing, so the authorization the integrate path needs has no counterpart
+here. It refuses a `cwd` with no runtime rather than minting a phantom `.memory-seed/` tree.
 
 ## Deferred
 
