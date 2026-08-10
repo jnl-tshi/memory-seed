@@ -1709,6 +1709,35 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
     @pytest.mark.integration
+    def test_session_prepare_pr_branch_chronology_refusal_aborts_the_merge(self):
+        # prepare-pr mirrors merge-branch's whole flow, so it must mirror both
+        # the side attribution and the auto-abort - an unproved mirror is
+        # exactly where this bug would survive.
+        cwd = self.make_project()
+        self._non_chronological_base_link_sidecar(cwd)
+        # main has to move after the branch was cut, or merging it into the
+        # branch is an "already up to date" no-op that never reaches the fuse.
+        (cwd / "notes.txt").write_text("main moves on\n", encoding="utf-8")
+        self._commit_all(cwd, "unrelated main commit")
+        base_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "feature-merge")
+        branch_head = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        result = session_prepare_pr_branch(cwd=cwd, branch="feature-merge", base_branch="main")
+
+        self.assertFalse(result.ready)
+        self.assertTrue(result.issues)
+        self.assertIn("existing link sidecar blocks are not chronological", result.issues[0])
+        self.assertIn("BASE side", result.issues[0])
+        self.assertIn(base_sha[:7], result.issues[0])
+        self.assertTrue(result.merge_aborted)
+        self.assertFalse(result.merge_in_progress)
+        self.assertIn("merge aborted automatically; nothing was committed", result.issues)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), branch_head)
+
+    @pytest.mark.integration
     def test_session_open_pr_dry_run_returns_pr_body_plan(self):
         import unittest.mock
 
