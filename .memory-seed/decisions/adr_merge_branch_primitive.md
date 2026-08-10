@@ -33,6 +33,10 @@ No lifecycle edge has carried this decision forward, so it remains current. Rela
 
 Re-anchored from the control-file founding onto its session decision; related decisions recorded as context: mse_v26pem9hsvsbjbge:d3.
 
+### Awaiting review
+
+- `mse_j41ywke76agqw4yj:d1` - session merge-branch remains the one-step integration primitive, and its refusal exits now abort their own...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -152,3 +156,32 @@ Approved by JNL 2026-08-07: attach the related integration decision; head conver
 #### Reason
 
 Attaching the seven session-fuse chain members this concern was never given. Founded from a lineage pass that carried only one related decision, so it named 1 of its chain's 8 members.
+
+### revision-proposed - 2026-08-10T07:12:00
+
+```json
+{
+  "decision_ref": "mse_j41ywke76agqw4yj:d1",
+  "event_id": "adre_59894d6e06cd058259e8",
+  "predecessors": [
+    {
+      "decision": "mse_dr5eprnhrctqeeg3:d1",
+      "relation_assertion": "link:mse_j41ywke76agqw4yj:d1:evolves:mse_dr5eprnhrctqeeg3:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_j41ywke76agqw4yj"
+}
+```
+
+#### Decision
+
+session merge-branch remains the one-step integration primitive, and its refusal exits now abort their own half-started merge: any exit with merge_in_progress and no content conflicts runs git merge --abort and reports 'merge aborted automatically; nothing was committed'. Genuine non-session content conflicts are still left in progress for manual resolution, and a post-fuse commit failure does not abort (the fused tree is worth inspecting). Apply-phase refusal messages name the side whose copy was validated.
+
+#### Why
+
+A refusal's half-started merge holds no state a human can use - there are no conflict markers, only a rejection - and committing it would half-apply a changeset. The prior never-abort rule predates the refusal/conflict distinction; conflicts keep it, refusals do not. The side attribution closes the 2026-08-09 misdirection where a base-side chronology failure read as the branch's fault and the repair deadlocked.
+
+#### Evolution
+
+Refines the one-step primitive's failure contract; proposed by mse_ entry this event anchors to, pending JNL's acceptance.
