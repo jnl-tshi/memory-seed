@@ -413,6 +413,29 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
         self.assertNotIn(f"has current form {self.MID}:d1", text)
         # Flag only, and the wording has to keep saying so.
         self.assertIn("propose a revision or record reviewed-no-change", text)
+        # The preamble now names both answer paths concretely: the revision
+        # pair of CLI commands, and the MCP no-change review gate the CLI has
+        # no equivalent for.
+        self.assertIn("adr revise", text)
+        self.assertIn("adr transition", text)
+        self.assertIn('"no-change"', text)
+
+    def test_to_dict_carries_both_adr_queues_as_lists(self):
+        self._refines(self.MID, self.HEAD)
+        self._refines(self.TERMINUS, self.MID)
+        self._accepted_adr("adr_moved", self.HEAD)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        payload = report.to_dict()
+
+        self.assertIn("adr_attachment_candidates", payload)
+        self.assertIn("adr_head_reviews", payload)
+        self.assertIsInstance(payload["adr_attachment_candidates"], list)
+        self.assertIsInstance(payload["adr_head_reviews"], list)
+        # This scenario populates the review queue - prove the populated
+        # value, not just an empty list, reaches to_dict().
+        self.assertEqual(payload["adr_head_reviews"], report.adr_head_reviews)
+        self.assertTrue(payload["adr_head_reviews"])
 
     def test_head_without_a_successor_produces_nothing(self):
         # The edge exists in the corpus but touches a decision this ADR does
@@ -483,6 +506,199 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
         self.assertNotIn("## ADR review queue", text)
         self.assertIn("## Integrity (links check)", text)
         self.assertIn("## Topics", text)
+
+
+_MISSING = object()
+
+
+class ToDictCompletenessTests(unittest.TestCase):
+    """Every `EsrReport` dataclass field must be reachable in `to_dict()`.
+
+    Two fields (`adr_attachment_candidates`, `adr_head_reviews`) were added to
+    the dataclass without ever being added to `to_dict()` - `esr --json`
+    silently dropped both ADR queues. A field-by-field walk pins today's
+    shape (including its existing renames/nesting quirks) so the next
+    omission fails here instead of downstream in an automation consumer.
+    """
+
+    # field name -> path of keys into to_dict()'s output where that field's
+    # data lives. Most fields keep their own name at the top level; the
+    # entries below are the known exceptions (renames, or grouped under a
+    # nested bucket like "diagrams" / "worktrees" / "docs" / "semantic" /
+    # "integrity" / "topics" / "seed_twins").
+    FIELD_PATHS = {
+        "session_date": ("session_date",),
+        "integration_mode": ("integration_mode",),
+        "merge_trigger": ("merge_trigger",),
+        "integrity_ok": ("integrity", "ok"),
+        "integrity_issues": ("integrity", "issues"),
+        "topics_ok": ("topics", "ok"),
+        "topics_issues": ("topics", "issues"),
+        "link_gaps": ("link_gaps",),
+        "open_link_stubs": ("open_link_stubs",),
+        "oldest_open_link_stub": ("oldest_open_link_stub",),
+        "topic_attribution_gaps": ("topic_attribution_gaps",),
+        "oldest_topic_attribution_gap": ("oldest_topic_attribution_gap",),
+        "proposed_topics": ("proposed_topics",),
+        "worktrees": ("worktrees", "entries"),
+        "worktree_residues": ("worktrees", "residues"),
+        "worktrees_available": ("worktrees", "available"),
+        "seed_twins_checked": ("seed_twins", "checked"),
+        "seed_twin_drift": ("seed_twins", "drift"),
+        "docs_checked": ("docs", "checked"),
+        "docs_ok": ("docs", "ok"),
+        "docs_errors": ("docs", "errors"),
+        "docs_warning_count": ("docs", "warning_count"),
+        "semantic_available": ("semantic", "available"),
+        "semantic_provider": ("semantic", "provider"),
+        "semantic_unavailable_reason": ("semantic", "unavailable_reason"),
+        "diagrams_today": ("diagrams", "today"),
+        "entries_today": ("diagrams", "entries_today"),
+        "last_diagram_date": ("diagrams", "last_sidecar_date"),
+        "entries_since_last_diagram": ("diagrams", "entries_since_last_sidecar"),
+        "adrs_total": ("diagrams", "adrs_total"),
+        "adrs_without_diagram_answer": ("diagrams", "adrs_without_diagram_answer"),
+        "adrs_needing_diagram_rereview": ("diagrams", "adrs_needing_diagram_rereview"),
+        "skills_without_governing_adr": ("diagrams", "skills_without_governing_adr"),
+        "skills_with_dangling_governing_adr": ("diagrams", "skills_with_dangling_governing_adr"),
+        "adr_attachment_candidates": ("adr_attachment_candidates",),
+        "adr_head_reviews": ("adr_head_reviews",),
+    }
+
+    # Fields whose to_dict() representation is a transform of the raw
+    # dataclass objects (list[WorktreePosture] / list[WorktreeResidue] become
+    # list[dict]), so equality is checked structurally rather than by
+    # identity/equality of the raw field value.
+    TRANSFORMED = {"worktrees", "worktree_residues"}
+
+    @staticmethod
+    def _get_by_path(payload, path):
+        node = payload
+        for key in path:
+            if not isinstance(node, dict) or key not in node:
+                return _MISSING
+            node = node[key]
+        return node
+
+    def test_field_paths_cover_every_dataclass_field(self):
+        import dataclasses
+
+        from memory_seed.esr import EsrReport
+
+        field_names = {f.name for f in dataclasses.fields(EsrReport)}
+        self.assertEqual(
+            field_names,
+            set(self.FIELD_PATHS),
+            "EsrReport gained or lost a field - update FIELD_PATHS (and, if "
+            "gained, to_dict()) to match",
+        )
+
+    def test_every_field_is_reachable_in_to_dict(self):
+        from memory_seed.esr import EsrReport, WorktreePosture, WorktreeResidue
+
+        report = EsrReport(
+            session_date="2026-08-10",
+            integration_mode="pr",
+            merge_trigger="manual",
+            integrity_ok=False,
+            integrity_issues=["bad-link"],
+            topics_ok=False,
+            topics_issues=["bad-topic"],
+            link_gaps=[{"entry_id": "mse_x", "kind": "gap"}],
+            open_link_stubs=3,
+            oldest_open_link_stub="2026-01-01",
+            topic_attribution_gaps=2,
+            oldest_topic_attribution_gap="2026-01-02",
+            proposed_topics=["new-topic"],
+            worktrees=[WorktreePosture(
+                path="/wt/one", branch="claude/x", ahead=2, dirty=1, is_primary=False,
+            )],
+            worktree_residues=[WorktreeResidue(
+                path="/wt/orphan", namespace="ns", git_file_present=False,
+            )],
+            worktrees_available=True,
+            seed_twins_checked=True,
+            seed_twin_drift=["skill-x drifted"],
+            docs_checked=True,
+            docs_ok=False,
+            docs_errors=["broken-link: a.md"],
+            docs_warning_count=4,
+            semantic_available=False,
+            semantic_provider="local",
+            semantic_unavailable_reason="dependency missing",
+            diagrams_today=1,
+            entries_today=5,
+            last_diagram_date="2026-01-03",
+            entries_since_last_diagram=6,
+            adrs_total=7,
+            adrs_without_diagram_answer=8,
+            adrs_needing_diagram_rereview=9,
+            skills_without_governing_adr=["skill-a"],
+            skills_with_dangling_governing_adr=["skill-b"],
+            adr_attachment_candidates=["ADR adr_a: candidate ..."],
+            adr_head_reviews=["ADR adr_b: head ..."],
+        )
+
+        payload = report.to_dict()
+
+        import dataclasses
+
+        for f in dataclasses.fields(EsrReport):
+            path = self.FIELD_PATHS[f.name]
+            found = self._get_by_path(payload, path)
+            self.assertIsNot(
+                found, _MISSING,
+                f"field {f.name!r} not reachable at {path!r} in to_dict() output",
+            )
+            raw = getattr(report, f.name)
+            if f.name == "worktrees":
+                self.assertEqual(len(found), len(raw))
+                self.assertEqual(found[0]["path"], raw[0].path)
+                self.assertEqual(found[0]["branch"], raw[0].branch)
+            elif f.name == "worktree_residues":
+                self.assertEqual(len(found), len(raw))
+                self.assertEqual(found[0]["path"], raw[0].path)
+                self.assertEqual(found[0]["namespace"], raw[0].namespace)
+            else:
+                self.assertEqual(found, raw, f"field {f.name!r} value mismatch at {path!r}")
+
+
+class EsrJsonCliTests(unittest.TestCase):
+    """First CLI-level `esr --json` coverage: the flag must actually work,
+    end to end, not just via `EsrReport.to_dict()` called directly."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-esr-json-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+    def test_esr_json_flag_emits_parseable_json_with_both_adr_queue_keys(self):
+        import contextlib
+        import io
+        import json
+        import os
+
+        from memory_seed.cli import main as cli_main
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(self.cwd)
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = cli_main(["esr", "--date", "2026-06-01", "--json"])
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(exit_code, 0, stderr.getvalue())
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("adr_attachment_candidates", payload)
+        self.assertIn("adr_head_reviews", payload)
+        self.assertIsInstance(payload["adr_attachment_candidates"], list)
+        self.assertIsInstance(payload["adr_head_reviews"], list)
+        self.assertEqual(payload["session_date"], "2026-06-01")
 
 
 if __name__ == "__main__":

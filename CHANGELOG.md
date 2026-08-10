@@ -75,6 +75,13 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
+- **`esr --json` dropped both ADR queues, and the review-queue section named no runnable
+  command.** `EsrReport.to_dict()` omitted `adr_attachment_candidates` and `adr_head_reviews` -
+  now top-level keys, so `esr --json` automation can see them. The `## ADR review queue`
+  preamble now names both answer paths concretely: the `adr revise` / `adr transition` command
+  pair for a revision, and the MCP `memory_session_append` no-change review gate (the CLI has no
+  equivalent) for reviewed-no-change.
+
 - **The mandatory ADR review gate could be bypassed by a link shape it did not recognise.**
   `adr.lifecycle_targets` and the lifecycle-assertion builder both read only bare ref strings, so a
   structured link item read as "no lifecycle target" and the gate silently did not fire. Both now
