@@ -27,6 +27,17 @@ All notable changes to Memory Seed are summarized here.
   design. Promotes an assertion that had only ever lived in throwaway campaign scripts, despite
   catching two silent corruptions (the 807-edge vanishing, a +3 edge resurrection) that `links
   check` read as OK.
+- **`link retract` writes the append-only correction.** `memory-seed link retract <kind> <ref>
+  --from <entry_id> [--retype <kind-or-evolution-type>] [--note] [--date-pin] [--dry-run]` and its
+  MCP twin `memory_link_retract` — the first MCP link-write tool — append the `retracts:` block that
+  fixes `untyped-evolves`, `unknown-evolution-type` and `multiple-refines-successors`, which until
+  now was hand-formatted Markdown every time. A comma ref (`mse_x:d1,d3`) fans out to one retract
+  line per ordinal (a retract names exactly one edge) while the re-authored line keeps the comma
+  form. Every guard runs before a byte is written and they report together: unparseable ref, unknown
+  source entry, an edge the corpus never declared, a retraction that would pre-date its declaration,
+  a `--date-pin` that is not the declaration date, and a `refines` retype whose successor slot
+  another entry holds (named in the message). The CLI re-runs `links check` after the write.
+
 - **Retractions reach entry-YAML edges.** A link sidecar's `retracts:` now removes an edge authored
   in the entry's own YAML, not only edges declared in sidecar lists — previously a silent no-op
   covering 232 of the 807 evolution-type backfill edges. Scoped strictly to the retracting block's
@@ -89,6 +100,15 @@ All notable changes to Memory Seed are summarized here.
   preamble now names both answer paths concretely: the `adr revise` / `adr transition` command
   pair for a revision, and the MCP `memory_session_append` no-change review gate (the CLI has no
   equivalent) for reviewed-no-change.
+- **`dangling-retract` no longer fires on entry-YAML edges.** `links check` counted an edge as
+  "declared" only when a link *sidecar* declared it, so retracting an edge authored in the entry's
+  own YAML — which the reader has honoured since 2026-08-09 — was reported as a retraction of
+  nothing. Latent rather than observed: this corpus currently carries no such retract (its 179
+  issues are byte-identical before and after), but the refusal reproduces on a two-file fixture and
+  would have blocked every entry-YAML correction the new `link retract` writes. Both surfaces now
+  feed the declaration bookkeeping, with first-declaration-wins dates. Widening what counts as
+  declared can only remove false refusals: a retract naming an edge that exists nowhere is still an
+  error.
 
 - **The mandatory ADR review gate could be bypassed by a link shape it did not recognise.**
   `adr.lifecycle_targets` and the lifecycle-assertion builder both read only bare ref strings, so a

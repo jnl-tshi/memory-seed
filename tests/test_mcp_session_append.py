@@ -370,12 +370,18 @@ class McpWriteSurfaceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call_tool(name, {"cwd": ".", "entry_id": "x", "title": "t", "user_initials": "J", "agent_type": "c"})
 
-    def test_exactly_two_tools_can_write(self):
-        # Pins the write surface: authoring an entry, and integrating a branch.
-        # Anything else gaining a dry_run flag means a tool grew a write path
-        # that this change did not sanction.
+    def test_exactly_three_tools_can_write(self):
+        # Pins the write surface: authoring an entry, integrating a branch, and
+        # (2026-08-10) retracting a published edge - the first link WRITE tool,
+        # sanctioned because retract-and-retype is the mandated append-only fix
+        # for three links check errors and had no tooling at all. Anything else
+        # gaining a dry_run flag means a tool grew a write path this change did
+        # not sanction.
         writers = sorted(tool["name"] for tool in TOOLS if "dry_run" in tool["inputSchema"]["properties"])
-        self.assertEqual(writers, ["memory_session_append", "memory_session_integrate"])
+        self.assertEqual(
+            writers,
+            ["memory_link_retract", "memory_session_append", "memory_session_integrate"],
+        )
 
     def test_append_schema_advertises_the_required_authored_topic_envelope(self):
         append_tool = next(tool for tool in TOOLS if tool["name"] == "memory_session_append")
