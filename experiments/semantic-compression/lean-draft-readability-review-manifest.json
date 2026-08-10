@@ -1,0 +1,26 @@
+{
+  "schema": "lean-draft-readability-review-manifest.v1",
+  "reviewer_model": "gpt-5.6-terra",
+  "reasoning_effort": "high",
+  "input_access": "canonical-source-and-all-four-opaque-candidates-per-source",
+  "arm_labels_seen": false,
+  "masking_limit": "raw was recognizable by exact source match; candidate form and length could reveal treatment class",
+  "independence_limit": "four separate reviewer processes used the same model family; this is a structured audit, not independent human-reader evidence",
+  "ranking_results_seen": false,
+  "ratings_per_card": 2,
+  "adjudication": {
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "high",
+    "input_access": "canonical-source-disagreement-candidate-and-two-ratings-only",
+    "arm_labels_seen": false,
+    "ranking_results_seen": false,
+    "critical_disagreements": 4,
+    "adjudicated": 4
+  },
+  "assignments": {
+    "A0.json": {"batch": 0, "sha256": "sha256:c63e97de5ea56fd5adf4f4addbee94a1f2d7481d37c0d405109d0f6c150aaf1b"},
+    "B0.json": {"batch": 0, "sha256": "sha256:49ac0bb82e090d70df8452ef7baebafd0e89187f676092eb43b84bb673525a24"},
+    "A1.json": {"batch": 1, "sha256": "sha256:0456531e558f566d5b691f3e45e91989f73626cfbed7fc3505bba00494e90094"},
+    "B1.json": {"batch": 1, "sha256": "sha256:00283ecb78a4781f57a3dce333a9ed3ba5f85e360737f5323052ae12fd0ffc90"}
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "lean-draft-readability-adjudication.v1",
+  "adjudicator": "C",
+  "adjudications": [
+    {"card_id": "c_038218b3712306", "critical_error": true, "critical_reasons": ["adoption-status-loss"], "reason": "It omits the explicit Phase 2/disabled and optional-not-shipped boundaries for AI summarisation and lifecycle write features."},
+    {"card_id": "c_0b11755ac1fb3d", "critical_error": true, "critical_reasons": ["adoption-status-loss", "rationale-loss"], "reason": "It retains the accepted work but drops the authority rationale and the decisive non-shipped/optional feature boundaries."},
+    {"card_id": "c_7611456db673b8", "critical_error": true, "critical_reasons": ["adoption-status-loss"], "reason": "It removes the operative distinction that AI summarisation and lifecycle write actions were not shipped in Phase 1."},
+    {"card_id": "c_d01b721cfad14c", "critical_error": true, "critical_reasons": ["scope-boundary-loss"], "reason": "It omits the boundary that this benchmark must not route the shipped Graph tab through either candidate renderer."}
+  ]
+}

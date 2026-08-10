@@ -61,7 +61,16 @@ The composite is normalized:
 `utility / relative_context`, where utility is MRR and relative context is mean arm tokens divided
 by raw mean tokens. Raw measurements remain primary; the composite cannot override a fidelity fail.
 
-## Stage 2 tasks (planned; not yet preregistered, required before recommendation)
+## Stage 2 tasks (planned; not yet preregistered, required before production recommendation)
+
+The measured `lean-draft-*` feasibility pilot is **not** this confirmatory Stage 2. It tests a derived
+decision-block preview on 30 query/review targets, with model-assisted query authoring and fidelity
+ratings. Queries were hash-pinned before ranking; the corpus was already revision/fingerprint pinned.
+The selector hash was added after the first scored run, so it protects reproducibility now but cannot
+substantiate a pre-outcome selector freeze. The candidate audit hid arm labels, but source matching and
+candidate form made the raw arm recognizable. It does not test naturally authored drafts, human
+readers, whole-entry size, or delayed recall. See
+`lean-draft-design.md` and `lean-draft-results.md`.
 
 - Blinded comprehension questions: decided, why, constraint, affected component, behavior change.
 - Two independent fidelity judgments per item/arm: unsupported addition, omission, modality,
