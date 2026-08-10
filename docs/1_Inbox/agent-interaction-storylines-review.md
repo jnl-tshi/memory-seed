@@ -1,6 +1,6 @@
 # Agent Interaction Storylines: process and tool review
 
-Status: review snapshot (2026-08-09, post refines-critical-path tranche, v2.19 + unreleased)
+Status: Living document (updated 2026-08-10; kept true as storylines change)
 
 Every distinct way an agent interacts with Memory Seed, defined as a named **storyline**: what
 triggers it, the steps it walks, which tool surface carries each step (MCP / CLI / convention), a
@@ -8,7 +8,7 @@ diagram, and an evaluation. The final sections cross-cut: a tool inventory mappe
 surface-parity matrix, and a numbered list of redundancies and inefficiencies (**R1–R12**) with
 streamlining recommendations.
 
-Ground truth: `memory_seed/mcp_server.py` (18 MCP tools), `memory-seed --help` (CLI tree),
+Ground truth: `memory_seed/mcp_server.py` (19 MCP tools), `memory-seed --help` (CLI tree),
 `.memory-seed/skills/` (the prose that scripts each flow). Convention-only steps — ones no tool
 enforces — are marked, because they are where process drift starts.
 
@@ -182,8 +182,9 @@ re-reads the corpus several times across independent guards (**R5**).
 4. Orchestrator validates mechanically (quote grounding, ordinal existence, forward-only);
    the mechanical validator is the authority, never worker self-reports.
 5. Human batch approval — never write without it.
-6. Write approved edges to each source entry's own date sidecar; `links check`; graph-level
-   assertion for any bulk write (edge set unchanged; `links check` alone is NOT sufficient).
+6. Write approved edges to each source entry's own date sidecar; `links check`; then
+   `links graph-diff --snapshot` (taken before the write) `--against` (diffed after) as the
+   graph-level assertion for any bulk write — `links check` alone is NOT sufficient.
 
 **Tools**
 
@@ -194,7 +195,7 @@ re-reads the corpus several times across independent guards (**R5**).
 | Single-target ranking | MCP `memory_link_suggest`; CLI `link suggest` |
 | Judgment payloads | `--json` output (five projections carry chain-position flags) |
 | Write | Hand-authored sidecar blocks or campaign script; CLI `link add` (related only) |
-| Verify | CLI `links check` + graph assertion (script) |
+| Verify | CLI `links check` + `links graph-diff --snapshot`/`--against` — **no MCP twin** |
 
 ```mermaid
 flowchart TD
@@ -204,17 +205,20 @@ flowchart TD
     D --> E["Mechanical validation:<br/>quotes, ordinals,<br/>forward-only"]
     E --> F{"Human batch<br/>approval"}
     F -- rejected --> D
-    F -- approved --> G["Write sidecar blocks"]
-    G --> H{"links check +<br/>GRAPH assertion"}
-    H -- "edge set changed" --> I["Revert immediately"]
-    H -- unchanged --> J["Done"]
+    F -- approved --> G["links graph-diff<br/>--snapshot<br/>(before write)"]
+    G --> H["Write sidecar blocks"]
+    H --> I{"links check +<br/>graph-diff --against"}
+    I -- "edge set changed" --> J["Revert immediately"]
+    I -- unchanged --> K["Done"]
 ```
 
 **Evaluation.** The strongest lesson-encoding in the system: closed lists, agreement gating,
-mechanical authority, graph assertions — each one bought with a measured failure. Weaknesses: the
-graph assertion lives in throwaway campaign scripts, not in a tool (**R4**); the whole storyline is
-CLI-only (**R8**); audit rebuilds corpus+spine+graph on every call even inside ESR, which just
-built them (**R5**).
+mechanical authority, graph assertions — each one bought with a measured failure. **R4 CLOSED**:
+`links graph-diff --snapshot`/`--against` moves the "edge set unchanged" assertion out of
+throwaway campaign scripts and into a tool every write can call the same way. Weaknesses: the new
+command shipped CLI-only, which *enlarges* the surface split rather than closing it — the whole
+storyline (candidates, stubs, and now the graph assertion) is CLI-only (**R8**); audit rebuilds
+corpus+spine+graph on every call even inside ESR, which just built them (**R5**).
 
 ---
 
@@ -224,37 +228,42 @@ built them (**R5**).
 
 **Flow**
 
-1. Never edit the published block. Author a NEW sidecar block keyed to the same entry.
-2. `retracts:` names the exact edge (kind + ref, optionally pinned by date); one retract per edge
-   (comma multi-ordinal refs expand to one line per ordinal).
-3. A downgrade pairs the retract with a fresh edge of the new kind in the same block
-   (retract-and-retype); the surviving-projection rule keeps the replacement's entry-level view.
-4. Since this tranche, retracts reach entry-YAML edges too, scoped to the same entry.
+1. Never edit the published block. `link retract` (CLI) or `memory_link_retract` (MCP) appends a
+   NEW sidecar block keyed to the same entry — no hand-authoring.
+2. The command names the exact edge (kind + ref, optionally pinned by date) and writes a
+   validated `retracts:` line; one retract per edge (comma multi-ordinal refs expand to one line
+   per ordinal, `--dry-run` previews the block before it lands).
+3. A downgrade is `--retype`: the tool pairs the retract with a fresh edge of the new kind in the
+   same block (retract-and-retype); the surviving-projection rule keeps the replacement's
+   entry-level view.
+4. Retracts reach entry-YAML edges too, scoped to the same entry — the same command, no branching.
 5. `links check` validates (malformed / dangling / forward-only retracts; the untyped-evolves
-   error is closable only this way).
+   error is closable only this way) — now a confirmation of what the command already
+   pre-validated, not the first gate the block meets.
 
 **Tools**
 
 | Step | Surface |
 |------|---------|
-| Author retract block | **Hand-authored markdown only — no tool on any surface** |
+| Author retract block | CLI `link retract`; MCP `memory_link_retract` |
 | Validate | CLI `links check`; MCP `memory_topics_check` (topic retracts) |
 
 ```mermaid
 flowchart TD
-    A["Published edge<br/>is wrong"] --> B["New sidecar block,<br/>same entry_id"]
-    B --> C["retracts:<br/>kind + exact ref"]
-    C -- downgrade --> E["Re-author edge with<br/>new kind, same block"]
-    C -- delete --> F["Retract stands alone"]
+    A["Published edge<br/>is wrong"] --> B["link retract /<br/>memory_link_retract"]
+    B --> C["Command validates<br/>+ writes retracts: line"]
+    C -- "--retype" --> E["Re-authored edge,<br/>new kind, same block"]
+    C -- "no retype" --> F["Retract stands alone"]
     E --> G["links check"]
     F --> G
 ```
 
 **Evaluation.** The append-only semantics are now complete (entry-YAML reach closed the last silent
-no-op). But this is the **only storyline with zero tool support for its write step** — every
-retract in the corpus was hand-formatted, and the backfill campaigns had to script the block
-grammar themselves (**R3**). Given retract-and-retype is now the mandated fix for three different
-`links check` errors, a `link retract` command is the clearest single gap in the toolset.
+no-op), and the **zero-tool gap is CLOSED (R3)**: `link retract` / `memory_link_retract` write the
+correctly-grammared block on both surfaces, with a `--dry-run` pre-validation pass so a malformed
+retract never reaches the sidecar in the first place — `links check` is now a second, independent
+confirmation rather than the only gate. Retract-and-retype (`--retype`) is the mandated fix for
+three different `links check` errors, so this closes the clearest single gap the toolset had.
 
 ---
 
@@ -269,9 +278,14 @@ grammar themselves (**R3**). Given retract-and-retype is now the mandated fix fo
    `adr transition`). Machine edges NEVER move heads.
 3. Standing review inputs, all mechanical, all flag-only:
    - **ADR review queue** (new): head has a `refines` successor → propose a revision or record
-     reviewed-no-change.
+     reviewed-no-change. The preamble names both answer paths verbatim: the revision path
+     (author the successor decision, then `adr revise` + `adr transition`) and the
+     reviewed-no-change path (MCP `memory_session_append`'s review gate, `{"outcome": "no-change",
+     "reason": ...}` — the CLI has no equivalent).
    - **Attachment candidates**: ADRs with no decision, ranked topic-gated + ungated.
    - **Diagram review**: `needs-diagram-review` when evolution invalidates the answer.
+   - Both queues are now also machine-readable: `esr --json` carries `adr_attachment_candidates`
+     and `adr_head_reviews` as top-level keys, not prose-only.
 4. Write-time interlock with S3: touching an ADR-attached decision's lifecycle fires the mandatory
    review gate (`memory_adr_review`).
 5. Validate: `adr check` / `memory_adrs_check`.
@@ -302,10 +316,14 @@ flowchart TD
 ```
 
 **Evaluation.** The flag-only / authored-move split is consistently enforced and now has a
-deterministic trigger (the refines spine) instead of keyword sweeps. Weaknesses: ADR *write*
+deterministic trigger (the refines spine) instead of keyword sweeps. **R7 CLOSED**: both ESR
+queues reach `esr --json` / `to_dict()` as `adr_attachment_candidates` and `adr_head_reviews`, so
+automation can consume them without scraping prose. **R9 CLOSED for this queue**: the review-queue
+preamble now names both answering commands verbatim (see step 3). Weaknesses: ADR *write*
 operations are CLI-only while the review *gate* is MCP — an MCP-context agent can be asked a
-question it cannot answer on the same surface (**R8**); neither ESR queue reaches `esr --json` /
-`to_dict()` (**R7**).
+question it cannot answer on the same surface (**R8**); reviewed-no-change still has no standalone
+recorder on any surface, only the MCP review-gate route through a full session entry (design
+proposal filed, see `docs/2_Todo/adr-reviewed-recorder-proposal.md`).
 
 ---
 
@@ -327,7 +345,7 @@ question it cannot answer on the same surface (**R8**); neither ESR queue reache
 
 | Step | Surface |
 |------|---------|
-| Report | CLI `esr` — **no MCP twin**; sections partly missing from `--json` |
+| Report | CLI `esr` — **no MCP twin**; `--json` now carries `adr_attachment_candidates` + `adr_head_reviews` alongside the other sections |
 | Per-section follow-ups | The storyline tools of S3/S4/S6 |
 
 ```mermaid
@@ -343,10 +361,13 @@ flowchart TD
     F --> B
 ```
 
-**Evaluation.** One command, one report, everything deterministic — the right shape. Weaknesses:
-ESR internally rebuilds the corpus for nearly every section (integrity, gaps, spine, attachment
-search — measured 4+ full corpus builds per run, **R5**); nothing routes an agent from a queue
-line to the action that answers it (**R9**); JSON projection incomplete (**R7**).
+**Evaluation.** One command, one report, everything deterministic — the right shape. **R7 CLOSED**:
+the ADR attachment-candidates and review-queue sections are now first-class `--json` keys, not
+prose-only, so automation consuming the report no longer has to re-derive them. **R9 CLOSED**: the
+ADR review queue line now names its own answering commands rather than leaving the agent to guess
+which surface answers "revision or reviewed-no-change". Weaknesses: ESR internally rebuilds the
+corpus for nearly every section (integrity, gaps, spine, attachment search — measured 4+ full
+corpus builds per run, **R5**).
 
 ---
 
@@ -361,9 +382,19 @@ line to the action that answers it (**R9**); JSON projection incomplete (**R7**)
 2. `session merge-branch --branch <b>` from the primary: validates the branch's entries and
    sidecars **with main's parser**, imports them block-by-block, git-merges code, stamps
    `Memory-Entry` trailers, deregisters the source worktree.
-3. Failure paths (all hit this session): non-chronological sidecar on MAIN blocks the fuse (repair
-   must land on main first); a refusal leaves a PARTIAL merge in progress (always abort, never
-   commit it); schema/parser changes must merge BEFORE data that needs them.
+3. Failure paths (all hit this session, now revised):
+   - Non-chronological sidecar (or any other fuse/staging refusal) on MAIN blocks the fuse — the
+     refusal message says WHICH side it validated (`the BASE side` vs `branch <label>`, gated on
+     both "the working tree was reset to base" and "the path exists on base") so a repair lands on
+     the correct side, not reflexively on the branch.
+   - That same class of refusal now **auto-aborts its own merge**: `git merge --abort` runs
+     automatically and the result reports `merge aborted automatically; nothing was committed`.
+   - A GENUINE non-session content conflict is the one case still left in progress, for the named
+     conflict owner to resolve by hand — it is not a refusal this code path can auto-resolve.
+   - A post-fuse `git commit` failure also leaves the merge in progress (the fused tree is worth
+     inspecting before deciding how to proceed) — this is a narrow, deliberate exception, not a
+     gap.
+   - Schema/parser changes must still merge BEFORE data that needs them.
 4. Post-merge: worktree dir needs manual cleanup on Windows (`rm -rf`); delete the merged branch;
    verify the changeset actually landed.
 
@@ -381,33 +412,38 @@ flowchart TD
     B -- no --> C["Hand the merge<br/>to JNL"]
     B -- yes --> D["session merge-branch"]
     D --> E{"Fuse validation<br/>on MAIN's files"}
-    E -- blocked --> F["git merge --abort;<br/>fix on main, retry"]
-    E -- ok --> G["Entries + sidecars<br/>imported,<br/>trailers stamped"]
-    G --> H["Worktree deregistered;<br/>rm -rf dir,<br/>delete branch"]
-    H --> I["Verify landed<br/>on main"]
+    E -- "refusal (BASE-<br/>or branch-attributed)" --> F["Auto-abort:<br/>merge --abort,<br/>nothing committed"]
+    E -- "genuine content<br/>conflict" --> G["Left in progress<br/>for conflict owner"]
+    E -- "commit fails<br/>after fuse" --> H["Left in progress;<br/>fused tree worth<br/>inspecting"]
+    E -- ok --> I["Entries + sidecars<br/>imported,<br/>trailers stamped"]
+    I --> J["Worktree deregistered;<br/>rm -rf dir,<br/>delete branch"]
+    J --> K["Verify landed<br/>on main"]
 ```
 
 **Evaluation.** The fuse's validation is the right gate and trailer stamping preserves provenance.
-Weaknesses: the fuse validates main's copy but reports the failure as if it were the branch's,
-which cost a full misdirected repair cycle this session (**R10**); refusal leaves a partial git
-merge rather than auto-aborting (**R11**); worktree cleanup is manual-by-known-bug (**R12**).
+**R10 CLOSED**: every refusal now carries side attribution, double-gated on "was the working tree
+reset to base" and "does the path exist on base", so a BASE-side repair is never misdirected onto
+the branch. **R11 CLOSED**: a refusal auto-aborts its own half-started merge instead of leaving
+`MERGE_HEAD` behind — genuine content conflicts are still (correctly) left in progress for their
+named owner, and a post-fuse commit failure is the one deliberate exception, also left in progress
+so the fused tree can be inspected. Weaknesses: worktree cleanup is manual-by-known-bug (**R12**).
 
 ---
 
 ## Cross-cutting: tool inventory by storyline
 
-**MCP (18):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve` (S2);
+**MCP (19):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve` (S2);
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
-`memory_adr_review` (S3); `memory_link_show` (S2/S4); `memory_adr_show`, `memory_adrs_list`,
-`memory_adrs_check` (S6); `memory_branch_status`, `memory_worktree_guard`,
+`memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
+`memory_adrs_list`, `memory_adrs_check` (S6); `memory_branch_status`, `memory_worktree_guard`,
 `memory_session_fuse_preview`, `memory_session_integrate` (S1/S8); `memory_dir` (infra).
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
-show/commits`, `links check` (S4); `adr promote/revise/transition/show/list/check` (S6); `esr`,
-`docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8). Setup/maintenance
-(`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `migrate`, `encoding`, `doctor`,
-`version`, `help`, `processes`, `shutdown`) sit outside the storylines.
+retract/show/commits`, `links check/graph-diff` (S4/S5); `adr promote/revise/transition/show/list/
+check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8).
+Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `migrate`, `encoding`,
+`doctor`, `version`, `help`, `processes`, `shutdown`) sit outside the storylines.
 
 **Surface parity matrix** (✓ = exists, — = missing):
 
@@ -419,11 +455,12 @@ show/commits`, `links check` (S4); `adr promote/revise/transition/show/list/chec
 | Entry append + guards | ✓ | ✓ |
 | Candidate ranking (one target) | ✓ | ✓ |
 | Gap audit (corpus sweep) | — | ✓ |
-| Edge retract | — | — |
+| Edge retract | ✓ | ✓ |
+| Graph snapshot/diff | — | ✓ |
 | ADR read / check | ✓ | ✓ |
 | ADR write (promote/revise/transition) | — | ✓ |
 | ADR review gate | ✓ | — |
-| ESR report | — | ✓ |
+| ESR report | — | ✓ (`--json` now carries both ADR queues — see R7) |
 | Merge / integrate | ✓ | ✓ |
 
 ---
@@ -441,9 +478,13 @@ show/commits`, `links check` (S4); `adr promote/revise/transition/show/list/chec
 - **R3 — No retract tool (S5's write step is bare markdown).** Three `links check` errors name
   retract-and-retype as their fix, yet the fix has no command. *Recommend:* `link retract <kind>
   <ref> [--retype <kind>]` writing the correctly-grammared block; MCP twin.
+  **RESOLVED (2026-08-10)** — `link retract` (CLI) and `memory_link_retract` (MCP) ship as twins,
+  both validate and support `--retype` and `--dry-run`, and both reach entry-YAML edges.
 - **R4 — Graph assertions live in throwaway scripts.** Every bulk sidecar write re-implements
   "edge set unchanged" by hand; `links check` cannot see it (proven twice). *Recommend:* a
   `links graph-diff` command (before/after snapshot + assert) so campaigns stop copy-pasting it.
+  **RESOLVED (2026-08-10)** — `links graph-diff --snapshot`/`--against` (`--json` for scripted
+  assertions) ships CLI-only; no MCP twin, so it also widens R8 rather than closing it.
 - **R5 — Repeated corpus builds inside one operation.** `esr` builds the corpus/spine 4+ times
   across sections; `links check` parses files once and then builds the effective corpus again for
   the chain/untyped passes; one `session append` runs several independent corpus scans (refines
@@ -455,6 +496,8 @@ show/commits`, `links check` (S4); `adr promote/revise/transition/show/list/chec
   the envelope declares no lifecycle links — a nudge, not a gate.
 - **R7 — `esr --json` / `to_dict()` omit the two ADR queues.** Attachment candidates and the
   review queue render only in prose; automation can't consume them. *Recommend:* add both fields.
+  **RESOLVED (2026-08-10)** — both fields shipped: `adr_attachment_candidates` and
+  `adr_head_reviews` are top-level keys on `esr --json` / `EsrReport.to_dict()`.
 - **R8 — Surface split mid-storyline.** Search (MCP-only) → chain view (CLI-only) in S2; review
   gate (MCP) → revision write (CLI) in S6; the whole of S4 and S7 CLI-only. Where a storyline
   crosses surfaces, an agent confined to one stalls. *Recommend:* MCP twins for `links chain`,
@@ -462,16 +505,31 @@ show/commits`, `links check` (S4); `adr promote/revise/transition/show/list/chec
 - **R9 — Queues don't route to their answers.** ESR's review-queue line tells the agent what is
   stale but not which command records reviewed-no-change vs proposes a revision. *Recommend:* each
   queue line carries its answering command verbatim.
+  **RESOLVED (2026-08-10)** — the ADR review-queue preamble now names both answer paths verbatim
+  (the `adr revise`/`adr transition` revision path and the MCP `memory_session_append`
+  reviewed-no-change path); the reviewed-no-change side still has no standalone recorder command
+  (see `docs/2_Todo/adr-reviewed-recorder-proposal.md`, design only).
 - **R10 — Fuse failure misattributes the faulty side.** "Existing link sidecar blocks are not
   chronological" names the file but not that MAIN's copy (not the branch's) is what was validated;
   the natural fix-on-branch response deadlocks. *Recommend:* the message says which side failed
   and that the repair must land on main.
+  **RESOLVED (2026-08-10)** — refusal messages now name the validated side (BASE at the reset
+  commit, or the branch's contribution), double-gated on the fuse having actually reset the
+  working tree to base AND the path existing on base, so the attribution is never asserted
+  speculatively.
 - **R11 — Fuse refusal leaves a partial merge.** The blocked merge stays in progress with a
   partial stage; committing it would half-apply. *Recommend:* auto-abort on refusal.
+  **RESOLVED (2026-08-10)** — refusals now auto-run `git merge --abort` and report it; only a
+  genuine non-session content conflict (no refusal to auto-resolve) and a post-fuse commit failure
+  (deliberate — the fused tree is worth inspecting) still leave the merge in progress.
 - **R12 — Manual worktree residue.** `git worktree remove` fails on Windows, so every LAND ends
   with a known manual `rm -rf`. Already tracked as a platform quirk; fold the cleanup into
   merge-branch's own post-merge step with the same fallback.
 
-**Priority if streamlining now:** R3 and R4 (they harden S5/S4, the two storylines that have
-actually corrupted the graph before), then R5 (cost grows with corpus size), then R8/R7 (surface
-completeness), then the ergonomics (R1, R2, R6, R9–R12).
+**Priority if streamlining now:** six of twelve items closed this tranche (R3, R4, R7, R9, R10,
+R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
+ESR ADR queues are JSON-visible and self-routing, and S8's two worst failure modes (misattribution,
+stranded merges) are fixed. What remains: **R8** (surface split) is now the sharpest item — R4
+shipped CLI-only and *enlarged* it rather than shrinking it, on top of the pre-existing
+search/chain, review-gate/revision-write, and whole-storyline splits; then **R5** (repeated corpus
+builds, cost grows with corpus size); then the ergonomics (**R1**, **R2**, **R6**, **R12**).
