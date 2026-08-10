@@ -128,3 +128,21 @@ Converges the original partitioned-authority proposal and decision-envelope lens
 #### Reason
 
 Accepted as the intended converged authority boundary.
+
+### reviewed-no-change - 2026-08-10T13:00:00
+
+```json
+{
+  "decision_ref": "mse_axkrkd339br970kw:d2",
+  "event_id": "adre_2d9a35247b08eb9beb22",
+  "matched_decisions": [
+    "mse_17d0qqh34a07qp5b:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_axkrkd339br970kw"
+}
+```
+
+#### Reason
+
+CLI parity and the standalone recorder preserve the existing split: session entries remain detailed evidence authority while ADRs curate concern-specific heads and synopsis.

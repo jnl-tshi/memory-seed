@@ -5,7 +5,7 @@ import io
 import json
 import re
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from . import processes as process_tools
@@ -392,6 +392,11 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--timestamp", default=None, help="override heading timestamp 'YYYY-MM-DD HH:MM' (default: now)")
     session_append_parser.add_argument("--user", default=None, help="override the active user slug")
     session_append_parser.add_argument("--body-file", default=None, help="file containing the entry body (default: read stdin)")
+    session_append_parser.add_argument(
+        "--adr-review-receipt",
+        default=None,
+        help="content-bound receipt returned by a refused lifecycle-linked append preflight",
+    )
     session_append_parser.add_argument("--dry-run", action="store_true", help="run every guard and report the id, timestamp and target path without writing")
     session_reorder_parser = session_sub.add_parser(
         "reorder",
@@ -457,6 +462,14 @@ def main(argv: list[str] | None = None) -> int:
     adr_transition.add_argument("--reason", default="")
     adr_transition.add_argument("--timestamp", default=None, help="UTC ISO timestamp; default: now")
     adr_transition.add_argument("--dry-run", action="store_true")
+    adr_reviewed = adr_sub.add_parser(
+        "reviewed", help="record reviewed-no-change against an existing evidence entry"
+    )
+    adr_reviewed.add_argument("--adr-id", required=True)
+    adr_reviewed.add_argument("--entry", required=True, help="existing session entry that evidences the review")
+    adr_reviewed.add_argument("--reason", required=True, help="why the ADR head remains current")
+    adr_reviewed.add_argument("--timestamp", default=None, help="UTC ISO timestamp; default: now")
+    adr_reviewed.add_argument("--dry-run", action="store_true")
     adr_show = adr_sub.add_parser("show", help="show one ADR and its derived current status")
     adr_show.add_argument("adr_id")
     adr_show.add_argument("--json", action="store_true")
@@ -935,6 +948,7 @@ def main(argv: list[str] | None = None) -> int:
             iter_adrs,
             parse_adr,
             promote_decision,
+            record_reviewed_no_change,
             revise_adr,
             transition_adr,
         )
@@ -998,6 +1012,15 @@ def main(argv: list[str] | None = None) -> int:
                 expected_previous_status=args.expected_previous_status,
                 source=args.source,
                 replacement_adr=args.replacement_adr,
+                reason=args.reason,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+        elif args.adr_command == "reviewed":
+            result = record_reviewed_no_change(
+                cwd,
+                adr_id=args.adr_id,
+                entry_id=args.entry,
                 reason=args.reason,
                 timestamp=args.timestamp,
                 dry_run=args.dry_run,
@@ -1482,6 +1505,38 @@ def main(argv: list[str] | None = None) -> int:
                             refs.append(part)
                 return tuple(refs)
 
+            # CLI and MCP share one content-bound ADR review preflight. The
+            # first lifecycle-linked call prints the exact receipt and full ADR
+            # contexts, writes zero bytes, and the retry supplies outcomes in
+            # --decisions-file plus --adr-review-receipt.
+            from .adr import append_review_proposal, preflight_append_adr_review
+
+            append_timestamp = args.timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
+            proposal = append_review_proposal(
+                title=args.title,
+                body=body,
+                timestamp=append_timestamp,
+                user_initials=args.user_initials,
+                agent_type=args.agent_type,
+                decisions=decisions,
+            )
+            review = preflight_append_adr_review(
+                Path(".").resolve(),
+                proposal=proposal,
+                decisions=decisions,
+                supplied_receipt=args.adr_review_receipt,
+            )
+            if not review.ok:
+                print("Append refused:", file=sys.stderr)
+                for issue in review.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                print(f"ADR review receipt: {review.receipt}", file=sys.stderr)
+                print(f"Timestamp: {append_timestamp}", file=sys.stderr)
+                print("Lifecycle targets: " + ", ".join(review.targets), file=sys.stderr)
+                print("Matched ADRs:", file=sys.stderr)
+                print(json.dumps(list(review.contexts), indent=2), file=sys.stderr)
+                return 1
+
             result = session_append_entry(
                 cwd=Path(".").resolve(),
                 title=args.title,
@@ -1493,11 +1548,13 @@ def main(argv: list[str] | None = None) -> int:
                 replaces=_ref_list(args.replaces),
                 evolves=_ref_list(args.evolves),
                 decisions=decisions,
+                adr_review_contexts=review.contexts,
+                adr_review_outcomes=review.outcomes,
                 project_path=args.project_path,
                 subproject_path=args.subproject_path,
                 branch=args.branch,
                 auto_branch=not args.no_branch,
-                timestamp=args.timestamp,
+                timestamp=append_timestamp,
                 explicit_user=args.user,
                 dry_run=args.dry_run,
             )

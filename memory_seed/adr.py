@@ -174,6 +174,19 @@ class AdrOperationResult:
     rendered: str | None = None
 
 
+@dataclass(frozen=True)
+class AdrAppendReviewPreflight:
+    """Shared ADR review result for CLI and MCP session append surfaces."""
+
+    ok: bool
+    review_required: bool
+    receipt: str
+    targets: tuple[str, ...]
+    contexts: tuple[dict[str, Any], ...]
+    outcomes: dict[str, tuple[str, dict[str, Any]]]
+    issues: tuple[str, ...] = ()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -914,6 +927,107 @@ def review_receipt(cwd: str | Path, *, proposal: Mapping[str, Any], contexts: Se
     return "adrr_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def append_review_proposal(
+    *,
+    title: Any,
+    body: str,
+    timestamp: str,
+    user_initials: Any,
+    agent_type: Any,
+    decisions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build the content-bound proposal used by every append review surface."""
+    receipt_decisions = [
+        {key: value for key, value in item.items() if key != "adrs"}
+        if isinstance(item, Mapping)
+        else item
+        for item in decisions
+    ]
+    return {
+        "title": title,
+        "body": body,
+        "timestamp": timestamp,
+        "user_initials": user_initials,
+        "agent_type": agent_type,
+        "decisions": receipt_decisions,
+    }
+
+
+def preflight_append_adr_review(
+    cwd: str | Path,
+    *,
+    proposal: Mapping[str, Any],
+    decisions: Sequence[Mapping[str, Any]],
+    supplied_receipt: str | None = None,
+) -> AdrAppendReviewPreflight:
+    """Run the mandatory lifecycle-linked ADR review gate once for all surfaces."""
+    targets = lifecycle_targets(cwd, decisions)
+    contexts = tuple(adr_review_context(cwd, targets))
+    expected_receipt = review_receipt(cwd, proposal=proposal, contexts=contexts)
+    outcomes: dict[str, tuple[str, dict[str, Any]]] = {}
+    duplicate_outcomes: set[str] = set()
+    malformed_outcomes: list[str] = []
+    for decision_item in decisions:
+        if not isinstance(decision_item, Mapping):
+            continue
+        ordinal = str(decision_item.get("decision", ""))
+        actions = decision_item.get("adrs", [])
+        for action in actions if isinstance(actions, list) else []:
+            if not isinstance(action, dict) or not isinstance(action.get("adr_id"), str):
+                continue
+            adr_id = action["adr_id"]
+            if adr_id in outcomes:
+                duplicate_outcomes.add(adr_id)
+            outcomes[adr_id] = (ordinal, action)
+            outcome = action.get("outcome")
+            if outcome not in {"revise", "no-change"}:
+                malformed_outcomes.append(
+                    f"ADR {adr_id} outcome must be revise or no-change"
+                )
+            elif outcome == "revise" and not all(
+                isinstance(action.get(field), str) and action[field].strip()
+                for field in ("decision", "why", "evolution")
+            ):
+                malformed_outcomes.append(
+                    f"ADR {adr_id} revise outcome requires non-empty decision, why, and evolution"
+                )
+            if outcome == "no-change" and not (
+                isinstance(action.get("reason"), str) and action["reason"].strip()
+            ):
+                malformed_outcomes.append(
+                    f"ADR {adr_id} no-change outcome requires a non-empty reason"
+                )
+
+    matched_ids = {str(item["adr_id"]) for item in contexts}
+    supplied_ids = set(outcomes)
+    receipt_ok = supplied_receipt == expected_receipt
+    outcomes_ok = supplied_ids == matched_ids and not duplicate_outcomes and not malformed_outcomes
+    review_attempted = bool(contexts or supplied_ids or supplied_receipt)
+    if not review_attempted or (contexts and receipt_ok and outcomes_ok):
+        return AdrAppendReviewPreflight(
+            True, False, expected_receipt, targets, contexts, outcomes, ()
+        )
+
+    issues = ["ADR review is required before this lifecycle-linked session entry can be written"]
+    if supplied_receipt and not receipt_ok:
+        issues.append(
+            "adr_review_receipt is stale or does not match the proposed entry and current ADR ledgers"
+        )
+    if supplied_ids != matched_ids:
+        missing = sorted(matched_ids - supplied_ids)
+        extra = sorted(supplied_ids - matched_ids)
+        if missing:
+            issues.append("missing ADR review outcome(s): " + ", ".join(missing))
+        if extra:
+            issues.append("unexpected ADR review outcome(s): " + ", ".join(extra))
+    if duplicate_outcomes:
+        issues.append("duplicated ADR review outcome(s): " + ", ".join(sorted(duplicate_outcomes)))
+    issues.extend(malformed_outcomes)
+    return AdrAppendReviewPreflight(
+        False, True, expected_receipt, targets, contexts, outcomes, tuple(issues)
+    )
+
+
 def _save(record: AdrRecord, cwd: str | Path, dry_run: bool, *, pending_decisions: Sequence[str] = (), pending_entries: Sequence[str] = ()) -> AdrOperationResult:
     path = record.path or resolve_runtime(cwd).memory_dir / "decisions" / f"{record.adr_id}.md"
     record.path = path
@@ -1027,6 +1141,53 @@ def append_outcome_event(record: AdrRecord, *, outcome: Mapping[str, Any], decis
         event = AdrEvent("reviewed-no-change", _event_id(record.adr_id, "no-change", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, matched_decisions=tuple(matched_decisions), reason=str(outcome.get("reason", "")))
     if event is not None and all(existing.event_id != event.event_id for existing in record.events):
         record.events.append(event)
+
+
+def record_reviewed_no_change(
+    cwd: str | Path = ".",
+    *,
+    adr_id: str,
+    entry_id: str,
+    reason: str,
+    timestamp: str | None = None,
+    dry_run: bool = False,
+) -> AdrOperationResult:
+    """Record that an ADR head was reviewed and remains current.
+
+    The named existing entry is the evidence/provenance anchor. The reviewed
+    decision is the ADR's current head, so this event records no new lineage
+    membership and cannot move authority or status.
+    """
+    path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
+    if not path.exists():
+        return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
+    if not reason.strip():
+        return AdrOperationResult(
+            False, path, adr_id, issues=("reviewed-no-change requires a non-empty reason",)
+        )
+    known_entries, _ = _entry_decisions(cwd)
+    if entry_id not in known_entries:
+        return AdrOperationResult(
+            False, path, adr_id, issues=(f"review evidence references missing entry {entry_id}",)
+        )
+    record, existing_issues = load_adr_for_write(path, cwd)
+    if record is None:
+        return AdrOperationResult(False, path, adr_id, issues=existing_issues)
+    reviewed_decision = record.authoritative_decision or record.current_decision
+    if not reviewed_decision or reviewed_decision not in adr_membership(record):
+        return AdrOperationResult(
+            False, path, adr_id, issues=("ADR has no reviewable current decision",)
+        )
+    stamp = timestamp or _now()
+    append_outcome_event(
+        record,
+        outcome={"outcome": "no-change", "reason": reason.strip()},
+        decision_ref=reviewed_decision,
+        matched_decisions=(reviewed_decision,),
+        update_entry_id=entry_id,
+        timestamp=stamp,
+    )
+    return _save(record, cwd, dry_run)
 
 
 def check_adrs(cwd: str | Path = ".") -> tuple[bool, list[str]]:

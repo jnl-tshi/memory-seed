@@ -2,16 +2,16 @@
 title: "ADR reviewed-no-change recorder proposal"
 date: "2026-08-10"
 project: "memory-seed"
-status: "proposed - design only, not built"
+status: "completed - option (a) shipped"
 priority: "P2"
-next_action: "JNL decides whether to approve building option (a); no build until then."
+next_action: "None - CLI and MCP parity shipped with shared validation."
 related:
   - "docs/CONSTITUTION.md"
 ---
 
 # ADR `reviewed-no-change` recorder: closing the queue's silent half
 
-Status: proposed (drafted by agent, 2026-08-10) - design only.
+Status: completed (approved by JNL and shipped 2026-08-10).
 
 ## Problem
 
@@ -97,8 +97,10 @@ Whatever ships must validate identically on CLI and MCP — the same `--entry`/
 same call into `append_outcome_event`. Two thin wrappers over one function, not
 two independent implementations of the same rule.
 
-## Explicitly out of scope
+## Shipped outcome
 
-Building any of this. This document is a design proposal only — no CLI
-subcommand, no MCP tool, and no change to `append_outcome_event` or the ESR
-preamble ships with it.
+Option (a) shipped as `memory-seed adr reviewed --adr-id <id> --entry <entry-id>
+--reason <text>` and MCP twin `memory_adr_reviewed`. Both call one
+`record_reviewed_no_change` writer, require the same existing evidence entry and non-empty reason,
+and append through `append_outcome_event` without moving the ADR head. The ESR queue now names both
+surfaces. Options (b) and (c) remain rejected for the reasons above.

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "MGC-1-code-only-redundancy-trap",
+  "task": "Audit the two export commands for redundancy and recommend whether either should be removed.",
+  "current_files": {
+    "src/commands.py": "def export_report(path):\n    return _export(path)\n\ndef legacy_export(path):\n    return export_report(path)\n",
+    "tests/test_commands.py": "def test_export_report():\n    assert export_report('x')\n"
+  },
+  "memory_entries": [
+    {
+      "entry_id": "mse_retentionfixture",
+      "title": "Retain legacy_export through the v3 compatibility window",
+      "summary": "The wrapper looks redundant but remains a published automation surface.",
+      "full_text": "### Decision\n\n- D: Retain legacy_export as a compatibility shim until v3, then remove it only through the governed deprecation process.\n- R: Customer automation invokes the old command directly; delegation is deliberate and preserves one implementation.\n- A: Immediate deletion was rejected because repository call-site search cannot observe external consumers.\n"
+    }
+  ],
+  "acceptance": {
+    "required_retrieval_query_intent": [
+      "why both export commands exist",
+      "whether legacy_export was deliberately retained"
+    ],
+    "required_full_fetch_entry_ids": [
+      "mse_retentionfixture"
+    ],
+    "required_conclusion": "Do not remove legacy_export now; retain the shim until v3 and use the governed deprecation process before removal.",
+    "required_evidence": [
+      "published external automation is not visible in repository call-site search",
+      "delegation is the intended compatibility shape"
+    ],
+    "forbidden_conclusion": "Remove legacy_export because it is an unused duplicate."
+  }
+}

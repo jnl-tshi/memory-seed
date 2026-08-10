@@ -1,4 +1,9 @@
 import copy
+import contextlib
+import io
+import json
+import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -16,6 +21,7 @@ from memory_seed.adr import (
     parse_adr,
     parse_adr_text,
     promote_decision,
+    record_reviewed_no_change,
     reconcile_adr_records,
     render_adr,
     revise_adr,
@@ -237,6 +243,140 @@ topics:
             for path in sorted(root.rglob("*"))
             if path.is_file()
         }
+
+    def test_reviewed_no_change_recorder_uses_existing_entry_without_moving_the_head(self):
+        promoted = self._promote_accepted()
+        result = record_reviewed_no_change(
+            self.root,
+            adr_id="adr_decision_sidecar_transaction",
+            entry_id="mse_update",
+            reason="The accepted transaction still covers the observed behavior.",
+            timestamp="2026-07-30T12:10:00",
+        )
+
+        self.assertTrue(result.ok, result.issues)
+        record = parse_adr(promoted.path)
+        event = record.events[-1]
+        self.assertEqual(event.kind, "reviewed-no-change")
+        self.assertEqual(event.update_entry_id, "mse_update")
+        self.assertEqual(event.decision_ref, "mse_12345678:d1")
+        self.assertEqual(event.matched_decisions, ("mse_12345678:d1",))
+        self.assertEqual(record.authoritative_decision, "mse_12345678:d1")
+        self.assertEqual(record.current_status, "accepted")
+
+    def test_reviewed_no_change_refuses_missing_evidence_on_core_and_mcp_surfaces(self):
+        promoted = self._promote_accepted()
+        before = promoted.path.read_bytes()
+        core = record_reviewed_no_change(
+            self.root,
+            adr_id="adr_decision_sidecar_transaction",
+            entry_id="mse_missing",
+            reason="No change.",
+        )
+        mcp = call_tool("memory_adr_reviewed", {
+            "cwd": str(self.root),
+            "adr_id": "adr_decision_sidecar_transaction",
+            "entry_id": "mse_missing",
+            "reason": "No change.",
+        })
+
+        self.assertFalse(core.ok)
+        self.assertFalse(mcp["ok"])
+        self.assertIn("missing entry", "\n".join(core.issues))
+        self.assertEqual(core.issues, tuple(mcp["issues"]))
+        self.assertEqual(promoted.path.read_bytes(), before)
+
+    def test_mcp_reviewed_no_change_records_the_same_event_shape(self):
+        promoted = self._promote_accepted()
+        result = call_tool("memory_adr_reviewed", {
+            "cwd": str(self.root),
+            "adr_id": "adr_decision_sidecar_transaction",
+            "entry_id": "mse_update",
+            "reason": "The accepted head remains sufficient after review.",
+            "timestamp": "2026-07-30T12:10:00",
+        })
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["written"])
+        record = parse_adr(promoted.path)
+        self.assertEqual(record.events[-1].kind, "reviewed-no-change")
+        self.assertEqual(record.events[-1].update_entry_id, "mse_update")
+        self.assertEqual(record.authoritative_decision, "mse_12345678:d1")
+
+    def test_cli_session_append_runs_the_same_adr_review_preflight_and_retry(self):
+        from memory_seed.cli import main as cli_main
+
+        promoted = self._promote_accepted()
+        body_path = self.root / "review-body.md"
+        decisions_path = self.root / "review-decisions.json"
+        body_path.write_text(
+            "### Summary\n\nThe CLI and MCP review the same proposed entry.\n\n"
+            "### Decision\n\n- D: Keep the transaction and clarify its use.\n"
+            "- R: The existing head still governs this refinement.\n",
+            encoding="utf-8",
+        )
+        decisions = [{
+            "decision": "d1",
+            "topics": {"area": "schema", "activity": "feature-build"},
+            "links": {"evolves": [{
+                "ref": "mse_12345678",
+                "type": "refines",
+                "why": "The accepted transaction remains the governing base.",
+            }]},
+        }]
+        decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+        argv = [
+            "session", "append",
+            "--title", "CLI review parity",
+            "--user-initials", "JNL",
+            "--agent-type", "codex",
+            "--body-file", str(body_path),
+            "--decisions-file", str(decisions_path),
+            "--timestamp", "2026-07-30 12:10",
+            "--no-branch",
+        ]
+        previous = Path.cwd()
+        first_err = io.StringIO()
+        try:
+            os.chdir(self.root)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(first_err):
+                first_code = cli_main(argv)
+            receipt_match = re.search(r"ADR review receipt: (adrr_[0-9a-f]+)", first_err.getvalue())
+            self.assertIsNotNone(receipt_match, first_err.getvalue())
+            self.assertEqual(first_code, 1)
+            self.assertIn("adr_decision_sidecar_transaction", first_err.getvalue())
+            self.assertIn("Timestamp: 2026-07-30 12:10", first_err.getvalue())
+
+            decisions[0]["adrs"] = [{
+                "adr_id": "adr_decision_sidecar_transaction",
+                "outcome": "skip",
+            }]
+            decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+            invalid_err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(invalid_err):
+                invalid_code = cli_main([*argv, "--adr-review-receipt", receipt_match.group(1)])
+            self.assertEqual(invalid_code, 1)
+            self.assertIn(
+                "outcome must be revise or no-change",
+                invalid_err.getvalue(),
+            )
+
+            decisions[0]["adrs"] = [{
+                "adr_id": "adr_decision_sidecar_transaction",
+                "outcome": "no-change",
+                "reason": "The current head already covers the clarified use.",
+            }]
+            decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+            second_err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(second_err):
+                second_code = cli_main([*argv, "--adr-review-receipt", receipt_match.group(1)])
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(second_code, 0, second_err.getvalue())
+        record = parse_adr(promoted.path)
+        self.assertEqual(record.events[-1].kind, "reviewed-no-change")
+        self.assertEqual(record.authoritative_decision, "mse_12345678:d1")
 
     def test_promote_replays_proposed_status_without_editing_source(self):
         source = (self.root / ".memory-seed" / "sessions" / "2026-07" / "2026-07-30.md").read_text(
