@@ -1,14 +1,14 @@
 ---
 priority: P1
-status: active
-next_action: "Execute Task 1 through the Sol-orchestrated subagent review loop."
+status: completed
+next_action: "None — R5, R8, and R13 are reconciled from reviewed implementation evidence."
 ---
 
 # Storyline gap tranche implementation plan
 
 ## Objective
 
-Advance the three open findings in the living interaction-storylines review without weakening the
+Completed the three open findings in the living interaction-storylines review without weakening the
 recorded safety contracts:
 
 - R13: distinguish a genuine post-fuse commit failure from a timeout result returned after the merge
@@ -41,11 +41,11 @@ recorded safety contracts:
 10. Workers do not edit session memory, ADR ledgers, seed/control-plane files, dependency definitions,
     or lockfiles. Sol owns durable memory, integration, and final validation.
 
-## Task 1 — Update the living gaps before implementation
+## Task 1 — Update the living gaps before implementation [COMPLETED]
 
-Update `docs/1_Inbox/agent-interaction-storylines-review.md` so R5 records the approved reconstructable
-cache direction, the fail-to-full-rebuild rule, source authority, and the ESR health check. Mark R5, R8,
-and R13 as active work in this tranche without claiming any is resolved. Link this plan from the review.
+Updated `docs/1_Inbox/agent-interaction-storylines-review.md` before implementation to preserve the
+approved cache direction, source authority, fail-to-reconstruction rule, and ESR health boundary; the
+final reconciliation now marks only the fully implemented R5, R8, and R13 findings resolved.
 
 Allowed files:
 
@@ -58,7 +58,7 @@ Validation:
 - `python -m memory_seed.cli docs index --check`
 - `git diff --check`
 
-## Task 2 — R13 merge-commit result reconciliation
+## Task 2 — R13 merge-commit result reconciliation [COMPLETED]
 
 Teach `session_merge_branch` to reconcile Git state after `git commit --no-edit` reports non-zero or
 times out. It may classify the operation as committed only when repository evidence proves that a new
@@ -81,7 +81,7 @@ Required tests:
 - A genuine commit failure remains uncommitted and inspectable.
 - A coincidental or malformed HEAD advance cannot be mistaken for this operation's merge.
 
-## Task 3 — R5 reconstructable core corpus projection and ESR health
+## Task 3 — R5 reconstructable core corpus projection and ESR health [COMPLETED]
 
 Build the smallest persistent core projection that eliminates repeated canonical corpus construction
 without turning the cache into authority. It must support the canonical raw and sidecar-augmented corpus
@@ -117,7 +117,7 @@ Required tests and measurements:
 - Before/after timings and corpus-build counts are recorded for ESR and session append; optimization is
   accepted only when correctness tests stay exact.
 
-## Task 4 — R8 approved read-only MCP twins
+## Task 4 — R8 approved read-only MCP twins [COMPLETED]
 
 Add read-only MCP tools for the existing canonical operations:
 
@@ -143,9 +143,33 @@ Required tests:
 - The registry count and exact write-tool count are intentionally updated/preserved as appropriate.
 - All three tools are demonstrably read-only.
 
-## Task 5 — Final storyline reconciliation
+## Task 5 — Final storyline reconciliation [COMPLETED]
 
-After Tasks 2–4 pass review, update the living review and this plan from implementation evidence. Mark only
-fully discharged findings resolved; split or narrow any residual rather than overstating completion.
-Regenerate required indexes and run the full integrated validation selected by Sol.
+The living review and this plan are reconciled from implementation evidence. R5, R8, and R13 are
+fully discharged; no residual R-item is implied. R1/R2 remain refuted and R12 remains stale rather
+than being recast as implemented.
 
+## Completion evidence
+
+- **R13:** commits `2fcff569` and `f89c5e52` reconcile a failed or timed-out commit report only on
+  the exact pre-commit/source-tip parent vector, final canonical `Memory-Entry` trailer equality,
+  and cleared `MERGE_HEAD`. The genuine-failure path stays inspectable; proven success uses the
+  existing safe cleanup. The 65 full merge/fuse tests passed; closure review: PASS.
+- **R5:** commits `b6c391e4`, `0a2b2723`, `b9068bb0`, `0118a16e`, `d37aa776`, and `1baa3c7e`
+  deliver the reconstructable external projection, stable runtime/worktree + HEAD key, six views,
+  manifest/fingerprint, schema/integrity checks, atomic bounded-lease publication, isolated
+  fallbacks, and one-invocation snapshot reuse. ESR remains independently read-only and source writes
+  do not depend on cache maintenance. 342 related tests passed; closure review: PASS.
+- **R8:** commits `35036ffb` and `2cab536b` add `memory_links_chain`, `memory_link_audit`, and
+  `memory_esr`, using shared canonical serializers/functions. The MCP registry is 23 tools and its
+  exact four mutators are unchanged. Parity, current/missing/corrupt external-cache, and read-only
+  tests passed (190 focused); closure review: PASS. Graph-diff and all MCP write parity remain out of
+  scope.
+
+## Validation and known unrelated debts
+
+- Full integrated suite: 1476 passed; frozen ADR fixture SHA drift is an unrelated validation debt,
+  not an R5/R8/R13 failure.
+- The Windows Git shallow-clone signal-pipe condition is the other known unrelated validation debt.
+- Documentation checks, index verification, link/reference checks, and `git diff --check` are run
+  for this reconciliation; indexes are regenerated only if their check requires it.

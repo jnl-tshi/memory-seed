@@ -9,7 +9,7 @@ surface-parity matrix, a numbered list of redundancies and inefficiencies (**R1�
 streamlining recommendations, and a separate redundancy audit of tools and endpoints considered for
 outright deletion.
 
-Ground truth: `memory_seed/mcp_server.py` (20 MCP tools), `memory-seed --help` (CLI tree),
+Ground truth: `memory_seed/mcp_server.py` (23 MCP tools), `memory-seed --help` (CLI tree),
 `.memory-seed/skills/` (the prose that scripts each flow). Convention-only steps — ones no tool
 enforces — are marked, because they are where process drift starts.
 
@@ -22,8 +22,8 @@ parity pair. This refresh adds R13 from an observed integration false negative, 
 recorded commit-failure and safe-cleanup decisions. Recommendations in this document are trustworthy
 only once checked against recorded decisions, not on code reading alone.
 
-The active R5, R8, and R13 work is tracked in the
-[storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md).
+The [storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md)
+records the completed R5, R8, and R13 work and its validation evidence.
 
 The eight storylines:
 
@@ -79,8 +79,9 @@ flowchart TD
 context automatic — the "latest state via search" failure mode is designed out. The four posture
 surfaces read as overlapping but are not (**R1**, refuted) — `situate` structurally cannot perform
 the namespace-collision check `worktree`/`memory_worktree_guard` carry, and drops most of
-`WorktreeGuardStatus`'s and `branch_status`'s fields. Weaknesses: no MCP twin for `situate` itself,
-so an MCP-only agent assembles orientation from three narrower tools (**R8**).
+`WorktreeGuardStatus`'s and `branch_status`'s fields. There is no MCP twin for `situate`; an
+MCP-only agent still assembles orientation from the narrower posture reads. That broader orientation
+surface was outside R8's approved three read-only twins.
 
 ---
 
@@ -107,7 +108,7 @@ removable, replaceable, or ready to consolidate.
 | Search | MCP `memory_search` (no CLI search command) |
 | Chunk fetch | MCP `memory_get_chunk` |
 | Edge view | MCP `memory_link_show`; CLI `link show`, `link commits` |
-| Chain view | CLI `links chain` only — **no MCP twin** |
+| Chain view | MCP `memory_links_chain`; CLI `links chain` |
 | Spec retrieval | MCP `memory_retrieval_spec_preview` / `_resolve`; CLI `retrieval-spec` |
 
 ```mermaid
@@ -115,7 +116,7 @@ flowchart TD
     A["Topical question:<br/>why X?"] --> B["MCP memory_search"]
     B --> C["MCP memory_get_chunk<br/>on best hits"]
     C --> D{"Hit superseded<br/>or refined?"}
-    D -- yes --> E["Follow replacing_head<br/>/ refined_by;<br/>CLI links chain<br/>for the spine"]
+    D -- yes --> E["Follow replacing_head<br/>/ refined_by;<br/>links chain / MCP twin<br/>for the spine"]
     D -- no --> F["Use the hit"]
     E --> F
     F --> G["Ground the change<br/>in the why"]
@@ -127,8 +128,8 @@ recall as a prerequisite for every consequential conclusion, and Decision Harves
 explicit `replaces` / typed `evolves` / `related` / authoring-only `no-edge` disposition for every
 consequential fetched entry. That remains behavioral governance rather than a hard tool gate by
 design; S3's unconditional response nudge catches unlinked appends without pretending a hook can
-infer task intent (**R6 resolved**). The remaining weakness is surface split: search exists only on
-MCP while chain exists only on CLI (**R8**).
+infer task intent (**R6 resolved**). Chain view now has a canonical read-only MCP twin, so the
+MCP-only recall path no longer stalls (**R8 resolved**).
 
 ---
 
@@ -191,7 +192,8 @@ conclusions in the universal workflow, and every passing MCP append response nud
 decision with draft-ranked candidates on both dry-run and real write. It still never fabricates an
 edge or treats retrieval as proof of relatedness. `link suggest` and `link audit` are not overlapping
 candidate rankers but two structurally different ones answering different questions (**R2**,
-refuted). One append still re-reads the corpus several times across independent guards (**R5**).
+refuted). One invocation now shares a single pre-write corpus snapshot through the append guards and
+suggestion path; a source write remains independent of cache publication (**R5 resolved**).
 
 ---
 
@@ -218,7 +220,7 @@ refuted). One append still re-reads the corpus several times across independent 
 
 | Step | Surface |
 |------|---------|
-| Candidates | CLI `link audit` / `--json` — **no MCP twin** |
+| Candidates | MCP `memory_link_audit`; CLI `link audit` / `--json` |
 | Stubs | CLI `link audit --apply` |
 | Single-target ranking | MCP `memory_link_suggest`; CLI `link suggest` |
 | Judgment payloads | `--json` output (five projections carry chain-position flags) |
@@ -244,9 +246,10 @@ flowchart TD
 mechanical authority, graph assertions — each one bought with a measured failure. **R4 CLOSED**:
 `links graph-diff --snapshot`/`--against` moves the "edge set unchanged" assertion out of
 throwaway campaign scripts and into a tool every write can call the same way. Weaknesses: the new
-command shipped CLI-only, which *enlarges* the surface split rather than closing it — the whole
-storyline (candidates, stubs, and now the graph assertion) is CLI-only (**R8**); audit rebuilds
-corpus+spine+graph on every call even inside ESR, which just built them (**R5**).
+command remains CLI-only: graph-diff snapshots and all mutating sweep steps are deliberately outside
+the approved MCP reads. `memory_link_audit` now gives MCP the canonical read-only candidate payload;
+it never applies stubs. Audit and ESR can reuse the invocation snapshot rather than rebuilding the
+canonical corpus independently (**R5/R8 resolved**).
 
 ---
 
@@ -351,8 +354,9 @@ deterministic trigger (the refines spine) instead of keyword sweeps. **R7 CLOSED
 queues reach `esr --json` / `to_dict()` as `adr_attachment_candidates` and `adr_head_reviews`, so
 automation can consume them without scraping prose. **R9 CLOSED for this queue**: the review-queue
 preamble now names both answering commands verbatim (see step 3). Weaknesses: ADR *write*
-operations are mostly CLI-only while the review *gate* now runs identically on CLI and MCP; the
-broader surface split remains (**R8**). Reviewed-no-change has a standalone parity pair:
+operations are mostly CLI-only while the review *gate* now runs identically on CLI and MCP. ADR
+head-changing writes remain intentionally outside R8's approved read-only parity. Reviewed-no-change
+has a standalone parity pair:
 `adr reviewed` and `memory_adr_reviewed` (completed proposal:
 `docs/5_Completed/adr-reviewed-recorder-proposal.md`).
 
@@ -376,7 +380,7 @@ broader surface split remains (**R8**). Reviewed-no-change has a standalone pari
 
 | Step | Surface |
 |------|---------|
-| Report | CLI `esr` — **no MCP twin**; `--json` now carries `adr_attachment_candidates` + `adr_head_reviews` alongside the other sections |
+| Report | MCP `memory_esr`; CLI `esr` / `--json` (including `adr_attachment_candidates`, `adr_head_reviews`, and read-only `corpus_cache` health) |
 | Per-section follow-ups | The storyline tools of S3/S4/S6 |
 
 ```mermaid
@@ -396,9 +400,10 @@ flowchart TD
 the ADR attachment-candidates and review-queue sections are now first-class `--json` keys, not
 prose-only, so automation consuming the report no longer has to re-derive them. **R9 CLOSED**: the
 ADR review queue line now names its own answering commands rather than leaving the agent to guess
-which surface answers "revision or reviewed-no-change". Weaknesses: ESR internally rebuilds the
-corpus for nearly every section (integrity, gaps, spine, attachment search — measured 4+ full
-corpus builds per run, **R5**).
+which surface answers "revision or reviewed-no-change". ESR now shares one live snapshot within its
+report and independently inspects external-cache health. It does not create, repair, or trust an
+unverified persistent artifact while certifying itself (**R5 resolved**). `memory_esr` returns the
+same structured report read-only (**R8 resolved**).
 
 ---
 
@@ -422,10 +427,11 @@ corpus builds per run, **R5**).
      automatically and the result reports `merge aborted automatically; nothing was committed`.
    - A GENUINE non-session content conflict is the one case still left in progress, for the named
      conflict owner to resolve by hand — it is not a refusal this code path can auto-resolve.
-   - A genuine post-fuse `git commit` failure also leaves the merge in progress (the fused tree is
-     worth inspecting before deciding how to proceed). A 30-second subprocess timeout can currently
-     return the same failure result after Git has already created the merge commit; reconcile the
-     repository state before treating that report as authoritative (**R13**).
+   - A genuine post-fuse `git commit` failure still leaves the merge in progress (the fused tree is
+     worth inspecting before deciding how to proceed). After a non-zero or timeout result, the
+     command accepts success only when Git proves this operation's exact two-parent merge, expected
+     source tip, final `Memory-Entry` trailer equality, and absent `MERGE_HEAD`; ambiguity remains
+     inspectable failure (**R13 resolved**).
    - Schema/parser changes must still merge BEFORE data that needs them.
 4. Post-merge: verify the changeset actually landed. The command safely attempts to remove only a
    clean, merged, registered source worktree and reports its cleanup status; Windows/OneDrive may
@@ -459,9 +465,11 @@ flowchart TD
 reset to base" and "does the path exist on base", so a BASE-side repair is never misdirected onto
 the branch. **R11 CLOSED**: a refusal auto-aborts its own half-started merge instead of leaving
 `MERGE_HEAD` behind — genuine content conflicts are still (correctly) left in progress for their
-named owner, and a post-fuse commit failure is the one deliberate exception, also left in progress
-so the fused tree can be inspected. **R13 OPEN**: the commit subprocess's 30-second timeout can
-misclassify a completed merge as failed and bypass the otherwise-safe cleanup path. **R12 STALE**:
+named owner, and a genuine post-fuse commit failure is the one deliberate exception, left in progress
+so the fused tree can be inspected. **R13 RESOLVED**: a non-zero/timeout commit result is reconciled
+only against the exact parent vector, source tip, final canonical trailer equality, and a cleared
+`MERGE_HEAD`; otherwise it remains a fail-closed, inspectable failure. Proven reconciliation continues
+through the existing safe cleanup path. **R12 STALE**:
 worktree cleanup already runs automatically
 inside `session merge-branch`'s post-merge step; what remains is an honestly-surfaced
 `deregistered-with-residue` case on Windows/OneDrive, not a missing feature.
@@ -470,14 +478,16 @@ inside `session merge-branch`'s post-merge step; what remains is an honestly-sur
 
 ## Cross-cutting: tool inventory by storyline
 
-**MCP (20):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve` (S2);
+**MCP (23):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
+`memory_links_chain` (S2);
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
 `memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
 `memory_adrs_list`, `memory_adr_reviewed`, `memory_adrs_check` (S6); `memory_branch_status`,
 `memory_worktree_guard`,
-`memory_session_fuse_preview`, `memory_session_integrate` (S1/S8). (`memory_dir` is a `Runtime`
+`memory_session_fuse_preview`, `memory_session_integrate` (S1/S8); `memory_link_audit` (S4);
+`memory_esr` (S7). (`memory_dir` is a `Runtime`
 dataclass field in `memory_seed/core.py`, not a tool — it was previously miscounted into this list;
-the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 20 and no more.)
+the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 23 and no more.)
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
@@ -492,17 +502,17 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 |---|---|---|
 | Orientation report (situate) | — | ✓ |
 | Search | ✓ | — |
-| Chain view | — | ✓ |
+| Chain view | ✓ | ✓ |
 | Entry append + guards | ✓ | ✓ |
 | Candidate ranking (one target) | ✓ | ✓ |
-| Gap audit (corpus sweep) | — | ✓ |
+| Gap audit (corpus sweep, read-only) | ✓ | ✓ |
 | Edge retract | ✓ | ✓ |
 | Graph snapshot/diff | — | ✓ |
 | ADR read / check | ✓ | ✓ |
 | ADR head write (promote/revise/transition) | — | ✓ |
 | ADR append review preflight | ✓ | ✓ |
 | Standalone reviewed-no-change | ✓ | ✓ |
-| ESR report | — | ✓ (`--json` now carries both ADR queues — see R7) |
+| ESR report | ✓ | ✓ (`--json` now carries both ADR queues — see R7) |
 | Merge / integrate | ✓ | ✓ |
 
 ---
@@ -540,7 +550,8 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   "edge set unchanged" by hand; `links check` cannot see it (proven twice). *Recommend:* a
   `links graph-diff` command (before/after snapshot + assert) so campaigns stop copy-pasting it.
   **RESOLVED (2026-08-10)** — `links graph-diff --snapshot`/`--against` (`--json` for scripted
-  assertions) ships CLI-only; no MCP twin, so it also widens R8 rather than closing it.
+  assertions) ships CLI-only; graph-diff has no MCP twin and remains outside R8's approved read-only
+  scope.
 - **R5 — Repeated corpus builds inside one operation.** `esr` builds the corpus or spine
   independently in at least three sections (`check_session_links`'s chain-spine, `audit_link_gaps`'s
   own corpus and embedding build, `_adr_head_reviews`'s spine) — measured at roughly 3s combined
@@ -554,12 +565,15 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   reminder deliberately reads the RAW, unaugmented corpus to measure the augmented-versus-raw gap
   (pinned by the `tests/test_corpus_read_path.py` allowlist), and callers needing a different
   granularity or ranking configuration keep their own build. Consolidate the load, not the
-  configuration. **ACTIVE IN THIS TRANCHE (not resolved).** The approved direction is a core-owned
-  reconstructable cache: Markdown and sidecars remain authoritative, while the cache is disposable,
-  schema-versioned, and reconstructable. Any corruption, source conflict, incomplete delta, history
-  rewrite, schema mismatch, or other ambiguity falls to reconstruction from source. Publication is
-  atomic and concurrency-safe; source writes never depend on cache maintenance. ESR checks cache
-  health read-only, without repairing it or using an unverified cache to certify itself.
+  configuration. **RESOLVED (2026-08-10)** — core now owns a reconstructable external corpus
+  projection keyed by stable runtime/worktree identity with a HEAD watermark. It persists the exact
+  six raw/augmented views, source manifest/fingerprint, schema and integrity binding; Markdown and
+  sidecars remain authoritative. Corruption, source conflict or motion, incomplete delta, history
+  rewrite, schema mismatch, no-Git state, lease contention, or failed verification falls to full or
+  isolated source reconstruction. Publication is atomic and lease-bounded; source writes never
+  depend on cache maintenance. One invocation snapshot is shared through ESR, core, and MCP append;
+  ESR independently reports cache health read-only and never creates, repairs, or certifies from an
+  unverified artifact.
 - **R6 — The recall-before-linking step is convention-only.** S3's step 2 (search before you
   classify edges) is the storyline's soul, and nothing enforces or even nudges it — that much is
   real. But the original fix, surfacing link-suggest candidates from `memory_session_append`'s
@@ -581,8 +595,8 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   review queue render only in prose; automation can't consume them. *Recommend:* add both fields.
   **RESOLVED (2026-08-10)** — both fields shipped: `adr_attachment_candidates` and
   `adr_head_reviews` are top-level keys on `esr --json` / `EsrReport.to_dict()`.
-- **R8 — Surface split mid-storyline.** Search (MCP-only) to chain view (CLI-only) in S2; ADR
-  head-changing writes (CLI-only) in S6; the whole of S4 and S7 CLI-only. The append review gate
+- **R8 — Surface split mid-storyline.** Search (MCP-only) to chain view (formerly CLI-only) in S2;
+  ADR head-changing writes (CLI-only) in S6; S4/S7 lacked their canonical read surfaces. The append review gate
   and standalone reviewed-no-change path now have parity, so they are no longer part of this gap.
   Where a storyline
   crosses surfaces, an agent confined to one stalls. Read-only twins face no governance obstacle:
@@ -591,7 +605,12 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   `esr` MCP twin trips neither. *Recommend:* ship read-only MCP twins for those three now, and treat
   any future MCP twin for a WRITE surface (`adr promote`/`revise`/`transition`) as a separate,
   heavier decision that must consciously extend the pinned write-tool count and prove parity guards
-  — exactly as `memory_link_retract` did on 2026-08-10. **ACTIVE IN THIS TRANCHE (not resolved).**
+  — exactly as `memory_link_retract` did on 2026-08-10. **RESOLVED (2026-08-10)** —
+  `memory_links_chain`, `memory_link_audit`, and `memory_esr` call the shared canonical serializers
+  and functions, bringing the registry to 23 while leaving its exact four mutators unchanged. They
+  are read-only: audit cannot apply stubs; ESR neither creates nor repairs the external cache.
+  This does **not** add MCP parity for graph-diff snapshots or any write operation, including ADR
+  head-changing tools.
 - **R9 — Queues don't route to their answers.** ESR's review-queue line tells the agent what is
   stale but not which command records reviewed-no-change vs proposes a revision. *Recommend:* each
   queue line carries its answering command verbatim.
@@ -632,19 +651,18 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   expected source tip and trailers, report the operation committed and continue through the
   existing exact, clean, merged-worktree cleanup. Otherwise preserve the current fail-closed result
   and leave the genuine in-progress merge for inspection. Do not weaken the timeout or introduce a
-  raw-filesystem cleanup fallback. **ACTIVE IN THIS TRANCHE (not resolved).**
+  raw-filesystem cleanup fallback. **RESOLVED (2026-08-10)** — reconciliation accepts a failed
+  subprocess report only when Git independently proves a new exact two-parent merge from the captured
+  pre-commit base and source tip, exact final `Memory-Entry` trailer equality, and no `MERGE_HEAD`.
+  Missing or malformed Git evidence is fail-closed and leaves the genuine failure inspectable;
+  proven success continues through the existing safe cleanup path.
 
-**Priority if streamlining now:** seven of thirteen items are now closed (R3, R4, R6, R7, R9, R10,
-R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
-ESR ADR queues are JSON-visible and self-routing, and S8's two worst failure modes (misattribution,
-stranded merges) are fixed. The 2026-08-10 memory pass then removed three more from the open list
-by refuting them against recorded decisions (R1, R2) or finding they had already shipped (R12), and
-reframed two others where the premise held but the proposed mechanism did not (R5, R6 — see their
-entries above for the corrected recommendation). What remains open: **R13** is the sharpest
-correctness issue because an already-landed merge is reported as failed and safe cleanup is skipped;
-then **R8** (surface split), which R4 enlarged by shipping CLI-only; then **R5** (consolidate the
-shared-build load, not each call site's configuration). **R6 is now resolved** on the unconditional
-append response path.
+**Priority after this tranche:** there are **no open R-items**. Ten recommendations are resolved
+(R3, R4, R5, R6, R7, R8, R9, R10, R11, R13); R1 and R2 are **REFUTED** by recorded decisions, and
+R12 is **STALE** because its feature predated the review. That is not a claim that every original
+recommendation was implemented: R1/R2 remain deliberately unimplemented, and R12 was already
+shipped. The next work should be new evidence-backed findings, not a reopening of graph-diff or MCP
+write parity: R8 discharged only the three approved reads.
 
 ---
 
