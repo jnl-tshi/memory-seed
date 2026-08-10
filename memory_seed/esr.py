@@ -194,6 +194,8 @@ class EsrReport:
                 "skills_without_governing_adr": self.skills_without_governing_adr,
                 "skills_with_dangling_governing_adr": self.skills_with_dangling_governing_adr,
             },
+            "adr_attachment_candidates": self.adr_attachment_candidates,
+            "adr_head_reviews": self.adr_head_reviews,
         }
 
 
@@ -1050,6 +1052,17 @@ def format_esr_report(report: EsrReport) -> str:
             "A `refines` successor on an ADR's head is a mechanical fact, not a verdict: the "
             "concern's current form moved and the ADR did not. Nothing here moves a head - "
             "answer each with an authored revision, or by recording reviewed-no-change."
+        )
+        lines.append(
+            "Revision: author the successor decision as a session entry, then `memory-seed adr "
+            "revise --adr-id <id> --decision-ref <new-decision> ...` and `memory-seed adr transition "
+            "--adr-id <id> --status accepted ...`."
+        )
+        lines.append(
+            "Reviewed-no-change: no standalone command - record it through the MCP "
+            "`memory_session_append` review gate, on a decision whose lifecycle link touches the ADR, "
+            'answered with `{"adr_id": ..., "outcome": "no-change", "reason": ...}` (the CLI has no '
+            "equivalent)."
         )
         lines.extend(report.adr_head_reviews)
         lines.append("")
