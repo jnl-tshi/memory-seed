@@ -734,6 +734,9 @@ memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, r
 memory_get_chunk(chunk_id, cwd=".")
 memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
+memory_links_chain(ref, cwd=".")
+memory_link_audit(cwd=".", entry_id=null, session_date=null, top_k=5, semantic_enabled=true)
+memory_esr(cwd=".", session_date=null)
 memory_session_append(title, body, user_initials, agent_type, cwd=".", topics=null, related_entries=null, replaces=null, evolves=null, project_path=".", subproject_path=null, branch=null, auto_branch=true, timestamp=null, user=null, dry_run=false)
 memory_session_integrate(branch, cwd=".", dry_run=false)
 memory_topics_list(cwd=".")
@@ -762,6 +765,13 @@ the entry itself through every structural guard (chronology, ref existence, forw
 timestamp from the server clock; a `dry_run` returns the `entry_id`, timestamp, target path, and
 `rendered` - the exact entry block a real call would append - without writing. They are routed through `history_retrieval.md`. `memory_session_append` is the only
 sanctioned way to author an entry, so agents no longer hand-write session files.
+
+`memory_links_chain`, `memory_link_audit`, and `memory_esr` complete the read-only recall, sweep,
+and close workflow without requiring an agent to cross to the CLI. They return the same canonical
+structured results as `links chain --json`, `link audit --json`, and `esr --json`: chain roots,
+ordered members and ADR ownership; judgment-ready gap evidence and ranking provenance; and the full
+ESR including its read-only corpus-cache inspection. The audit intentionally exposes no apply or
+scaffold option, and none of the three tools writes Markdown, Git, cache state, or runtime artifacts.
 
 `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check` are read-only topic-management
 tools for agents. They expose the project topic index, resolve canonical slugs/aliases with entry

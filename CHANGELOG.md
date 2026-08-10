@@ -19,6 +19,13 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Read-only MCP twins complete the chain, sweep, and ESR workflow.**
+  `memory_links_chain(ref, cwd)`, `memory_link_audit(entry_id?, session_date?, top_k?,
+  semantic_enabled?, cwd)`, and `memory_esr(session_date?, cwd)` return the exact canonical
+  structured results from `links chain --json`, `link audit --json`, and `esr --json`.
+  They share the chain reader, audit serializer, and ESR report rather than reimplementing them;
+  audit deliberately has no apply/scaffold mode and ESR preserves its read-only cache inspection.
+  The MCP registry grows by three read tools while the four-tool write set is unchanged.
 - **The canonical corpus now has a reconstructable core projection cache.** Raw and sidecar-augmented
   entry, section, and decision views are persisted outside the repository under a stable
   runtime/worktree key while session Markdown, link/topic sidecars, and project configuration remain

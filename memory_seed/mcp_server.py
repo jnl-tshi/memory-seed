@@ -29,8 +29,11 @@ from .retrieval import (
     augment_chunks_with_link_sidecars,
     canonical_retrieval_json,
     chunk_to_dict,
+    describe_refines_chain,
     format_search_results,
     get_chunk,
+    audit_link_gaps,
+    link_audit_payload,
     preview_retrieval_spec,
     ranked_to_dict,
     resolve_retrieval_spec,
@@ -295,6 +298,46 @@ TOOLS: list[dict[str, Any]] = [
                 "cwd": {"type": "string", "default": "."},
             },
             "required": ["entry_id"],
+        },
+    },
+    {
+        "name": "memory_links_chain",
+        "description": "Return the derived refines lifecycle chain for one known entry or decision ref: root, ordered members, head, length, and owning ADR evidence. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ref": {"type": "string", "description": "Entry or decision ref: mse_<id> or mse_<id>:dN."},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["ref"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_link_audit",
+        "description": "Return judgment-ready lifecycle gap candidates and ranking provenance. Mirrors the read-only part of `link audit`; it cannot apply or scaffold sidecars.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "entry_id": {"type": "string", "description": "Audit one target entry; omit to audit every entry."},
+                "session_date": {"type": "string", "description": "Scope targets to YYYY-MM-DD while retaining earlier corpus candidates."},
+                "top_k": {"type": "integer", "default": 5, "minimum": 1},
+                "semantic_enabled": {"type": "boolean", "default": True, "description": "Set false for lexical-only candidate ranking."},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_esr",
+        "description": "Return the complete structured End-of-Session Report, including read-only corpus-cache inspection. Equivalent to `esr --json`; it never repairs or publishes cache state.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "session_date": {"type": "string", "description": "Session date in YYYY-MM-DD; defaults to today."},
+            },
+            "additionalProperties": False,
         },
     },
     {
@@ -820,6 +863,44 @@ def call_tool(
             "importance_score": round(node.importance_score, 6),
             "commit_reference_count": len(commit_refs),
         }
+
+    if name == "memory_links_chain":
+        _reject_unsupported_arguments(args, {"ref", "cwd"})
+        ref = _required_str(args, "ref")
+        cwd = _cwd(args)
+        # Resolve first so an unknown entry/decision follows the normal MCP
+        # error path rather than being indistinguishable from a known decision
+        # with no refines predecessor or successor.
+        get_chunk(ref, cwd)
+        return describe_refines_chain(cwd, ref)
+
+    if name == "memory_link_audit":
+        _reject_unsupported_arguments(args, {"cwd", "entry_id", "session_date", "top_k", "semantic_enabled"})
+        cwd = _cwd(args)
+        entry_id = _optional_str(args, "entry_id")
+        session_date = _optional_date(args, "session_date")
+        top_k = _positive_int(args, "top_k", default=5)
+        semantic_enabled = _optional_bool(args, "semantic_enabled", default=True)
+        semantic_status: dict[str, Any] = {}
+        gaps = audit_link_gaps(
+            cwd=cwd,
+            entry_id=entry_id,
+            session_date=session_date.isoformat() if session_date else None,
+            top_k=top_k,
+            semantic_enabled=semantic_enabled,
+            semantic_status=semantic_status,
+        )
+        return link_audit_payload(gaps, semantic_status)
+
+    if name == "memory_esr":
+        from .esr import esr_report
+
+        _reject_unsupported_arguments(args, {"cwd", "session_date"})
+        session_date = _optional_date(args, "session_date")
+        return esr_report(
+            cwd=_cwd(args),
+            session_date=session_date.isoformat() if session_date else None,
+        ).to_dict()
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
@@ -1588,6 +1669,33 @@ def _optional_date(arguments: dict[str, Any], key: str) -> date | None:
         return date.fromisoformat(value.strip())
     except ValueError as exc:
         raise ValueError(f"Invalid {key}; expected YYYY-MM-DD") from exc
+
+
+def _positive_int(arguments: dict[str, Any], key: str, *, default: int) -> int:
+    value = arguments.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"Invalid {key}; expected an integer >= 1")
+    return value
+
+
+def _optional_bool(arguments: dict[str, Any], key: str, *, default: bool) -> bool:
+    value = arguments.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"Invalid {key}; expected a boolean")
+    return value
+
+
+def _cwd(arguments: dict[str, Any]) -> str:
+    value = arguments.get("cwd", ".")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Invalid string argument: cwd")
+    return value
+
+
+def _reject_unsupported_arguments(arguments: dict[str, Any], allowed: set[str]) -> None:
+    unsupported = sorted(set(arguments) - allowed)
+    if unsupported:
+        raise ValueError("Unsupported argument(s): " + ", ".join(unsupported))
 
 
 def _topic_record_to_dict(record: Any) -> dict[str, Any]:

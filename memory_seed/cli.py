@@ -2141,7 +2141,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {item.chunk.entry_id}")
             return 0
         if args.link_command == "audit":
-            from .retrieval import apply_link_gap_stubs, audit_link_gaps
+            from .retrieval import apply_link_gap_stubs, audit_link_gaps, link_audit_payload
 
             if args.apply and args.audit_date is None:
                 print("link audit --apply requires --date YYYY-MM-DD", file=sys.stderr)
@@ -2174,66 +2174,7 @@ def main(argv: list[str] | None = None) -> int:
                 # decision-level judgment stays out of the network-free core.
                 import json as _json
 
-                def _dec(d: Any) -> dict:
-                    return {"ordinal": d.ordinal, "name": d.name, "text": d.text}
-
-                payload = {
-                    # Ranking provenance, so a judging agent can tell whether the
-                    # order it is reading included the semantic term or silently
-                    # degraded to lexical.
-                    "semantic": semantic_status,
-                    "criteria": {
-                        "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
-                        "evolves": "the newer decision refines or extends the older one while it stays valid",
-                        "related": "the two inform each other but neither replaces nor evolves",
-                        "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
-                        "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
-                        "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
-                        "chain_position": "every lifecycle edge into a refines chain attaches at its HEAD - a candidate marked interior has its refines slot taken and may receive only related; replaced candidates are never offered (their terminal replacement substitutes)",
-                    },
-                    "gaps": [
-                        {
-                            "entry_id": g.entry_id,
-                            "title": g.title,
-                            "session_date": g.session_date,
-                            "decisions": [_dec(d) for d in g.decisions],
-                            "candidates": [
-                                {
-                                    "entry_id": c.entry_id,
-                                    "title": c.title,
-                                    "session_date": c.session_date,
-                                    "shared_files": list(c.shared_files),
-                                    "shared_topics": list(c.shared_topics),
-                                    "shared_title_terms": list(c.shared_title_terms),
-                                    "score": c.file_overlap_score,
-                                    "lexical_score": c.lexical_score,
-                                    "semantic_score": c.semantic_score,
-                                    "already_related": c.already_related,
-                                    # True when the lexical gate could not have
-                                    # surfaced this pair at all - it is here on
-                                    # semantic rank alone. A judging agent must
-                                    # be told, because such a candidate offers
-                                    # no shared file/title/topic to check.
-                                    "ungated": c.ungated,
-                                    # Position in a refines chain constrains the
-                                    # verdict space: interior members take only
-                                    # `related` (the refines slot is filled; the
-                                    # chain lives at current_form). Replaced
-                                    # candidates never appear - substitute_for
-                                    # marks the replacement offered instead.
-                                    "chain_position": c.chain_position,
-                                    "refines_taken_by": c.refines_taken_by,
-                                    "current_form": c.current_form,
-                                    "substitute_for": c.substitute_for,
-                                    "decisions": [_dec(d) for d in c.decisions],
-                                }
-                                for c in g.candidates
-                            ],
-                        }
-                        for g in gaps
-                    ],
-                }
-                print(_json.dumps(payload, indent=2))
+                print(_json.dumps(link_audit_payload(gaps, semantic_status), indent=2))
                 return 0
             # Ranking provenance BEFORE the ranked list. The semantic term carries a
             # weight of 160 against unbounded-but-small idf sums, so it dominates

@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
 from .corpus_cache import CorpusSnapshot, get_corpus_snapshot
 
@@ -2819,6 +2819,70 @@ def audit_link_gaps(
                 )
             )
     return gaps
+
+
+def link_audit_payload(
+    gaps: Sequence[LinkGap], semantic_status: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
+    """Canonical structured evidence for the read-only link-gap audit.
+
+    The CLI renders this payload for ``link audit --json`` and MCP returns it
+    unchanged.  Keeping the judgment-ready shape here means both surfaces use
+    the identical candidate ordering, ranking provenance, decision evidence,
+    and chain constraints without either owning a second serializer.
+    """
+
+    def _decision_payload(decision: DecisionSummary) -> dict[str, str]:
+        return {
+            "ordinal": decision.ordinal,
+            "name": decision.name,
+            "text": decision.text,
+        }
+
+    return {
+        "semantic": dict(semantic_status or {}),
+        "criteria": {
+            "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
+            "evolves": "the newer decision refines or extends the older one while it stays valid",
+            "related": "the two inform each other but neither replaces nor evolves",
+            "none": "no genuine lifecycle or relatedness link â€” a shared file or topic is not itself a link",
+            "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
+            "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
+            "chain_position": "every lifecycle edge into a refines chain attaches at its HEAD - a candidate marked interior has its refines slot taken and may receive only related; replaced candidates are never offered (their terminal replacement substitutes)",
+        },
+        "gaps": [
+            {
+                "entry_id": gap.entry_id,
+                "title": gap.title,
+                "session_date": gap.session_date,
+                "decisions": [_decision_payload(decision) for decision in gap.decisions],
+                "candidates": [
+                    {
+                        "entry_id": candidate.entry_id,
+                        "title": candidate.title,
+                        "session_date": candidate.session_date,
+                        "shared_files": list(candidate.shared_files),
+                        "shared_topics": list(candidate.shared_topics),
+                        "shared_title_terms": list(candidate.shared_title_terms),
+                        "score": candidate.file_overlap_score,
+                        "lexical_score": candidate.lexical_score,
+                        "semantic_score": candidate.semantic_score,
+                        "already_related": candidate.already_related,
+                        "ungated": candidate.ungated,
+                        "chain_position": candidate.chain_position,
+                        "refines_taken_by": candidate.refines_taken_by,
+                        "current_form": candidate.current_form,
+                        "substitute_for": candidate.substitute_for,
+                        "decisions": [
+                            _decision_payload(decision) for decision in candidate.decisions
+                        ],
+                    }
+                    for candidate in gap.candidates
+                ],
+            }
+            for gap in gaps
+        ],
+    }
 
 
 def apply_link_gap_stubs(
