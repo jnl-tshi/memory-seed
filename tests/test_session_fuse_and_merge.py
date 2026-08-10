@@ -1333,6 +1333,87 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertIn("existing link sidecar modified", result.issues[0])
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    def _non_chronological_base_link_sidecar(self, cwd):
+        """MAIN carries an out-of-order link sidecar; the branch appends a valid
+        block to the same file. Returns the sidecar path with `main` checked out.
+
+        This is the 2026-08-09 deadlock shape: the damage is entirely on base,
+        but the refusal surfaces only in the apply phase - after the merge has
+        reset the file to base content - so the message reads as if the branch
+        were at fault.
+        """
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:30", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        target.write_text(self._grouped_session_text("2026-07-10", [entry_a, entry_b]), encoding="utf-8")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        out_of_order = [
+            ("09:50", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
+            ("09:20", "Note B", "mse_bbbbbbbbbbbbbbbb", ["related_entries:", "  - mse_aaaaaaaaaaaaaaaa"]),
+        ]
+        link_target.write_text(self._link_sidecar_text("2026-07-10", out_of_order), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base carries an out-of-order link sidecar")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                out_of_order + [("10:15", "Note C", "mse_bbbbbbbbbbbbbbbb", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"])],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "branch appends a valid block")
+        self._git(cwd, "switch", "main")
+        return link_target
+
+    @pytest.mark.integration
+    def test_chronology_refusal_names_the_base_side_and_aborts_the_merge(self):
+        # R10/R11 together. The apply phase validates the WORKING TREE, which the
+        # merge has just reset to base content, so this refusal is a repair job on
+        # main - unattributed, it sent a real repair onto the branch on
+        # 2026-08-09 and then deadlocked that branch behind the merge state the
+        # refusal left in progress.
+        cwd = self.make_project()
+        self._non_chronological_base_link_sidecar(cwd)
+        base_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(result.issues)
+        self.assertIn("existing link sidecar blocks are not chronological", result.issues[0])
+        # (a) the refusal names the side it actually validated
+        self.assertIn("BASE side", result.issues[0])
+        self.assertIn(base_sha[:7], result.issues[0])
+        self.assertIn("must land on base", result.issues[0])
+        # (d) the auto-abort is reported, and (b)/(c) actually happened
+        self.assertTrue(result.merge_aborted)
+        self.assertFalse(result.merge_in_progress)
+        self.assertIn("merge aborted automatically; nothing was committed", result.issues)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), base_sha)
+
+    @pytest.mark.integration
+    def test_standalone_fuse_apply_does_not_claim_the_base_side(self):
+        # The mirrored misdirection: a raw `git merge --no-ff --no-commit`
+        # followed by `session fuse --apply` validates git's merge result, not
+        # base content. Only the two commands that reset session paths to base
+        # may say "BASE side".
+        cwd = self.make_project()
+        self._non_chronological_base_link_sidecar(cwd)
+        self._git(cwd, "merge", "--no-ff", "--no-commit", "feature-merge")
+
+        result = session_fuse(cwd=cwd, branch="feature-merge", apply=True)
+
+        self.assertTrue(result.issues)
+        self.assertIn("existing link sidecar blocks are not chronological", result.issues[0])
+        self.assertNotIn("BASE side", result.issues[0])
+        self.assertIn("in-progress merge result", result.issues[0])
+        self._git(cwd, "merge", "--abort")
+
     @pytest.mark.integration
     def test_session_merge_branch_refuses_to_reset_an_unrecognized_sessions_path(self):
         # Defense in depth (added alongside the link-sidecar fix): a future
@@ -1354,10 +1435,16 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         result = session_merge_branch(cwd=cwd, branch="feature-merge")
 
         self.assertFalse(result.committed)
-        self.assertTrue(result.merge_in_progress)
         self.assertTrue(result.issues)
         self.assertIn("not recognized by any session/diagram/link/topic/ADR classifier", result.issues[0])
-        self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
+        # The refusal has nothing for a human to resolve in the tree, so it rolls
+        # its own merge back rather than stranding the next command behind
+        # "a git merge is already in progress".
+        self.assertFalse(result.merge_in_progress)
+        self.assertTrue(result.merge_aborted)
+        self.assertIn("merge aborted automatically; nothing was committed", result.issues)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
 
     @pytest.mark.integration
     def test_session_merge_branch_imports_topic_sidecar_added_on_branch(self):

@@ -1059,9 +1059,19 @@ def main(argv: list[str] | None = None) -> int:
                 print("Session merge-branch blocked:", file=sys.stderr)
                 for issue in result.issues:
                     print(f"  - {issue}", file=sys.stderr)
+                # Only a genuinely parked merge (or one that refused to abort)
+                # gets the manual-resolution instruction; a refusal that already
+                # rolled itself back would strand the reader hunting merge state
+                # that no longer exists.
                 if result.merge_in_progress:
                     print(
                         "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                elif result.merge_aborted:
+                    print(
+                        "The git merge was aborted automatically; the working tree is back to its "
+                        "pre-merge state and nothing was committed.",
                         file=sys.stderr,
                     )
                 return 1
@@ -1142,6 +1152,12 @@ def main(argv: list[str] | None = None) -> int:
                 if result.merge_in_progress:
                     print(
                         "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                elif result.merge_aborted:
+                    print(
+                        "The git merge was aborted automatically; the branch is back to its "
+                        "pre-merge state and nothing was committed.",
                         file=sys.stderr,
                     )
                 return 1
@@ -1285,6 +1301,12 @@ def main(argv: list[str] | None = None) -> int:
                 if result.merge_in_progress:
                     print(
                         "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                elif result.merge_aborted:
+                    print(
+                        "The git merge was aborted automatically; the working tree is back to its "
+                        "pre-merge state and nothing was committed.",
                         file=sys.stderr,
                     )
                 return 1

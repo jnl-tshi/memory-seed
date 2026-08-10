@@ -911,11 +911,14 @@ def call_tool(
         # human to resolve. An autonomous caller cannot resolve one and must not
         # walk away from a half-merged tree, so abort back to a clean state and
         # report - the branch is untouched and the operator can retry by hand.
-        aborted = False
+        # Refusals now roll their own merge back in core, so `merge_aborted` may
+        # already be true here; this stays as the backstop for the one exit core
+        # deliberately parks (a non-session conflict) plus a failed core abort.
+        aborted = result.merge_aborted
         if result.merge_in_progress:
             abort_code, abort_out = _git_text(root, ("merge", "--abort"))
-            aborted = abort_code == 0
-            if not aborted:
+            aborted = aborted or abort_code == 0
+            if abort_code != 0:
                 result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
 
         return {
