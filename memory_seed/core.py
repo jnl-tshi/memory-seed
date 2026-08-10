@@ -6237,6 +6237,16 @@ def _stamp_memory_entry_trailers(root: Path, planned_entries: Sequence[str]) -> 
     return stamped
 
 
+def _expected_memory_entry_trailers(planned_entries: Sequence[str]) -> list[str]:
+    """Return the valid, deduplicated trailers a fuse merge is meant to carry."""
+    expected: list[str] = []
+    for planned in planned_entries:
+        entry_id = planned.split(" ", 1)[0]
+        if entry_id and entry_id not in expected and _TRAILER_ENTRY_ID_RE.fullmatch(entry_id):
+            expected.append(entry_id)
+    return expected
+
+
 def _merge_head_commits(root: Path) -> list[str]:
     git_dir = _git_dir(root)
     if git_dir is None:
@@ -6248,6 +6258,44 @@ def _merge_head_commits(root: Path) -> list[str]:
         return [line.strip() for line in merge_head.read_text(encoding="utf-8").splitlines() if line.strip()]
     except (OSError, UnicodeDecodeError):
         return []
+
+
+def _reconcile_failed_merge_commit(
+    root: Path,
+    pre_commit_head: str | None,
+    expected_source_tip: str,
+    expected_trailer_entries: Sequence[str],
+) -> bool:
+    """Return whether a failed commit report nevertheless landed this merge.
+
+    A non-zero ``git commit`` result (including ``_git_text``'s timeout
+    result) is authoritative unless all independently observable facts prove
+    the commit completed. This intentionally fails closed: unreadable Git
+    plumbing, an unchanged or non-merge HEAD, a different parent, a missing
+    trailer, or any remaining merge state leaves the original failure
+    inspectable for a human.
+    """
+    if pre_commit_head is None or _merge_head_commits(root):
+        return False
+    head = _resolve_commit(root, "HEAD")
+    if head is None or head == pre_commit_head:
+        return False
+    code, parents_out = _git_text(root, ("show", "-s", "--format=%P", head))
+    parents = parents_out.split() if code == 0 else []
+    # ``session_merge_branch`` always makes one ordinary two-parent merge. The
+    # recorded pre-commit HEAD and exact source tip jointly bind it to this
+    # operation rather than a coincidental concurrent HEAD advance.
+    if len(parents) != 2 or pre_commit_head not in parents or expected_source_tip not in parents:
+        return False
+    code, message = _git_text(root, ("show", "-s", "--format=%B", head))
+    if code != 0:
+        return False
+    trailers = {
+        line[len("Memory-Entry: ") :].strip()
+        for line in message.splitlines()
+        if line.startswith("Memory-Entry: ")
+    }
+    return all(entry_id in trailers for entry_id in expected_trailer_entries)
 
 
 def _resolve_commit(root: Path, ref: str) -> str | None:
@@ -7391,8 +7439,17 @@ def session_merge_branch(
     # Best-effort: a stamping failure must not abort an otherwise-clean merge.
     result.stamped_entries = _stamp_memory_entry_trailers(root, result.planned_entries)
 
+    # Capture the exact merge-state base immediately before the commit attempt:
+    # it is evidence needed to distinguish this operation's landed merge from
+    # any unrelated HEAD movement after a timeout or other subprocess failure.
+    pre_commit_head = _resolve_commit(root, "HEAD")
     code, commit_out = _git_text(root, ("commit", "--no-edit"))
-    if code != 0:
+    if code != 0 and not _reconcile_failed_merge_commit(
+        root,
+        pre_commit_head,
+        branch_commit,
+        _expected_memory_entry_trailers(result.planned_entries),
+    ):
         result.merge_in_progress = bool(_merge_head_commits(root))
         result.issues.append(f"git commit failed: {commit_out or '(no output)'}")
         return result

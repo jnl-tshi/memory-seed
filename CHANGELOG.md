@@ -110,6 +110,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
+- **`session merge-branch` no longer reports a completed merge as a failed commit after a Git
+  timeout/non-zero result.** It now reconciles only a fully evidenced merge: a changed two-parent
+  HEAD with the recorded base and exact source tip, every planned `Memory-Entry` trailer, and no
+  remaining merge state. Proven success follows the existing safe source-worktree cleanup; every
+  ambiguous or genuine failure remains inspectable.
 - **`esr --json` dropped both ADR queues, and the review-queue section named no runnable
   command.** `EsrReport.to_dict()` omitted `adr_attachment_candidates` and `adr_head_reviews` -
   now top-level keys, so `esr --json` automation can see them. The `## ADR review queue`
