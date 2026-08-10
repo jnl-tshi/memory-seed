@@ -1,11 +1,15 @@
-# Experiment design (preregistered before measurement)
+# Experiment design (Stage 1 measured; Stage 2 planned, not yet preregistered)
 
 ## Corpus and sampling
 
-The source is the decision-granularity corpus returned by `memory_seed.retrieval.load_corpus`.
+The source is the decision-granularity corpus returned by `memory_seed.retrieval.load_corpus` from Git
+revision `54de83ca7f3e279f1199b721e6aa1bec825e04ac`, materialized with `git archive` into a temporary
+directory. The generator checks the recorded corpus-manifest fingerprint before writing results.
 Legacy entry-only chunks are excluded. A deterministic SHA-256 ordering selects 100 decisions while
 round-robin sampling across text-length quintiles prevents a short-only convenience sample. The
-dataset records source paths, line spans, dates, lengths, topics, and known lifecycle fields.
+dataset records corpus identity, source paths, line spans, dates, lengths, topics, and known lifecycle
+fields. `relationship-pairs.json` records the exact labels, train/test split, and per-arm scores used to
+reconstruct relationship metrics.
 
 ## Representations
 
@@ -16,10 +20,11 @@ All derived fields are verbatim source spans. No paraphrasing occurs in Stage 1:
 3. `core_why`: core plus first sentence in `R:` when present.
 4. `core_why_constraint`: core/why plus distinct sentences with explicit modality, negation, or
    scope markers.
-5. `structured`: typed `claim`, `because`, and `constraint` lines from the same spans.
+5. `labeled_spans`: typed `claim`, `because`, and `constraint` labels applied to the same spans.
 
-This design isolates the value of selection and explicit labels. It does not claim that extractive
-spans are optimal semantic summaries.
+Constraints are drawn only from accepted `D:`/`R:` material; rejected `A:` alternatives cannot become a
+constraint. This design isolates the value of selection and labels. The labeled-span arm is not a rich
+semantic representation or an upper bound, and it does not claim extractive spans are optimal summaries.
 
 ## Stage 1 tasks
 
@@ -56,18 +61,18 @@ The composite is normalized:
 `utility / relative_context`, where utility is MRR and relative context is mean arm tokens divided
 by raw mean tokens. Raw measurements remain primary; the composite cannot override a fidelity fail.
 
-## Stage 2 tasks (required before recommendation)
+## Stage 2 tasks (planned; not yet preregistered, required before recommendation)
 
 - Blinded comprehension questions: decided, why, constraint, affected component, behavior change.
 - Two independent fidelity judgments per item/arm: unsupported addition, omission, modality,
   certainty, scope, causality, terminology, contradiction hiding.
 - Fixed model, prompt, decoding parameters, and randomized arm order.
 - Human adjudication of disagreements and at least 20% double annotation.
-- Rich `structured` generation must use the same model and source context as B-D.
+- Any future richer representation must use the same model and source context as B-D.
 
 Critical fidelity errors are unsupported additions or changes to modality, certainty, scope,
 causality, negation, or contradiction status. Terminology simplification and non-critical omission
-are reported separately. The preregistered eligibility gates are:
+are reported separately. The proposed eligibility gates are:
 
 - comprehension accuracy is non-inferior to raw within an absolute 5 percentage-point margin;
 - critical fidelity-error rate is no more than 2 percentage points above raw;
@@ -77,6 +82,10 @@ are reported separately. The preregistered eligibility gates are:
   fidelity category and all disagreements adjudicated blind to arm aggregate scores.
 
 Semantic fidelity is a hard gate: an ineligible representation cannot win on efficiency.
+
+The Stage 2 prompt, independently worded item set, model/version pin, decoding parameters, randomization
+seed, annotation instrument, and adjudication protocol are not yet frozen. This section is a planning
+contract, not a preregistration.
 
 ## Controls and limitations
 

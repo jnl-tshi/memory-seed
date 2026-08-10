@@ -4,7 +4,7 @@ The practical lesson is to borrow evaluation ideas, not import a general semanti
 
 | Method | What it extracts | Advantage | Limitation / complexity | Memory Seed relevance |
 |---|---|---|---|---|
-| Semantic Role Labeling | Predicate and argument roles | Compact predicate-argument structure | Pipeline errors propagate; modality, attribution, negation, and cross-sentence scope need explicit preservation | Useful only as a possible structured-arm feature |
+| Semantic Role Labeling | Predicate and argument roles | Compact predicate-argument structure | Pipeline errors propagate; modality, attribution, negation, and cross-sentence scope need explicit preservation | Useful only as a possible future diagnostic feature |
 | Open Information Extraction | Open-domain relation tuples | Schema-light propositions | Qualifiers, negation, modality, and context are frequent failure points | High-complexity diagnostic, not a minimum or oracle upper bound |
 | Atomic fact / claim decomposition | Source-checkable propositions | Enables per-claim support checks | Scores are sensitive to the decomposition method itself; normative/modal claims are not simple facts | Directly motivates source-grounded fidelity checks |
 | Argument mining | Claims, premises, and support/attack relations | Separates assertion from rationale | Domain adaptation and relation annotation are expensive | `D:`/`R:` provide candidate units, not an inferred support relation |

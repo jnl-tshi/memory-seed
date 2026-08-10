@@ -5,10 +5,14 @@ This is intentionally stdlib-only and read-only with respect to canonical Memory
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
 import re
+import subprocess
 import sys
+import tarfile
+import tempfile
 from collections import Counter
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -22,7 +26,11 @@ if str(ROOT) not in sys.path:
 from memory_seed.retrieval import load_corpus
 from memory_seed.semantic_cache import rank_memory_chunks
 
-ARMS = ("raw", "core", "core_why", "core_why_constraint", "structured")
+ARMS = ("raw", "core", "core_why", "core_why_constraint", "labeled_spans")
+SOURCE_REVISION = "54de83ca7f3e279f1199b721e6aa1bec825e04ac"
+# This is deliberately checked after the first frozen-corpus generation.  Updating it requires a
+# deliberate source-revision change, rather than silently measuring the branch's live session log.
+EXPECTED_CORPUS_FINGERPRINT = "sha256:ab68ed673415ccf53cc9674476a6f0b49ec2f0cb782cfbc8a26d156d2a64ae00"
 MODAL = re.compile(r"\b(must|should|shall|only|never|without|require[ds]?|cannot|can't|do not|don't|may not|unless|instead of)\b", re.I)
 PREFIX = re.compile(r"^D\d+\s*[-—:]\s*")
 FIELD = re.compile(r"^\s*-\s*([DRAFT]):\s*(.*)$")
@@ -59,20 +67,21 @@ def representations(text: str) -> dict[str, str]:
     core = first_sentence(" ".join(parsed["D"])) or first_sentence(text)
     why = first_sentence(" ".join(parsed["R"]))
     sentences = []
-    for value in parsed["D"] + parsed["R"] + parsed["A"]:
+    # Rejected alternatives are evidence about a decision, never accepted constraints.
+    for value in parsed["D"] + parsed["R"]:
         sentences.extend(SENTENCE.split(" ".join(value.split())))
     constraints = [s.strip() for s in sentences if MODAL.search(s)]
     constraints = [s for s in constraints if s and s not in {core, why}]
     constraints = list(dict.fromkeys(constraints))[:2]
     core_why = "\n".join(v for v in (core, why) if v)
     cwc = "\n".join([core_why, *constraints]).strip()
-    structured = "\n".join(
+    labeled_spans = "\n".join(
         [f"claim: {core}"]
         + ([f"because: {why}"] if why else [])
         + [f"constraint: {item}" for item in constraints]
     )
     return {"raw": text.strip(), "core": core, "core_why": core_why,
-            "core_why_constraint": cwc, "structured": structured}
+            "core_why_constraint": cwc, "labeled_spans": labeled_spans}
 
 
 def choose_sample(chunks: list, count: int = 100) -> list:
@@ -158,6 +167,40 @@ def ref_target(value: str) -> str:
     return value.split(" -> ")[-1].strip()
 
 
+def corpus_fingerprint(chunks: list) -> str:
+    """Fingerprint the decision corpus actually seen by the benchmark."""
+    manifest = [
+        {"ref": c.chunk_id, "source_path": c.source_path, "start_line": c.start_line,
+         "end_line": c.end_line, "text_sha256": stable(c.text),
+         "decision_edges": list(c.decision_edges), "topics": list(c.topics)}
+        for c in sorted(chunks, key=lambda chunk: chunk.chunk_id)
+        if c.granularity == "decision" and c.entry_id
+    ]
+    return "sha256:" + stable(json.dumps(manifest, sort_keys=True, separators=(",", ":")))
+
+
+def frozen_corpus() -> tuple[list, dict[str, str | int]]:
+    """Load exactly the corpus at SOURCE_REVISION, isolated from this experiment's own writes."""
+    archive = subprocess.run(
+        ["git", "-C", str(ROOT), "archive", "--format=tar", SOURCE_REVISION],
+        check=True, capture_output=True,
+    ).stdout
+    with tempfile.TemporaryDirectory(prefix="semantic-compression-") as temp:
+        snapshot = Path(temp)
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
+            bundle.extractall(snapshot, filter="data")
+        chunks = load_corpus(snapshot, granularity="decision")
+        decisions = [c for c in chunks if c.granularity == "decision" and c.entry_id]
+        fingerprint = corpus_fingerprint(decisions)
+        if fingerprint != EXPECTED_CORPUS_FINGERPRINT:
+            raise RuntimeError(
+                "frozen corpus fingerprint changed; update SOURCE_REVISION and the expected fingerprint deliberately"
+            )
+        identity = {"source_revision": SOURCE_REVISION, "archive_sha256": "sha256:" + hashlib.sha256(archive).hexdigest(),
+                    "decision_count": len(decisions), "corpus_fingerprint": fingerprint}
+        return decisions, identity
+
+
 def relationship_pairs(sample: list, all_chunks: list) -> list[tuple[str, str, int]]:
     by_ref = {c.chunk_id: c for c in all_chunks if c.granularity == "decision"}
     positives = set()
@@ -200,17 +243,24 @@ def relationship_pairs(sample: list, all_chunks: list) -> list[tuple[str, str, i
     return [(a, b, 1) for a, b in sorted(positives)] + [(a, b, 0) for a, b in sorted(negatives)]
 
 
-def relation_metrics(sample: list, all_chunks: list, reps: dict[str, dict[str, str]]) -> dict:
+def relation_metrics(sample: list, all_chunks: list) -> tuple[dict, list[dict]]:
     pairs = relationship_pairs(sample, all_chunks)
     by_ref = {c.chunk_id: c for c in all_chunks if c.granularity == "decision"}
-    out = {"pair_count": len(pairs), "positive_count": sum(y for _, _, y in pairs), "arms": {}}
+    sources = sorted({a for a, _, _ in pairs}, key=lambda ref: (by_ref[ref].session_date, ref))
+    train_sources = set(sources[: math.ceil(len(sources) * 0.7)])
+    table = [{"source_ref": a, "target_ref": b, "label": y,
+              "label_meaning": "authored_fully_scoped_edge" if y else "sampled_unlabeled_candidate",
+              "split": "train" if a in train_sources else "test",
+              "source_text_sha256": stable(by_ref[a].text), "target_text_sha256": stable(by_ref[b].text)}
+             for a, b, y in pairs]
+    out = {"pair_count": len(pairs), "positive_count": sum(y for _, _, y in pairs),
+           "train_source_count": len(train_sources), "test_source_count": len(sources) - len(train_sources),
+           "arms": {}}
     for arm in ARMS:
         texts = {ref: representations(chunk.text)[arm] for ref, chunk in by_ref.items()}
         vectors = idf_vectors(texts)
         # Split by sampled source, not pair, so a source cannot leak across train and test. IDF is
         # deliberately transductive: Memory Seed indexes the full available corpus at query time.
-        sources = sorted({a for a, _, _ in pairs}, key=lambda ref: (by_ref[ref].session_date, ref))
-        train_sources = set(sources[: math.ceil(len(sources) * 0.7)])
         scored = [(cosine(vectors[a], vectors[b]), y, a) for a, b, y in pairs]
         train = [row for row in scored if row[2] in train_sources]
         test = [row for row in scored if row[2] not in train_sources]
@@ -229,59 +279,85 @@ def relation_metrics(sample: list, all_chunks: list, reps: dict[str, dict[str, s
         threshold = max(candidates, key=lambda t: (stats(train, t)["f1"], -t))
         out["arms"][arm] = {"threshold": threshold, "train_count": len(train),
                             "test_count": len(test), **stats(test, threshold)}
-    return out
+        for row, (score, _, _) in zip(table, scored):
+            row.setdefault("scores", {})[arm] = score
+    return out, table
 
 
-def main() -> None:
-    all_chunks = load_corpus(ROOT, granularity="decision")
-    decisions = [c for c in all_chunks if c.granularity == "decision" and c.entry_id]
+def render_results(metrics: dict) -> str:
+    rows = []
+    for arm in ARMS:
+        retrieval_row = metrics["retrieval"][arm]
+        relationship_row = metrics["relationships"]["arms"][arm]
+        rows.append(
+            f"| {arm} | {retrieval_row['mean_token_proxy']:.1f} | {retrieval_row['relative_context']:.3f} | "
+            f"{retrieval_row['recall_at_5']:.3f} | {retrieval_row['mrr']:.3f} | "
+            f"{retrieval_row['efficiency_mrr_per_relative_context']:.3f} | {relationship_row['f1']:.3f} | "
+            f"{relationship_row['false_positive_rate']:.3f} |"
+        )
+    retrieval = metrics["retrieval"]
+    raw = retrieval["raw"]
+    core = retrieval["core"]
+    compact = retrieval["core_why_constraint"]
+    labeled = retrieval["labeled_spans"]
+    relationship = metrics["relationships"]
+    raw_is_best = max(ARMS, key=lambda arm: retrieval[arm]["mrr"])
+    return """# Results
+
+Stage 1 is complete; Stage 2 comprehension and fidelity evaluation is planned, not yet preregistered or run. These results cannot justify a production sidecar.
+
+| Arm | Mean token proxy | Relative context | Recall@5 | MRR | Efficiency | Link F1 | Link FPR |
+|---|---:|---:|---:|---:|---:|---:|---:|
+""" + "\n".join(rows) + f"""
+
+See `metrics.json` for aggregate measurements and `relationship-pairs.json` for the exact labeled, split, scored relationship table and corpus identity.
+
+## Interpretation
+
+- `{raw_is_best}` achieved the best retrieval MRR (`{retrieval[raw_is_best]['mrr']:.3f}`).
+- Core used {core['relative_context']:.1%} of raw representation-body context, with retrieval MRR `{core['mrr']:.3f}` and Recall@5 `{core['recall_at_5']:.3f}`.
+- Core + why + constraint used {compact['relative_context']:.1%} of raw context and MRR `{compact['mrr']:.3f}`; this is a measurable tradeoff, not non-inferiority.
+- The labeled-span diagnostic used {labeled['relative_context']:.1%} of raw context and MRR `{labeled['mrr']:.3f}`. It tests whether labels alter this extractive span selection; it is not a rich-semantic upper bound.
+- {relationship['positive_count']} fully scoped positive decision edges yielded {relationship['arms']['raw']['test_count']} test pairs. The relationship task is underpowered and inconclusive. It is also a synthetic known-edge-versus-unlabeled diagnostic: unlabeled candidates may be real but unauthored relationships, so apparent precision/FPR are not semantic truth.
+
+The efficiency composite rises as text shrinks, but that arithmetic does not erase absolute quality losses. Stage 1 therefore provides no evidence that compression improves retrieval; relationship detection is inconclusive. It establishes a measurable context/quality tradeoff for a future Stage 2 to test on actual comprehension and fidelity.
+"""
+
+
+def main(output_dir: Path | None = None) -> dict:
+    output_dir = output_dir or HERE
+    decisions, identity = frozen_corpus()
+    all_chunks = decisions
     sample = choose_sample(decisions)
     reps = {c.chunk_id: representations(c.text) for c in sample}
-    dataset = [{"ref": c.chunk_id, "title": c.title, "source_path": c.source_path,
+    dataset = {"schema": "semantic-compression-dataset.v2", "corpus": identity,
+               "decisions": [{"ref": c.chunk_id, "title": c.title, "source_path": c.source_path,
                 "start_line": c.start_line, "end_line": c.end_line,
                 "session_date": c.session_date.isoformat(), "source_chars": len(c.text),
                 "source_sha256": stable(c.text), "topics": list(c.topics),
                 "representations": reps[c.chunk_id],
                 "provenance": {arm: provenance(c.text, reps[c.chunk_id][arm]) for arm in ARMS}}
-               for c in sample]
-    metrics = {"schema": "semantic-compression-stage1.v1", "sample_count": len(sample),
+               for c in sample]}
+    relationship, pair_table = relation_metrics(sample, all_chunks)
+    metrics = {"schema": "semantic-compression-stage1.v2", "corpus": identity, "sample_count": len(sample),
                "corpus_decision_count": len(decisions), "selection_fingerprint": stable(json.dumps([c.chunk_id for c in sample])),
                "query_exact_in_raw_count": sum(PREFIX.sub("", c.title).strip().lower() in c.text.lower() for c in sample),
                "retrieval": retrieval(sample, reps),
-               "relationships": relation_metrics(sample, all_chunks, reps),
+               "relationships": relationship,
                "stage2_status": "not-run"}
-    (HERE / "dataset.json").write_text(json.dumps(dataset, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    (HERE / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    rows = []
-    for arm in ARMS:
-        r = metrics["retrieval"][arm]; rel = metrics["relationships"]["arms"][arm]
-        rows.append(f"| {arm} | {r['mean_token_proxy']:.1f} | {r['relative_context']:.3f} | {r['recall_at_5']:.3f} | {r['mrr']:.3f} | {r['efficiency_mrr_per_relative_context']:.3f} | {rel['f1']:.3f} | {rel['false_positive_rate']:.3f} |")
-    report = """# Results\n\nStage 1 is complete; Stage 2 comprehension and fidelity evaluation has not run. These results cannot justify a production sidecar.\n\n| Arm | Mean token proxy | Relative context | Recall@5 | MRR | Efficiency | Link F1 | Link FPR |\n|---|---:|---:|---:|---:|---:|---:|---:|\n""" + "\n".join(rows) + """
-
-See `metrics.json` for raw counts, thresholds, confusion matrices, and fingerprints.
-
-## Interpretation
-
-- Raw achieved the best retrieval MRR (`0.582`).
-- Core used 12.9% of raw representation-body context, but retrieval MRR fell to `0.371` and
-  Recall@5 to `0.470`.
-- Core + why + constraint is the most plausible compact frontier point in Stage 1: 39.1% of raw
-  context and MRR `0.508`. That remains a material loss from raw, not
-  non-inferiority.
-- Structured semantics used more context than core + why + constraint and did not improve its
-  Recall@5, nDCG@5, or relationship confusion matrix. Labels alone earned nothing in this arm.
-- Only 14 fully scoped positive decision edges exist in this sample, leaving six test pairs. The
-  relationship task is underpowered and inconclusive. It is also a synthetic
-  known-edge-versus-unlabeled diagnostic: unlabeled candidates may be real but unauthored
-  relationships, so apparent precision/FPR are not semantic truth.
-
-The efficiency composite rises as text shrinks, but that arithmetic does not erase absolute quality
-losses. Stage 1 therefore provides no evidence that compression improves retrieval; relationship
-detection is inconclusive. It establishes a measurable context/quality tradeoff for Stage 2 to test on actual
-comprehension and fidelity.
-"""
-    (HERE / "results.md").write_text(report, encoding="utf-8")
+    pairs_payload = {"schema": "semantic-compression-relationship-pairs.v1", "corpus": identity,
+                     "selection_fingerprint": metrics["selection_fingerprint"], "pairs": pair_table}
+    metrics["relationship_pairs_fingerprint"] = "sha256:" + stable(
+        json.dumps(pairs_payload, sort_keys=True, separators=(",", ":"))
+    )
+    (output_dir / "dataset.json").write_text(json.dumps(dataset, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output_dir / "relationship-pairs.json").write_text(
+        json.dumps(pairs_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (output_dir / "results.md").write_text(render_results(metrics), encoding="utf-8")
     print(json.dumps(metrics, indent=2, sort_keys=True))
+    return metrics
 
 
 if __name__ == "__main__":
