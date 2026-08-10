@@ -10,7 +10,10 @@ from pathlib import Path
 import pytest
 
 import memory_seed.corpus_cache as corpus_cache
-from memory_seed.corpus_cache import CorpusSnapshot, _Lease, _git_identity, get_corpus_snapshot
+from memory_seed.corpus_cache import (
+    CorpusSnapshot, _Lease, _git_identity, _integrity_binding, get_corpus_snapshot,
+    inspect_corpus_cache,
+)
 from memory_seed.core import resolve_runtime
 from memory_seed.retrieval import (
     augment_chunks_with_link_sidecars, augment_chunks_with_topic_sidecars, load_corpus,
@@ -285,3 +288,85 @@ def test_measurement_records_cold_warm_build_reduction(tmp_path):
 
     assert cold.chunks("decision", "augmented") == warm.chunks("decision", "augmented")
     assert builds == [1]
+
+
+def test_inspection_is_read_only_and_rebuilds_authority_for_every_health(tmp_path):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    artifact = next(cache.glob("*.json"))
+
+    def inspect(expected):
+        before = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in cache.iterdir()
+        }
+        calls = []
+        result = inspect_corpus_cache(
+            project, cache_dir=cache, source_builder=lambda _cwd: (calls.append(1) or _views())
+        )
+        after = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in cache.iterdir()
+        }
+        assert result.health == expected
+        assert calls == [1]
+        assert before == after
+        assert not list(cache.glob("*.lease"))
+        assert not list(cache.glob("*.tmp"))
+        return result
+
+    assert inspect("current").equivalence == "equal"
+    artifact.unlink()
+    assert inspect("missing").reconstruction_required
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    (project / ".memory-seed" / "sessions" / "2026-01-02.md").write_text("changed", encoding="utf-8")
+    assert inspect("stale").source_current is False
+
+
+def test_inspection_rejects_self_consistent_but_source_inequivalent_views(tmp_path):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    artifact = next(cache.glob("*.json"))
+    document = json.loads(artifact.read_text(encoding="utf-8"))
+    document["views"]["entry/raw"][0]["text"] = "forged"
+    document["view_counts"] = {key: len(value) for key, value in document["views"].items()}
+    document["integrity"] = _integrity_binding(document)
+    artifact.write_text(json.dumps(document), encoding="utf-8")
+    before = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(path.name for path in cache.iterdir()))
+
+    result = inspect_corpus_cache(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    after = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(path.name for path in cache.iterdir()))
+    assert result.health == "corrupt"
+    assert result.source_current is True
+    assert result.equivalence == "different"
+    assert before == after
+    assert not list(cache.glob("*.lease"))
+    assert not list(cache.glob("*.tmp"))
+
+
+def test_inspection_schema_mismatch_and_no_git_never_create_cache(tmp_path):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    artifact = next(cache.glob("*.json"))
+    document = json.loads(artifact.read_text(encoding="utf-8"))
+    document["schema_version"] = 999
+    document["integrity"] = _integrity_binding(document)
+    artifact.write_text(json.dumps(document), encoding="utf-8")
+    before = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(path.name for path in cache.iterdir()))
+    mismatched = inspect_corpus_cache(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    after = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(path.name for path in cache.iterdir()))
+    assert (mismatched.health, mismatched.schema_status) == ("corrupt", "mismatch")
+    assert before == after
+    assert not list(cache.glob("*.lease"))
+    assert not list(cache.glob("*.tmp"))
+
+    plain = tmp_path / "plain"
+    (plain / ".memory-seed" / "sessions").mkdir(parents=True)
+    absent = tmp_path / "absent"
+    no_git = inspect_corpus_cache(plain, cache_dir=absent, source_builder=lambda _cwd: _views())
+    assert no_git.health == "missing"
+    assert no_git.source_current is None
+    assert not absent.exists()

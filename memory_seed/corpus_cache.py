@@ -81,6 +81,42 @@ class CorpusSnapshot:
         return self._views[(granularity, view)]
 
 
+@dataclass(frozen=True)
+class CorpusCacheInspection:
+    """A strictly observational cache verdict plus one live source snapshot.
+
+    ``snapshot`` is always rebuilt from the Markdown authority. It is not the
+    decoded artifact, even on a cache hit: an artifact must never certify its
+    own equivalence.
+    """
+
+    snapshot: CorpusSnapshot
+    present: bool
+    schema_status: str
+    source_current: bool | None
+    health: str
+    reconstruction_required: bool
+    cached_counts: Mapping[str, int] | None
+    source_counts: Mapping[str, int]
+    equivalence: str
+    artifact: str | None = None
+    identity: Mapping[str, str] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "present": self.present,
+            "schema_status": self.schema_status,
+            "source_current": self.source_current,
+            "health": self.health,
+            "reconstruction_required": self.reconstruction_required,
+            "cached_counts": dict(self.cached_counts) if self.cached_counts is not None else None,
+            "source_counts": dict(self.source_counts),
+            "equivalence": self.equivalence,
+            "artifact": self.artifact,
+            "identity": dict(self.identity) if self.identity is not None else None,
+        }
+
+
 def _git_identity(workspace_root: Path, memory_dir: Path) -> dict[str, str] | None:
     def git(*args: str) -> str | None:
         try:
@@ -230,39 +266,50 @@ def _payload(snapshot: CorpusSnapshot, identity: Mapping[str, str], manifest: li
     return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
+def _decode_document(path: Path) -> tuple[CorpusSnapshot, dict[str, Any]]:
+    """Decode and validate a complete cache envelope without trusting its source claim."""
+    if not _serializer_is_compatible():
+        raise RuntimeError("serializer mismatch")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    expected_keys = {
+        "schema_version", "serializer_version", "identity", "manifest", "fingerprint", "views",
+        "view_counts", "integrity",
+    }
+    if not isinstance(document, dict) or set(document) != expected_keys:
+        raise ValueError("cache envelope fields do not match")
+    if document.get("schema_version") != CACHE_SCHEMA_VERSION:
+        raise RuntimeError("schema mismatch")
+    if document.get("serializer_version") != SERIALIZER_VERSION:
+        raise RuntimeError("serializer mismatch")
+    if not isinstance(document.get("identity"), dict) or not isinstance(document.get("manifest"), list):
+        raise ValueError("cache source binding is invalid")
+    views = document.get("views")
+    if not isinstance(views, dict) or set(views) != {f"{g}/{v}" for g in _GRANULARITIES for v in _VIEWS}:
+        raise ValueError("cache views do not match")
+    if document.get("view_counts") != {key: len(value) for key, value in views.items()}:
+        raise ValueError("cache view counts do not match")
+    integrity = document.get("integrity")
+    if not isinstance(integrity, str) or integrity != _integrity_binding(document):
+        raise ValueError("cache integrity does not match")
+    rebuilt = {
+        (granularity, view): tuple(_decode_chunk(chunk) for chunk in views[f"{granularity}/{view}"])
+        for granularity in _GRANULARITIES for view in _VIEWS
+    }
+    fingerprint = document.get("fingerprint")
+    if not isinstance(fingerprint, str):
+        raise ValueError("cache fingerprint is invalid")
+    return CorpusSnapshot("persistent", fingerprint, MappingProxyType(rebuilt)), document
+
+
 def _load(path: Path, identity: Mapping[str, str], manifest: list[dict[str, str]], fingerprint: str) -> CorpusSnapshot | None:
     try:
-        # Field evolution is normal cache incompatibility, not a consumer
-        # error: do this before decoding a warm payload.
-        if not _serializer_is_compatible():
-            return None
-        document = json.loads(path.read_text(encoding="utf-8"))
-        expected_keys = {
-            "schema_version", "serializer_version", "identity", "manifest", "fingerprint", "views",
-            "view_counts", "integrity",
-        }
-        if not isinstance(document, dict) or set(document) != expected_keys:
-            return None
-        if document.get("schema_version") != CACHE_SCHEMA_VERSION:
-            return None
-        if document.get("serializer_version") != SERIALIZER_VERSION or document.get("identity") != dict(identity):
+        snapshot, document = _decode_document(path)
+        if document.get("identity") != dict(identity):
             return None
         if document.get("manifest") != manifest or document.get("fingerprint") != fingerprint:
             return None
-        views = document.get("views")
-        if not isinstance(views, dict) or set(views) != {f"{g}/{v}" for g in _GRANULARITIES for v in _VIEWS}:
-            return None
-        if document.get("view_counts") != {key: len(value) for key, value in views.items()}:
-            return None
-        integrity = document.get("integrity")
-        if not isinstance(integrity, str) or integrity != _integrity_binding(document):
-            return None
-        rebuilt = {
-            (granularity, view): tuple(_decode_chunk(chunk) for chunk in views[f"{granularity}/{view}"])
-            for granularity in _GRANULARITIES for view in _VIEWS
-        }
-        return CorpusSnapshot("persistent", fingerprint, MappingProxyType(rebuilt))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return snapshot
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError, RuntimeError):
         return None
 
 
@@ -346,6 +393,99 @@ def _publish(path: Path, data: bytes, replace: Callable[[str, str], Any]) -> boo
                 temp.unlink(missing_ok=True)
             except OSError:
                 pass
+
+
+def _view_counts(snapshot: CorpusSnapshot) -> dict[str, int]:
+    return {
+        f"{granularity}/{view}": len(snapshot.chunks(granularity, view))
+        for granularity in _GRANULARITIES for view in _VIEWS
+    }
+
+
+def inspect_corpus_cache(
+    cwd: str | Path = ".", *, cache_dir: str | Path | None = None,
+    source_builder: Callable[[str | Path], Mapping[tuple[str, str], tuple[MemoryChunk, ...]]] | None = None,
+) -> CorpusCacheInspection:
+    """Read a cache artifact without changing it, and independently rebuild authority.
+
+    This deliberately does *not* call :func:`get_corpus_snapshot`: that API may
+    create cache directories, take a lease and publish.  ESR needs the opposite
+    contract: its diagnostics leave bytes, mtimes, directory entries and lock/
+    temporary files untouched even when the artifact is broken.
+    """
+    runtime = resolve_runtime(cwd)
+    identity = _git_identity(runtime.workspace_root, runtime.memory_dir)
+    manifest_result = (
+        _source_manifest(runtime.workspace_root, runtime.memory_dir) if identity is not None else None
+    )
+    manifest = manifest_result[0] if manifest_result is not None else None
+    fingerprint = _fingerprint(identity, manifest) if identity is not None and manifest is not None else None
+
+    # One and only one authoritative reconstruction per inspection.  A source
+    # that moves during it cannot make a cache "current"; it still gets the
+    # in-memory source result instead of a retry or a cache repair.
+    built = (source_builder or _default_source_builder)(cwd)
+    live = CorpusSnapshot(
+        "inspection", fingerprint,
+        MappingProxyType(dict(built)),
+    )
+    source_counts = _view_counts(live)
+    after_identity = _git_identity(runtime.workspace_root, runtime.memory_dir)
+    after_manifest_result = (
+        _source_manifest(runtime.workspace_root, runtime.memory_dir) if after_identity is not None else None
+    )
+    source_stable = (
+        identity is not None and manifest is not None
+        and after_identity == identity
+        and after_manifest_result is not None and after_manifest_result[0] == manifest
+    )
+
+    artifact: Path | None = None
+    if identity is not None:
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        artifact = _cache_dir(cache_dir) / f"{key}.json"
+    artifact_text = str(artifact) if artifact is not None else None
+    try:
+        present = artifact is not None and artifact.is_file()
+    except OSError:
+        present = False
+    if not present:
+        return CorpusCacheInspection(
+            live, False, "current", None,
+            "missing", True, None, source_counts, "not-comparable", artifact_text, identity,
+        )
+
+    try:
+        cached, document = _decode_document(artifact)
+    except RuntimeError as exc:
+        schema = "mismatch" if "mismatch" in str(exc) else "unreadable"
+        return CorpusCacheInspection(
+            live, True, schema, None,
+            "corrupt", True, None, source_counts, "not-comparable", artifact_text, identity,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return CorpusCacheInspection(
+            live, True, "unreadable", None,
+            "corrupt", True, None, source_counts, "not-comparable", artifact_text, identity,
+        )
+
+    cached_counts = _view_counts(cached)
+    source_current = bool(
+        source_stable and document.get("identity") == dict(identity)
+        and document.get("manifest") == manifest and document.get("fingerprint") == fingerprint
+    )
+    equivalent = cached._views == live._views
+    equivalence = "equal" if equivalent else "different"
+    if source_current and equivalent:
+        health = "current"
+    elif source_current:
+        health = "corrupt"
+    else:
+        health = "stale"
+    return CorpusCacheInspection(
+        live, True, "current", source_current, health, health != "current",
+        cached_counts, source_counts, equivalence, artifact_text, identity,
+    )
 
 
 def get_corpus_snapshot(

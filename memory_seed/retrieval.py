@@ -87,6 +87,7 @@ def search_memory(
     replacing_successor_boost: bool = True,
     attention_boost: bool = False,
     topics: list[str] | None = None,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
 
@@ -124,7 +125,7 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = load_corpus(cwd, granularity)
+    chunks = load_corpus(cwd, granularity, snapshot=snapshot)
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -2405,6 +2406,7 @@ def audit_link_gaps(
     top_k: int = 5,
     semantic_enabled: bool = True,
     semantic_status: dict[str, Any] | None = None,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
@@ -2461,10 +2463,12 @@ def audit_link_gaps(
     if semantic_status is not None:
         semantic_status.update(requested=semantic_enabled, active=False, provider=None, fallback_reason=None)
 
+    raw_chunks = (
+        snapshot.chunks("entry", "raw") if snapshot is not None
+        else tuple(extract_memory_chunks(cwd, granularity="entry"))
+    )
     chunks = [
-        chunk
-        for chunk in augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
-        if chunk.entry_id
+        chunk for chunk in augment_chunks_with_topic_sidecars(raw_chunks, cwd) if chunk.entry_id
     ]
     if not chunks:
         return []

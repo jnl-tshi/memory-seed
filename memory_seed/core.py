@@ -2103,7 +2103,9 @@ def existing_refines_targets(sessions_dir: Path) -> dict[tuple[str, str], str]:
     return found
 
 
-def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
+def check_session_links(
+    cwd: str | Path = ".", *, snapshot: "CorpusSnapshot | None" = None,
+) -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
     ``related_entries``/``related_memories``/``replaces`` references,
@@ -3175,8 +3177,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         from .retrieval import augment_chunks_with_link_sidecars
         from .semantic_cache import build_refines_spine, extract_memory_chunks
 
-        chain_chunks = augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity="entry"), cwd
+        chain_chunks = (
+            snapshot.chunks("entry", "augmented") if snapshot is not None
+            else augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
         )
         chain_spine = build_refines_spine(chain_chunks)
     except Exception:
@@ -3883,6 +3886,7 @@ def session_append_entry(
     timestamp: str | None = None,
     explicit_user: str | None = None,
     dry_run: bool = False,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -4045,6 +4049,10 @@ def session_append_entry(
         if parsed.ok and parsed.evolution_type == "refines"
     ]
     if claimed_refines:
+        # This is deliberately NOT a snapshot view: it is the append-only
+        # authored-assertion/retraction ledger used for the write-time rival
+        # check. A derived augmented spine has different semantics here (and
+        # would hide the raw assertion this guard must diagnose).
         taken = existing_refines_targets(sessions_dir)
         # An interrupted write is recovered by replaying the SAME payload, and a
         # replay re-authors its own edges. An entry does not conflict with
@@ -4088,12 +4096,13 @@ def session_append_entry(
     ]
     if any(len(parsed_refs) >= 2 for _d, parsed_refs in multi_target_decisions):
         try:
-            from .retrieval import augment_chunks_with_link_sidecars
-            from .semantic_cache import build_refines_spine, extract_memory_chunks
+            from .corpus_cache import get_corpus_snapshot
+            from .semantic_cache import build_refines_spine
 
-            spine = build_refines_spine(
-                augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
-            )
+            if snapshot is None:
+                snapshot = get_corpus_snapshot(cwd)
+            chain_chunks = snapshot.chunks("entry", "augmented")
+            spine = build_refines_spine(chain_chunks)
         except Exception:
             spine = None  # best-effort like existing_refines_targets; links check re-derives
         if spine is not None:
