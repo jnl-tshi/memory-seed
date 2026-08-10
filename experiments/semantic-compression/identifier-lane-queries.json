@@ -1,0 +1,236 @@
+{
+  "schema": "identifier-lane-queries.v1",
+  "authoring": {
+    "passes": 3,
+    "authors": [
+      {
+        "author_id": "a0",
+        "model": "Codex subagent (runtime model identifier not exposed)"
+      },
+      {
+        "author_id": "a1",
+        "model": "Codex subagent (runtime model identifier not exposed)"
+      },
+      {
+        "author_id": "a2",
+        "model": "Codex subagent (runtime model identifier not exposed)"
+      }
+    ],
+    "input_access": "canonical-source-and-identifiers-only",
+    "ranking_results_seen": false,
+    "arm_definitions_seen": false,
+    "prior_results_seen": false
+  },
+  "queries": [
+    {
+      "packet_id": "il_1ce8ce35ef9a",
+      "author_id": "a0",
+      "semantic_query": "Why should retrieval recency rely on the system clock instead of a date supplied by the agent?",
+      "identifier_query": "Why does `memory_search` use the system clock for recency while retaining a deterministic date override for tests?",
+      "identifier": "memory_search"
+    },
+    {
+      "packet_id": "il_43a8928ea909",
+      "author_id": "a0",
+      "semantic_query": "Why were all relationship verdicts retained with confidence tiers while weak links remain visible but visually faded?",
+      "identifier_query": "How does `edge_confidence` preserve weak relationship evidence while allowing the reader to fade or filter uncertain links?",
+      "identifier": "edge_confidence"
+    },
+    {
+      "packet_id": "il_6222da6531c9",
+      "author_id": "a0",
+      "semantic_query": "Why should ownership inspection be nonblocking whenever callers omit the agent they expect to own the worktree?",
+      "identifier_query": "How should `agent_type` omission affect ownership classification during a nonwriting worktree status inspection?",
+      "identifier": "agent_type"
+    },
+    {
+      "packet_id": "il_093231416c79",
+      "author_id": "a0",
+      "semantic_query": "Why were native hover titles added to filter chips, view switches, scope controls, and lifecycle settings?",
+      "identifier_query": "How does `EDGE_DESCRIPTIONS` keep concise hover explanations aligned with relationship labels on graph filter chips?",
+      "identifier": "EDGE_DESCRIPTIONS"
+    },
+    {
+      "packet_id": "il_25c61328d1fa",
+      "author_id": "a0",
+      "semantic_query": "How are entries loaded in the chronological view guaranteed to appear in the graph with relevant visible relationships?",
+      "identifier_query": "Why does `pinned_ids` add loaded chronological entries beyond the ranking limit and expand only through currently visible relationship types?",
+      "identifier": "pinned_ids"
+    },
+    {
+      "packet_id": "il_4b6c7c54ca13",
+      "author_id": "a0",
+      "semantic_query": "Why was the comprehensive product proposal promoted while the older feature renaming plan was marked superseded?",
+      "identifier_query": "Why did `docs/todo/memory-trace-product-and-trail-view-plan.md` become canonical after the product name was separated from its internal chronological feature?",
+      "identifier": "docs/todo/memory-trace-product-and-trail-view-plan.md"
+    },
+    {
+      "packet_id": "il_129ed2173cbf",
+      "author_id": "a0",
+      "semantic_query": "Why does the distribution split first consolidate retrieval behind a shared service before extracting the user interface into a separate package?",
+      "identifier_query": "Why must `format_search_results` join a shared retrieval service before the interface moves into a separately released distribution?",
+      "identifier": "format_search_results"
+    },
+    {
+      "packet_id": "il_3c8f246f686b",
+      "author_id": "a0",
+      "semantic_query": "Why was the old chronological tab removed from the frontend while its server endpoint remained for roadmap review and reversibility?",
+      "identifier_query": "How did `memory-trace/memory_trace/static/app.js` retire the old chronological tab while migrating saved preferences to the graph successor?",
+      "identifier": "memory-trace/memory_trace/static/app.js"
+    },
+    {
+      "packet_id": "il_527a964d135c",
+      "author_id": "a0",
+      "semantic_query": "Why was one oversized mixed test module split by call graph while preserving every test and integration marker?",
+      "identifier_query": "How did `pytest.mark.integration` survive the automated split of the oversized mixed test suite into cohesive concern modules?",
+      "identifier": "pytest.mark.integration"
+    },
+    {
+      "packet_id": "il_4453630956b8",
+      "author_id": "a0",
+      "semantic_query": "Why was the completed text navigation branch merged through the guarded session workflow after all client and backend checks passed?",
+      "identifier_query": "Why was `codex/fix/full-text-search-navigation` integrated into the primary branch only after validation and a clean session fusion dry run?",
+      "identifier": "codex/fix/full-text-search-navigation"
+    },
+    {
+      "packet_id": "il_30654a55472f",
+      "author_id": "a1",
+      "semantic_query": "Why was the redundant startup merge idempotency test deleted while a bespoke counterpart remained?",
+      "identifier_query": "Why was `test_session_start_hook_merges_are_idempotent` removed despite retaining coverage for bespoke merge behavior?",
+      "identifier": "test_session_start_hook_merges_are_idempotent"
+    },
+    {
+      "packet_id": "il_451f40861859",
+      "author_id": "a1",
+      "semantic_query": "How was the release published through the trusted package registry approval gate?",
+      "identifier_query": "What release required approving the trusted package registry deployment for `v2.13.0`?",
+      "identifier": "v2.13.0"
+    },
+    {
+      "packet_id": "il_5a209acc6237",
+      "author_id": "a1",
+      "semantic_query": "Why were shutdown safety work and encoding enforcement split into separate implementation plans?",
+      "identifier_query": "What implementation scope was assigned to `docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md` after separating faster encoding work?",
+      "identifier": "docs/2_Todo/memory-seed-trace-upgrade-shutdown-plan.md"
+    },
+    {
+      "packet_id": "il_3f0dc9e2a7df",
+      "author_id": "a1",
+      "semantic_query": "When may a diagram attachment be promoted without becoming an orphaned reasoning artifact?",
+      "identifier_query": "What promotion checks implemented in `memory_seed/core.py` prevent detached diagram attachments from entering the main tree?",
+      "identifier": "memory_seed/core.py"
+    },
+    {
+      "packet_id": "il_17e5558c9f0e",
+      "author_id": "a1",
+      "semantic_query": "How did authored topic vocabulary replace derived labels across facets, reader chips, graph chains, and filtering?",
+      "identifier_query": "How does `expand_topic_filter` make canonical topic names and aliases return matching entries in both directions?",
+      "identifier": "expand_topic_filter"
+    },
+    {
+      "packet_id": "il_0a27a2eefd32",
+      "author_id": "a1",
+      "semantic_query": "How were tall diagrams fitted while preserving merge placement and centering chains only before branches?",
+      "identifier_query": "Which layout and fit behavior is validated by `memory-trace/tests/test_service.py` after rejecting global rank recentering?",
+      "identifier": "memory-trace/tests/test_service.py"
+    },
+    {
+      "packet_id": "il_46c14c354192",
+      "author_id": "a1",
+      "semantic_query": "Why does the browser harness run against the packaged application and a real corpus instead of mocks?",
+      "identifier_query": "Why was `playwright/test` configured to wait for cold corpus loading before exercising search navigation?",
+      "identifier": "playwright/test"
+    },
+    {
+      "packet_id": "il_48eb75c51317",
+      "author_id": "a1",
+      "semantic_query": "Why was a misleading legacy entry fixture replaced, and why should score damping be asserted as a ratio?",
+      "identifier_query": "What mistaken behavior had `test_entry_without_decision_headings_stays_whole` preserved, and how was its original property tested correctly?",
+      "identifier": "test_entry_without_decision_headings_stays_whole"
+    },
+    {
+      "packet_id": "il_5045686a0e41",
+      "author_id": "a1",
+      "semantic_query": "Why should enabling an edge type reveal every matching relationship regardless of the selected node?",
+      "identifier_query": "Why was `edge.hidden-until-selected` removed so selection only changes styling rather than relationship visibility?",
+      "identifier": "edge.hidden-until-selected"
+    },
+    {
+      "packet_id": "il_17ca234b494c",
+      "author_id": "a1",
+      "semantic_query": "How can one running trace viewer safely switch among individual branch worktrees without allowing arbitrary path reads?",
+      "identifier_query": "How does `list_worktrees` establish the approved checkout registry used for safe branch switching in the viewer?",
+      "identifier": "list_worktrees"
+    },
+    {
+      "packet_id": "il_30e95d0edc8b",
+      "author_id": "a2",
+      "semantic_query": "What decision standardized the shipped product’s intended name across plans, docs, metadata, and package descriptions while preserving immutable session history?",
+      "identifier_query": "Why was `memory-lense` adopted as the intended product name throughout documentation and package metadata?",
+      "identifier": "memory-lense"
+    },
+    {
+      "packet_id": "il_88e747ecc12a",
+      "author_id": "a2",
+      "semantic_query": "Why were dated link declarations keyed by both decision identity and timestamp, permitting later additions while rejecting duplicate same date blocks?",
+      "identifier_query": "How did `entry_link_sidecars` justify allowing multiple dated declarations for one decision without weakening immutable history?",
+      "identifier": "entry_link_sidecars"
+    },
+    {
+      "packet_id": "il_7780d9c3f5c3",
+      "author_id": "a2",
+      "semantic_query": "Which narrow fixes restored the trace viewer’s public import boundary, corrected graph geometry, and clarified exact path logging guidance without rewriting old sessions?",
+      "identifier_query": "Why did the trace viewer import its ranked chunk type through `memory_seed.semantic_cache` while retaining a minimal offline renderer?",
+      "identifier": "memory_seed.semantic_cache"
+    },
+    {
+      "packet_id": "il_27af273339da",
+      "author_id": "a2",
+      "semantic_query": "What rule prevents a new decision from naming multiple members of the same refinement lineage while still permitting merges across separate lineages?",
+      "identifier_query": "Why does `redundant-chain-edge` remain advisory for published history but become a hard refusal before a new decision is recorded?",
+      "identifier": "redundant-chain-edge"
+    },
+    {
+      "packet_id": "il_197f35246980",
+      "author_id": "a2",
+      "semantic_query": "Why were semantic HTML comment markers added to constitutional clauses instead of positional labels or shared heading links?",
+      "identifier_query": "How does `_constitution_anchors` validate stable clause bindings after renumbering while preserving the constitution’s substantive meaning?",
+      "identifier": "_constitution_anchors"
+    },
+    {
+      "packet_id": "il_4e80d2241ec4",
+      "author_id": "a2",
+      "semantic_query": "Why did the experiment finish the current batch with its original transcript format and defer richer reasoning capture to later batches?",
+      "identifier_query": "Why was `stream-json` deferred until later batches to preserve matrix comparability despite limiting faithfulness analysis?",
+      "identifier": "stream-json"
+    },
+    {
+      "packet_id": "il_478e9d67770e",
+      "author_id": "a2",
+      "semantic_query": "What decision generated lane tables and overview summaries only inside ownership markers while preserving handwritten prose and detecting stale output?",
+      "identifier_query": "How does `--check` detect stale generated indexes without writing while the generator preserves prose outside its owned marker regions?",
+      "identifier": "--check"
+    },
+    {
+      "packet_id": "il_023abf7c18f1",
+      "author_id": "a2",
+      "semantic_query": "Why did large animated graphs perform several simulation steps per painted frame, capped to preserve visible motion while reducing rendering work?",
+      "identifier_query": "What boundaries did `graphForces.test.ts` verify for adaptive simulation ticks per paint, including small graphs and degenerate inputs?",
+      "identifier": "graphForces.test.ts"
+    },
+    {
+      "packet_id": "il_0c3a7438019b",
+      "author_id": "a2",
+      "semantic_query": "Why was the provenance safeguard documented as ineffective for already installed stale binaries until users refresh the tool or activate the worktree environment?",
+      "identifier_query": "How did `tests/test_package_provenance.py` simulate a mismatched loaded package when the stale executable itself could not demonstrate the new safeguard?",
+      "identifier": "tests/test_package_provenance.py"
+    },
+    {
+      "packet_id": "il_0806b431a3f6",
+      "author_id": "a2",
+      "semantic_query": "Why was the exception allowing direct diagram repair removed once timestamped replacement blocks could preserve both the original and its correction?",
+      "identifier_query": "Why did `docs/CONSTITUTION.md` revoke the diagram repair exception yet retain the historical amendment record documenting when it genuinely applied?",
+      "identifier": "docs/CONSTITUTION.md"
+    }
+  ]
+}

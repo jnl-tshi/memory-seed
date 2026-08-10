@@ -114,7 +114,8 @@ class IdentifierLaneAblationTests(unittest.TestCase):
                      MODULE,
                      "EXPECTED_SELECTION_FINGERPRINT",
                      MODULE.freeze_info()["selection_fingerprint"],
-                 ):
+                 ), \
+                 mock.patch.object(MODULE, "EXPECTED_QUERY_SHA256", "PENDING"):
                 with self.assertRaisesRegex(RuntimeError, "query pin is PENDING"):
                     MODULE.run(output)
             self.assertFalse(output.exists())

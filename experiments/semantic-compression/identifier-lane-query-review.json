@@ -1,0 +1,550 @@
+{
+  "schema": "identifier-lane-query-review.v1",
+  "query_sha256": "sha256:6bb711f0b3f87c675f624e0704d26c17a30eff4da160926b2aea825f5759ed22",
+  "reviewer_model": "Codex subagent (runtime model identifier not exposed)",
+  "input_access": "canonical-source-and-queries-only",
+  "ranking_results_seen": false,
+  "arm_definitions_seen": false,
+  "reviews": [
+    {
+      "packet_id": "il_1ce8ce35ef9a",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "Naturally asks why recency trusts the system clock over agent input and paraphrases the source rationale."
+    },
+    {
+      "packet_id": "il_1ce8ce35ef9a",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The identifier anchors a clear question about production clock use and the inaccessible test override without copying source prose."
+    },
+    {
+      "packet_id": "il_43a8928ea909",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally targets the decision to retain surviving verdicts while visually de-emphasizing weak relationships."
+    },
+    {
+      "packet_id": "il_43a8928ea909",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The field name precisely anchors the evidence-preservation and read-time filtering rationale in original wording."
+    },
+    {
+      "packet_id": "il_6222da6531c9",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why ownership inspection remains nonblocking when no expected agent is supplied."
+    },
+    {
+      "packet_id": "il_6222da6531c9",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The parameter name focuses a natural classification question on the source's no-agent status case."
+    },
+    {
+      "packet_id": "il_093231416c79",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The listed controls uniquely identify the hover-explainer change while the phrasing remains a concise paraphrase."
+    },
+    {
+      "packet_id": "il_093231416c79",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The constant anchors a natural question about keeping relationship explanations aligned with chip labels."
+    },
+    {
+      "packet_id": "il_25c61328d1fa",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally targets the cross-view guarantee that loaded chronological entries and relevant links appear in the graph."
+    },
+    {
+      "packet_id": "il_25c61328d1fa",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The parameter precisely identifies additive pinning beyond the rank limit and visible-edge-only expansion."
+    },
+    {
+      "packet_id": "il_4b6c7c54ca13",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks about promoting the broader Trace/Trail proposal and superseding the stale renaming plan."
+    },
+    {
+      "packet_id": "il_4b6c7c54ca13",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The canonical plan path anchors a natural rationale question about separating product and feature names."
+    },
+    {
+      "packet_id": "il_129ed2173cbf",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally captures the plan's two-stage sequence: shared retrieval first, distribution extraction second."
+    },
+    {
+      "packet_id": "il_129ed2173cbf",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The function identifier makes the shared-service prerequisite specific without reproducing the plan's prose."
+    },
+    {
+      "packet_id": "il_3c8f246f686b",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why frontend retirement was separated from endpoint removal for roadmap and reversibility reasons."
+    },
+    {
+      "packet_id": "il_3c8f246f686b",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The frontend path anchors a natural question about removing the tab and migrating stale view preferences."
+    },
+    {
+      "packet_id": "il_527a964d135c",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally identifies the call-graph-driven split and its preservation of tests and integration markers."
+    },
+    {
+      "packet_id": "il_527a964d135c",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The decorator identifier focuses a clear question on the AST-aware preservation of integration classification."
+    },
+    {
+      "packet_id": "il_4453630956b8",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally asks why the validated branch was integrated through the guarded session workflow."
+    },
+    {
+      "packet_id": "il_4453630956b8",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The branch name precisely anchors the merge decision and its validation prerequisites."
+    },
+    {
+      "packet_id": "il_30654a55472f",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly contrasts redundant wrapper coverage with the retained bespoke merge test."
+    },
+    {
+      "packet_id": "il_30654a55472f",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The deleted test name anchors a natural question about generic versus uniquely bespoke coverage."
+    },
+    {
+      "packet_id": "il_451f40861859",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally requests the release path through GitHub Actions and the trusted-publisher approval gate."
+    },
+    {
+      "packet_id": "il_451f40861859",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The version token makes the approval-gated release lookup specific, and the wording does not mirror the source."
+    },
+    {
+      "packet_id": "il_5a209acc6237",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why process-safety work and encoding work were separated by implementation scope."
+    },
+    {
+      "packet_id": "il_5a209acc6237",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The plan path anchors a natural question about the shutdown and upgrade scope assigned to it."
+    },
+    {
+      "packet_id": "il_3f0dc9e2a7df",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally asks for the parent-presence condition that prevents an orphaned diagram attachment."
+    },
+    {
+      "packet_id": "il_3f0dc9e2a7df",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The implementation path precisely anchors the promotion checks while the rest is an original paraphrase."
+    },
+    {
+      "packet_id": "il_17e5558c9f0e",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly targets authored-topic propagation through facets, reader chips, graph chains, and filters."
+    },
+    {
+      "packet_id": "il_17e5558c9f0e",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The helper name anchors the canonical-to-alias bidirectional filtering behavior in concise original language."
+    },
+    {
+      "packet_id": "il_0a27a2eefd32",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally combines the tall-diagram fit fix with the selective centering and preserved merge placement."
+    },
+    {
+      "packet_id": "il_0a27a2eefd32",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The test path anchors a clear question about the accepted layout behavior after global recentering was rejected."
+    },
+    {
+      "packet_id": "il_46c14c354192",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why end-to-end testing used the packaged application and real corpus rather than mocks."
+    },
+    {
+      "packet_id": "il_46c14c354192",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The Playwright identifier focuses a natural question on waiting for genuine cold-cache loading before navigation."
+    },
+    {
+      "packet_id": "il_48eb75c51317",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally joins the two source-specific test corrections: a truthful fixture and ratio-based damping."
+    },
+    {
+      "packet_id": "il_48eb75c51317",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The test name anchors a clear question about the defect it preserved and the replacement fixture."
+    },
+    {
+      "packet_id": "il_5045686a0e41",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly targets the rule that enabled edge types remain visible independently of node selection."
+    },
+    {
+      "packet_id": "il_5045686a0e41",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The removed style selector precisely anchors the visibility-versus-selection distinction."
+    },
+    {
+      "packet_id": "il_17ca234b494c",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally asks how one viewer switches branch worktrees while preventing arbitrary path access."
+    },
+    {
+      "packet_id": "il_17ca234b494c",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The function identifier anchors the approved-worktree registry and its safety role."
+    },
+    {
+      "packet_id": "il_30e95d0edc8b",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks about standardizing the intended product name while respecting append-only session history."
+    },
+    {
+      "packet_id": "il_30e95d0edc8b",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The product identifier makes the naming decision specific without copying the source's rename inventory."
+    },
+    {
+      "packet_id": "il_88e747ecc12a",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally targets timestamped sidecar identity, later declarations, and duplicate-block refusal."
+    },
+    {
+      "packet_id": "il_88e747ecc12a",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The reader helper anchors a clear question about multiple declarations remaining compatible with immutable history."
+    },
+    {
+      "packet_id": "il_7780d9c3f5c3",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It specifically and naturally summarizes the three narrow fixes and the decision not to rewrite sessions."
+    },
+    {
+      "packet_id": "il_7780d9c3f5c3",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The public module path anchors the import-boundary fix while the renderer detail distinguishes the target."
+    },
+    {
+      "packet_id": "il_27af273339da",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks about preventing redundant same-lineage edges while preserving legal cross-lineage merges."
+    },
+    {
+      "packet_id": "il_27af273339da",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The diagnostic identifier anchors the source's deliberate advisory-history and hard-write-guard split."
+    },
+    {
+      "packet_id": "il_197f35246980",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally contrasts semantic comment markers with positional labels and insufficient shared heading anchors."
+    },
+    {
+      "packet_id": "il_197f35246980",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The validator helper anchors a clear question about stable clause resolution after renumbering."
+    },
+    {
+      "packet_id": "il_4e80d2241ec4",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why uniform batch comparability outweighed changing transcript format mid-run."
+    },
+    {
+      "packet_id": "il_4e80d2241ec4",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The format identifier precisely anchors the deferred richer-capture decision and its analysis limitation."
+    },
+    {
+      "packet_id": "il_478e9d67770e",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally targets marker-bounded generation, prose preservation, and stale-output detection."
+    },
+    {
+      "packet_id": "il_478e9d67770e",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The option identifier anchors the no-write staleness check while distinguishing generator-owned regions from prose."
+    },
+    {
+      "packet_id": "il_023abf7c18f1",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks about reducing paints through multiple ticks while retaining visibly animated motion."
+    },
+    {
+      "packet_id": "il_023abf7c18f1",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The test filename anchors a natural question about adaptive boundaries, small graphs, and degenerate inputs."
+    },
+    {
+      "packet_id": "il_0c3a7438019b",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It naturally asks why a pre-guard installed binary remains unsafe until refreshed or replaced by the worktree environment."
+    },
+    {
+      "packet_id": "il_0c3a7438019b",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The test path precisely anchors the simulated package-provenance mismatch necessitated by the stale binary."
+    },
+    {
+      "packet_id": "il_0806b431a3f6",
+      "kind": "semantic",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "It clearly asks why appendable timestamped replacements made the in-place repair exception unnecessary."
+    },
+    {
+      "packet_id": "il_0806b431a3f6",
+      "kind": "identifier",
+      "accepted": true,
+      "target_specific": true,
+      "natural": true,
+      "source_copying_absent": true,
+      "reason": "The constitution path anchors a natural question about revoking the carve-out while retaining its amendment history."
+    }
+  ]
+}
