@@ -1,6 +1,7 @@
 # Semantic Compression Benchmark
 
-Status: Stage 1 measured; lean-DRAFT feasibility pilot measured; confirmatory Stage 2 not yet run.
+Status: Stage 1, lean-DRAFT, front-door, and identifier-normalization diagnostics measured;
+confirmatory natural-authoring Stage 2 not yet run.
 
 This experiment asks whether a derived representation of a Memory Seed decision can preserve or
 improve downstream utility while consuming less context. It does **not** add a production sidecar,
@@ -28,6 +29,14 @@ safe as a canonical replacement, and the measured selector should not ship as a 
 identifiers showed a positive but inconclusive retrieval effect. Progressive disclosure with a safer
 selector and immediate full-source access is only the next hypothesis to test.
 
+The subsequent [front-door result](front-door-results.md) rejected the tested presentation candidate:
+query-specific evidence added context without adding answer evidence, and the safer verbatim D/R/A view
+missed its preregistered 20% median reduction gate. The fresh
+[identifier-lane holdout](identifier-lane-results.md) then tested the minimal BM25F normalization repair.
+The treatment was active and changed 12-18 full rankings, but complete raw-body retrieval already achieved
+perfect exact-identifier MRR (`1.000`), so every normalized arm produced zero target-rank improvement. See
+the [score audit](identifier-lane-audit.md) for the ceiling-effect and instrument checks.
+
 Stage 2 is planned but not yet preregistered: its executable materials remain to be frozen. A
 production build recommendation is prohibited until Stage 2 is complete.
 
@@ -37,6 +46,8 @@ Run:
 python experiments/semantic-compression/benchmark.py
 python experiments/semantic-compression/lean_draft_pilot.py validate-queries
 python experiments/semantic-compression/lean_draft_pilot.py run
+python experiments/semantic-compression/identifier_lane_ablation.py validate-frozen-inputs
+python experiments/semantic-compression/identifier_lane_ablation.py run --output-dir <new-directory>
 ```
 
 Outputs are isolated in this directory. `dataset.json`, `metrics.json`, `relationship-pairs.json`, and

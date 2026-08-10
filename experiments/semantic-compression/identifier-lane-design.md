@@ -1,7 +1,8 @@
 # Identifier-lane normalization holdout
 
-Status: selector and target fingerprints are frozen; source-only query authoring is next. Scoring
-remains locked until the query and independent review artifacts are also hashed and committed.
+Status: completed held-out diagnostic. This file records the protocol frozen before scoring; selector
+and target pins landed in `6b810e7b`, query/review pins landed in `8e4adb94`, and the one official score
+run produced `identifier-lane-results.md` plus the interpretation in `identifier-lane-audit.md`.
 
 ## Question
 
