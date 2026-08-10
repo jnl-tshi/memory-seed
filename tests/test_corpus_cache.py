@@ -181,6 +181,20 @@ def test_payload_serialization_failure_keeps_the_authoritative_snapshot_usable(t
     assert not list(cache.glob("*.lease"))
 
 
+def test_warm_field_evolution_treats_the_artifact_as_a_cache_miss(tmp_path, monkeypatch):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    calls = []
+    build = lambda _cwd: (calls.append(1) or _views())
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=build)
+    monkeypatch.setattr(corpus_cache, "_serializer_is_compatible", lambda: False)
+
+    snapshot = get_corpus_snapshot(project, cache_dir=cache, source_builder=build)
+    assert snapshot.chunks("entry", "raw") == _views()["entry", "raw"]
+    assert snapshot.origin == "isolated"
+    assert calls == [1, 1]
+
+
 def test_lease_release_does_not_remove_a_replaced_owner_token(tmp_path):
     lease = _Lease(tmp_path / "snapshot.json")
     assert lease.acquire()

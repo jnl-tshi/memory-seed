@@ -52,6 +52,11 @@ _TUPLE_FIELDS = {
 }
 
 
+def _serializer_is_compatible() -> bool:
+    """Whether this package can faithfully encode/decode the current chunk model."""
+    return tuple(field.name for field in fields(MemoryChunk)) == _SERIALIZED_CHUNK_FIELDS
+
+
 @dataclass(frozen=True)
 class CorpusSnapshot:
     """Immutable raw and augmented corpus views from one verified source state."""
@@ -154,7 +159,7 @@ def _default_source_builder(cwd: str | Path) -> Mapping[tuple[str, str], tuple[M
 
 
 def _encode_chunk(chunk: MemoryChunk) -> dict[str, Any]:
-    if tuple(field.name for field in fields(MemoryChunk)) != _SERIALIZED_CHUNK_FIELDS:
+    if not _serializer_is_compatible():
         raise RuntimeError("MemoryChunk serializer is incomplete; update fields and serializer version")
     value = {name: getattr(chunk, name) for name in _CHUNK_FIELDS}
     value["session_date"] = chunk.session_date.isoformat()
@@ -227,6 +232,10 @@ def _payload(snapshot: CorpusSnapshot, identity: Mapping[str, str], manifest: li
 
 def _load(path: Path, identity: Mapping[str, str], manifest: list[dict[str, str]], fingerprint: str) -> CorpusSnapshot | None:
     try:
+        # Field evolution is normal cache incompatibility, not a consumer
+        # error: do this before decoding a warm payload.
+        if not _serializer_is_compatible():
+            return None
         document = json.loads(path.read_text(encoding="utf-8"))
         expected_keys = {
             "schema_version", "serializer_version", "identity", "manifest", "fingerprint", "views",
