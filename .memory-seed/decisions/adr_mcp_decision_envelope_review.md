@@ -33,6 +33,10 @@ The LLM must review every affected concern and the exact immutable draft before 
 
 Evolves the shared decision envelope from atomic semantic authorship into a fail-closed multi-ADR review transaction.
 
+### Awaiting review
+
+- `mse_axkrkd339br970kw:d2` - Require content-bound living ADR review before any CLI or MCP session append that evolves or replaces a...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -129,3 +133,32 @@ Evolves the shared decision envelope from atomic semantic authorship into a fail
 #### Reason
 
 Accepted after the mandatory review receipt and zero-write first-call proof.
+
+### revision-proposed - 2026-08-10T13:00:00
+
+```json
+{
+  "decision_ref": "mse_axkrkd339br970kw:d2",
+  "event_id": "adre_bf87a3552d2336562fde",
+  "predecessors": [
+    {
+      "decision": "mse_17d0qqh34a07qp5b:d1",
+      "relation_assertion": "link:mse_axkrkd339br970kw:d2:evolves:mse_17d0qqh34a07qp5b:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_axkrkd339br970kw"
+}
+```
+
+#### Decision
+
+Require content-bound living ADR review before any CLI or MCP session append that evolves or replaces a lineage member.
+
+#### Why
+
+Every public session-write surface must review the same complete concern context and exact immutable draft before mutation.
+
+#### Evolution
+
+Extends the accepted MCP gate into one shared append preflight while preserving the zero-write first call and parent-first transaction.

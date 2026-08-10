@@ -142,6 +142,44 @@ topics:
         self.assertNotIn("topics:", entry)
         self.assertNotIn("evolves:", entry)
 
+    def test_unlinked_decisions_receive_the_same_draft_suggestions_on_preview_and_write(self):
+        earlier = self._append(title="Earlier grounding", _now="2026-06-13 08:00")
+        preview = self._append(
+            title="Grounded follow-up",
+            _now="2026-06-13 09:00",
+            dry_run=True,
+            consulted=[earlier["entry_id"]],
+        )
+        written = self._append(
+            title="Grounded follow-up",
+            _now="2026-06-13 09:00",
+            consulted=[earlier["entry_id"]],
+        )
+
+        self.assertTrue(preview["ok"], preview["issues"])
+        self.assertTrue(written["ok"], written["issues"])
+        self.assertEqual(preview["link_suggestions"], written["link_suggestions"])
+        nudge = written["link_suggestions"]
+        self.assertEqual(nudge["unlinked_decisions"], ["d1"])
+        self.assertEqual(nudge["related_entries"][0], earlier["entry_id"])
+        self.assertTrue(nudge["suggestions"][0]["consulted"])
+        self.assertIn("no-edge", nudge["instruction"])
+
+    def test_linked_decisions_do_not_receive_the_append_nudge(self):
+        earlier = self._append(title="Earlier", _now="2026-06-13 08:00")
+        result = self._append(
+            title="Already linked",
+            _now="2026-06-13 09:00",
+            decisions=[{
+                "decision": "d1",
+                "topics": {"area": "schema", "activity": "feature-build"},
+                "links": {"related_entries": [earlier["entry_id"]]},
+            }],
+        )
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertNotIn("link_suggestions", result)
+
     # --- refusals are data, not transport errors ------------------------
 
     def test_guard_refusals_come_back_as_issues_not_exceptions(self):
@@ -370,9 +408,10 @@ class McpWriteSurfaceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call_tool(name, {"cwd": ".", "entry_id": "x", "title": "t", "user_initials": "J", "agent_type": "c"})
 
-    def test_exactly_three_tools_can_write(self):
+    def test_exactly_four_tools_can_write(self):
         # Pins the write surface: authoring an entry, integrating a branch, and
-        # (2026-08-10) retracting a published edge - the first link WRITE tool,
+        # (2026-08-10) retracting a published edge - the first link WRITE tool -
+        # and recording an evidence-backed ADR review without moving its head.
         # sanctioned because retract-and-retype is the mandated append-only fix
         # for three links check errors and had no tooling at all. Anything else
         # gaining a dry_run flag means a tool grew a write path this change did
@@ -380,7 +419,7 @@ class McpWriteSurfaceTests(unittest.TestCase):
         writers = sorted(tool["name"] for tool in TOOLS if "dry_run" in tool["inputSchema"]["properties"])
         self.assertEqual(
             writers,
-            ["memory_link_retract", "memory_session_append", "memory_session_integrate"],
+            ["memory_adr_reviewed", "memory_link_retract", "memory_session_append", "memory_session_integrate"],
         )
 
     def test_append_schema_advertises_the_required_authored_topic_envelope(self):

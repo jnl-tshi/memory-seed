@@ -330,10 +330,10 @@ deterministic trigger (the refines spine) instead of keyword sweeps. **R7 CLOSED
 queues reach `esr --json` / `to_dict()` as `adr_attachment_candidates` and `adr_head_reviews`, so
 automation can consume them without scraping prose. **R9 CLOSED for this queue**: the review-queue
 preamble now names both answering commands verbatim (see step 3). Weaknesses: ADR *write*
-operations are CLI-only while the review *gate* is MCP — an MCP-context agent can be asked a
-question it cannot answer on the same surface (**R8**); reviewed-no-change still has no standalone
-recorder on any surface, only the MCP review-gate route through a full session entry (design
-proposal filed, see `docs/2_Todo/adr-reviewed-recorder-proposal.md`).
+operations are mostly CLI-only while the review *gate* now runs identically on CLI and MCP; the
+broader surface split remains (**R8**). Reviewed-no-change has a standalone parity pair:
+`adr reviewed` and `memory_adr_reviewed` (completed proposal:
+`docs/5_Completed/adr-reviewed-recorder-proposal.md`).
 
 ---
 
@@ -540,6 +540,10 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   unconditional response path instead — when a decision's `links` carries no
   `replaces`/`evolves`/`related_entries`, `memory_session_append` adds a `link_suggestions` field to
   the response payload it already returns on both dry-run and real writes.
+  **RESOLVED (2026-08-10)** — passing dry runs and real writes now return the same draft-ranked
+  `link_suggestions` for every unlinked decision. A caller may supply the entry ids it consulted;
+  those candidates sort first, and the response requires an explicit replaces/evolves/related/no-edge
+  disposition without auto-writing any edge.
 - **R7 — `esr --json` / `to_dict()` omit the two ADR queues.** Attachment candidates and the
   review queue render only in prose; automation can't consume them. *Recommend:* add both fields.
   **RESOLVED (2026-08-10)** — both fields shipped: `adr_attachment_candidates` and
@@ -556,10 +560,8 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 - **R9 — Queues don't route to their answers.** ESR's review-queue line tells the agent what is
   stale but not which command records reviewed-no-change vs proposes a revision. *Recommend:* each
   queue line carries its answering command verbatim.
-  **RESOLVED (2026-08-10)** — the ADR review-queue preamble now names both answer paths verbatim
-  (the `adr revise`/`adr transition` revision path and the MCP `memory_session_append`
-  reviewed-no-change path); the reviewed-no-change side still has no standalone recorder command
-  (see `docs/2_Todo/adr-reviewed-recorder-proposal.md`, design only).
+  **RESOLVED (2026-08-10)** — the ADR review-queue preamble names the revision path, the shared
+  CLI/MCP append review gate, and the standalone `adr reviewed` / `memory_adr_reviewed` parity pair.
 - **R10 — Fuse failure misattributes the faulty side.** "Existing link sidecar blocks are not
   chronological" names the file but not that MAIN's copy (not the branch's) is what was validated;
   the natural fix-on-branch response deadlocks. *Recommend:* the message says which side failed
@@ -585,7 +587,7 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   residue volume ever matters operationally, track it through ESR residue reporting rather than
   reopening the fallback question.
 
-**Priority if streamlining now:** six of twelve items closed this tranche (R3, R4, R7, R9, R10,
+**Priority if streamlining now:** seven of twelve items are now closed (R3, R4, R6, R7, R9, R10,
 R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
 ESR ADR queues are JSON-visible and self-routing, and S8's two worst failure modes (misattribution,
 stranded merges) are fixed. The 2026-08-10 memory pass then removed three more from the open list
@@ -593,9 +595,9 @@ by refuting them against recorded decisions (R1, R2) or finding they had already
 reframed two others where the premise held but the proposed mechanism did not (R5, R6 — see their
 entries above for the corrected recommendation). What remains open: **R8** (surface split) is the
 sharpest item — R4 shipped CLI-only and *enlarged* it rather than shrinking it, on top of the
-pre-existing search/chain, review-gate/revision-write, and whole-storyline splits; then **R5**
-(consolidate the shared-build load, not each call site's configuration); then **R6** (move the nudge
-to the unconditional response path).
+pre-existing search/chain, ADR-write, and whole-storyline splits; then **R5** (consolidate the
+shared-build load, not each call site's configuration). **R6 is now resolved** on the unconditional
+append response path.
 
 ---
 

@@ -1059,10 +1059,10 @@ def format_esr_report(report: EsrReport) -> str:
             "--adr-id <id> --status accepted ...`."
         )
         lines.append(
-            "Reviewed-no-change: no standalone command - record it through the MCP "
-            "`memory_session_append` review gate, on a decision whose lifecycle link touches the ADR, "
-            'answered with `{"adr_id": ..., "outcome": "no-change", "reason": ...}` (the CLI has no '
-            "equivalent)."
+            "Reviewed-no-change without a new decision: `memory-seed adr reviewed --adr-id <id> "
+            "--entry <existing-entry-id> --reason <text>` (MCP: `memory_adr_reviewed`). A "
+            "lifecycle-linked append may instead answer the `memory_session_append` review gate "
+            'with `{"adr_id": ..., "outcome": "no-change", "reason": ...}`.'
         )
         lines.extend(report.adr_head_reviews)
         lines.append("")

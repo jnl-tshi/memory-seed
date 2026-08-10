@@ -69,6 +69,7 @@ skills:
     required: true
     load_when:
       - prior decisions, rationale, unresolved risks, or release history matter
+      - reviews, audits, or recommendations may conclude that behavior is redundant, obsolete, removable, replaceable, superseded, or ready to consolidate
       - using memory_search or memory_get_chunk
       - filling an entry's related_entries or resolving the session-log append target via memory_link_suggest, memory_link_show, or memory_session_append
       - inspecting controlled topics via memory_topics_list, memory_topic_inspect, or memory_topics_check

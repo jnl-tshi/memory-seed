@@ -19,6 +19,22 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Memory is now an explicit prerequisite for consequential conclusions.** The universal rules and
+  history-retrieval trigger cover reviews, audits, recommendations, and claims that behavior is
+  redundant, obsolete, removable, replaceable, or ready to consolidate. Decision Harvest carries
+  every consequential fetched entry to an explicit `replaces` / typed `evolves` / `related` /
+  authoring-only `no-edge` disposition, with byte-identical live and seed control files.
+- **Append review and no-change recording have CLI/MCP parity.** CLI `session append` now runs the
+  same content-bound ADR review preflight as `memory_session_append`, returning the full contexts and
+  receipt before a zero-byte refusal and accepting the retry through `--adr-review-receipt`.
+  `memory-seed adr reviewed --adr-id <id> --entry <entry-id> --reason <text>` and MCP twin
+  `memory_adr_reviewed` append the same evidence-backed `reviewed-no-change` event without moving the
+  ADR head or manufacturing a session entry.
+- **Unlinked append decisions receive a memory-aware nudge.** Passing MCP dry runs and real writes
+  return the same `link_suggestions` payload when a decision has no lifecycle or related link;
+  optional `consulted` entry ids sort first, no edge is auto-written, and the response requires an
+  explicit replaces/evolves/related/no-edge classification.
+
 - **`links graph-diff` snapshots and gates the effective evolves graph.** `--snapshot <path>` writes
   `effective_graph_snapshot()` (the same effective corpus every graph reader uses) to JSON;
   `--against <path>` rebuilds it and diffs. Exit 1 iff the entry-level `evolves` edge set changed —

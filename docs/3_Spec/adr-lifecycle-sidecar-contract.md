@@ -105,8 +105,9 @@ continues to participate in mandatory-review membership.
 
 ### `reviewed-no-change`
 
-Records that a lineage-linked decision was reviewed but concerned another aspect of the new session decision.
-It names the matched decisions and a concise reason. It changes neither lineage nor authority.
+Records that an ADR head was reviewed and remains current. In the append-review path it names the matched
+lineage decisions and a concise reason; the standalone recorder instead reviews the current head and uses a
+named existing session entry as its evidence anchor. Both shapes change neither lineage nor authority.
 
 ### `adr-superseded`
 
@@ -126,11 +127,12 @@ Bare references to an entry with exactly one decision normalize to `<entry_id>:d
 `evolves` and `replaces` define lineage. `related` and supporting references provide context but never trigger
 lineage semantics.
 
-## Mandatory MCP review gate
+## Mandatory append review gate
 
-Before `memory_session_append` writes anything, it inspects every decision-scoped `evolves` and `replaces`
-target against a reverse ADR-membership index. Membership includes current authority; every proposed,
-accepted, rejected, and historical revision; and every curated direct or transitive predecessor.
+Before CLI `session append` or MCP `memory_session_append` writes anything, one shared preflight inspects every
+decision-scoped `evolves` and `replaces` target against a reverse ADR-membership index. Membership includes
+current authority; every proposed, accepted, rejected, and historical revision; and every curated direct or
+transitive predecessor.
 
 If any target belongs to an ADR, the first call is fail-closed and writes zero bytes. It returns
 `ok: false`, `written: false`, `review_required: true`, every affected ADR, canonical trigger references,
@@ -180,9 +182,13 @@ view regenerates after fusion. Historical session files remain unchanged.
 
 ## Public interfaces
 
-CLI operations: `adr promote`, `adr revise`, `adr transition`, `adr list`, `adr show`, and `adr check`.
+CLI operations: `adr promote`, `adr revise`, `adr transition`, `adr reviewed`, `adr list`, `adr show`, and
+`adr check`.
 
 Read-only MCP tools: `memory_adrs_list`, `memory_adr_show`, `memory_adr_review`, and `memory_adrs_check`.
+
+MCP write tool: `memory_adr_reviewed`, the validation-parity twin of CLI `adr reviewed`; both require an
+existing evidence entry plus a non-empty reason and call the same append-only writer.
 
 Trace exposes `GET /api/v1/adrs` and `GET /api/v1/adrs/{adr_id}` plus the ADR workspace. It renders accepted
 authority, the concise synopsis, pending/rejected states, branching/converging history, collapsed no-change

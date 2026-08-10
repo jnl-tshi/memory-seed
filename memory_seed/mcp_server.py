@@ -40,6 +40,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     extract_memory_chunks,
     suggest_related_entries,
+    suggest_related_for_draft,
     replacing_lineage_heads,
 )
 
@@ -47,6 +48,50 @@ from .semantic_cache import (
 SERVER_NAME = "memory-seed"
 SERVER_VERSION = "0.1.0"
 _MCP_TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def _link_suggestion_rows(ranked: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            **ranked_to_dict(item.result),
+            "shared_files": list(item.shared_files),
+            "file_overlap_bonus": round(item.file_overlap_bonus, 6),
+            "adjusted_score": round(item.adjusted_score, 6),
+            "consulted": item.consulted,
+        }
+        for item in ranked
+    ]
+
+
+def _append_link_suggestion_rows(ranked: Any) -> list[dict[str, Any]]:
+    """Stable suggestion rows for preview/write parity.
+
+    Appending a following entry can extend the preceding entry's parsed line
+    range by one separator line. That location metadata is useful in the
+    dedicated suggest tool but is not part of the append nudge, whose preview
+    and write payloads should compare byte-for-byte.
+    """
+    rows = _link_suggestion_rows(ranked)
+    for row in rows:
+        row.pop("line_range", None)
+        row.pop("entry_line_range", None)
+    return rows
+
+
+def _unlinked_decisions(decisions: Any) -> list[str]:
+    """Decision ordinals carrying no related or lifecycle link at write time."""
+    missing: list[str] = []
+    for item in decisions if isinstance(decisions, list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        links = item.get("links")
+        linked = isinstance(links, Mapping) and any(
+            isinstance(links.get(kind), list) and bool(links.get(kind))
+            for kind in ("related_entries", "replaces", "evolves")
+        )
+        if not linked and item.get("decision"):
+            missing.append(str(item["decision"]))
+    return missing
 
 
 def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
@@ -390,6 +435,27 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_adr_reviewed",
+        "description": (
+            "Append a reviewed-no-change event to one ADR using an existing session entry as "
+            "the evidence anchor. This moves no ADR head and creates no session entry. CLI twin: "
+            "memory-seed adr reviewed --adr-id <id> --entry <entry-id> --reason <text>."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "adr_id": {"type": "string"},
+                "entry_id": {"type": "string"},
+                "reason": {"type": "string", "minLength": 1},
+                "timestamp": {"type": "string", "description": "UTC ISO timestamp; default: now."},
+                "dry_run": {"type": "boolean", "default": False},
+            },
+            "required": ["adr_id", "entry_id", "reason"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_adrs_check",
         "description": "Validate every ADR sidecar and replay its append-only lifecycle. Read-only.",
         "inputSchema": {
@@ -412,6 +478,9 @@ TOOLS: list[dict[str, Any]] = [
             "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
             "memory_link_suggest / memory_link_show to choose related_entries, replaces and evolves before calling. "
+            "If any decision remains unlinked, every passing response includes link_suggestions; pass consulted entry "
+            "ids to rank retrieved memory first. Lifecycle links into an ADR run the same content-bound review "
+            "preflight as CLI session append and may return a zero-write receipt plus full ADR contexts. "
             "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit by calling again WITH the returned timestamp, so a minute tick between preview and write cannot change the id."
         ),
         "inputSchema": {
@@ -509,6 +578,11 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and backfill. Values far from the server clock earn a drift warning.",
                 },
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
+                "consulted": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Entry ids fetched while grounding this work. Used only to rank the append response's link suggestions; it writes no edge by itself.",
+                },
                 "adr_review_receipt": {"type": "string", "description": "Content-bound receipt returned by the mandatory ADR review gate."},
                 "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
@@ -705,22 +779,7 @@ def call_tool(
                 "session_date": target.session_date.isoformat(),
                 "source": target.source_path,
             },
-            "suggestions": [
-                {
-                    **ranked_to_dict(item.result),
-                    # D5 evidence: alias-canonicalized F: paths shared with the
-                    # target, and the rarity-weighted boost they contributed -
-                    # shown so the evolves/replaces/related call is concrete.
-                    "shared_files": list(item.shared_files),
-                    "file_overlap_bonus": round(item.file_overlap_bonus, 6),
-                    "adjusted_score": round(item.adjusted_score, 6),
-                    # Provenance: True when this candidate was in the caller's
-                    # `consulted` set (memory axis) vs surfaced by file overlap
-                    # alone (structural axis). Consulted candidates sort first.
-                    "consulted": item.consulted,
-                }
-                for item in ranked
-            ],
+            "suggestions": _link_suggestion_rows(ranked),
             "related_entries": [item.chunk.entry_id for item in ranked],
         }
 
@@ -917,6 +976,30 @@ def call_tool(
         contexts = adr_review_context(cwd, tuple(dict.fromkeys(targets)))
         return {"ok": True, "targets": list(dict.fromkeys(targets)), "matched_adrs": contexts}
 
+    if name == "memory_adr_reviewed":
+        from .adr import record_reviewed_no_change
+
+        result = record_reviewed_no_change(
+            Path(str(args.get("cwd", "."))).resolve(),
+            adr_id=_required_str(args, "adr_id"),
+            entry_id=_required_str(args, "entry_id"),
+            reason=_required_str(args, "reason"),
+            timestamp=_optional_str(args, "timestamp"),
+            dry_run=bool(args.get("dry_run", False)),
+        )
+        payload = {
+            "ok": result.ok,
+            "written": result.written,
+            "adr_id": result.adr_id,
+            "current_status": result.current_status,
+            "authoritative_decision": result.authoritative_decision,
+            "path": str(result.path) if result.path else None,
+            "issues": list(result.issues),
+        }
+        if result.rendered is not None:
+            payload["rendered"] = result.rendered
+        return payload
+
     if name == "memory_adrs_check":
         from .adr import check_adrs
 
@@ -1043,83 +1126,32 @@ def call_tool(
         # context, so the first append call returns the ADRs and writes zero
         # bytes; the caller retries with the exact receipt and one outcome per
         # matched ADR.
-        from .adr import adr_review_context, lifecycle_targets, review_receipt
+        from .adr import append_review_proposal, preflight_append_adr_review
 
         decisions = args["decisions"]
-        targets = lifecycle_targets(cwd, decisions)
-        review_contexts = adr_review_context(cwd, targets)
-        receipt_decisions = [
-            {key: value for key, value in decision_item.items() if key != "adrs"}
-            if isinstance(decision_item, Mapping)
-            else decision_item
-            for decision_item in decisions
-        ]
-        proposal = {
-            "title": args.get("title"),
-            "body": body,
-            "timestamp": supplied or now,
-            "user_initials": args.get("user_initials"),
-            "agent_type": args.get("agent_type"),
-            # Review outcomes are supplied only on the retry. They are not
-            # part of the proposed session decision whose exact content the
-            # receipt binds; including them would make every valid retry stale.
-            "decisions": receipt_decisions,
-        }
-        expected_receipt = review_receipt(cwd, proposal=proposal, contexts=review_contexts)
-        review_outcomes: dict[str, tuple[str, dict[str, Any]]] = {}
-        duplicate_outcomes: set[str] = set()
-        malformed_outcomes: list[str] = []
-        for decision_item in decisions:
-            if not isinstance(decision_item, Mapping):
-                continue
-            ordinal = str(decision_item.get("decision", ""))
-            for action in decision_item.get("adrs", []) if isinstance(decision_item.get("adrs"), list) else []:
-                if isinstance(action, dict) and isinstance(action.get("adr_id"), str):
-                    adr_id = action["adr_id"]
-                    if adr_id in review_outcomes:
-                        duplicate_outcomes.add(adr_id)
-                    review_outcomes[adr_id] = (ordinal, action)
-                    outcome = action.get("outcome")
-                    if outcome == "revise" and not all(
-                        isinstance(action.get(field), str) and action[field].strip()
-                        for field in ("decision", "why", "evolution")
-                    ):
-                        malformed_outcomes.append(
-                            f"ADR {adr_id} revise outcome requires non-empty decision, why, and evolution"
-                        )
-                    if outcome == "no-change" and not (
-                        isinstance(action.get("reason"), str) and action["reason"].strip()
-                    ):
-                        malformed_outcomes.append(
-                            f"ADR {adr_id} no-change outcome requires a non-empty reason"
-                        )
-        matched_ids = {str(item["adr_id"]) for item in review_contexts}
-        supplied_ids = set(review_outcomes)
-        receipt_ok = args.get("adr_review_receipt") == expected_receipt
-        outcomes_ok = supplied_ids == matched_ids and not duplicate_outcomes and not malformed_outcomes
-        review_attempted = bool(review_contexts or supplied_ids or args.get("adr_review_receipt"))
-        if review_attempted and (not review_contexts or not receipt_ok or not outcomes_ok):
-            issues = ["ADR review is required before this lifecycle-linked session entry can be written"]
-            if args.get("adr_review_receipt") and not receipt_ok:
-                issues.append("adr_review_receipt is stale or does not match the proposed entry and current ADR ledgers")
-            if supplied_ids != matched_ids:
-                missing = sorted(matched_ids - supplied_ids)
-                extra = sorted(supplied_ids - matched_ids)
-                if missing:
-                    issues.append("missing ADR review outcome(s): " + ", ".join(missing))
-                if extra:
-                    issues.append("unexpected ADR review outcome(s): " + ", ".join(extra))
-            if duplicate_outcomes:
-                issues.append("duplicated ADR review outcome(s): " + ", ".join(sorted(duplicate_outcomes)))
-            issues.extend(malformed_outcomes)
+        proposal = append_review_proposal(
+            title=args.get("title"),
+            body=body,
+            timestamp=supplied or now,
+            user_initials=args.get("user_initials"),
+            agent_type=args.get("agent_type"),
+            decisions=decisions,
+        )
+        review = preflight_append_adr_review(
+            cwd,
+            proposal=proposal,
+            decisions=decisions,
+            supplied_receipt=_optional_str(args, "adr_review_receipt"),
+        )
+        if not review.ok:
             return {
                 "ok": False,
                 "written": False,
-                "review_required": True,
-                "issues": issues,
-                "adr_review_receipt": expected_receipt,
-                "matched_adrs": review_contexts,
-                "lifecycle_targets": list(targets),
+                "review_required": review.review_required,
+                "issues": list(review.issues),
+                "adr_review_receipt": review.receipt,
+                "matched_adrs": list(review.contexts),
+                "lifecycle_targets": list(review.targets),
                 "timestamp": supplied or now,
             }
 
@@ -1134,8 +1166,8 @@ def call_tool(
             replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted
             evolves=list(args.get("evolves") or []),
             decisions=args["decisions"],
-            adr_review_contexts=review_contexts,
-            adr_review_outcomes=review_outcomes,
+            adr_review_contexts=review.contexts,
+            adr_review_outcomes=review.outcomes,
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
             branch=_optional_str(args, "branch"),
@@ -1164,6 +1196,26 @@ def call_tool(
             payload["rendered"] = result.rendered
         if result.rendered_sidecars is not None:
             payload["rendered_sidecars"] = result.rendered_sidecars
+        unlinked = _unlinked_decisions(decisions)
+        if result.ok and unlinked:
+            _, ranked = suggest_related_for_draft(
+                cwd,
+                entry_id=result.entry_id or "",
+                title=_required_str(args, "title"),
+                body=body,
+                timestamp=result.timestamp or (supplied or now),
+                top_k=5,
+                consulted=list(args.get("consulted") or []) or None,
+            )
+            payload["link_suggestions"] = {
+                "unlinked_decisions": unlinked,
+                "suggestions": _append_link_suggestion_rows(ranked),
+                "related_entries": [item.chunk.entry_id for item in ranked],
+                "instruction": (
+                    "Classify each consequential consulted candidate as replaces, evolves, related, "
+                    "or no-edge before treating this append as fully linked."
+                ),
+            }
         if supplied:
             drift = _clock_drift_warning(supplied, now)
             if drift:

@@ -34,6 +34,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 |---|---|---|---|
 | [3.0-plan.md](3.0-plan.md) | — | — | — |
 | [adr-refines-review-trigger-plan.md](adr-refines-review-trigger-plan.md) | — | — | — |
+| [adr-reviewed-recorder-proposal.md](adr-reviewed-recorder-proposal.md) | P2 | — | None - CLI and MCP parity shipped with shared validation. |
 | [agent-fanout-workflow-plan.md](agent-fanout-workflow-plan.md) | — | — | — |
 | [agent-rules-lazy-loading-recommendations.md](agent-rules-lazy-loading-recommendations.md) | — | — | — |
 | [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | complete |

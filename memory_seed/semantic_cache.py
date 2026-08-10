@@ -1054,51 +1054,16 @@ def add_related_entry(
     return RelatedEntryAddResult(source=source, target=target, added=True, path=path)
 
 
-def suggest_related_entries(
-    cwd: str | Path = ".",
+def _rank_related_entry_suggestions(
+    chunks: Sequence[MemoryChunk],
+    target: MemoryChunk,
     *,
-    entry_id: str | None = None,
-    top_k: int = 5,
-    consulted: Sequence[str] | None = None,
-    embedding_provider: EmbeddingProvider | None = None,
-) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
-    """Rank candidate prior entries to link from a target entry.
-
-    Forward-only by construction: candidates are restricted to entries *older*
-    than the target, so acting on a suggestion only ever adds a backward-in-time
-    edge to the target's own ``related_entries`` (the bidirectional model the
-    user chose). Self and already-linked entries are excluded. The default
-    target is the newest entry - "suggest links for the entry I just wrote".
-    Read-only; it never writes. Ranking reuses ``rank_memory_chunks`` with
-    recency disabled so similarity, not age, drives the ordering, then applies
-    the D5 file-overlap boost: shared ``F:`` paths (alias-resolved through
-    recorded continuity renames, rarity-weighted so hub files contribute
-    ~nothing) raise semantically comparable candidates that touch the same
-    decision surface. Entries without ``F:`` paths are never penalized.
-
-    ``consulted`` is the optional *memory axis* of candidacy: entry ids the
-    caller retrieved while grounding the work (from the pre-work history
-    lookup). Any candidate whose id is in this set is flagged ``consulted`` and
-    sorts ahead of purely structural (file-overlap) candidates - "I actually
-    used this entry" outranks "it touched the same file", and it is the natural
-    source for the ``replaces``/``evolves`` decision-lineage edges that file
-    overlap misses (a lineage parent that shares no file still surfaces here).
-    This only *reorders and labels* candidates - it fabricates no relevance and
-    creates no edge; the caller still classifies. An empty/omitted ``consulted``
-    leaves ordering and output byte-for-byte identical to the file-only path.
-    """
+    top_k: int,
+    consulted: Sequence[str] | None,
+    embedding_provider: EmbeddingProvider | None,
+) -> list[RelatedEntrySuggestion]:
+    """Shared ranker for stored entries and not-yet-written append drafts."""
     consulted_ids = {cid for cid in (consulted or []) if cid}
-    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
-    if not chunks:
-        raise LookupError("no session entries with an entry_id were found")
-
-    if entry_id is not None:
-        target = next((chunk for chunk in chunks if chunk.entry_id == entry_id), None)
-        if target is None:
-            raise LookupError(f"entry_id {entry_id} not found")
-    else:
-        target = max(chunks, key=_entry_order_key)
-
     target_key = _entry_order_key(target)
     linked = set(target.related_entries)
     candidates = [
@@ -1109,7 +1074,7 @@ def suggest_related_entries(
         and _entry_order_key(chunk) < target_key
     ]
     if not candidates:
-        return target, []
+        return []
 
     alias = _continuity_alias_map(chunks)
     file_refs: dict[str, set[str]] = {}
@@ -1149,10 +1114,6 @@ def suggest_related_entries(
                 consulted=(item.chunk.entry_id or "") in consulted_ids,
             )
         )
-    # Consulted-first (the memory axis outranks the structural one), then the
-    # existing file-overlap-adjusted order. When ``consulted`` is empty every
-    # flag is False, so this leading key is constant and ordering stays
-    # byte-for-byte identical to the file-only path.
     suggestions.sort(
         key=lambda suggestion: (
             suggestion.consulted,
@@ -1165,7 +1126,115 @@ def suggest_related_entries(
         ),
         reverse=True,
     )
-    return target, suggestions[: max(top_k, 0)]
+    return suggestions[: max(top_k, 0)]
+
+
+def suggest_related_entries(
+    cwd: str | Path = ".",
+    *,
+    entry_id: str | None = None,
+    top_k: int = 5,
+    consulted: Sequence[str] | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
+) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
+    """Rank candidate prior entries to link from a target entry.
+
+    Forward-only by construction: candidates are restricted to entries *older*
+    than the target, so acting on a suggestion only ever adds a backward-in-time
+    edge to the target's own ``related_entries`` (the bidirectional model the
+    user chose). Self and already-linked entries are excluded. The default
+    target is the newest entry - "suggest links for the entry I just wrote".
+    Read-only; it never writes. Ranking reuses ``rank_memory_chunks`` with
+    recency disabled so similarity, not age, drives the ordering, then applies
+    the D5 file-overlap boost: shared ``F:`` paths (alias-resolved through
+    recorded continuity renames, rarity-weighted so hub files contribute
+    ~nothing) raise semantically comparable candidates that touch the same
+    decision surface. Entries without ``F:`` paths are never penalized.
+
+    ``consulted`` is the optional *memory axis* of candidacy: entry ids the
+    caller retrieved while grounding the work (from the pre-work history
+    lookup). Any candidate whose id is in this set is flagged ``consulted`` and
+    sorts ahead of purely structural (file-overlap) candidates - "I actually
+    used this entry" outranks "it touched the same file", and it is the natural
+    source for the ``replaces``/``evolves`` decision-lineage edges that file
+    overlap misses (a lineage parent that shares no file still surfaces here).
+    This only *reorders and labels* candidates - it fabricates no relevance and
+    creates no edge; the caller still classifies. An empty/omitted ``consulted``
+    leaves ordering and output byte-for-byte identical to the file-only path.
+    """
+    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    if not chunks:
+        raise LookupError("no session entries with an entry_id were found")
+
+    if entry_id is not None:
+        target = next((chunk for chunk in chunks if chunk.entry_id == entry_id), None)
+        if target is None:
+            raise LookupError(f"entry_id {entry_id} not found")
+    else:
+        target = max(chunks, key=_entry_order_key)
+
+    return target, _rank_related_entry_suggestions(
+        chunks,
+        target,
+        top_k=top_k,
+        consulted=consulted,
+        embedding_provider=embedding_provider,
+    )
+
+
+def suggest_related_for_draft(
+    cwd: str | Path,
+    *,
+    entry_id: str,
+    title: str,
+    body: str,
+    timestamp: str,
+    top_k: int = 5,
+    consulted: Sequence[str] | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
+) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
+    """Rank links for an append draft without temporarily publishing it.
+
+    This makes dry-run and real-write append responses agree: both rank the
+    same transient entry against the corpus state that existed before the
+    write, using the ordinary link-suggestion algorithm.
+    """
+    stamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
+    heading = f"{timestamp} - {title}"
+    body_lines = body.splitlines()
+    payload = f"{heading}\n{body}".strip()
+    target = MemoryChunk(
+        chunk_id=entry_id,
+        source_path="<append-draft>",
+        source_file=f"{stamp.date().isoformat()}.md",
+        session_date=stamp.date(),
+        entry_datetime=stamp,
+        heading_path=(heading,),
+        heading_level=2,
+        title=heading,
+        text=body.strip(),
+        tags=_extract_tags(body_lines),
+        contexts=_extract_contexts((heading,)),
+        lexical_terms=_extract_lexical_terms(payload),
+        start_line=0,
+        end_line=len(body_lines),
+        entry_id=entry_id,
+        entry_title=heading,
+        sections=_entry_sections(body_lines),
+        granularity="entry",
+    )
+    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    # A real append may already have published the target. Replace it with the
+    # transient form so dry-run and write response ranking remain identical.
+    chunks = [chunk for chunk in chunks if chunk.entry_id != entry_id]
+    chunks.append(target)
+    return target, _rank_related_entry_suggestions(
+        chunks,
+        target,
+        top_k=top_k,
+        consulted=consulted,
+        embedding_provider=embedding_provider,
+    )
 
 
 def rank_memory_chunks(
