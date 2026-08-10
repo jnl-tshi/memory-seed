@@ -1,9 +1,8 @@
 """Contract tests for the versioned /api/v1/* surface (roadmap Phase 1).
 
 Two things must hold: (1) v1 routes return response_model-validated data
-matching what TraceService already returns, and (2) the legacy /api/*
-routes are completely unaffected - the vanilla frontend's contract is
-frozen, v1 is additive alongside it.
+matching what TraceService already returns, and (2) the compatibility /api/*
+routes remain unaffected while v1 stays additive alongside them.
 """
 
 import os

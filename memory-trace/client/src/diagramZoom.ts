@@ -1,9 +1,8 @@
 // Pure zoom/pan maths for the decision-diagram viewer, extracted from the
 // component for the same reason as graphLayout/graphEdges: the arithmetic is
 // where the bugs live (clamping, fit-scale, wheel direction) and none of it
-// needs a DOM to verify. Ported from the vanilla viewer's
-// _diagramFitTransform / initDiagramPanZoom (static/app.js), keeping its
-// bounds so both UIs behave identically.
+// needs a DOM to verify. Ported from the retired viewer's
+// _diagramFitTransform / initDiagramPanZoom, keeping its proven bounds.
 
 export type Transform = { scale: number; x: number; y: number };
 

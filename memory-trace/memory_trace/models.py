@@ -4,7 +4,7 @@ These formalize the exact dict shapes the TraceService methods already
 return (see service.py's _chunk_to_api/_ranked_to_api/_rollup_to_api/_graph_node
 family) - the service itself is untouched and keeps returning plain dicts.
 FastAPI validates/coerces those dicts against these models via response_model
-on the /api/v1/* routes only; the legacy unversioned /api/* routes are
+on the /api/v1/* routes only; the compatibility unversioned /api/* routes are
 unaffected. Two fields go beyond what the service emits today -
 ProvenanceClass and EdgeType - because docs/3_Spec/memory-trace-trail-search-
 and-graph-ux.md and docs/3_Spec/graph-edge-contract.md name them as
@@ -12,10 +12,9 @@ forward-stable contract types even though every node emitted today is
 "authored_memory" and every edge kind is already produced by _graph_edges.
 
 The commit-accurate Trail merge geometry (MergeEvent/BranchInfo on the
-graph/trail responses, merged_by on the chunk response) shipped legacy-only
-under the "vanilla only, polish first" ruling; after a full release cycle the
-polish condition was met, so v1 now formalizes it too - additively (old
-clients ignore the new keys).
+graph/trail responses, merged_by on the chunk response) shipped first on the
+unversioned API; after a full release cycle the polish condition was met, so
+v1 now formalizes it too - additively (old clients ignore the new keys).
 """
 
 from __future__ import annotations

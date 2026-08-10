@@ -444,7 +444,7 @@ Phases A and the behaviour/fixture portion of B are **B0a pre-React** work. Full
 ### Phase E — B0b React shell parity
 
 - reproduce the layout in the React shell;
-- keep vanilla fallback until parity and accessibility sign-off;
+- retire the vanilla fallback only after parity and accessibility sign-off (**completed 2026-08-11**);
 - validate packaged wheel behaviour.
 
 ## 13. Keyboard and accessibility contract

@@ -8,9 +8,9 @@ git-graph-style timeline: branch lanes from recorded `branch:` metadata,
 commit-accurate fork/merge connectors driven by `Memory-Entry:` commit trailers
 (positional "estimated" fallback for pre-trailer history), clickable trunk
 merge rings, typed `replaces`/`evolves` lifecycle routes, and an on-device
-worktree switcher for per-branch memory. New UI surface lands on the legacy
-`/api/*` + vanilla client first; the versioned `/api/v1/*` contract follows
-once polished.
+worktree switcher for per-branch memory. The maintained React client consumes
+the versioned `/api/v1/*` contract; unversioned `/api/*` routes remain only
+as compatibility surfaces.
 
 It is bundled into the main `memory-seed` distribution on purpose:
 
@@ -59,28 +59,22 @@ Serves the read-only UI on a local port and opens a browser. Nothing is ever
 written back to your session files; every deep link targets a stable
 `chunk_id` / `entry_id`.
 
-To open both renderer versions at once, use one server and two browser tabs:
-
-```bash
-memory-trace --open-both
-```
-
-Vanilla is served at `/`; the React preview is served at `/next`. Options:
-`--cwd`, `--host`, `--port`, `--no-open`, `--open-both`, `--rebuild-cache`, `--static-root`
-(serve UI assets from another directory or checkout root - e.g. verify a git worktree's UI
-without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Asset `?v=` tags are
-content-hashed at serve time, so edited assets are never masked by a stale browser cache.
+The React UI is served at `/`; old `/next` bookmarks redirect there. Options:
+`--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`, and `--static-root`
+(serve a React build from another directory or checkout root - e.g. verify a git worktree's UI
+without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Vite's content-addressed
+asset names prevent stale browser bundles.
 
 The external-project folder picker is available only when Trace is bound to a loopback host
 (`127.0.0.1`, `::1`, or `localhost`). It reads the server filesystem, so `/api/v1/browse` and
 `/api/v1/projects` return `403` when Trace is bound to a network-facing host.
 
-## Next frontend preview
+## Frontend development
 
-`/next` serves the packaged React and TypeScript workspace shell. It consumes
+`/` serves the packaged React and TypeScript workspace shell. It consumes
 only the versioned `/api/v1/*` contract and lazy-loads Cytoscape.js for the
-Graph workspace. The existing `/` route remains the supported vanilla fallback
-until the parity checklist is signed off.
+Graph workspace. The former vanilla fallback was retired after product-owner
+sign-off on 2026-08-11.
 
 Build the preview assets before package validation:
 

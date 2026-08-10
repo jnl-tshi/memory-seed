@@ -18,7 +18,7 @@ Acceptance criteria: Each phase ships with tests, docs, package/wheel validation
 
 ## 1. Goal
 
-Settle the graph/workspace contract and renderer evidence first, then deliver a React-based, Trail-first Memory Trace without regressing the current vanilla application. Add evidence, annotations, AI-derived artefacts and hosted foundations only through the constitutional gates below.
+Settle the graph/workspace contract and renderer evidence first, then deliver a React-based, Trail-first Memory Trace without regressing the established interaction contract. The React cutover completed on 2026-08-11; later evidence, annotation, AI-derived artefact, and hosted work still passes through the constitutional gates below.
 
 ## 2. Stage gates
 
@@ -34,11 +34,11 @@ A phase cannot be marked complete without:
 ## 3. Phase 0 — baseline and parity fixtures
 
 > **Status: DELIVERED 2026-07-11.** Evidence:
-> [`../3_Spec/memory-trace-vanilla-parity-checklist.md`](../3_Spec/memory-trace-vanilla-parity-checklist.md)
-> (the parity gate), the measurements/screenshot report at
+> [`../3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md`](../3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md)
+> (the retired parity gate), the measurements/screenshot report at
 > [`../4_Reference/memory-trace-phase0-baseline/README.md`](../4_Reference/memory-trace-phase0-baseline/README.md),
 > the deterministic 500/1k/10k generator (`memory-trace/tests/fixtures/generate_synthetic.py`),
-> and the Trail golden fixture (`memory-trace/tests/fixtures/trail-golden-48.json`).
+> and the historical Trail golden fixture (retired with the vanilla client on 2026-08-11).
 > Interaction recordings were consciously waived - rationale in the report.
 
 Deliver:
@@ -165,7 +165,10 @@ Exit:
 
 - no functional or performance regression;
 - 10,000-entry target measured;
-- vanilla Trail remains available behind fallback until sign-off.
+- product-owner sign-off permits the React client to replace the fallback.
+
+> **Cutover: COMPLETE 2026-08-11.** JNL approved retirement of the vanilla frontend after the
+> accessibility/scale closeout and maintained React coverage were in place.
 
 ### Post-Trail platform proposal gate
 
@@ -364,10 +367,10 @@ B0a precedes React feature implementation; B0b is delivered through the post-she
 - complete B0a before React feature implementation;
 - build the React shell and B0b in staged parity increments;
 - use feature flags;
-- retain vanilla fallback during parity phase;
+- retain vanilla fallback during parity phase (**completed; retired 2026-08-11 after sign-off**);
 - publish alpha wheels;
 - test from installed wheel, not source checkout only;
-- remove vanilla frontend only after explicit product-owner sign-off.
+- remove vanilla frontend only after explicit product-owner sign-off (**completed 2026-08-11**).
 
 ## 17. Success measures
 

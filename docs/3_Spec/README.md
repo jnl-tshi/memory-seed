@@ -14,8 +14,9 @@ Candidate specs that are **not yet binding** live in [`draft/`](draft/); retired
 - `memory-trace-derived-artifact-provenance-contract.md` — **candidate** (`spec_binding: candidate`):
   the proposed provenance contract for AI summaries, project updates, reports, presentations, and exports.
   Belongs in `draft/`; moves there in Phase 2.
-- `memory-trace-vanilla-parity-checklist.md` is the active React-migration parity gate: every
-  user-observable vanilla behaviour, checked off only from the React app (Phase 0 deliverable).
+- The retired React-migration parity gate is retained under
+  `deprecated/memory-trace-vanilla-parity-checklist.md`; product-owner cutover sign-off landed
+  2026-08-11.
 - `lifecycle-edge-linking-sidecars.md` is the live contract for after-the-fact lifecycle-edge
   link sidecars (format, read/validation semantics, MCP scope boundary) plus its design record -
   implemented 2026-07-12; it stays here because the sidecar format is a normative contract, not a
@@ -39,5 +40,4 @@ These files are not completed proposals. Completed proposal and source-plan docu
 | [memory-trace-renderer-benchmark-evidence.md](memory-trace-renderer-benchmark-evidence.md) | — | — | active-evidence |
 | [memory-trace-renderer-neutral-graph-projection.md](memory-trace-renderer-neutral-graph-projection.md) | — | — | active-specification |
 | [memory-trace-trail-search-and-graph-ux.md](memory-trace-trail-search-and-graph-ux.md) | — | — | proposed-specification |
-| [memory-trace-vanilla-parity-checklist.md](memory-trace-vanilla-parity-checklist.md) | — | — | active-parity-gate |
 <!-- docs-index:end -->

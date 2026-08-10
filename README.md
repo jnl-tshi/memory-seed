@@ -151,14 +151,8 @@ python -m pip install "memory-seed[trace]"
 memory-trace --cwd . --host 127.0.0.1 --port 8765 --no-open
 ```
 
-To open both the vanilla and React versions from one local server, run:
-
-```powershell
-memory-trace --cwd . --host 127.0.0.1 --port 8770 --open-both
-```
-
 For this source checkout on Windows, `.\scripts\launch-memory-trace.ps1` supplies the local
-`PYTHONPATH`, reuses a healthy Trace server already on its requested port, and opens `/` plus `/next`.
+`PYTHONPATH`, reuses a healthy Trace server already on its requested port, and opens the React UI at `/`.
 
 For `uv` tool installs, install the owning package with the extra. To add Trace
 to an existing core-only tool install, reinstall the tool with `--force`:
@@ -168,7 +162,7 @@ uv tool install "memory-seed[trace]"
 uv tool install --force "memory-seed[trace]"
 ```
 
-The Trail view renders session entries as a git-graph-style timeline: branch lanes from recorded `branch:` metadata, fork/merge connectors driven by the `Memory-Entry:` commit trailers where they exist (with an "estimated" positional fallback for older history), clickable trunk merge rings, typed `replaces`/`evolves` lifecycle routes — including **decision-level** (`:dN`) routes drawn between the specific decisions they connect — and an on-device **worktree switcher** so one running server can show each checkout's branch-specific memory. Machine-suggested edges (from the optional link-judgment swarm) carry a confidence score, and both the graph and Trail **fade low-confidence edges** so an unverified suggestion never reads as a settled fact. Asset `?v=` tags are content-hashed at serve time (no stale-browser-cache surprises), and `--static-root <path>` / `MEMORY_TRACE_STATIC_ROOT` serves another checkout's UI assets - useful for verifying a worktree's UI changes without copying files.
+The Trail view renders session entries as a git-graph-style timeline: branch lanes from recorded `branch:` metadata, fork/merge connectors driven by the `Memory-Entry:` commit trailers where they exist (with an "estimated" positional fallback for older history), clickable trunk merge rings, typed `replaces`/`evolves` lifecycle routes — including **decision-level** (`:dN`) routes drawn between the specific decisions they connect — and an on-device **worktree switcher** so one running server can show each checkout's branch-specific memory. Machine-suggested edges (from the optional link-judgment swarm) carry a confidence score, and both the graph and Trail **fade low-confidence edges** so an unverified suggestion never reads as a settled fact. The React build uses content-addressed assets, and `--static-root <path>` / `MEMORY_TRACE_STATIC_ROOT` serves another checkout's React build for worktree verification.
 
 The former `memory-seed[lense]` extra and `memory-seed lense` command were a temporary alias kept for one
 release window after the product renamed to Memory Trace; both were removed for the 2.20 release. Install

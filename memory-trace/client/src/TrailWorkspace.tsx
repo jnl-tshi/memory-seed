@@ -73,9 +73,8 @@ export function TrailWorkspace({
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle, continuityEvents, continuityChains, continuityLaneCount } = model;
 
-  // React-parity harness (mirrors the vanilla `window.memoryTraceDebug`): a
-  // read-only surface so the layout model can be invariant-checked and
-  // cross-referenced against the vanilla Trail on the same corpus.
+  // Read-only diagnostic surface so the layout model can be invariant-checked
+  // without coupling tests to rendered DOM geometry.
   useEffect(() => {
     (window as unknown as { memoryTraceNextDebug?: unknown }).memoryTraceNextDebug = { trailModel: model };
   }, [model]);

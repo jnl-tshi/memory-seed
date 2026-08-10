@@ -8,13 +8,13 @@ parent: "memory-trace-product-and-system-architecture-blueprint.md"
 
 # Memory Trace Frontend Architecture and Design-System Proposal
 
-Status: Active proposal, promoted from inbox on 2026-07-11.
+Status: Active proposal; React migration/cutover completed 2026-08-11, remaining design-system work stays active.
 Priority: P2 after Phase 0 parity fixtures and Phase 1 versioned API contract in `memory-trace-next-generation-implementation-roadmap.md`.
 Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`; reconciled with `completed/memory-trace-ui-audit.md` and `../4_Reference/21st-dev-components.md`.
 Scope: React/TypeScript/Vite frontend architecture, design-system boundaries, Trail/graph renderer split, packaging, budgets, and UI testing.
-Non-goals: No immediate replacement of the current vanilla UI, no Node.js runtime requirement for users, no custom primitive library, no Trail implementation in React Flow.
+Non-goals: No Node.js runtime requirement for users, no custom primitive library, no Trail implementation in React Flow.
 Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-next-generation-implementation-roadmap.md`, `../3_Spec/memory-trace-trail-search-and-graph-ux.md`, and the current Memory Trace parity baseline.
-Acceptance criteria: Built wheel serves the React shell, generated API client is used, component/test/a11y gates pass, bundle budgets are reported, and vanilla fallback remains until sign-off.
+Acceptance criteria: Built wheel serves the React shell, generated API client is used, component/test/a11y gates pass, and bundle budgets are reported. Product-owner cutover sign-off landed 2026-08-11.
 
 ## 1. Decision
 
@@ -29,7 +29,9 @@ Retain:
 - the canonical Memory Seed retrieval and graph services;
 - no Node.js requirement for end users.
 
-Do not replace the current vanilla frontend until the React implementation reaches functional and performance parity.
+The migration gate was satisfied by explicit product-owner sign-off on 2026-08-11 after the React
+implementation gained packaged-browser, accessibility, scale, Trail, graph, reader, and diagram coverage.
+React now owns the root route and the vanilla frontend is retired.
 
 ## 2. Why migration is justified
 

@@ -451,7 +451,7 @@ Potential enterprise value:
 9. Add append-only decision annotations with deterministic anchors.
 10. Keep generated outputs derived and evidence-linked.
 11. Preserve complete local history, retrieval, and basic graph access without entitlement; monetise convenience, scale, advanced analysis, collaboration, managed AI and hosted operation.
-12. Require non-regression against the current vanilla implementation before replacement.
+12. Require non-regression against the established interaction contract before replacement.
 
 ## 10. Document map
 

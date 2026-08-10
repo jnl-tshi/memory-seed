@@ -16,7 +16,7 @@ Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set
 Scope: Trail-first hierarchy, search-to-Trail contract, range/scale behaviour, inspection workspace, graph page, cross-tab selection, and accessibility.
 Non-goals: No graph-edge semantic redefinition, no full global graph before density validation, no mobile-first authoring.
 Dependencies: `../2_Todo/memory-trace-product-and-system-architecture-blueprint.md`, `../2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`, `graph-edge-contract.md`, and current Memory Trace parity fixtures.
-Acceptance criteria: Trail/search/graph behaviours meet the specification without losing current vanilla Trail density, typed relationships, selection context, or keyboard/a11y support.
+Acceptance criteria: Trail/search/graph behaviours meet the specification without losing established Trail density, typed relationships, selection context, or keyboard/a11y support.
 
 ## 1. Purpose
 
