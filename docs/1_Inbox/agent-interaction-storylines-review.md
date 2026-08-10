@@ -5,12 +5,19 @@ Status: Living document (updated 2026-08-10; kept true as storylines change)
 Every distinct way an agent interacts with Memory Seed, defined as a named **storyline**: what
 triggers it, the steps it walks, which tool surface carries each step (MCP / CLI / convention), a
 diagram, and an evaluation. The final sections cross-cut: a tool inventory mapped to storylines, a
-surface-parity matrix, and a numbered list of redundancies and inefficiencies (**R1–R12**) with
-streamlining recommendations.
+surface-parity matrix, a numbered list of redundancies and inefficiencies (**R1–R12**) with
+streamlining recommendations, and a separate redundancy audit of tools and endpoints considered for
+outright deletion.
 
 Ground truth: `memory_seed/mcp_server.py` (19 MCP tools), `memory-seed --help` (CLI tree),
 `.memory-seed/skills/` (the prose that scripts each flow). Convention-only steps — ones no tool
 enforces — are marked, because they are where process drift starts.
+
+**Method note.** The original R1–R12 recommendations were written from code reading alone. A memory
+pass on 2026-08-10 checked every open recommendation against recorded decisions and refuted R1, R2,
+and R12 outright, and reframed R5 and R6 — the premise held but the proposed mechanism did not.
+Recommendations in this document are trustworthy only once checked against recorded decisions, not
+on code reading alone.
 
 The eight storylines:
 
@@ -63,9 +70,11 @@ flowchart TD
 ```
 
 **Evaluation.** Solid: orientation is measured, not declared, and the hook makes recency-correct
-context automatic — the "latest state via search" failure mode is designed out. Weaknesses: four
-overlapping posture surfaces (**R1**) and no MCP twin for `situate` itself, so an MCP-only agent
-assembles orientation from three narrower tools (**R8**).
+context automatic — the "latest state via search" failure mode is designed out. The four posture
+surfaces read as overlapping but are not (**R1**, refuted) — `situate` structurally cannot perform
+the namespace-collision check `worktree`/`memory_worktree_guard` carry, and drops most of
+`WorktreeGuardStatus`'s and `branch_status`'s fields. Weaknesses: no MCP twin for `situate` itself,
+so an MCP-only agent assembles orientation from three narrower tools (**R8**).
 
 ---
 
@@ -162,8 +171,9 @@ flowchart TD
 **Evaluation.** This is the most guarded storyline in the system and the guards are genuinely
 write-time (the cheapest moment). Weaknesses: the recall pass (step 2) — the heart of JNL's
 description — is **pure convention**; nothing in `memory_session_append` asks "did you look"
-(**R6**). `link suggest` and `link audit` overlap as candidate rankers (**R2**). One append
-re-reads the corpus several times across independent guards (**R5**).
+(**R6**, mechanism reframed — see the R-list). `link suggest` and `link audit` are not overlapping
+candidate rankers but two structurally different ones answering different questions (**R2**,
+refuted). One append re-reads the corpus several times across independent guards (**R5**).
 
 ---
 
@@ -426,7 +436,9 @@ reset to base" and "does the path exist on base", so a BASE-side repair is never
 the branch. **R11 CLOSED**: a refusal auto-aborts its own half-started merge instead of leaving
 `MERGE_HEAD` behind — genuine content conflicts are still (correctly) left in progress for their
 named owner, and a post-fuse commit failure is the one deliberate exception, also left in progress
-so the fused tree can be inspected. Weaknesses: worktree cleanup is manual-by-known-bug (**R12**).
+so the fused tree can be inspected. **R12 STALE**: worktree cleanup already runs automatically
+inside `session merge-branch`'s post-merge step; what remains is an honestly-surfaced
+`deregistered-with-residue` case on Windows/OneDrive, not a missing feature.
 
 ---
 
@@ -436,7 +448,9 @@ so the fused tree can be inspected. Weaknesses: worktree cleanup is manual-by-kn
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
 `memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
 `memory_adrs_list`, `memory_adrs_check` (S6); `memory_branch_status`, `memory_worktree_guard`,
-`memory_session_fuse_preview`, `memory_session_integrate` (S1/S8); `memory_dir` (infra).
+`memory_session_fuse_preview`, `memory_session_integrate` (S1/S8). (`memory_dir` is a `Runtime`
+dataclass field in `memory_seed/core.py`, not a tool — it was previously miscounted into this list;
+the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 19 and no more.)
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
@@ -467,14 +481,28 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 
 ## Redundancies and inefficiencies (the streamlining list)
 
-- **R1 — Four posture surfaces overlap.** `situate`, `branch`, `worktree`, `compact` (+ MCP
-  `memory_branch_status`, `memory_worktree_guard`) all report overlapping slices of "where am I".
-  `situate` already subsumes most of the others. *Recommend:* make `situate` the one orientation
-  surface, keep the narrow tools as its internals, deprecate standalone `branch`/`worktree` from
-  the agent-facing story.
-- **R2 — Two candidate rankers.** `link suggest` (single target, consulted-provenance) and
-  `link audit` (gap sweep) rank the same kind of candidates with different scorers and payloads.
-  *Recommend:* one ranking engine, two entry points; `suggest` becomes `audit --for <id>` sugar.
+- **R1 — Four posture surfaces overlap. REFUTED (2026-08-10).** `situate` calls
+  `worktree_guard(cwd, write_intent=False)` with no `agent_type` (`situate.py:215`); per the guard's
+  own contract, only an explicit guard with an expected agent can classify a different owner as
+  foreign, so situate structurally cannot perform the namespace-collision check `worktree` /
+  `memory_worktree_guard` exist for. It also carries 3 of `WorktreeGuardStatus`'s 17 fields
+  (dropping `severity`, `safe_to_write`, `expected_namespace`, `actual_namespace_owner`,
+  `recommended_next_action`) and never calls `branch_status`, so `upstream`/`ahead`/`behind`/
+  `worktree_count`/`recent_merge_commit`/`recommendation` have no home in it either. Deprecating
+  `branch`/`worktree` in favour of `situate` would remove the tools those facts and that check live
+  on. The four surfaces stay: `situate` is the read-only preflight digest, not a replacement for the
+  guard or the branch-history report.
+- **R2 — Two candidate rankers. REFUTED (2026-08-10).** Rejected by name on 2026-08-09
+  (`mse_1qwdqgn3gn1v55w7:d1`): reusing `suggest_related_entries` for `link audit`'s ungated tail was
+  rejected on cost (a per-target re-embed, against the all-pairs matrix `audit_link_gaps` already
+  holds) and on fit. The two are structurally different rankers — `suggest` is a dense semantic rank
+  over every older entry with no membership gate, excluding only entry-YAML `related_entries`;
+  `audit` gates membership lexically (cosine is dense, and using it for candidacy would make every
+  earlier entry a candidate for every later one), appends a bounded ungated tail, and excludes
+  against link sidecars separately, so it sees edges `suggest` cannot. Collapsing them into
+  `audit --for <id>` would either lose the gate or lose `suggest`'s consulted-provenance axis. They
+  stay two entry points because they answer two different questions — "what could this specific
+  entry link to" versus "what gaps exist across a sweep" — at two different costs.
 - **R3 — No retract tool (S5's write step is bare markdown).** Three `links check` errors name
   retract-and-retype as their fix, yet the fix has no command. *Recommend:* `link retract <kind>
   <ref> [--retype <kind>]` writing the correctly-grammared block; MCP twin.
@@ -485,23 +513,46 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   `links graph-diff` command (before/after snapshot + assert) so campaigns stop copy-pasting it.
   **RESOLVED (2026-08-10)** — `links graph-diff --snapshot`/`--against` (`--json` for scripted
   assertions) ships CLI-only; no MCP twin, so it also widens R8 rather than closing it.
-- **R5 — Repeated corpus builds inside one operation.** `esr` builds the corpus/spine 4+ times
-  across sections; `links check` parses files once and then builds the effective corpus again for
-  the chain/untyped passes; one `session append` runs several independent corpus scans (refines
-  cap, chain guard, ref existence). *Recommend:* one shared corpus/spine build per invocation,
-  passed down (the `load_corpus` precedent, applied to the check/report layer).
+- **R5 — Repeated corpus builds inside one operation.** `esr` builds the corpus or spine
+  independently in at least three sections (`check_session_links`'s chain-spine, `audit_link_gaps`'s
+  own corpus and embedding build, `_adr_head_reviews`'s spine) — measured at roughly 3s combined
+  against a ~10.8s `esr` run on this corpus; `session append` runs three independent scans for its
+  refines-cap, chain-guard and ordinal checks. No recorded freshness decision blocks sharing a build
+  within one invocation: `mse_4av5twf24m6xy7br:d1` (2026-07-15) retracted exactly that objection,
+  finding the live reads were a workaround for old mtime-only invalidation rather than a fundamental
+  need, and `load_corpus` exists as the precedent for composing such a build once. *Recommend:* one
+  shared corpus/spine build per invocation, passed down through the check and report layer —
+  **except** where a call site needs a materially different composition. `esr`'s topic-attribution
+  reminder deliberately reads the RAW, unaugmented corpus to measure the augmented-versus-raw gap
+  (pinned by the `tests/test_corpus_read_path.py` allowlist), and callers needing a different
+  granularity or ranking configuration keep their own build. Consolidate the load, not the
+  configuration.
 - **R6 — The recall-before-linking step is convention-only.** S3's step 2 (search before you
-  classify edges) is the storyline's soul and nothing enforces or even nudges it. *Recommend:*
-  `memory_session_append` dry-run returns top link-suggest candidates for the entry's targets when
-  the envelope declares no lifecycle links — a nudge, not a gate.
+  classify edges) is the storyline's soul, and nothing enforces or even nudges it — that much is
+  real. But the original fix, surfacing link-suggest candidates from `memory_session_append`'s
+  `dry_run` when the envelope declares no lifecycle links, attaches the nudge to an opt-in preview
+  flag: an agent careful enough to call `dry_run` has already read the tool description telling it
+  to call `memory_link_suggest` first, and an agent that skips the recall pass skips `dry_run` too.
+  The nudge would reach only the callers who did not need it. Surfacing candidates does not violate
+  the human-gate doctrine — classification stays with the author, no edge is auto-written, and
+  "machine edges never move heads" governs ADR-head movement rather than session-entry candidacy —
+  so the mechanism is sound and only its trigger is wrong. *Recommend:* attach the advisory to the
+  unconditional response path instead — when a decision's `links` carries no
+  `replaces`/`evolves`/`related_entries`, `memory_session_append` adds a `link_suggestions` field to
+  the response payload it already returns on both dry-run and real writes.
 - **R7 — `esr --json` / `to_dict()` omit the two ADR queues.** Attachment candidates and the
   review queue render only in prose; automation can't consume them. *Recommend:* add both fields.
   **RESOLVED (2026-08-10)** — both fields shipped: `adr_attachment_candidates` and
   `adr_head_reviews` are top-level keys on `esr --json` / `EsrReport.to_dict()`.
-- **R8 — Surface split mid-storyline.** Search (MCP-only) → chain view (CLI-only) in S2; review
-  gate (MCP) → revision write (CLI) in S6; the whole of S4 and S7 CLI-only. Where a storyline
-  crosses surfaces, an agent confined to one stalls. *Recommend:* MCP twins for `links chain`,
-  `link audit`, `esr` (read-only ones first — they are cheap wrappers).
+- **R8 — Surface split mid-storyline.** Search (MCP-only) to chain view (CLI-only) in S2; review
+  gate (MCP) to revision write (CLI) in S6; the whole of S4 and S7 CLI-only. Where a storyline
+  crosses surfaces, an agent confined to one stalls. Read-only twins face no governance obstacle:
+  `test_exactly_three_tools_can_write` pins only tools carrying a `dry_run` schema field, and
+  Invariant #2's write-surface-parity clause binds only writes, so a `links chain` / `link audit` /
+  `esr` MCP twin trips neither. *Recommend:* ship read-only MCP twins for those three now, and treat
+  any future MCP twin for a WRITE surface (`adr promote`/`revise`/`transition`) as a separate,
+  heavier decision that must consciously extend the pinned write-tool count and prove parity guards
+  — exactly as `memory_link_retract` did on 2026-08-10.
 - **R9 — Queues don't route to their answers.** ESR's review-queue line tells the agent what is
   stale but not which command records reviewed-no-change vs proposes a revision. *Recommend:* each
   queue line carries its answering command verbatim.
@@ -522,14 +573,61 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   **RESOLVED (2026-08-10)** — refusals now auto-run `git merge --abort` and report it; only a
   genuine non-session content conflict (no refusal to auto-resolve) and a post-fuse commit failure
   (deliberate — the fused tree is worth inspecting) still leave the merge in progress.
-- **R12 — Manual worktree residue.** `git worktree remove` fails on Windows, so every LAND ends
-  with a known manual `rm -rf`. Already tracked as a platform quirk; fold the cleanup into
-  merge-branch's own post-merge step with the same fallback.
+- **R12 — Manual worktree residue. STALE (already shipped 2026-07-30).** `session merge-branch`
+  folds cleanup into its own post-merge step (`memory_seed/core.py`,
+  `_cleanup_merged_source_worktree`): it re-discovers the merged branch's worktree, confirms it is
+  clean, unlocked and merged, removes it through git with bounded retry, and reports
+  `worktree_cleanup_status` / `_detail` / `_attempts` on the result. What remains is not a missing
+  feature — `git worktree remove` can deregister a worktree while Windows or OneDrive denies
+  deleting its directory, which is surfaced honestly as `deregistered-with-residue`. A raw-filesystem
+  fallback to force that last step was proposed and explicitly rejected in
+  `memory_seed/worktree_gc.py` ("an escape hatch is how that rule gets bypassed later"). Closed; if
+  residue volume ever matters operationally, track it through ESR residue reporting rather than
+  reopening the fallback question.
 
 **Priority if streamlining now:** six of twelve items closed this tranche (R3, R4, R7, R9, R10,
 R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
 ESR ADR queues are JSON-visible and self-routing, and S8's two worst failure modes (misattribution,
-stranded merges) are fixed. What remains: **R8** (surface split) is now the sharpest item — R4
-shipped CLI-only and *enlarged* it rather than shrinking it, on top of the pre-existing
-search/chain, review-gate/revision-write, and whole-storyline splits; then **R5** (repeated corpus
-builds, cost grows with corpus size); then the ergonomics (**R1**, **R2**, **R6**, **R12**).
+stranded merges) are fixed. The 2026-08-10 memory pass then removed three more from the open list
+by refuting them against recorded decisions (R1, R2) or finding they had already shipped (R12), and
+reframed two others where the premise held but the proposed mechanism did not (R5, R6 — see their
+entries above for the corrected recommendation). What remains open: **R8** (surface split) is the
+sharpest item — R4 shipped CLI-only and *enlarged* it rather than shrinking it, on top of the
+pre-existing search/chain, review-gate/revision-write, and whole-storyline splits; then **R5**
+(consolidate the shared-build load, not each call site's configuration); then **R6** (move the nudge
+to the unconditional response path).
+
+---
+
+## Redundancy audit (2026-08-10)
+
+A second memory pass audited every apparently-redundant tool or endpoint — candidates for deletion,
+not for reframing — against recorded decisions. Nothing was deleted.
+
+The memory-trace HTTP API carries two surfaces: legacy `/api/*` and versioned `/api/v1/*`. Six
+legacy endpoints (search, graph, facets, runtime, chunks, worktrees) are duplicated by v1 but still
+consumed by the vanilla frontend (`static/app.js`); the React client at `/next` uses only v1. This
+duplication is deliberate and gated — `docs/3_Spec/memory-trace-vanilla-parity-checklist.md`
+forbids retiring the vanilla fallback until React reproduces every item on it.
+
+`/api/timeline` has no frontend consumer, but it was deliberately retained twice on record: the
+2026-07-11 Timeline-tab retirement kept the endpoint so that retirement stayed "cleanly
+revertable", and the versioned-API decision the same day left it untouched "in case that ever
+changes". Not dead code — an authored retention.
+
+`/api/cache/rebuild` has no caller anywhere, but it is the only runtime rebuild lever: the CLI's
+`--rebuild-cache` is launch-time only, so removing the endpoint would mean restarting the server to
+force a repair. Unused, but uniquely capable — a documented operator lever, not dead code.
+
+`session integrate` adds no behaviour over `session merge-branch` / `session open-pr` (it dispatches
+to them with identical arguments on `integration_mode`), but it is referenced by the MCP refusal
+payload's `cli_command`, by `.memory-seed/agent-rules.md`, by `agent_collaboration.md`, and is
+governed by ADR `adr_integration_mode`. It stays.
+
+`memory_adr_review` is largely subsumed by `memory_session_append`'s own refusal payload, which
+computes the same contexts via the same function and returns them under the same `matched_adrs`
+field. Its remaining unique use is checking ADR impact before a draft exists. Removing it would be a
+breaking change to a published MCP surface and needs consent plus a release target.
+
+Net: every candidate was either an authored retention, uniquely capable, ADR-governed, or a
+published surface whose removal is a governed act, not a cleanup.
