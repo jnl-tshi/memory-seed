@@ -22,6 +22,9 @@ parity pair. This refresh adds R13 from an observed integration false negative, 
 recorded commit-failure and safe-cleanup decisions. Recommendations in this document are trustworthy
 only once checked against recorded decisions, not on code reading alone.
 
+The active R5, R8, and R13 work is tracked in the
+[storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md).
+
 The eight storylines:
 
 | # | Name | One line | Trigger |
@@ -551,7 +554,12 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   reminder deliberately reads the RAW, unaugmented corpus to measure the augmented-versus-raw gap
   (pinned by the `tests/test_corpus_read_path.py` allowlist), and callers needing a different
   granularity or ranking configuration keep their own build. Consolidate the load, not the
-  configuration.
+  configuration. **ACTIVE IN THIS TRANCHE (not resolved).** The approved direction is a core-owned
+  reconstructable cache: Markdown and sidecars remain authoritative, while the cache is disposable,
+  schema-versioned, and reconstructable. Any corruption, source conflict, incomplete delta, history
+  rewrite, schema mismatch, or other ambiguity falls to reconstruction from source. Publication is
+  atomic and concurrency-safe; source writes never depend on cache maintenance. ESR checks cache
+  health read-only, without repairing it or using an unverified cache to certify itself.
 - **R6 — The recall-before-linking step is convention-only.** S3's step 2 (search before you
   classify edges) is the storyline's soul, and nothing enforces or even nudges it — that much is
   real. But the original fix, surfacing link-suggest candidates from `memory_session_append`'s
@@ -583,7 +591,7 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   `esr` MCP twin trips neither. *Recommend:* ship read-only MCP twins for those three now, and treat
   any future MCP twin for a WRITE surface (`adr promote`/`revise`/`transition`) as a separate,
   heavier decision that must consciously extend the pinned write-tool count and prove parity guards
-  — exactly as `memory_link_retract` did on 2026-08-10.
+  — exactly as `memory_link_retract` did on 2026-08-10. **ACTIVE IN THIS TRANCHE (not resolved).**
 - **R9 — Queues don't route to their answers.** ESR's review-queue line tells the agent what is
   stale but not which command records reviewed-no-change vs proposes a revision. *Recommend:* each
   queue line carries its answering command verbatim.
@@ -624,7 +632,7 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
   expected source tip and trailers, report the operation committed and continue through the
   existing exact, clean, merged-worktree cleanup. Otherwise preserve the current fail-closed result
   and leave the genuine in-progress merge for inspection. Do not weaken the timeout or introduce a
-  raw-filesystem cleanup fallback.
+  raw-filesystem cleanup fallback. **ACTIVE IN THIS TRANCHE (not resolved).**
 
 **Priority if streamlining now:** seven of thirteen items are now closed (R3, R4, R6, R7, R9, R10,
 R11) — S5's write step is no longer bare markdown, S4's graph assertion is a real command, both
