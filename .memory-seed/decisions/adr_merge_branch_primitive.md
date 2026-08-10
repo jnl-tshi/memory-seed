@@ -36,6 +36,7 @@ Re-anchored from the control-file founding onto its session decision; related de
 ### Awaiting review
 
 - `mse_j41ywke76agqw4yj:d1` - session merge-branch remains the one-step integration primitive, and its refusal exits now abort their own...
+- `mse_87n8q05m0k01kjr4:d1` - After the post-fuse commit command reports failure, session merge-branch reconciles repository state before...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -185,3 +186,32 @@ A refusal's half-started merge holds no state a human can use - there are no con
 #### Evolution
 
 Refines the one-step primitive's failure contract; proposed by mse_ entry this event anchors to, pending JNL's acceptance.
+
+### revision-proposed - 2026-08-10T16:00:00
+
+```json
+{
+  "decision_ref": "mse_87n8q05m0k01kjr4:d1",
+  "event_id": "adre_0f1cf73bc521ae6d5866",
+  "predecessors": [
+    {
+      "decision": "mse_j41ywke76agqw4yj:d1",
+      "relation_assertion": "link:mse_87n8q05m0k01kjr4:d1:evolves:mse_j41ywke76agqw4yj:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_87n8q05m0k01kjr4"
+}
+```
+
+#### Decision
+
+After the post-fuse commit command reports failure, session merge-branch reconciles repository state before classifying the operation: a new merge commit containing the expected source tip and Memory-Entry trailers is committed success; otherwise the genuine in-progress failure remains inspectable.
+
+#### Why
+
+A slow post-commit hook can outlive the shared 30-second Git subprocess timeout after Git has already created the merge commit, producing a false failure result and skipping safe source-worktree cleanup.
+
+#### Evolution
+
+Refines the one-step integration primitive's commit-failure contract without weakening its timeout, genuine-failure preservation, or exact-target cleanup safeguards.
