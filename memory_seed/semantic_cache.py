@@ -1161,6 +1161,11 @@ def suggest_related_entries(
     This only *reorders and labels* candidates - it fabricates no relevance and
     creates no edge; the caller still classifies. An empty/omitted ``consulted``
     leaves ordering and output byte-for-byte identical to the file-only path.
+
+    ``chunks`` accepts an already-loaded entry view. The MCP append tool uses
+    this seam to share one pre-write snapshot with the chain guard and its
+    post-write suggestion response; the transient target below deliberately
+    replaces any persisted copy, so preview and write remain identical.
     """
     chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
     if not chunks:
@@ -1192,6 +1197,7 @@ def suggest_related_for_draft(
     top_k: int = 5,
     consulted: Sequence[str] | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    chunks: Sequence[MemoryChunk] | None = None,
 ) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
     """Rank links for an append draft without temporarily publishing it.
 
@@ -1223,7 +1229,13 @@ def suggest_related_for_draft(
         sections=_entry_sections(body_lines),
         granularity="entry",
     )
-    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    chunks = [
+        chunk
+        for chunk in (
+            chunks if chunks is not None else extract_memory_chunks(cwd, granularity="entry")
+        )
+        if chunk.entry_id
+    ]
     # A real append may already have published the target. Replace it with the
     # transient form so dry-run and write response ranking remain identical.
     chunks = [chunk for chunk in chunks if chunk.entry_id != entry_id]

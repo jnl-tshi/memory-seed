@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .core import (
     MEMORY_DIR_NAME,
@@ -1155,6 +1155,28 @@ def call_tool(
                 "timestamp": supplied or now,
             }
 
+        unlinked = _unlinked_decisions(decisions)
+        needs_chain_snapshot = any(
+            isinstance(decision, Mapping)
+            and isinstance(decision.get("links"), Mapping)
+            and isinstance(decision["links"].get("evolves"), Sequence)
+            and not isinstance(decision["links"].get("evolves"), (str, bytes))
+            and len(decision["links"]["evolves"]) >= 2
+            for decision in decisions
+        )
+        snapshot = None
+        if needs_chain_snapshot:
+            # One pre-write view can serve both the chain guard and the draft
+            # suggestion response. Cache maintenance is best-effort; the core
+            # guard retains its existing source-based fallback on an unexpected
+            # snapshot error.
+            try:
+                from .corpus_cache import get_corpus_snapshot
+
+                snapshot = get_corpus_snapshot(cwd)
+            except Exception:
+                snapshot = None
+
         result = session_append_entry(
             cwd,
             title=_required_str(args, "title"),
@@ -1175,6 +1197,7 @@ def call_tool(
             timestamp=supplied or now,
             explicit_user=_optional_str(args, "user"),
             dry_run=bool(args.get("dry_run", False)),
+            snapshot=snapshot,
         )
         # Refusals are results, not JSON-RPC errors: the guards report several
         # independently-fixable problems at once, and an error string would
@@ -1196,8 +1219,11 @@ def call_tool(
             payload["rendered"] = result.rendered
         if result.rendered_sidecars is not None:
             payload["rendered_sidecars"] = result.rendered_sidecars
-        unlinked = _unlinked_decisions(decisions)
         if result.ok and unlinked:
+            if snapshot is None:
+                from .corpus_cache import get_corpus_snapshot
+
+                snapshot = get_corpus_snapshot(cwd)
             _, ranked = suggest_related_for_draft(
                 cwd,
                 entry_id=result.entry_id or "",
@@ -1206,6 +1232,7 @@ def call_tool(
                 timestamp=result.timestamp or (supplied or now),
                 top_k=5,
                 consulted=list(args.get("consulted") or []) or None,
+                chunks=snapshot.chunks("entry", "augmented"),
             )
             payload["link_suggestions"] = {
                 "unlinked_decisions": unlinked,

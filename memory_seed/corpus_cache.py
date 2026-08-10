@@ -112,8 +112,6 @@ class CorpusCacheInspection:
             "cached_counts": dict(self.cached_counts) if self.cached_counts is not None else None,
             "source_counts": dict(self.source_counts),
             "equivalence": self.equivalence,
-            "artifact": self.artifact,
-            "identity": dict(self.identity) if self.identity is not None else None,
         }
 
 
@@ -177,6 +175,22 @@ def _fingerprint(identity: Mapping[str, str], manifest: list[dict[str, str]]) ->
         "manifest": manifest,
     }
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _artifact_key(identity: Mapping[str, str]) -> str:
+    """Stable cache address for one runtime/worktree, intentionally excluding HEAD.
+
+    HEAD belongs in the envelope identity and fingerprint, where a checkout or
+    rewritten history invalidates the projection.  Putting it in the filename
+    instead strands one stale artifact per commit and prevents inspection from
+    reporting *why* the existing artifact was rejected.
+    """
+    stable_identity = {
+        key: identity[key]
+        for key in ("workspace_root", "memory_dir", "git_common_dir", "git_dir")
+    }
+    encoded = json.dumps(stable_identity, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _default_source_builder(cwd: str | Path) -> Mapping[tuple[str, str], tuple[MemoryChunk, ...]]:
@@ -442,13 +456,16 @@ def inspect_corpus_cache(
 
     artifact: Path | None = None
     if identity is not None:
-        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        key = _artifact_key(identity)
         artifact = _cache_dir(cache_dir) / f"{key}.json"
     artifact_text = str(artifact) if artifact is not None else None
     try:
         present = artifact is not None and artifact.is_file()
     except OSError:
-        present = False
+        return CorpusCacheInspection(
+            live, True, "unreadable", None, "corrupt", True, None,
+            source_counts, "not-comparable", artifact_text, identity,
+        )
     if not present:
         return CorpusCacheInspection(
             live, False, "current", None,
@@ -509,7 +526,7 @@ def get_corpus_snapshot(
         return CorpusSnapshot("isolated", None, MappingProxyType(dict(views)))
     manifest, _ = manifest_result
     fingerprint = _fingerprint(identity, manifest)
-    key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    key = _artifact_key(identity)
     try:
         artifact = _cache_dir(cache_dir) / f"{key}.json"
         hit = _load(artifact, identity, manifest, fingerprint)

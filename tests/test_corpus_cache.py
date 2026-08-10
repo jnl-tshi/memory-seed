@@ -11,7 +11,7 @@ import pytest
 
 import memory_seed.corpus_cache as corpus_cache
 from memory_seed.corpus_cache import (
-    CorpusSnapshot, _Lease, _git_identity, _integrity_binding, get_corpus_snapshot,
+    CorpusSnapshot, _Lease, _artifact_key, _git_identity, _integrity_binding, get_corpus_snapshot,
     inspect_corpus_cache,
 )
 from memory_seed.core import resolve_runtime
@@ -218,10 +218,17 @@ def test_head_change_and_runtime_keys_never_reuse_another_projection(tmp_path):
     (first / "HEAD-change.txt").write_text("rewrite", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=first, check=True)
     subprocess.run(["git", "commit", "-qm", "rewrite"], cwd=first, check=True)
+    stale = inspect_corpus_cache(first, cache_dir=cache, source_builder=lambda _cwd: _views("rewritten"))
+    assert stale.health == "stale"
+    assert stale.source_current is False
+    assert stale.reconstruction_required is True
+    assert len(list(cache.glob("*.json"))) == 2
+
     rebuilt = get_corpus_snapshot(first, cache_dir=cache, source_builder=lambda _cwd: (first_calls.append(1) or _views("rewritten")))
     assert rebuilt.chunks("entry", "raw")[0].chunk_id == "rewritten"
     assert first_calls == [1, 1]
     assert second_calls == [1]
+    assert len(list(cache.glob("*.json"))) == 2
 
 
 def test_bounded_lease_contention_returns_isolated_authoritative_snapshot(tmp_path):
@@ -230,7 +237,7 @@ def test_bounded_lease_contention_returns_isolated_authoritative_snapshot(tmp_pa
     runtime = resolve_runtime(project)
     identity = _git_identity(runtime.workspace_root, runtime.memory_dir)
     assert identity is not None
-    key = __import__("hashlib").sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    key = _artifact_key(identity)
     cache.mkdir()
     (cache / f"{key}.json.lease").write_text("other process", encoding="utf-8")
     snapshot = get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
@@ -370,3 +377,54 @@ def test_inspection_schema_mismatch_and_no_git_never_create_cache(tmp_path):
     assert no_git.health == "missing"
     assert no_git.source_current is None
     assert not absent.exists()
+
+
+def test_inspection_public_payload_omits_absolute_runtime_and_cache_paths(tmp_path):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+
+    payload = inspect_corpus_cache(
+        project, cache_dir=cache, source_builder=lambda _cwd: _views()
+    ).to_dict()
+    encoded = json.dumps(payload, sort_keys=True)
+
+    assert set(payload) == {
+        "present", "schema_status", "source_current", "health",
+        "reconstruction_required", "cached_counts", "source_counts", "equivalence",
+    }
+    assert str(project.resolve()) not in encoded
+    assert str(cache.resolve()) not in encoded
+    assert str((project / ".git").resolve()) not in encoded
+
+
+def test_inspection_stat_error_is_corrupt_and_unreadable_without_mutation(tmp_path, monkeypatch):
+    project = _project(tmp_path / "project")
+    cache = tmp_path / "cache"
+    get_corpus_snapshot(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    artifact = next(cache.glob("*.json"))
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in cache.iterdir()
+    }
+    real_is_file = Path.is_file
+
+    def denied(path):
+        if path == artifact:
+            raise PermissionError("inspection denied")
+        return real_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", denied)
+    result = inspect_corpus_cache(project, cache_dir=cache, source_builder=lambda _cwd: _views())
+    after = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in cache.iterdir()
+    }
+
+    assert result.present is True
+    assert result.schema_status == "unreadable"
+    assert result.source_current is None
+    assert result.health == "corrupt"
+    assert result.reconstruction_required is True
+    assert result.equivalence == "not-comparable"
+    assert before == after

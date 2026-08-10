@@ -19,6 +19,14 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **The canonical corpus now has a reconstructable core projection cache.** Raw and sidecar-augmented
+  entry, section, and decision views are persisted outside the repository under a stable
+  runtime/worktree key while session Markdown, link/topic sidecars, and project configuration remain
+  authoritative. Exact source fingerprints, Git HEAD watermarks, schema/integrity checks, owner-token
+  leases, and atomic publication make every uncertain state fall back to a full or isolated source
+  reconstruction. ESR independently rebuilds the live corpus and reports cache health without
+  repairing or mutating the artifact; ESR and append tool calls reuse one invocation snapshot instead
+  of repeatedly reconstructing the same canonical view.
 - **Memory is now an explicit prerequisite for consequential conclusions.** The universal rules and
   history-retrieval trigger cover reviews, audits, recommendations, and claims that behavior is
   redundant, obsolete, removable, replaceable, or ready to consolidate. Decision Harvest carries

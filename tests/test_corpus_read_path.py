@@ -48,13 +48,14 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "raw contract while the public loader defaults to the fully sidecar-augmented canonical view.",
     ),
     "semantic_cache.py": (
-        4,
+        5,
         "Cannot import retrieval - retrieval imports this module, so the augmenters are "
-        "downstream and reaching for them would be a cycle. The four are: rank_session_memory's "
-        "chunks=None fallback, build_related_entry_graph's chunks=None fallback, and two YAML "
-        "write paths that edit entry metadata directly. The two fallbacks are traps for future "
+        "downstream and reaching for them would be a cycle. The five are: rank_session_memory's "
+        "chunks=None fallback, build_related_entry_graph's chunks=None fallback, two YAML "
+        "write paths that edit entry metadata directly, and suggest_related_for_draft's chunks=None "
+        "fallback. The three fallbacks are traps for future "
         "callers rather than defects today (every production caller passes chunks=, and "
-        "load_corpus is what supplies them). The write paths are RECORDED AS WORTH REVIEW, not "
+        "the canonical cache/load path is what supplies them). The write paths are RECORDED AS WORTH REVIEW, not "
         "confirmed correct: their idempotency check reads entry YAML only, so re-adding an edge "
         "that already exists in a link sidecar may not be detected as a duplicate.",
     ),
@@ -63,8 +64,11 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "Identity lookup: finds one chunk by entry_id to read its text. No graph, no ranking.",
     ),
     "retrieval.py": (
-        1,
-        "link-audit apply validates that scaffolded entry_ids exist. It consults "
+        2,
+        "link-audit's snapshot=None fallback intentionally starts from raw chunks and adds topic "
+        "sidecars only, because link sidecars are the missing evidence it is auditing; ESR supplies "
+        "the shared raw snapshot in production. Link-audit apply separately validates that "
+        "scaffolded entry_ids exist. It consults "
         "entry_link_sidecars separately for what is already recorded, so augmenting here would be "
         "redundant, not corrective.",
     ),
