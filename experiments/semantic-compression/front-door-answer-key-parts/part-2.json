@@ -1,0 +1,259 @@
+{
+  "schema": "front-door-answer-key-part.v1",
+  "author_model": "gpt-5.6-sol",
+  "input_access": "canonical-source-and-query-only",
+  "rankings_seen": false,
+  "display_candidates_seen": false,
+  "answers": [
+    {
+      "packet_id": "p_9672305338e6",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 615,
+          "end_char": 889,
+          "text": "That is a real\n  suspicion and not a verified defect, and changing a write path on a suspicion would trade a known\n  quantity for an unknown one. Recording it in the allowlist keeps it visible to whoever next opens\n  that file instead of relying on someone rediscovering it."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_9672305338e6",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 1006,
+          "end_char": 1164,
+          "text": "an allowlist entry that says only \"legacy\" would reproduce the problem the file\n  exists to prevent, which is why the test asserts each reason is substantive."
+        },
+        {
+          "start_char": 1221,
+          "end_char": 1354,
+          "text": "The allowlist counts are asserted exactly, so a new bypass in an already-listed module fails\n  just as loudly as one in a new module."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_2c4285778b86",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 574,
+          "end_char": 731,
+          "text": "Trace is a distinct product line on top of the `memory-seed` engine; a distinct top-level name\n  is the whole point of moving off \"Trail\" onto its own brand."
+        },
+        {
+          "start_char": 1090,
+          "end_char": 1279,
+          "text": "the command drops the `memory-seed-` prefix so it\n  won't appear under `memory-seed`+Tab discovery - the intended cost of a standalone brand, mitigated\n  by core-package docs cross-linking."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_2c4285778b86",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 5,
+          "end_char": 523,
+          "text": "Set `memory-trace` as the canonical package and command name for the Memory Trace companion\n  distribution everywhere it was previously written as `memory-seed-trace` (target/tentative):\n  the Trace product plan (Part 1 decision, acceptance criterion, resolved open question),\n  the distribution plan (Phase 2 target + retrieval-API surface + Phase 2 acceptance criterion),\n  `3.0-plan.md` (package split list, B1 API section + command example, sequencing item 3),\n  `NEXT_STEPS.md`, and `docs/functionality-audit.md`."
+        },
+        {
+          "start_char": 849,
+          "end_char": 1060,
+          "text": "Kept `memory-seed-trace` referenced in the Trace plan only as (a) the historical availability\n  table, (b) explicit \"not this name\" statements, and (c) an optional defensive alias if a redirect\n  is ever wanted."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_21a9e82afcd6",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 90,
+          "end_char": 301,
+          "text": "`2.12.0` is already tagged/published, and the current work adds material package and control-plane behavior: Memory Lense, related-entry graph commands, collaboration/lazy-loading skills, and package-data fixes."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_21a9e82afcd6",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 90,
+          "end_char": 301,
+          "text": "`2.12.0` is already tagged/published, and the current work adds material package and control-plane behavior: Memory Lense, related-entry graph commands, collaboration/lazy-loading skills, and package-data fixes."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_09e61a470db0",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 5,
+          "end_char": 80,
+          "text": "`_humanise_topic` uppercases known acronyms instead of `str.title()` alone."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_09e61a470db0",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 86,
+          "end_char": 331,
+          "text": "The legend prints these labels verbatim, and `str.title()` rendered `mcp-tools` as \"Mcp Tools\"\n  and `ui-design` as \"Ui Design\". Only visible once something displayed them - the colours had been\n  shipping the same labels through the API unread."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_a1938e3e9cc5",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 5,
+          "end_char": 134,
+          "text": "Add `memory-seed lense` as an optional local FastAPI/Uvicorn UI backed by a rebuildable SQLite cache outside the repo by default."
+        },
+        {
+          "start_char": 140,
+          "end_char": 287,
+          "text": "Markdown session files remain the source of truth while the browser receives paged API views rather than a full static `window.MEMORY_DATA` corpus."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_a1938e3e9cc5",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 140,
+          "end_char": 287,
+          "text": "Markdown session files remain the source of truth while the browser receives paged API views rather than a full static `window.MEMORY_DATA` corpus."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_73355eef4466",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 1282,
+          "end_char": 1752,
+          "text": "Rather than transcribe the bodies, the successors were confirmed independently: all seven were retired\n  in one commit (`0fc64cba`), whose entry `mse_ddba1ztxqhasfbwf` names the destinations in its own D2/D3\n  — \"fold Evidence Envelope, Capability Status, and seeded docs lifecycle into their existing owners\" and\n  \"combine worktree GC and naming/lifecycle policy... and its two superseded source proposals\". That\n  raises the evidence above each document's self-claim."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_73355eef4466",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 1776,
+          "end_char": 2051,
+          "text": "`memory-seed-semantic-workflow-exploration-index.md` points at the **entry id**,\n  not a path: it split four ways, so no single successor exists, and the schema reserves entry ids for\n  exactly the case where a decision retired a document rather than a document replacing it."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_cfcf5f0acbd2",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 496,
+          "end_char": 638,
+          "text": "500/1k/10k datasets are generated on demand - the\n  generator IS the committed fixture; megabytes of synthetic markdown would be review noise."
+        },
+        {
+          "start_char": 644,
+          "end_char": 805,
+          "text": "Roadmap Phase 0 requires \"500, 1,000 and 10,000-entry synthetic datasets\" before any\n  migration work; determinism makes future parity measurements reproducible."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_cfcf5f0acbd2",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 157,
+          "end_char": 495,
+          "text": "Same (count, seed) ->\n  byte-identical .memory-seed/sessions tree (month-grouped, real schema); shape exercises the\n  Trail's full grammar - main line, up to 3 parallel feature branches with bounded lifetimes\n  (forks/merges/daisy-chains emerge), related/supersedes/evolves edges (forward-only),\n  topics, varied prose for search ranking."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_8ca844cc8f27",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 71,
+          "end_char": 292,
+          "text": "Rows are now\n  overview-first: search cards show date + title only (score appears only under a query; excerpt,\n  topics, agent, matched-section chips moved to the reader), timeline items collapsed to one\n  time+title line"
+        },
+        {
+          "start_char": 1012,
+          "end_char": 1236,
+          "text": "The dense-UI research brief's top levers (overview-first, data-ink, Hick's law, facet\n  hygiene, muted-by-default) applied per the user's \"too crowded - simplify\" direction and\n  explicit approval of the recommended options."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_8ca844cc8f27",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 298,
+          "end_char": 430,
+          "text": "the redundant timestamp prefix is stripped from all list titles via\n  `stripTitleStamp()` (the date/time column already carries it)."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_a4bc1a026ce8",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 190,
+          "end_char": 325,
+          "text": "This proves package delivery and comparable interaction without prematurely routing the shipped Graph tab through a candidate renderer."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_a4bc1a026ce8",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 5,
+          "end_char": 184,
+          "text": "Serve a bundled vis-network/Cytoscape.js comparison at `/benchmarks/renderer`, with both adapters consuming the bounded renderer-neutral fixture and no external resource requests."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_158218d4bf77",
+      "kind": "semantic",
+      "spans": [
+        {
+          "start_char": 84,
+          "end_char": 451,
+          "text": "`sessions/links/YYYY-MM/YYYY-MM-DD.md` sidecars are part of the effective graph contract, so MCP tools should not remain YAML-only while Trace and `links check` see union(YAML, sidecar). The shared merge point belongs in `memory_seed.retrieval`, which already depends on `semantic_cache`; putting it there avoids a reverse import from `semantic_cache` into retrieval."
+        }
+      ]
+    },
+    {
+      "packet_id": "p_158218d4bf77",
+      "kind": "anchor",
+      "spans": [
+        {
+          "start_char": 84,
+          "end_char": 451,
+          "text": "`sessions/links/YYYY-MM/YYYY-MM-DD.md` sidecars are part of the effective graph contract, so MCP tools should not remain YAML-only while Trace and `links check` see union(YAML, sidecar). The shared merge point belongs in `memory_seed.retrieval`, which already depends on `semantic_cache`; putting it there avoids a reverse import from `semantic_cache` into retrieval."
+        }
+      ]
+    }
+  ]
+}

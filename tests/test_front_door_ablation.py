@@ -188,14 +188,29 @@ class FrontDoorAblationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rejected or did not accept"):
             MODULE.validate_oracle_review(payload, "sha256:oracle", selected)
 
+    def test_frozen_oracle_and_review_artifacts_match_their_pins(self):
+        _, selected, queries, _ = MODULE.frozen_inputs()
+        oracle = json.loads(MODULE.ORACLE_PATH.read_text(encoding="utf-8"))
+        oracle_hash = MODULE.sha256_bytes(MODULE.ORACLE_PATH.read_bytes())
+        self.assertEqual(oracle_hash, MODULE.EXPECTED_ORACLE_SHA256)
+        oracle_diagnostics = MODULE.validate_oracle(oracle, selected, queries)
+        self.assertEqual(len(oracle_diagnostics), 60)
+        self.assertEqual(sum(row["span_count"] for row in oracle_diagnostics), 90)
+
+        review = json.loads(MODULE.ORACLE_REVIEW_PATH.read_text(encoding="utf-8"))
+        review_hash = MODULE.sha256_bytes(MODULE.ORACLE_REVIEW_PATH.read_bytes())
+        self.assertEqual(review_hash, MODULE.EXPECTED_ORACLE_REVIEW_SHA256)
+        self.assertEqual(len(MODULE.validate_oracle_review(review, oracle_hash, selected)), 60)
+
     def test_packets_work_before_oracle_but_scoring_writes_nothing_while_pending(self):
         packets = MODULE.oracle_packets()
         self.assertEqual(len(packets), 30)
         self.assertEqual(set(packets[0]), {"packet_id", "source", "semantic_query", "anchor_query"})
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            with self.assertRaisesRegex(RuntimeError, "oracle pin is PENDING"):
-                MODULE.run(output)
+            with mock.patch.object(MODULE, "EXPECTED_ORACLE_SHA256", "PENDING"):
+                with self.assertRaisesRegex(RuntimeError, "oracle pin is PENDING"):
+                    MODULE.run(output)
             self.assertFalse((output / "front-door-ablation-metrics.json").exists())
             self.assertFalse((output / "front-door-results.md").exists())
 
@@ -203,7 +218,8 @@ class FrontDoorAblationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             with mock.patch.object(MODULE, "load_oracle", return_value={"answers": []}), \
-                 mock.patch.object(MODULE, "ORACLE_PATH", MODULE.QUERY_PATH):
+                 mock.patch.object(MODULE, "ORACLE_PATH", MODULE.QUERY_PATH), \
+                 mock.patch.object(MODULE, "EXPECTED_ORACLE_REVIEW_SHA256", "PENDING"):
                 with self.assertRaisesRegex(RuntimeError, "oracle review pin is PENDING"):
                     MODULE.run(output)
             self.assertFalse((output / "front-door-ablation-metrics.json").exists())

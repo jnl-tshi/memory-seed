@@ -1,0 +1,166 @@
+{
+  "schema": "front-door-answer-key-part.v1",
+  "author_model": "gpt-5.6",
+  "input_access": "canonical-source-and-query-only",
+  "rankings_seen": false,
+  "display_candidates_seen": false,
+  "answers": [
+    {
+      "packet_id": "p_bbc0efbe1634",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 858, "end_char": 1073, "text": "The PyPI environment gate is the deliberate human checkpoint for the irreversible push; the user's \"publish 2.10\" is the explicit authorization to approve it, and I only approved after the build/test job went green."}
+      ]
+    },
+    {
+      "packet_id": "p_bbc0efbe1634",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 858, "end_char": 1073, "text": "The PyPI environment gate is the deliberate human checkpoint for the irreversible push; the user's \"publish 2.10\" is the explicit authorization to approve it, and I only approved after the build/test job went green."}
+      ]
+    },
+    {
+      "packet_id": "p_ec7593a10fe6",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 291, "text": "- D: Do not build `link backfill`. Record it in the plan as an open user decision with three options:\n  reject it in favour of the shipped evolution-edges seeding pass, amend Invariant #2 for a\n  metadata-only carve-out, or record a reading that YAML curation was never \"rewriting the past\"."},
+        {"start_char": 456, "end_char": 715, "text": "  - Backfill mutates existing entries' YAML, which collides with Invariant #2 (\"never rewrite or\n    delete\"). Constitution §11: a proposal conflicting with a live invariant \"is rejected or must\n    first amend the invariant - it cannot silently override it\"."}
+      ]
+    },
+    {
+      "packet_id": "p_ec7593a10fe6",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 297, "end_char": 455, "text": "  - The plan was approved 2026-07-05; the Constitution was ratified 2026-07-14. The sign-off predates\n    the invariant and cannot authorise it retroactively."},
+        {"start_char": 456, "end_char": 715, "text": "  - Backfill mutates existing entries' YAML, which collides with Invariant #2 (\"never rewrite or\n    delete\"). Constitution §11: a proposal conflicting with a live invariant \"is rejected or must\n    first amend the invariant - it cannot silently override it\"."}
+      ]
+    },
+    {
+      "packet_id": "p_eee13dc0f447",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 271, "text": "- D: Record two candidate fixes ahead of the band in priority: raise the semantic blend weight\n  (`semantic_component = cosine * 3.0`, `semantic_cache.py:927`), and re-examine the recency\n  multiplier. Neither is applied in this branch - both need their own held-out fit."}
+      ]
+    },
+    {
+      "packet_id": "p_eee13dc0f447",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 401, "end_char": 659, "text": "The reason is arithmetic: cosine is bounded by 1, so a perfect\n  semantic match contributes 3.0 against one tag match's 12.0, and the measured semantic share of\n  `match_score` is 21.6%. It cannot reorder anything separated by more than three lexical points."},
+        {"start_char": 906, "end_char": 1244, "text": "Separately, chasing a 73-versus-63 discrepancy\n  between two of my own harnesses isolated the recency multiplier: it removes 10 of 120 correct\n  answers from the top 8. In a store whose purpose is retrieving old decisions, down-weighting age\n  deserves an explicit argument, and `lambda_days=0.01` has never been validated against recall."}
+      ]
+    },
+    {
+      "packet_id": "p_4bb6268d7869",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 268, "text": "- D: Record the Codex arm in PREREGISTRATION.md as a dated append with an explicit no-pooling rule,\n  add a `--brief` probe override that `collect.py` excludes from every scored table, and fingerprint\n  the parent repo before and after each run into `parent_isolated`."},
+        {"start_char": 427, "end_char": 746, "text": "Two independent facts make the arms\n  non-comparable: a different tool surface and system prompt, and a materially thinner transcript -\n  Codex `--json` emits `mcp_tool_call` items and the final message but no reasoning items, only a\n  token count, so faithfulness can only be judged there against observable behaviour."}
+      ]
+    },
+    {
+      "packet_id": "p_4bb6268d7869",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 747, "end_char": 838, "text": "Amending by\n  append rather than edit is the same append-only discipline the product sells."},
+        {"start_char": 959, "end_char": 1102, "text": "- A: Editing the pre-registration in place was declined as a silent rewrite of a document whose\n  whole value is being fixed before the result."}
+      ]
+    },
+    {
+      "packet_id": "p_0e328d2b0dc8",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 132, "end_char": 325, "text": "ADRs act as a high-signal design-thread lens: they identify the current governing decision and direct lineage, while the link sidecar remains the sole owner of `evolves` and `replaces` meaning."},
+        {"start_char": 522, "end_char": 694, "text": "- A: Treat ADR lineage as a duplicate lifecycle ledger - rejected because it would give the same relationship two authoritative homes and violate Constitution Invariant #6."}
+      ]
+    },
+    {
+      "packet_id": "p_0e328d2b0dc8",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 249, "end_char": 325, "text": "the link sidecar remains the sole owner of `evolves` and `replaces` meaning."}
+      ]
+    },
+    {
+      "packet_id": "p_ebe235e56dad",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 194, "text": "- D: `graph`, `trail`, `inspector`, `topbar`, `navigation`, `settings`, `workspace-bar` — each named\n  after a region that actually exists in `App.tsx`. `diagram-view` (3) stays below the floor."},
+        {"start_char": 200, "end_char": 330, "text": "I had been proposing pane children from memory and getting the grain wrong. Reading the component\n  tree fixed two errors at once."}
+      ]
+    },
+    {
+      "packet_id": "p_ebe235e56dad",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 331, "end_char": 595, "text": "**`navigation` replaces `context`**: what I had proposed as a child was\n  a SECTION inside `<aside class=\"navigation-pane\">`, alongside the topics filter and project stats — the\n  pane is the right unit, and at 14 it clears the floor where the section's 7 did not."},
+        {"start_char": 596, "end_char": 780, "text": "And **`topbar` and\n  `workspace-bar` are panes I never proposed at all**, both clearing the floor, covering the find bar,\n  worktree picker, view switcher, graph scope and edge filters"}
+      ]
+    },
+    {
+      "packet_id": "p_d3ae7134ace3",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 377, "end_char": 581, "text": "JNL's question - \"why can't the adr reference the constitution location directly?\" - was the\n  right one; my sidecar design added a fourth file family to solve a problem the event ledger\n  already solves."},
+        {"start_char": 1200, "end_char": 1464, "text": "The separate bindings sidecar (my original design) was declined by JNL and was the worse\n  shape. Putting bindings in frontmatter was declined - frontmatter is stable identity per the\n  contract, and bindings evolve with revisions, which is what the ledger is for."}
+      ]
+    },
+    {
+      "packet_id": "p_d3ae7134ace3",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 0, "end_char": 269, "text": "- D: `AdrEvent.constitution_refs: tuple[ConstitutionRef, ...]` - `{ref, role}` pairs, role\n  `governing|supporting`, refs of the form `constitution:v1#slug` resolved at validation time\n  against `<!-- constitution-ref: ... -->` anchor markers in `docs/CONSTITUTION.md`."},
+        {"start_char": 582, "end_char": 906, "text": "The schema is ours: an optional field rendered omit-empty leaves every\n  pre-existing record byte-identical, so no schema_version bump, no migration, and the codex\n  fixtures' sha256 pins hold. Validation refuses malformed refs, unknown roles, duplicates, and -\n  the working half - refs that do not resolve to a real anchor"}
+      ]
+    },
+    {
+      "packet_id": "p_57de9c9f635b",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 285, "text": "- D: `pair_affinity.py` builds an area-pair table by lift (n>=3, lift>=2.0, leave-one-out) and\n  `topic_candidates.py` uses it to surface extra candidates, each labelled `[pair-expanded]` with\n  its lift and n. The two measurements forbidding any other use are in the module docstring."},
+        {"start_char": 344, "end_char": 672, "text": "As a GATE the table scored the known-bad\n  hop highest of all (lift 11.30) - from n=1, because that very edge was in the data it learned\n  from, which is why leave-one-out and the count floor are load-bearing rather than tidy. As a\n  RANKER every topic-derived scorer placed JNL's approved picks at chance (mean rank 3.00 of 5)."}
+      ]
+    },
+    {
+      "packet_id": "p_57de9c9f635b",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 0, "end_char": 285, "text": "- D: `pair_affinity.py` builds an area-pair table by lift (n>=3, lift>=2.0, leave-one-out) and\n  `topic_candidates.py` uses it to surface extra candidates, each labelled `[pair-expanded]` with\n  its lift and n. The two measurements forbidding any other use are in the module docstring."},
+        {"start_char": 1453, "end_char": 1634, "text": "Reachability grepped: the table is\n  imported only by its own report and the recall report, never by `lineage_map.py` (the review path)\n  or `reconcile_lineage.py` (the write path)."}
+      ]
+    },
+    {
+      "packet_id": "p_51a06c2c5ff0",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 246, "text": "- D: Accept and integrate deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the bounded successor boost, configurable integration mode, and inert lifecycle-link scaffolding steps 1-3."},
+        {"start_char": 415, "end_char": 693, "text": "- A: Provider-backed AI summarisation was not bundled into Phase 1; it remains a disabled-by-default Phase 2 because generated explanations are non-authoritative. Lifecycle-link commit nudging and an MCP write tool remain optional steps 4-5 rather than being implied as shipped."}
+      ]
+    },
+    {
+      "packet_id": "p_51a06c2c5ff0",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 0, "end_char": 246, "text": "- D: Accept and integrate deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the bounded successor boost, configurable integration mode, and inert lifecycle-link scaffolding steps 1-3."},
+        {"start_char": 247, "end_char": 414, "text": "- R: Each feature preserved Markdown authority and derived/read-only boundaries, passed its focused worker checks, then passed review on the combined integration head."},
+        {"start_char": 420, "end_char": 577, "text": "Provider-backed AI summarisation was not bundled into Phase 1; it remains a disabled-by-default Phase 2 because generated explanations are non-authoritative."}
+      ]
+    },
+    {
+      "packet_id": "p_5f60d9d5355d",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 0, "end_char": 332, "text": "- D: `render_adr` renders the title through `_yaml_scalar()`, which quotes a value that contains\n  `\": \"` or `\" #\"`, ends in a colon, opens with a YAML indicator, or carries edge whitespace. The\n  five affected files were repaired by re-rendering, with the repair refusing to write if the diff\n  touched anything but the title line."},
+        {"start_char": 553, "end_char": 734, "text": "Quoting conditionally rather than always is what keeps every record written\n  before this byte-identical, which matters because three ADRs are sha256-pinned by the codex\n  fixtures."}
+      ]
+    },
+    {
+      "packet_id": "p_5f60d9d5355d",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 0, "end_char": 190, "text": "- D: `render_adr` renders the title through `_yaml_scalar()`, which quotes a value that contains\n  `\": \"` or `\" #\"`, ends in a colon, opens with a YAML indicator, or carries edge whitespace."},
+        {"start_char": 905, "end_char": 1065, "text": "- A: Quote every scalar unconditionally. Rejected - it rewrites 40 files including the three pinned\n  ones, turning a five-file repair into frozen-source drift."}
+      ]
+    }
+  ]
+}
