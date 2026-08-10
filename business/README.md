@@ -55,11 +55,16 @@ onto eight decision-evidence questions with clause citations.
 These are dated research passes, not living dossiers. Conclusions that survive belong in the canonical
 dossiers above.
 
+### Marketing
+
+| Dossier | Purpose | Status |
+|---|---|---|
+| [Marketing constitution](marketing/marketing-constitution.md) | Governing doctrine for entertaining the mass, educating the interested, and selling to the committed | Draft |
+
 ## Reserved future areas
 
 Create these only when there is maintained content to place in them:
 
-- Positioning and messaging
 - Business model and unit economics
 - Go-to-market
 - Company planning and operating model
