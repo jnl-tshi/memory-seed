@@ -47,5 +47,7 @@ were themselves reference material, not undecided captures — moved the same da
   reference material rather than undecided Inbox captures.
 
 <!-- docs-index:begin -->
-_(no documents in this lane)_
+| Document | Priority | Blocked by | Next action / pointer |
+|---|---|---|---|
+| [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
 <!-- docs-index:end -->

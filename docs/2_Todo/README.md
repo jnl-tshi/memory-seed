@@ -22,6 +22,7 @@
 | [write-time-topic-envelope-closure-proposal.md](write-time-topic-envelope-closure-proposal.md) | P1 | — | none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [adr-attached-decisions-earn-a-diagram-proposal.md](adr-attached-decisions-earn-a-diagram-proposal.md) | P2 | — | JNL to accept or reject; nothing is built, and the ADR-level mechanism it builds on already shi… |
+| [adr-reviewed-recorder-proposal.md](adr-reviewed-recorder-proposal.md) | P2 | — | JNL decides whether to approve building option (a); no build until then. |
 | [attention-retrieval-signal-proposal.md](attention-retrieval-signal-proposal.md) | P2 | — | Accumulate real MCP usage, then run `memory-seed ranking-ab --signal attention --query ...` bef… |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [file-touch-decision-surfacing-proposal.md](file-touch-decision-surfacing-proposal.md) | P2 | — | Observe the hook in real sessions; extend to Codex/Gemini/Cursor events when their PostToolUse … |
