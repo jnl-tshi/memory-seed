@@ -41,14 +41,21 @@ LOOKBEHIND = 3
 
 # module -> (permitted raw calls, why)
 ALLOWLIST: dict[str, tuple[int, str]] = {
+    "corpus_cache.py": (
+        1,
+        "The reconstructable projection is the one intentional raw builder: it must persist both "
+        "raw and augmented views so callers that deliberately measure provenance can retain their "
+        "raw contract while the public loader defaults to the fully sidecar-augmented canonical view.",
+    ),
     "semantic_cache.py": (
-        4,
+        5,
         "Cannot import retrieval - retrieval imports this module, so the augmenters are "
-        "downstream and reaching for them would be a cycle. The four are: rank_session_memory's "
-        "chunks=None fallback, build_related_entry_graph's chunks=None fallback, and two YAML "
-        "write paths that edit entry metadata directly. The two fallbacks are traps for future "
+        "downstream and reaching for them would be a cycle. The five are: rank_session_memory's "
+        "chunks=None fallback, build_related_entry_graph's chunks=None fallback, two YAML "
+        "write paths that edit entry metadata directly, and suggest_related_for_draft's chunks=None "
+        "fallback. The three fallbacks are traps for future "
         "callers rather than defects today (every production caller passes chunks=, and "
-        "load_corpus is what supplies them). The write paths are RECORDED AS WORTH REVIEW, not "
+        "the canonical cache/load path is what supplies them). The write paths are RECORDED AS WORTH REVIEW, not "
         "confirmed correct: their idempotency check reads entry YAML only, so re-adding an edge "
         "that already exists in a link sidecar may not be detected as a duplicate.",
     ),
@@ -57,8 +64,11 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "Identity lookup: finds one chunk by entry_id to read its text. No graph, no ranking.",
     ),
     "retrieval.py": (
-        1,
-        "link-audit apply validates that scaffolded entry_ids exist. It consults "
+        2,
+        "link-audit's snapshot=None fallback intentionally starts from raw chunks and adds topic "
+        "sidecars only, because link sidecars are the missing evidence it is auditing; ESR supplies "
+        "the shared raw snapshot in production. Link-audit apply separately validates that "
+        "scaffolded entry_ids exist. It consults "
         "entry_link_sidecars separately for what is already recorded, so augmenting here would be "
         "redundant, not corrective.",
     ),
@@ -126,11 +136,11 @@ def test_every_allowlist_entry_states_a_reason():
         assert not reason.lower().startswith(("legacy", "todo", "historical")), name
 
 
-def test_the_canonical_reader_applies_both_augmentations():
+def test_the_canonical_reader_uses_the_verified_projection_defaulting_to_augmented():
     source = (PACKAGE / "retrieval.py").read_text(encoding="utf-8")
     body = source.split("def load_corpus(", 1)[1].split("\ndef ", 1)[0]
-    assert "augment_chunks_with_link_sidecars" in body
-    assert "augment_chunks_with_topic_sidecars" in body
+    assert "get_corpus_snapshot" in body
+    assert "snapshot.chunks(granularity, view)" in body
 
 
 def test_search_memory_reads_through_the_canonical_path():

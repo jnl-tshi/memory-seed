@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .core import (
     MEMORY_DIR_NAME,
@@ -29,8 +29,11 @@ from .retrieval import (
     augment_chunks_with_link_sidecars,
     canonical_retrieval_json,
     chunk_to_dict,
+    describe_refines_chain,
     format_search_results,
     get_chunk,
+    audit_link_gaps,
+    link_audit_payload,
     preview_retrieval_spec,
     ranked_to_dict,
     resolve_retrieval_spec,
@@ -48,6 +51,18 @@ from .semantic_cache import (
 SERVER_NAME = "memory-seed"
 SERVER_VERSION = "0.1.0"
 _MCP_TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+# The only MCP tools allowed to mutate project state.  Keep this production
+# classifier explicit: a schema feature such as ``dry_run`` is not evidence of
+# mutation, and read tools must never gain write status by convention alone.
+MUTATING_TOOL_NAMES = frozenset(
+    {
+        "memory_session_append",
+        "memory_session_integrate",
+        "memory_adr_reviewed",
+        "memory_link_retract",
+    }
+)
 
 
 def _link_suggestion_rows(ranked: Any) -> list[dict[str, Any]]:
@@ -295,6 +310,46 @@ TOOLS: list[dict[str, Any]] = [
                 "cwd": {"type": "string", "default": "."},
             },
             "required": ["entry_id"],
+        },
+    },
+    {
+        "name": "memory_links_chain",
+        "description": "Return the derived refines lifecycle chain for one known entry or decision ref: root, ordered members, head, length, and owning ADR evidence. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ref": {"type": "string", "description": "Entry or decision ref: mse_<id> or mse_<id>:dN."},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["ref"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_link_audit",
+        "description": "Return judgment-ready lifecycle gap candidates and ranking provenance. Mirrors the read-only part of `link audit`; it cannot apply or scaffold sidecars.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "entry_id": {"type": "string", "description": "Audit one target entry; omit to audit every entry."},
+                "session_date": {"type": "string", "description": "Scope targets to YYYY-MM-DD while retaining earlier corpus candidates."},
+                "top_k": {"type": "integer", "default": 5, "minimum": 1},
+                "semantic_enabled": {"type": "boolean", "default": True, "description": "Set false for lexical-only candidate ranking."},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_esr",
+        "description": "Return the complete structured End-of-Session Report, including read-only corpus-cache inspection. Equivalent to `esr --json`; it never repairs or publishes cache state.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "session_date": {"type": "string", "description": "Session date in YYYY-MM-DD; defaults to today."},
+            },
+            "additionalProperties": False,
         },
     },
     {
@@ -821,6 +876,40 @@ def call_tool(
             "commit_reference_count": len(commit_refs),
         }
 
+    if name == "memory_links_chain":
+        _reject_unsupported_arguments(args, {"ref", "cwd"})
+        ref = _required_str(args, "ref")
+        cwd = _cwd(args)
+        return describe_refines_chain(cwd, ref)
+
+    if name == "memory_link_audit":
+        _reject_unsupported_arguments(args, {"cwd", "entry_id", "session_date", "top_k", "semantic_enabled"})
+        cwd = _cwd(args)
+        entry_id = _optional_str(args, "entry_id")
+        session_date = _optional_date(args, "session_date")
+        top_k = _positive_int(args, "top_k", default=5)
+        semantic_enabled = _optional_bool(args, "semantic_enabled", default=True)
+        semantic_status: dict[str, Any] = {}
+        gaps = audit_link_gaps(
+            cwd=cwd,
+            entry_id=entry_id,
+            session_date=session_date.isoformat() if session_date else None,
+            top_k=top_k,
+            semantic_enabled=semantic_enabled,
+            semantic_status=semantic_status,
+        )
+        return link_audit_payload(gaps, semantic_status)
+
+    if name == "memory_esr":
+        from .esr import esr_report
+
+        _reject_unsupported_arguments(args, {"cwd", "session_date"})
+        session_date = _optional_date(args, "session_date")
+        return esr_report(
+            cwd=_cwd(args),
+            session_date=session_date.isoformat() if session_date else None,
+        ).to_dict()
+
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
 
@@ -1155,6 +1244,28 @@ def call_tool(
                 "timestamp": supplied or now,
             }
 
+        unlinked = _unlinked_decisions(decisions)
+        needs_chain_snapshot = any(
+            isinstance(decision, Mapping)
+            and isinstance(decision.get("links"), Mapping)
+            and isinstance(decision["links"].get("evolves"), Sequence)
+            and not isinstance(decision["links"].get("evolves"), (str, bytes))
+            and len(decision["links"]["evolves"]) >= 2
+            for decision in decisions
+        )
+        snapshot = None
+        if needs_chain_snapshot:
+            # One pre-write view can serve both the chain guard and the draft
+            # suggestion response. Cache maintenance is best-effort; the core
+            # guard retains its existing source-based fallback on an unexpected
+            # snapshot error.
+            try:
+                from .corpus_cache import get_corpus_snapshot
+
+                snapshot = get_corpus_snapshot(cwd)
+            except Exception:
+                snapshot = None
+
         result = session_append_entry(
             cwd,
             title=_required_str(args, "title"),
@@ -1175,6 +1286,7 @@ def call_tool(
             timestamp=supplied or now,
             explicit_user=_optional_str(args, "user"),
             dry_run=bool(args.get("dry_run", False)),
+            snapshot=snapshot,
         )
         # Refusals are results, not JSON-RPC errors: the guards report several
         # independently-fixable problems at once, and an error string would
@@ -1196,26 +1308,47 @@ def call_tool(
             payload["rendered"] = result.rendered
         if result.rendered_sidecars is not None:
             payload["rendered_sidecars"] = result.rendered_sidecars
-        unlinked = _unlinked_decisions(decisions)
         if result.ok and unlinked:
-            _, ranked = suggest_related_for_draft(
-                cwd,
-                entry_id=result.entry_id or "",
-                title=_required_str(args, "title"),
-                body=body,
-                timestamp=result.timestamp or (supplied or now),
-                top_k=5,
-                consulted=list(args.get("consulted") or []) or None,
+            if snapshot is None:
+                try:
+                    from .corpus_cache import get_corpus_snapshot
+
+                    snapshot = get_corpus_snapshot(cwd)
+                except Exception:
+                    # Cache maintenance must not turn a successful source write
+                    # into a reported failure. The suggestion helper retains its
+                    # authoritative raw-source fallback when no snapshot exists.
+                    snapshot = None
+            instruction = (
+                "Classify each consequential consulted candidate as replaces, evolves, related, "
+                "or no-edge before treating this append as fully linked."
             )
-            payload["link_suggestions"] = {
-                "unlinked_decisions": unlinked,
-                "suggestions": _append_link_suggestion_rows(ranked),
-                "related_entries": [item.chunk.entry_id for item in ranked],
-                "instruction": (
-                    "Classify each consequential consulted candidate as replaces, evolves, related, "
-                    "or no-edge before treating this append as fully linked."
-                ),
-            }
+            try:
+                _, ranked = suggest_related_for_draft(
+                    cwd,
+                    entry_id=result.entry_id or "",
+                    title=_required_str(args, "title"),
+                    body=body,
+                    timestamp=result.timestamp or (supplied or now),
+                    top_k=5,
+                    consulted=list(args.get("consulted") or []) or None,
+                    chunks=snapshot.chunks("entry", "augmented") if snapshot is not None else None,
+                )
+            except Exception:
+                payload["link_suggestions"] = {
+                    "unlinked_decisions": unlinked,
+                    "suggestions": [],
+                    "related_entries": [],
+                    "instruction": instruction,
+                    "warning": "suggestion ranking was unavailable; the append result is unaffected",
+                }
+            else:
+                payload["link_suggestions"] = {
+                    "unlinked_decisions": unlinked,
+                    "suggestions": _append_link_suggestion_rows(ranked),
+                    "related_entries": [item.chunk.entry_id for item in ranked],
+                    "instruction": instruction,
+                }
         if supplied:
             drift = _clock_drift_warning(supplied, now)
             if drift:
@@ -1544,6 +1677,33 @@ def _optional_date(arguments: dict[str, Any], key: str) -> date | None:
         return date.fromisoformat(value.strip())
     except ValueError as exc:
         raise ValueError(f"Invalid {key}; expected YYYY-MM-DD") from exc
+
+
+def _positive_int(arguments: dict[str, Any], key: str, *, default: int) -> int:
+    value = arguments.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"Invalid {key}; expected an integer >= 1")
+    return value
+
+
+def _optional_bool(arguments: dict[str, Any], key: str, *, default: bool) -> bool:
+    value = arguments.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"Invalid {key}; expected a boolean")
+    return value
+
+
+def _cwd(arguments: dict[str, Any]) -> str:
+    value = arguments.get("cwd", ".")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Invalid string argument: cwd")
+    return value
+
+
+def _reject_unsupported_arguments(arguments: dict[str, Any], allowed: set[str]) -> None:
+    unsupported = sorted(set(arguments) - allowed)
+    if unsupported:
+        raise ValueError("Unsupported argument(s): " + ", ".join(unsupported))
 
 
 def _topic_record_to_dict(record: Any) -> dict[str, Any]:

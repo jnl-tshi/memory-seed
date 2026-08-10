@@ -23,7 +23,9 @@ import time
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
+
+from .corpus_cache import CorpusSnapshot, get_corpus_snapshot
 
 if TYPE_CHECKING:
     from .core import DecisionSummary
@@ -85,6 +87,7 @@ def search_memory(
     replacing_successor_boost: bool = True,
     attention_boost: bool = False,
     topics: list[str] | None = None,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
 
@@ -122,7 +125,7 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = load_corpus(cwd, granularity)
+    chunks = load_corpus(cwd, granularity, snapshot=snapshot)
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -2188,7 +2191,13 @@ def augment_chunks_with_link_sidecars(
     return augmented
 
 
-def load_corpus(cwd: str | Path = ".", granularity: str = "decision") -> list[MemoryChunk]:
+def load_corpus(
+    cwd: str | Path = ".",
+    granularity: str = "decision",
+    *,
+    view: str = "augmented",
+    snapshot: "CorpusSnapshot | None" = None,
+) -> list[MemoryChunk]:
     """The canonical corpus read: extraction plus EVERY sidecar augmentation.
 
     Sidecars are append-only edits authored after an entry is written - link sidecars carry the
@@ -2206,12 +2215,13 @@ def load_corpus(cwd: str | Path = ".", granularity: str = "decision") -> list[Me
     holds the allowlist of the remaining direct callers and the reason each is exempt; adding a new
     one fails that test.
     """
-    return augment_chunks_with_topic_sidecars(
-        augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity=granularity), cwd
-        ),
-        cwd,
-    )
+    # The projection validates its full source manifest before every persistent
+    # hit; absent/corrupt/unprovable artifacts reconstruct from authority.
+    # Supplying a snapshot lets one invocation share its verified corpus rather
+    # than repeatedly deserialize or rebuild it.
+    if snapshot is None:
+        snapshot = get_corpus_snapshot(cwd)
+    return list(snapshot.chunks(granularity, view))
 
 
 # Weight on idf-summed shared TITLE terms, alongside FILE_OVERLAP_BOOST on
@@ -2396,6 +2406,7 @@ def audit_link_gaps(
     top_k: int = 5,
     semantic_enabled: bool = True,
     semantic_status: dict[str, Any] | None = None,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
@@ -2452,10 +2463,12 @@ def audit_link_gaps(
     if semantic_status is not None:
         semantic_status.update(requested=semantic_enabled, active=False, provider=None, fallback_reason=None)
 
+    raw_chunks = (
+        snapshot.chunks("entry", "raw") if snapshot is not None
+        else tuple(extract_memory_chunks(cwd, granularity="entry"))
+    )
     chunks = [
-        chunk
-        for chunk in augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
-        if chunk.entry_id
+        chunk for chunk in augment_chunks_with_topic_sidecars(raw_chunks, cwd) if chunk.entry_id
     ]
     if not chunks:
         return []
@@ -2806,6 +2819,70 @@ def audit_link_gaps(
                 )
             )
     return gaps
+
+
+def link_audit_payload(
+    gaps: Sequence[LinkGap], semantic_status: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
+    """Canonical structured evidence for the read-only link-gap audit.
+
+    The CLI renders this payload for ``link audit --json`` and MCP returns it
+    unchanged.  Keeping the judgment-ready shape here means both surfaces use
+    the identical candidate ordering, ranking provenance, decision evidence,
+    and chain constraints without either owning a second serializer.
+    """
+
+    def _decision_payload(decision: DecisionSummary) -> dict[str, str]:
+        return {
+            "ordinal": decision.ordinal,
+            "name": decision.name,
+            "text": decision.text,
+        }
+
+    return {
+        "semantic": dict(semantic_status or {}),
+        "criteria": {
+            "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
+            "evolves": "the newer decision refines or extends the older one while it stays valid",
+            "related": "the two inform each other but neither replaces nor evolves",
+            "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
+            "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
+            "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
+            "chain_position": "every lifecycle edge into a refines chain attaches at its HEAD - a candidate marked interior has its refines slot taken and may receive only related; replaced candidates are never offered (their terminal replacement substitutes)",
+        },
+        "gaps": [
+            {
+                "entry_id": gap.entry_id,
+                "title": gap.title,
+                "session_date": gap.session_date,
+                "decisions": [_decision_payload(decision) for decision in gap.decisions],
+                "candidates": [
+                    {
+                        "entry_id": candidate.entry_id,
+                        "title": candidate.title,
+                        "session_date": candidate.session_date,
+                        "shared_files": list(candidate.shared_files),
+                        "shared_topics": list(candidate.shared_topics),
+                        "shared_title_terms": list(candidate.shared_title_terms),
+                        "score": candidate.file_overlap_score,
+                        "lexical_score": candidate.lexical_score,
+                        "semantic_score": candidate.semantic_score,
+                        "already_related": candidate.already_related,
+                        "ungated": candidate.ungated,
+                        "chain_position": candidate.chain_position,
+                        "refines_taken_by": candidate.refines_taken_by,
+                        "current_form": candidate.current_form,
+                        "substitute_for": candidate.substitute_for,
+                        "decisions": [
+                            _decision_payload(decision) for decision in candidate.decisions
+                        ],
+                    }
+                    for candidate in gap.candidates
+                ],
+            }
+            for gap in gaps
+        ],
+    }
 
 
 def apply_link_gap_stubs(

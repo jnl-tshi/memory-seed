@@ -2103,7 +2103,9 @@ def existing_refines_targets(sessions_dir: Path) -> dict[tuple[str, str], str]:
     return found
 
 
-def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
+def check_session_links(
+    cwd: str | Path = ".", *, snapshot: "CorpusSnapshot | None" = None,
+) -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
     ``related_entries``/``related_memories``/``replaces`` references,
@@ -3175,8 +3177,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         from .retrieval import augment_chunks_with_link_sidecars
         from .semantic_cache import build_refines_spine, extract_memory_chunks
 
-        chain_chunks = augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity="entry"), cwd
+        chain_chunks = (
+            snapshot.chunks("entry", "augmented") if snapshot is not None
+            else augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
         )
         chain_spine = build_refines_spine(chain_chunks)
     except Exception:
@@ -3883,6 +3886,7 @@ def session_append_entry(
     timestamp: str | None = None,
     explicit_user: str | None = None,
     dry_run: bool = False,
+    snapshot: "CorpusSnapshot | None" = None,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -4045,6 +4049,10 @@ def session_append_entry(
         if parsed.ok and parsed.evolution_type == "refines"
     ]
     if claimed_refines:
+        # This is deliberately NOT a snapshot view: it is the append-only
+        # authored-assertion/retraction ledger used for the write-time rival
+        # check. A derived augmented spine has different semantics here (and
+        # would hide the raw assertion this guard must diagnose).
         taken = existing_refines_targets(sessions_dir)
         # An interrupted write is recovered by replaying the SAME payload, and a
         # replay re-authors its own edges. An entry does not conflict with
@@ -4088,12 +4096,13 @@ def session_append_entry(
     ]
     if any(len(parsed_refs) >= 2 for _d, parsed_refs in multi_target_decisions):
         try:
-            from .retrieval import augment_chunks_with_link_sidecars
-            from .semantic_cache import build_refines_spine, extract_memory_chunks
+            from .corpus_cache import get_corpus_snapshot
+            from .semantic_cache import build_refines_spine
 
-            spine = build_refines_spine(
-                augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
-            )
+            if snapshot is None:
+                snapshot = get_corpus_snapshot(cwd)
+            chain_chunks = snapshot.chunks("entry", "augmented")
+            spine = build_refines_spine(chain_chunks)
         except Exception:
             spine = None  # best-effort like existing_refines_targets; links check re-derives
         if spine is not None:
@@ -6237,17 +6246,81 @@ def _stamp_memory_entry_trailers(root: Path, planned_entries: Sequence[str]) -> 
     return stamped
 
 
-def _merge_head_commits(root: Path) -> list[str]:
+def _expected_memory_entry_trailers(planned_entries: Sequence[str]) -> list[str]:
+    """Return the valid, deduplicated trailers a fuse merge is meant to carry."""
+    expected: list[str] = []
+    for planned in planned_entries:
+        entry_id = planned.split(" ", 1)[0]
+        if entry_id and entry_id not in expected and _TRAILER_ENTRY_ID_RE.fullmatch(entry_id):
+            expected.append(entry_id)
+    return expected
+
+
+def _merge_head_commits(root: Path) -> list[str] | None:
+    """Read MERGE_HEAD, with ``None`` for unreadable or corrupt state."""
     git_dir = _git_dir(root)
     if git_dir is None:
-        return []
+        return None
     merge_head = git_dir / "MERGE_HEAD"
-    if not merge_head.exists():
-        return []
     try:
-        return [line.strip() for line in merge_head.read_text(encoding="utf-8").splitlines() if line.strip()]
-    except (OSError, UnicodeDecodeError):
+        text = merge_head.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return []
+    except (OSError, UnicodeDecodeError):
+        return None
+    commits = [line.strip() for line in text.splitlines() if line.strip()]
+    if not commits or any(_FULL_COMMIT_SHA_RE.fullmatch(commit) is None for commit in commits):
+        return None
+    return commits
+
+
+def _commit_memory_entry_trailers(root: Path, commit: str) -> list[str] | None:
+    """Return Git's final-block ``Memory-Entry`` trailer values for a commit."""
+    code, output = _git_text(
+        root,
+        ("show", "-s", "--format=%(trailers:key=Memory-Entry,valueonly,separator=%x1e)", commit),
+    )
+    if code != 0:
+        return None
+    trailers = output.split("\x1e") if output else []
+    if any(_TRAILER_ENTRY_ID_RE.fullmatch(entry_id) is None for entry_id in trailers):
+        return None
+    return trailers
+
+
+def _reconcile_failed_merge_commit(
+    root: Path,
+    pre_commit_head: str | None,
+    expected_source_tip: str,
+    expected_trailer_entries: Sequence[str],
+) -> bool:
+    """Return whether a failed commit report nevertheless landed this merge.
+
+    A non-zero ``git commit`` result (including ``_git_text``'s timeout
+    result) is authoritative unless all independently observable facts prove
+    the commit completed. This intentionally fails closed: unreadable Git
+    plumbing, an unchanged or non-merge HEAD, a different parent, a missing
+    trailer, or any remaining merge state leaves the original failure
+    inspectable for a human.
+    """
+    merge_heads = _merge_head_commits(root)
+    if pre_commit_head is None or merge_heads is None or merge_heads:
+        return False
+    head = _resolve_commit(root, "HEAD")
+    if head is None or head == pre_commit_head:
+        return False
+    code, parents_out = _git_text(root, ("show", "-s", "--format=%P", head))
+    parents = parents_out.split() if code == 0 else []
+    # ``session_merge_branch`` always makes one ordinary two-parent merge. The
+    # recorded pre-commit HEAD and exact source tip jointly bind it to this
+    # operation rather than a coincidental concurrent HEAD advance.
+    if parents != [pre_commit_head, expected_source_tip]:
+        return False
+    trailers = _commit_memory_entry_trailers(root, head)
+    expected = list(expected_trailer_entries)
+    if trailers is None or any(_TRAILER_ENTRY_ID_RE.fullmatch(entry_id) is None for entry_id in expected):
+        return False
+    return trailers == expected
 
 
 def _resolve_commit(root: Path, ref: str) -> str | None:
@@ -7073,6 +7146,8 @@ def session_fuse(
         if block:
             return SessionFuseResult(changed=False, merge_trigger_blocked=True, issues=[block])
         merge_heads = _merge_head_commits(root)
+        if merge_heads is None:
+            return SessionFuseResult(changed=False, issues=["could not inspect MERGE_HEAD; refusing to apply fuse"])
         if not merge_heads:
             return SessionFuseResult(changed=False, issues=["--apply requires an in-progress git merge"])
         if branch_commit not in merge_heads:
@@ -7205,7 +7280,12 @@ def _abort_refused_merge(
     Appends its own line AFTER the caller's refusal, so ``issues[0]`` stays the
     reason. A failed abort keeps ``merge_in_progress`` true and reports why.
     """
-    if not _merge_head_commits(root):
+    merge_heads = _merge_head_commits(root)
+    if merge_heads is None:
+        result.merge_in_progress = True
+        result.issues.append("could not inspect MERGE_HEAD; leaving repository state untouched")
+        return
+    if not merge_heads:
         result.merge_in_progress = False
         return
     code, out = _git_text(root, ("merge", "--abort"))
@@ -7250,7 +7330,14 @@ def session_merge_branch(
     if base_commit is None:
         return SessionMergeBranchResult(committed=False, issues=["HEAD does not resolve to a commit"])
 
-    if _merge_head_commits(root):
+    merge_heads = _merge_head_commits(root)
+    if merge_heads is None:
+        return SessionMergeBranchResult(
+            committed=False,
+            merge_in_progress=True,
+            issues=["could not inspect MERGE_HEAD; leaving repository state untouched"],
+        )
+    if merge_heads:
         return SessionMergeBranchResult(
             committed=False,
             merge_in_progress=True,
@@ -7303,7 +7390,12 @@ def session_merge_branch(
     merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", branch))
     # Exit code 1 is ambiguous (conflict vs. real failure); the presence of
     # MERGE_HEAD is the reliable signal that a merge actually started.
-    if not _merge_head_commits(root):
+    merge_heads = _merge_head_commits(root)
+    if merge_heads is None:
+        result.merge_in_progress = True
+        result.issues.append("could not inspect MERGE_HEAD after git merge; leaving repository state untouched")
+        return result
+    if not merge_heads:
         if merge_code != 0:
             result.issues.append(f"git merge failed without starting a merge: {merge_out or '(no output)'}")
         # rc 0 with no MERGE_HEAD: branch is already merged into HEAD.
@@ -7391,9 +7483,21 @@ def session_merge_branch(
     # Best-effort: a stamping failure must not abort an otherwise-clean merge.
     result.stamped_entries = _stamp_memory_entry_trailers(root, result.planned_entries)
 
+    # Capture the exact merge-state base immediately before the commit attempt:
+    # it is evidence needed to distinguish this operation's landed merge from
+    # any unrelated HEAD movement after a timeout or other subprocess failure.
+    pre_commit_head = _resolve_commit(root, "HEAD")
     code, commit_out = _git_text(root, ("commit", "--no-edit"))
-    if code != 0:
-        result.merge_in_progress = bool(_merge_head_commits(root))
+    if code != 0 and not _reconcile_failed_merge_commit(
+        root,
+        pre_commit_head,
+        branch_commit,
+        _expected_memory_entry_trailers(result.planned_entries),
+    ):
+        merge_heads = _merge_head_commits(root)
+        result.merge_in_progress = merge_heads is None or bool(merge_heads)
+        if merge_heads is None:
+            result.issues.append("could not inspect MERGE_HEAD; leaving repository state untouched")
         result.issues.append(f"git commit failed: {commit_out or '(no output)'}")
         return result
 
@@ -7451,7 +7555,15 @@ def session_prepare_pr_branch(
             issues=[_format_dirty_paths_issue(dirty_paths)],
         )
 
-    if _merge_head_commits(root):
+    merge_heads = _merge_head_commits(root)
+    if merge_heads is None:
+        return SessionPreparePrBranchResult(
+            ready=False,
+            merge_in_progress=True,
+            source_branch=branch,
+            issues=["could not inspect MERGE_HEAD; leaving repository state untouched"],
+        )
+    if merge_heads:
         return SessionPreparePrBranchResult(
             ready=False,
             merge_in_progress=True,
@@ -7501,7 +7613,12 @@ def session_prepare_pr_branch(
         return result
 
     merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", base_ref))
-    if not _merge_head_commits(root):
+    merge_heads = _merge_head_commits(root)
+    if merge_heads is None:
+        result.merge_in_progress = True
+        result.issues.append("could not inspect MERGE_HEAD after git merge; leaving repository state untouched")
+        return result
+    if not merge_heads:
         if merge_code != 0:
             result.issues.append(f"git merge failed without starting a merge: {merge_out or '(no output)'}")
             return result
@@ -7568,7 +7685,10 @@ def session_prepare_pr_branch(
 
     code, commit_out = _git_text(root, ("commit", "--no-edit"))
     if code != 0:
-        result.merge_in_progress = bool(_merge_head_commits(root))
+        merge_heads = _merge_head_commits(root)
+        result.merge_in_progress = merge_heads is None or bool(merge_heads)
+        if merge_heads is None:
+            result.issues.append("could not inspect MERGE_HEAD; leaving repository state untouched")
         result.issues.append(f"git commit failed: {commit_out or '(no output)'}")
         return result
 

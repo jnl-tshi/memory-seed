@@ -31,6 +31,7 @@ SESSION_DATE_IN_PATH_RE = re.compile(r"(\d{4}-\d{2}-\d{2})\.md$")
 DECISION_ORDINAL_RE = re.compile(r"d\d+")
 
 from .core import check_session_links, read_integration_mode, read_merge_trigger, resolve_runtime
+from .corpus_cache import CorpusSnapshot, inspect_corpus_cache
 from .topics import check_topics
 
 
@@ -135,6 +136,7 @@ class EsrReport:
     # agreed `refines` successor - the concern's current form moved, the ADR
     # did not. Flag only; a head moves by authored revision and nothing else.
     adr_head_reviews: list[str] = field(default_factory=list)
+    corpus_cache: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -196,10 +198,13 @@ class EsrReport:
             },
             "adr_attachment_candidates": self.adr_attachment_candidates,
             "adr_head_reviews": self.adr_head_reviews,
+            "corpus_cache": self.corpus_cache,
         }
 
 
-def _adr_attachment_candidates(cwd: Path, memory_dir: Path, limit: int = 10) -> list[str]:
+def _adr_attachment_candidates(
+    cwd: Path, memory_dir: Path, limit: int = 10, *, snapshot: CorpusSnapshot | None = None,
+) -> list[str]:
     """Ranked attachment candidates for ADRs carrying no decision at all.
 
     TWO PASSES, deliberately, because they fail in opposite directions.
@@ -271,7 +276,9 @@ def _adr_attachment_candidates(cwd: Path, memory_dir: Path, limit: int = 10) -> 
                 if word.lower() not in stop
             )[:400]
 
-            ranked = search_memory(query, cwd=cwd, top_k=40, granularity="decision")["results"]
+            ranked = search_memory(
+                query, cwd=cwd, top_k=40, granularity="decision", snapshot=snapshot,
+            )["results"]
             gated = [r for r in ranked if adr_topics & topics_of.get(r["chunk_id"], set())]
             gated_ids = {r["chunk_id"] for r in gated[:3]}
             stray = [r for r in ranked if r["chunk_id"] not in gated_ids][:2]
@@ -317,7 +324,7 @@ def _render_decision_key(key: tuple[str, str]) -> str:
     return f"{entry_id}:{ordinal}" if ordinal else entry_id
 
 
-def _adr_head_reviews(cwd: Path) -> list[str]:
+def _adr_head_reviews(cwd: Path, *, snapshot: CorpusSnapshot | None = None) -> list[str]:
     """ADRs whose authoritative head has an agreed `refines` successor.
 
     A mechanical fact, reported the way `needs-diagram-review` reports a diagram
@@ -352,11 +359,11 @@ def _adr_head_reviews(cwd: Path) -> list[str]:
         # Never `extract_memory_chunks` alone - the sidecar augmentation is
         # where an edge authored in a link sidecar (most of them) becomes
         # visible at all.
-        spine = build_refines_spine(
-            augment_chunks_with_link_sidecars(
-                extract_memory_chunks(cwd, granularity="entry"), cwd
-            )
+        chunks = (
+            snapshot.chunks("entry", "augmented") if snapshot is not None
+            else augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
         )
+        spine = build_refines_spine(chunks)
 
         primary: list[str] = []
         secondary: list[str] = []
@@ -477,7 +484,9 @@ def _proposed_topic_requests(memory_dir: Path) -> list[str]:
     return sorted(set(requests))
 
 
-def _topic_attribution_gaps(cwd: str | Path) -> tuple[int, str | None]:
+def _topic_attribution_gaps(
+    cwd: str | Path, *, snapshot: CorpusSnapshot | None = None,
+) -> tuple[int, str | None]:
     """Decisions whose Area+Activity is not attributed AT DECISION GRANULARITY,
     where keying would actually add information.
 
@@ -510,14 +519,15 @@ def _topic_attribution_gaps(cwd: str | Path) -> tuple[int, str | None]:
                 target.add(canon(slug))
             for slug in record.get("topics", ()):
                 entry_level.setdefault(entry_id, set()).add(canon(slug))
-        for chunk in extract_memory_chunks(cwd, granularity="entry"):
+        entries = snapshot.chunks("entry", "raw") if snapshot is not None else extract_memory_chunks(cwd, granularity="entry")
+        for chunk in entries:
             if chunk.entry_id:
                 for slug in (getattr(chunk, "topics", None) or ()):
                     entry_level.setdefault(chunk.entry_id, set()).add(canon(slug))
 
         decisions = [
             (chunk.session_date.isoformat(), chunk.entry_id, ordinal)
-            for chunk in extract_memory_chunks(cwd, granularity="decision")
+            for chunk in (snapshot.chunks("decision", "raw") if snapshot is not None else extract_memory_chunks(cwd, granularity="decision"))
             if chunk.entry_id
             and DECISION_ORDINAL_RE.fullmatch(ordinal := (chunk.chunk_id or "").rsplit(":", 1)[-1])
         ]
@@ -733,8 +743,11 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report = EsrReport(session_date=day)
     report.integration_mode = read_integration_mode(root)
     report.merge_trigger = read_merge_trigger(root)
+    inspection = inspect_corpus_cache(cwd)
+    snapshot = inspection.snapshot
+    report.corpus_cache = inspection.to_dict()
 
-    links = check_session_links(cwd=cwd)
+    links = check_session_links(cwd=cwd, snapshot=snapshot)
     report.integrity_ok = links.ok
     report.integrity_issues = [
         f"{issue.file}: {issue.kind}: {issue.detail}"
@@ -754,7 +767,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     )
     report.oldest_open_link_stub = stub_dates[0] if stub_dates else None
 
-    gaps, oldest_gap = _topic_attribution_gaps(cwd)
+    gaps, oldest_gap = _topic_attribution_gaps(cwd, snapshot=snapshot)
     report.topic_attribution_gaps = gaps
     report.oldest_topic_attribution_gap = oldest_gap
     report.proposed_topics = _proposed_topic_requests(runtime.memory_dir)
@@ -766,7 +779,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         for issue in topics.issues
     ]
 
-    for gap in audit_link_gaps(cwd=cwd, session_date=day, top_k=3):
+    for gap in audit_link_gaps(cwd=cwd, session_date=day, top_k=3, snapshot=snapshot):
         report.link_gaps.append(
             {
                 "entry_id": gap.entry_id,
@@ -869,13 +882,28 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.skills_without_governing_adr, report.skills_with_dangling_governing_adr = _skill_governance(
         runtime.memory_dir, adr_ids
     )
-    report.adr_attachment_candidates = _adr_attachment_candidates(Path(cwd).resolve(), runtime.memory_dir)
-    report.adr_head_reviews = _adr_head_reviews(Path(cwd).resolve())
+    report.adr_attachment_candidates = _adr_attachment_candidates(
+        Path(cwd).resolve(), runtime.memory_dir, snapshot=snapshot,
+    )
+    report.adr_head_reviews = _adr_head_reviews(Path(cwd).resolve(), snapshot=snapshot)
     return report
 
 
 def format_esr_report(report: EsrReport) -> str:
     lines: list[str] = [f"ESR preflight — session {report.session_date}", ""]
+
+    lines.append("## Corpus cache")
+    cache = report.corpus_cache
+    if cache:
+        lines.append(
+            f"{cache.get('health', 'missing')} — schema {cache.get('schema_status', 'unreadable')}; "
+            f"equivalence {cache.get('equivalence', 'not-comparable')}"
+        )
+        if cache.get("reconstruction_required"):
+            lines.append("- live source reconstruction used; persistent cache was not trusted")
+    else:
+        lines.append("missing — no cache inspection available")
+    lines.append("")
 
     lines.append("## Semantic ranking")
     if report.semantic_available:

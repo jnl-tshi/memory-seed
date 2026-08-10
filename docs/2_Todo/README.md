@@ -19,6 +19,7 @@
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
+| [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |
 | [write-time-topic-envelope-closure-proposal.md](write-time-topic-envelope-closure-proposal.md) | P1 | — | none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [adr-attached-decisions-earn-a-diagram-proposal.md](adr-attached-decisions-earn-a-diagram-proposal.md) | P2 | — | JNL to accept or reject; nothing is built, and the ADR-level mechanism it builds on already shi… |

@@ -19,6 +19,21 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Read-only MCP twins complete the chain, sweep, and ESR workflow.**
+  `memory_links_chain(ref, cwd)`, `memory_link_audit(entry_id?, session_date?, top_k?,
+  semantic_enabled?, cwd)`, and `memory_esr(session_date?, cwd)` return the exact canonical
+  structured results from `links chain --json`, `link audit --json`, and `esr --json`.
+  They share the chain reader, audit serializer, and ESR report rather than reimplementing them;
+  audit deliberately has no apply/scaffold mode and ESR preserves its read-only cache inspection.
+  The MCP registry grows by three read tools while the four-tool write set is unchanged.
+- **The canonical corpus now has a reconstructable core projection cache.** Raw and sidecar-augmented
+  entry, section, and decision views are persisted outside the repository under a stable
+  runtime/worktree key while session Markdown, link/topic sidecars, and project configuration remain
+  authoritative. Exact source fingerprints, Git HEAD watermarks, schema/integrity checks, owner-token
+  leases, and atomic publication make every uncertain state fall back to a full or isolated source
+  reconstruction. ESR independently rebuilds the live corpus and reports cache health without
+  repairing or mutating the artifact; ESR and append tool calls reuse one invocation snapshot instead
+  of repeatedly reconstructing the same canonical view.
 - **Memory is now an explicit prerequisite for consequential conclusions.** The universal rules and
   history-retrieval trigger cover reviews, audits, recommendations, and claims that behavior is
   redundant, obsolete, removable, replaceable, or ready to consolidate. Decision Harvest carries
@@ -110,6 +125,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
+- **`session merge-branch` no longer reports a completed merge as a failed commit after a Git
+  timeout/non-zero result.** It now reconciles only a fully evidenced merge: a changed two-parent
+  HEAD with the recorded base and exact source tip, every planned `Memory-Entry` trailer, and no
+  remaining merge state. Proven success follows the existing safe source-worktree cleanup; every
+  ambiguous or genuine failure remains inspectable.
 - **`esr --json` dropped both ADR queues, and the review-queue section named no runnable
   command.** `EsrReport.to_dict()` omitted `adr_attachment_candidates` and `adr_head_reviews` -
   now top-level keys, so `esr --json` automation can see them. The `## ADR review queue`

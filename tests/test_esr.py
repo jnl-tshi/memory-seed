@@ -563,6 +563,7 @@ class ToDictCompletenessTests(unittest.TestCase):
         "skills_with_dangling_governing_adr": ("diagrams", "skills_with_dangling_governing_adr"),
         "adr_attachment_candidates": ("adr_attachment_candidates",),
         "adr_head_reviews": ("adr_head_reviews",),
+        "corpus_cache": ("corpus_cache",),
     }
 
     # Fields whose to_dict() representation is a transform of the raw
@@ -637,6 +638,7 @@ class ToDictCompletenessTests(unittest.TestCase):
             skills_with_dangling_governing_adr=["skill-b"],
             adr_attachment_candidates=["ADR adr_a: candidate ..."],
             adr_head_reviews=["ADR adr_b: head ..."],
+            corpus_cache={"health": "current"},
         )
 
         payload = report.to_dict()

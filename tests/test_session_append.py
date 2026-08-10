@@ -8,7 +8,9 @@ when any guard fails, and all failures report together.
 
 import json
 import shutil
+import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from memory_seed.core import (
     session_append_entry,
 )
 from memory_seed.retrieval import entry_topic_sidecars
+from memory_seed import corpus_cache
 
 BODY = "### Summary\n\n- Context for this entry.\n\n### Decision\n\n- D: Something durable.\n- R: Because."
 
@@ -992,4 +995,62 @@ class OneLinkPerChainGuardTests(unittest.TestCase):
                 ]
             ),
         )
+        self.assertTrue(result.ok, result.issues)
+
+    def test_append_reuses_supplied_snapshot_and_leaves_prewrite_artifact_stale(self):
+        # The chain guard needs a corpus; handing it the one pre-write snapshot
+        # means the write itself never publishes, repairs or deletes its cache.
+        subprocess.run(["git", "init", "-q"], cwd=self.cwd, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=self.cwd, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.cwd, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.cwd, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=self.cwd, check=True)
+        one = self._append(title="Chain one", timestamp="2026-06-13 08:00")
+        two = self._append(title="Chain two", timestamp="2026-06-13 08:30")
+        cache = self.cwd / "cache"
+        builds = []
+        snapshot = corpus_cache.get_corpus_snapshot(
+            self.cwd, cache_dir=cache,
+            source_builder=lambda cwd: (builds.append(cwd) or corpus_cache._default_source_builder(cwd)),
+        )
+        artifact = next(cache.glob("*.json"))
+        before = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(p.name for p in cache.iterdir()))
+        started = time.perf_counter()
+        result = self._append(
+            title="Merges two concerns", timestamp="2026-06-13 09:00",
+            decisions=self._decision([
+                {"ref": one.entry_id, "type": "builds-on", "why": "x"},
+                {"ref": two.entry_id, "type": "builds-on", "why": "y"},
+            ]),
+            snapshot=snapshot,
+        )
+        elapsed = time.perf_counter() - started
+        after = (artifact.read_bytes(), artifact.stat().st_mtime_ns, sorted(p.name for p in cache.iterdir()))
+        print(json.dumps({"measurement": "append_snapshot", "elapsed_seconds": elapsed, "source_builds": len(builds)}))
+
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(builds, [self.cwd])
+        self.assertEqual(before, after)
+        stale = corpus_cache.inspect_corpus_cache(self.cwd, cache_dir=cache)
+        self.assertEqual(stale.health, "stale")
+        rebuilt = corpus_cache.get_corpus_snapshot(
+            self.cwd, cache_dir=cache,
+            source_builder=lambda cwd: (builds.append(cwd) or corpus_cache._default_source_builder(cwd)),
+        )
+        self.assertEqual(builds, [self.cwd, self.cwd])
+        self.assertEqual(rebuilt.origin, "reconstructed")
+
+    def test_cache_failure_does_not_block_a_valid_multi_target_append(self):
+        one = self._append(title="Chain one", timestamp="2026-06-13 08:00")
+        two = self._append(title="Chain two", timestamp="2026-06-13 08:30")
+        from unittest.mock import patch
+
+        with patch("memory_seed.corpus_cache.get_corpus_snapshot", side_effect=OSError("cache unavailable")):
+            result = self._append(
+                title="Merges despite cache failure", timestamp="2026-06-13 09:00",
+                decisions=self._decision([
+                    {"ref": one.entry_id, "type": "builds-on", "why": "x"},
+                    {"ref": two.entry_id, "type": "builds-on", "why": "y"},
+                ]),
+            )
         self.assertTrue(result.ok, result.issues)

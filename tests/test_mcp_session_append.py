@@ -9,7 +9,11 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import memory_seed.corpus_cache as corpus_cache
+import memory_seed.core as core
+import memory_seed.mcp_server as mcp_server
 from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.mcp_server import TOOLS, call_tool
 
@@ -165,17 +169,130 @@ topics:
         self.assertTrue(nudge["suggestions"][0]["consulted"])
         self.assertIn("no-edge", nudge["instruction"])
 
-    def test_linked_decisions_do_not_receive_the_append_nudge(self):
+    def test_unlinked_append_builds_one_lazy_snapshot_for_suggestions(self):
+        snapshots = []
+        real_get = corpus_cache.get_corpus_snapshot
+
+        def counted_get(*args, **kwargs):
+            snapshot = real_get(*args, **kwargs)
+            snapshots.append(snapshot)
+            return snapshot
+
+        with (
+            patch("memory_seed.corpus_cache.get_corpus_snapshot", side_effect=counted_get),
+            patch("memory_seed.core.session_append_entry", wraps=core.session_append_entry) as append,
+            patch("memory_seed.mcp_server.suggest_related_for_draft", wraps=mcp_server.suggest_related_for_draft) as suggest,
+        ):
+            result = self._append(_now="2026-06-13 09:00")
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertEqual(len(snapshots), 1)
+        self.assertIsNone(append.call_args.kwargs["snapshot"])
+        self.assertEqual(
+            tuple(suggest.call_args.kwargs["chunks"]),
+            snapshots[0].chunks("entry", "augmented"),
+        )
+
+    def test_postwrite_cache_failure_falls_back_without_losing_the_append(self):
         earlier = self._append(title="Earlier", _now="2026-06-13 08:00")
-        result = self._append(
-            title="Already linked",
-            _now="2026-06-13 09:00",
-            decisions=[{
+
+        with patch(
+            "memory_seed.corpus_cache.get_corpus_snapshot",
+            side_effect=OSError("cache unavailable"),
+        ):
+            result = self._append(
+                title="Still committed",
+                _now="2026-06-13 09:00",
+                consulted=[earlier["entry_id"]],
+            )
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["written"])
+        self.assertTrue(Path(result["path"]).is_file())
+        self.assertIn(result["entry_id"], Path(result["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(result["link_suggestions"]["related_entries"][0], earlier["entry_id"])
+        self.assertNotIn("warning", result["link_suggestions"])
+
+    def test_postwrite_suggestion_failure_is_a_nonfatal_diagnostic(self):
+        with patch(
+            "memory_seed.mcp_server.suggest_related_for_draft",
+            side_effect=OSError("ranking unavailable"),
+        ):
+            result = self._append(title="Committed without ranking", _now="2026-06-13 09:00")
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["written"])
+        self.assertTrue(Path(result["path"]).is_file())
+        self.assertEqual(result["link_suggestions"]["suggestions"], [])
+        self.assertIn("append result is unaffected", result["link_suggestions"]["warning"])
+
+    def test_multi_target_append_shares_one_prewrite_snapshot_with_suggestions(self):
+        snapshots = []
+        real_get = corpus_cache.get_corpus_snapshot
+
+        def counted_get(*args, **kwargs):
+            snapshot = real_get(*args, **kwargs)
+            snapshots.append(snapshot)
+            return snapshot
+
+        decisions = [
+            {
                 "decision": "d1",
                 "topics": {"area": "schema", "activity": "feature-build"},
-                "links": {"related_entries": [earlier["entry_id"]]},
-            }],
+                "links": {
+                    "evolves": [
+                        {"ref": "mse_aaaaaaaaaaaaaaaa", "type": "builds-on", "why": "first chain"},
+                        {"ref": "mse_bbbbbbbbbbbbbbbb", "type": "builds-on", "why": "second chain"},
+                    ]
+                },
+            },
+            {
+                "decision": "d2",
+                "topics": {"area": "schema", "activity": "feature-build"},
+            },
+        ]
+        planned = core.SessionAppendResult(
+            ok=True,
+            entry_id="mse_cccccccccccccccc",
+            timestamp="2026-06-13 09:00",
+            written=False,
         )
+
+        with (
+            patch("memory_seed.corpus_cache.get_corpus_snapshot", side_effect=counted_get),
+            patch("memory_seed.core.session_append_entry", return_value=planned) as append,
+            patch("memory_seed.mcp_server.suggest_related_for_draft", wraps=mcp_server.suggest_related_for_draft) as suggest,
+        ):
+            result = self._append(
+                body=MULTI_DECISION_BODY,
+                decisions=decisions,
+                dry_run=True,
+                _now="2026-06-13 09:00",
+            )
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertEqual(len(snapshots), 1)
+        self.assertIs(append.call_args.kwargs["snapshot"], snapshots[0])
+        self.assertEqual(
+            tuple(suggest.call_args.kwargs["chunks"]),
+            snapshots[0].chunks("entry", "augmented"),
+        )
+
+    def test_linked_decisions_do_not_receive_the_append_nudge(self):
+        earlier = self._append(title="Earlier", _now="2026-06-13 08:00")
+        with patch(
+            "memory_seed.corpus_cache.get_corpus_snapshot",
+            side_effect=AssertionError("a linked single-target append needs no corpus snapshot"),
+        ):
+            result = self._append(
+                title="Already linked",
+                _now="2026-06-13 09:00",
+                decisions=[{
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                    "links": {"related_entries": [earlier["entry_id"]]},
+                }],
+            )
 
         self.assertTrue(result["ok"], result["issues"])
         self.assertNotIn("link_suggestions", result)

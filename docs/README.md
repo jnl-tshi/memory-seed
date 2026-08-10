@@ -108,7 +108,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 1 · 2_Todo 51 · 3_Spec 10 · 4_Reference 14 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 1 · 2_Todo 52 · 3_Spec 10 · 4_Reference 14 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
@@ -127,5 +127,6 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
+- **P1** [storyline-gap-tranche-implementation-plan.md](2_Todo/storyline-gap-tranche-implementation-plan.md) — None — R5, R8, and R13 are reconciled from reviewed implementation evidence.
 - **P1** [write-time-topic-envelope-closure-proposal.md](2_Todo/write-time-topic-envelope-closure-proposal.md) — none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step
 <!-- docs-index:end -->
