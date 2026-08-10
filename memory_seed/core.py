@@ -393,6 +393,10 @@ class SessionFuseResult:
 class SessionMergeBranchResult:
     committed: bool
     merge_in_progress: bool = False
+    # True when a refusal aborted the merge it had already started, leaving the
+    # tree exactly as it was before the command ran. Mutually exclusive with
+    # merge_in_progress: callers print "resolve manually" only for the latter.
+    merge_aborted: bool = False
     merge_trigger_blocked: bool = False
     conflicts: list[str] = field(default_factory=list)
     planned_entries: list[str] = field(default_factory=list)
@@ -432,6 +436,7 @@ class SessionPreparePrBranchResult:
     ready: bool
     changed: bool = False
     merge_in_progress: bool = False
+    merge_aborted: bool = False
     base_branch: str | None = None
     source_branch: str | None = None
     planned_entries: list[str] = field(default_factory=list)
@@ -5639,6 +5644,81 @@ def _working_tree_link_sidecars(root: Path, rel_path: str, *, link_date: str) ->
     return _split_link_sidecar_records(text, source_path=rel_path, link_date=link_date)
 
 
+def _ref_has_path(root: Path, ref: str, rel_path: str) -> bool:
+    code, _ = _git_text(root, ("cat-file", "-e", f"{ref}:{rel_path}"))
+    return code == 0
+
+
+def _fuse_existing_side_phrase(
+    root: Path,
+    plan: "_SessionFusePlan",
+    target_rel: str,
+    *,
+    working_tree_is_base: bool,
+) -> tuple[str, bool]:
+    """Name the copy the apply phase validated as the "existing" side of ``target_rel``.
+
+    Apply-phase checks read the WORKING TREE, which is often not the branch
+    being merged. ``session_merge_branch`` and ``session_prepare_pr_branch``
+    reset every branch-touched session path that also exists on base back to
+    base's committed content before applying, so for those paths a refusal about
+    "existing" records is a repair job on BASE, not on the branch. Unattributed,
+    exactly that refusal sent a real repair onto the branch on 2026-08-09 and
+    deadlocked it.
+
+    Two conditions gate the base claim, not one: the caller must have performed
+    the reset (``working_tree_is_base``) AND the path must exist on base. A
+    branch-new file is present in the working tree only because git's merge put
+    the BRANCH's copy there, and a standalone ``session fuse --apply`` after a
+    raw ``git merge --no-ff --no-commit`` validates git's merge result. Claiming
+    "base" for either would just mirror the misdirection.
+
+    Returns ``(phrase, is_base)``.
+    """
+    if working_tree_is_base and _ref_has_path(root, plan.base_commit, target_rel):
+        return (
+            f"the BASE side - the committed content at {plan.base_commit[:7]} this merge reset the path to",
+            True,
+        )
+    if working_tree_is_base:
+        return (f"the working-tree copy, which branch {plan.source_label} contributed", False)
+    return ("the current working-tree copy, which is git's in-progress merge result", False)
+
+
+def _fuse_existing_note(
+    root: Path, plan: "_SessionFusePlan", target_rel: str, *, working_tree_is_base: bool
+) -> str:
+    """Attribution tail for a refusal about the state of the EXISTING copy."""
+    phrase, is_base = _fuse_existing_side_phrase(
+        root, plan, target_rel, working_tree_is_base=working_tree_is_base
+    )
+    if is_base:
+        return (
+            f" (validated against {phrase}; a repair to this file must land on base "
+            "before any branch touching it can merge)"
+        )
+    return f" (validated against {phrase})"
+
+
+def _fuse_immutable_note(
+    root: Path, plan: "_SessionFusePlan", target_rel: str, *, working_tree_is_base: bool
+) -> str:
+    """Attribution tail for a refusal comparing an existing record to an imported one."""
+    phrase, _is_base = _fuse_existing_side_phrase(
+        root, plan, target_rel, working_tree_is_base=working_tree_is_base
+    )
+    return f" (existing copy: {phrase}; the differing record comes from branch {plan.source_label})"
+
+
+def _fuse_imported_note(plan: "_SessionFusePlan") -> str:
+    """Attribution tail for a refusal about the IMPORTED records' ordering.
+
+    The existing records were already validated as chronological one check
+    earlier, so the disorder is contributed by the imported side.
+    """
+    return f" (the out-of-order records are imported from branch {plan.source_label}; the existing copy validated clean)"
+
+
 def _working_tree_topic_sidecars(root: Path, rel_path: str, *, topic_date: str) -> list[_TopicSidecarRecord]:
     path = root / rel_path
     if not path.exists():
@@ -6333,7 +6413,24 @@ def _plan_session_fuse(
     ), []
 
 
-def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseResult:
+def _apply_session_fuse_plan(
+    root: Path, plan: _SessionFusePlan, *, working_tree_is_base: bool = False
+) -> SessionFuseResult:
+    """Write the planned records into the working tree, or refuse.
+
+    ``working_tree_is_base`` is set only by callers that have already reset every
+    branch-touched, base-existing session path to base content. It does not change
+    any decision - it only lets a refusal name which side's copy it just read.
+    """
+
+    def existing_note(target_rel: str) -> str:
+        return _fuse_existing_note(root, plan, target_rel, working_tree_is_base=working_tree_is_base)
+
+    def immutable_note(target_rel: str) -> str:
+        return _fuse_immutable_note(root, plan, target_rel, working_tree_is_base=working_tree_is_base)
+
+    imported_note = _fuse_imported_note(plan)
+
     planned_entries = list(plan.planned_entries)
     planned_sidecars = list(plan.planned_sidecars)
     planned_link_sidecars = list(plan.planned_link_sidecars)
@@ -6368,7 +6465,10 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         user = incoming[0].user
         existing = _working_tree_entries(root, target_rel, date_str=date_str, user=user)
         if not _records_are_chronological(existing):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing entries are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: existing entries are not chronological{existing_note(target_rel)}"],
+            )
         by_id = {record.entry_id: record for record in existing if record.entry_id}
         writable_records = list(existing)
         for record in incoming:
@@ -6377,11 +6477,20 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                 if current.text == record.text:
                     already_present.append(record.entry_id or "")
                     continue
-                return SessionFuseResult(changed=False, issues=[f"{target_rel}: entry_id {record.entry_id} already exists with different text"])
+                return SessionFuseResult(
+                    changed=False,
+                    issues=[
+                        f"{target_rel}: entry_id {record.entry_id} already exists with different text"
+                        f"{immutable_note(target_rel)}"
+                    ],
+                )
             writable_records.append(record)
         writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported entries are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: imported entries are not chronological{imported_note}"],
+            )
         session_writes.append((target_path, date_str, user, writable_records))
 
     for target_rel, incoming in sidecars_by_target.items():
@@ -6389,7 +6498,10 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         date_str = incoming[0].target_path.rsplit("/", 1)[-1].removesuffix(".md")
         existing = _working_tree_sidecars(root, target_rel, diagram_date=date_str)
         if not _records_are_chronological(existing):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing diagram blocks are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: existing diagram blocks are not chronological{existing_note(target_rel)}"],
+            )
         by_id = {record.entry_id: record for record in existing if record.entry_id}
         writable_records = list(existing)
         for record in incoming:
@@ -6398,11 +6510,20 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                 if current.text == record.text:
                     already_present.append(record.entry_id or "")
                     continue
-                return SessionFuseResult(changed=False, issues=[f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"])
+                return SessionFuseResult(
+                    changed=False,
+                    issues=[
+                        f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"
+                        f"{immutable_note(target_rel)}"
+                    ],
+                )
             writable_records.append(record)
         writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported diagram blocks are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: imported diagram blocks are not chronological{imported_note}"],
+            )
         diagram_writes.append((target_path, date_str, writable_records))
 
     for target_rel, incoming in link_sidecars_by_target.items():
@@ -6410,7 +6531,12 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         date_str = incoming[0].target_path.rsplit("/", 1)[-1].removesuffix(".md")
         existing = _working_tree_link_sidecars(root, target_rel, link_date=date_str)
         if not _records_are_chronological(existing):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing link sidecar blocks are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[
+                    f"{target_rel}: existing link sidecar blocks are not chronological{existing_note(target_rel)}"
+                ],
+            )
         # Block identity is (entry_id, heading timestamp), matching the plan
         # phase: one entry may carry several dated blocks, and only a block with
         # the SAME identity is compared for immutability.
@@ -6424,11 +6550,20 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                 if current.text == record.text:
                     already_present.append(record.entry_id or "")
                     continue
-                return SessionFuseResult(changed=False, issues=[f"{target_rel}: link sidecar for entry_id {record.entry_id} already exists with different text"])
+                return SessionFuseResult(
+                    changed=False,
+                    issues=[
+                        f"{target_rel}: link sidecar for entry_id {record.entry_id} already exists with "
+                        f"different text{immutable_note(target_rel)}"
+                    ],
+                )
             writable_records.append(record)
         writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
-            return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported link sidecar blocks are not chronological"])
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: imported link sidecar blocks are not chronological{imported_note}"],
+            )
         link_sidecar_writes.append((target_path, date_str, writable_records))
 
     for target_rel, incoming in topic_sidecars_by_target.items():
@@ -6438,7 +6573,9 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         if not _records_are_chronological(existing):
             return SessionFuseResult(
                 changed=False,
-                issues=[f"{target_rel}: existing topic sidecar blocks are not chronological"],
+                issues=[
+                    f"{target_rel}: existing topic sidecar blocks are not chronological{existing_note(target_rel)}"
+                ],
             )
         by_key = {
             (record.entry_id, record.timestamp or ""): record for record in existing if record.entry_id
@@ -6454,7 +6591,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                     changed=False,
                     issues=[
                         f"{target_rel}: topic sidecar for entry_id {record.entry_id} "
-                        "already exists with different text"
+                        f"already exists with different text{immutable_note(target_rel)}"
                     ],
                 )
             writable_records.append(record)
@@ -6462,7 +6599,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         if not _records_are_chronological(writable_records):
             return SessionFuseResult(
                 changed=False,
-                issues=[f"{target_rel}: imported topic sidecar blocks are not chronological"],
+                issues=[f"{target_rel}: imported topic sidecar blocks are not chronological{imported_note}"],
             )
         topic_sidecar_writes.append((target_path, date_str, writable_records))
 
@@ -6518,6 +6655,7 @@ def session_fuse(
     base: str = "HEAD",
     apply: bool = False,
     user_approved: bool = False,
+    working_tree_is_base: bool = False,
 ) -> SessionFuseResult:
     """Fuse branch-local session entries into the current working tree.
 
@@ -6526,6 +6664,10 @@ def session_fuse(
     <branch>``, existing entries are immutable, target paths normalize to the
     current month-grouped layout, and apply mode is guarded by an in-progress
     Git merge.
+
+    ``working_tree_is_base`` is internal: ``session_merge_branch`` sets it after
+    resetting branch-touched session paths to base content, so a refusal can say
+    which side's copy it validated. It changes no decision, only wording.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
@@ -6574,7 +6716,7 @@ def session_fuse(
             planned_topic_sidecars=list(plan.planned_topic_sidecars),
             removed_sources=list(plan.removed_sources),
         )
-    return _apply_session_fuse_plan(root, plan)
+    return _apply_session_fuse_plan(root, plan, working_tree_is_base=working_tree_is_base)
 
 
 def _merge_trigger_block(root: Path, user_approved: bool) -> str | None:
@@ -6669,6 +6811,37 @@ def _cleanup_merged_source_worktree(
     return str(path), "retained", detail, attempts
 
 
+def _abort_refused_merge(
+    root: Path, result: SessionMergeBranchResult | SessionPreparePrBranchResult
+) -> None:
+    """Undo the merge a refusal is about to return from, and say so.
+
+    Every caller of this has already decided the merge cannot proceed and has
+    nothing for a human to resolve in the tree: the refusal is about record
+    content or git plumbing, not about conflicting lines. Leaving MERGE_HEAD
+    behind in that state only strands the next command ("a git merge is already
+    in progress"), which is how a 2026-08-09 refusal deadlocked a branch. A
+    GENUINE content conflict is never routed here - it keeps the merge in
+    progress for the named conflict owner.
+
+    Appends its own line AFTER the caller's refusal, so ``issues[0]`` stays the
+    reason. A failed abort keeps ``merge_in_progress`` true and reports why.
+    """
+    if not _merge_head_commits(root):
+        result.merge_in_progress = False
+        return
+    code, out = _git_text(root, ("merge", "--abort"))
+    if code != 0:
+        result.merge_in_progress = True
+        result.issues.append(
+            f"merge left in progress and could not be aborted automatically: {out or '(no output)'}"
+        )
+        return
+    result.merge_in_progress = False
+    result.merge_aborted = True
+    result.issues.append("merge aborted automatically; nothing was committed")
+
+
 def session_merge_branch(
     cwd: str | Path = ".",
     *,
@@ -6760,9 +6933,11 @@ def session_merge_branch(
 
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
-        result.merge_in_progress = True
-        result.issues.append("could not enumerate conflicted paths; merge left in progress")
+        result.issues.append("could not enumerate conflicted paths")
+        _abort_refused_merge(root, result)
         return result
+    # The one exit that keeps the merge in progress: a real content conflict has
+    # a named owner who must resolve it in the tree.
     non_session = [path for path in conflicted if not _is_recognized_session_tree_path(path)]
     if non_session:
         result.merge_in_progress = True
@@ -6775,31 +6950,37 @@ def session_merge_branch(
     # entries by physical position instead of timestamp without a conflict.
     changed_paths = _changed_session_paths(root, base_commit, branch_commit)
     if changed_paths is None:
-        result.merge_in_progress = True
-        result.issues.append(f"could not compute changed session files for branch {branch}; merge left in progress")
+        result.issues.append(f"could not compute changed session files for branch {branch}")
+        _abort_refused_merge(root, result)
         return result
     base_paths = set(_git_ref_paths(root, base_commit))
     for rel_path in sorted(changed_paths & base_paths):
         if not _is_recognized_session_tree_path(rel_path):
-            result.merge_in_progress = True
             result.issues.append(
                 f"{rel_path}: {_unfusable_session_path_reason(rel_path)} Refusing to reset it to base "
-                "content, which would silently discard branch work. Merge left in progress for manual "
-                "resolution."
+                "content, which would silently discard branch work."
             )
+            _abort_refused_merge(root, result)
             return result
         code, _ = _git_text(root, ("checkout", base_commit, "--", rel_path))
         if code != 0:
-            result.merge_in_progress = True
-            result.issues.append(f"could not reset {rel_path} to base content; merge left in progress")
+            result.issues.append(f"could not reset {rel_path} to base content")
+            _abort_refused_merge(root, result)
             return result
 
     # This function already cleared the merge_trigger gate above, so authorize
     # its own internal apply rather than re-asking a question already answered.
-    applied = session_fuse(root, branch=branch, base=base_commit, apply=True, user_approved=True)
+    applied = session_fuse(
+        root,
+        branch=branch,
+        base=base_commit,
+        apply=True,
+        user_approved=True,
+        working_tree_is_base=True,
+    )
     if applied.issues:
-        result.merge_in_progress = True
         result.issues.extend(applied.issues)
+        _abort_refused_merge(root, result)
         return result
     result.planned_entries = list(applied.planned_entries)
     result.planned_sidecars = list(applied.planned_sidecars)
@@ -6812,15 +6993,15 @@ def session_merge_branch(
     # sessions/ at this point are the merge itself plus fuse's writes/removals.
     code, _ = _git_text(root, ("add", "-A", "--", *_fuse_stage_pathspecs(root)))
     if code != 0:
-        result.merge_in_progress = True
-        result.issues.append("could not stage fused session files; merge left in progress")
+        result.issues.append("could not stage fused session files")
+        _abort_refused_merge(root, result)
         return result
 
     code, remaining = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0 or remaining:
-        result.merge_in_progress = True
         listing = ", ".join(remaining) if remaining else "(unknown)"
-        result.issues.append(f"unmerged paths remain after fuse; merge left in progress: {listing}")
+        result.issues.append(f"unmerged paths remain after fuse: {listing}")
+        _abort_refused_merge(root, result)
         return result
 
     # Memory-Entry trailer stamping (approved plan, 2026-07-11): one trailer
@@ -6954,9 +7135,11 @@ def session_prepare_pr_branch(
 
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
-        result.merge_in_progress = True
-        result.issues.append("could not enumerate conflicted paths; merge left in progress")
+        result.issues.append("could not enumerate conflicted paths")
+        _abort_refused_merge(root, result)
         return result
+    # As in session_merge_branch, a real content conflict is the sole exit that
+    # keeps the merge in progress for its human owner.
     non_session = [path for path in conflicted if not _is_recognized_session_tree_path(path)]
     if non_session:
         result.merge_in_progress = True
@@ -6966,23 +7149,22 @@ def session_prepare_pr_branch(
     base_paths = set(_git_ref_paths(root, plan.base_commit))
     for rel_path in sorted(set(plan.changed_paths) & base_paths):
         if not _is_recognized_session_tree_path(rel_path):
-            result.merge_in_progress = True
             result.issues.append(
                 f"{rel_path}: {_unfusable_session_path_reason(rel_path)} Refusing to reset it to base "
-                "content, which would silently discard branch work. Merge left in progress for manual "
-                "resolution."
+                "content, which would silently discard branch work."
             )
+            _abort_refused_merge(root, result)
             return result
         code, _ = _git_text(root, ("checkout", plan.base_commit, "--", rel_path))
         if code != 0:
-            result.merge_in_progress = True
-            result.issues.append(f"could not reset {rel_path} to base content; merge left in progress")
+            result.issues.append(f"could not reset {rel_path} to base content")
+            _abort_refused_merge(root, result)
             return result
 
-    applied = _apply_session_fuse_plan(root, plan)
+    applied = _apply_session_fuse_plan(root, plan, working_tree_is_base=True)
     if applied.issues:
-        result.merge_in_progress = True
         result.issues.extend(applied.issues)
+        _abort_refused_merge(root, result)
         return result
     result.planned_entries = list(applied.planned_entries)
     result.planned_sidecars = list(applied.planned_sidecars)
@@ -6993,15 +7175,15 @@ def session_prepare_pr_branch(
 
     code, _ = _git_text(root, ("add", "-A", "--", *_fuse_stage_pathspecs(root)))
     if code != 0:
-        result.merge_in_progress = True
-        result.issues.append("could not stage prepared session files; merge left in progress")
+        result.issues.append("could not stage prepared session files")
+        _abort_refused_merge(root, result)
         return result
 
     code, remaining = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0 or remaining:
-        result.merge_in_progress = True
         listing = ", ".join(remaining) if remaining else "(unknown)"
-        result.issues.append(f"unmerged paths remain after branch prep; merge left in progress: {listing}")
+        result.issues.append(f"unmerged paths remain after branch prep: {listing}")
+        _abort_refused_merge(root, result)
         return result
 
     result.stamped_entries = _stamp_memory_entry_trailers(root, result.planned_entries)
