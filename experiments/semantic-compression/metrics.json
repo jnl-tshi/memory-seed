@@ -1,0 +1,131 @@
+{
+  "corpus_decision_count": 1288,
+  "query_exact_in_raw_count": 9,
+  "relationships": {
+    "arms": {
+      "core": {
+        "f1": 0.6666666666666666,
+        "false_positive_rate": 1.0,
+        "fn": 0,
+        "fp": 3,
+        "precision": 0.5,
+        "recall": 1.0,
+        "test_count": 6,
+        "threshold": 0.0,
+        "tn": 0,
+        "tp": 3,
+        "train_count": 22
+      },
+      "core_why": {
+        "f1": 0.6666666666666666,
+        "false_positive_rate": 0.3333333333333333,
+        "fn": 1,
+        "fp": 1,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666,
+        "test_count": 6,
+        "threshold": 0.020607630717032855,
+        "tn": 2,
+        "tp": 2,
+        "train_count": 22
+      },
+      "core_why_constraint": {
+        "f1": 0.6666666666666666,
+        "false_positive_rate": 0.3333333333333333,
+        "fn": 1,
+        "fp": 1,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666,
+        "test_count": 6,
+        "threshold": 0.04498167873874473,
+        "tn": 2,
+        "tp": 2,
+        "train_count": 22
+      },
+      "raw": {
+        "f1": 0.8571428571428571,
+        "false_positive_rate": 0.3333333333333333,
+        "fn": 0,
+        "fp": 1,
+        "precision": 0.75,
+        "recall": 1.0,
+        "test_count": 6,
+        "threshold": 0.04515931894884234,
+        "tn": 2,
+        "tp": 3,
+        "train_count": 22
+      },
+      "structured": {
+        "f1": 0.6666666666666666,
+        "false_positive_rate": 0.3333333333333333,
+        "fn": 1,
+        "fp": 1,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666,
+        "test_count": 6,
+        "threshold": 0.04497468193414571,
+        "tn": 2,
+        "tp": 2,
+        "train_count": 22
+      }
+    },
+    "pair_count": 28,
+    "positive_count": 14
+  },
+  "retrieval": {
+    "core": {
+      "efficiency_mrr_per_relative_context": 2.871427476137747,
+      "mean_token_proxy": 45.42,
+      "mrr": 0.37114466694984777,
+      "ndcg_at_5": 0.3841292012176286,
+      "recall_at_1": 0.29,
+      "recall_at_3": 0.41,
+      "recall_at_5": 0.47,
+      "relative_context": 0.12925441092771772
+    },
+    "core_why": {
+      "efficiency_mrr_per_relative_context": 1.8863224000030412,
+      "mean_token_proxy": 86.27,
+      "mrr": 0.4630991276273829,
+      "ndcg_at_5": 0.4768249675918753,
+      "recall_at_1": 0.38,
+      "recall_at_3": 0.52,
+      "recall_at_5": 0.56,
+      "relative_context": 0.24550369948776324
+    },
+    "core_why_constraint": {
+      "efficiency_mrr_per_relative_context": 1.2981255362593018,
+      "mean_token_proxy": 137.41,
+      "mrr": 0.5076136310113565,
+      "ndcg_at_5": 0.5148996069397123,
+      "recall_at_1": 0.44,
+      "recall_at_3": 0.55,
+      "recall_at_5": 0.58,
+      "relative_context": 0.3910358565737052
+    },
+    "raw": {
+      "efficiency_mrr_per_relative_context": 0.5823777286077726,
+      "mean_token_proxy": 351.4,
+      "mrr": 0.5823777286077726,
+      "ndcg_at_5": 0.5860310788673668,
+      "recall_at_1": 0.53,
+      "recall_at_3": 0.61,
+      "recall_at_5": 0.63,
+      "relative_context": 1.0
+    },
+    "structured": {
+      "efficiency_mrr_per_relative_context": 1.2351971996742557,
+      "mean_token_proxy": 144.45,
+      "mrr": 0.5077525199002454,
+      "ndcg_at_5": 0.5148996069397123,
+      "recall_at_1": 0.44,
+      "recall_at_3": 0.55,
+      "recall_at_5": 0.58,
+      "relative_context": 0.41107000569151964
+    }
+  },
+  "sample_count": 100,
+  "schema": "semantic-compression-stage1.v1",
+  "selection_fingerprint": "d56897e34664d70c8674d58c002d482ba047dfcfd3182bd84ea8767d1ccb682a",
+  "stage2_status": "not-run"
+}
