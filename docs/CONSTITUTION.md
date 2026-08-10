@@ -140,7 +140,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 <!-- constitution-ref: constitution:v1#immediate-value -->
 - **Immediate value before future value.** Ship the smallest useful increment on the proven path before the
   ambitious rebuild. *(Cited: vanilla-first Trace with the versioned `/api/v1` contract held for the future
-  React client; `3_Spec/memory-trace-vanilla-parity-checklist.md`.)*
+  React client; retired gate `3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md`.)*
 <!-- constitution-ref: constitution:v1#prove-automation -->
 - **Prove risky automation on a small case; don't remove guards you don't understand.** *(Cited:
   `agent-rules.md` Working Principles; `.memory-seed/skills/risk_signaling.md`.)*

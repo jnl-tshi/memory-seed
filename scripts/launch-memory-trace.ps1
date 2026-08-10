@@ -8,20 +8,17 @@ param(
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $baseUrl = "http://127.0.0.1:$Port"
-$vanillaUrl = "$baseUrl/"
-$reactUrl = "$baseUrl/next"
+$traceUrl = "$baseUrl/"
 
 function Open-TraceViews {
-    Start-Process -FilePath $vanillaUrl
-    Start-Process -FilePath $reactUrl
+    Start-Process -FilePath $traceUrl
 }
 
 try {
     $health = Invoke-WebRequest -UseBasicParsing "$baseUrl/api/runtime" -TimeoutSec 2 -ErrorAction Stop
     if ($health.StatusCode -eq 200) {
         Write-Output "Memory Trace is already running."
-        Write-Output "Vanilla: $vanillaUrl"
-        Write-Output "React:   $reactUrl"
+        Write-Output "Trace: $traceUrl"
         if (-not $NoOpen) {
             Open-TraceViews
         }
@@ -50,12 +47,11 @@ if ($RebuildCache) {
 if ($NoOpen) {
     $arguments += "--no-open"
 } else {
-    $arguments += "--open-both"
+    # The CLI opens the single supported React UI by default.
 }
 
 Write-Output "Starting Memory Trace."
-Write-Output "Vanilla: $vanillaUrl"
-Write-Output "React:   $reactUrl"
+Write-Output "Trace: $traceUrl"
 
 $exitCode = 0
 try {

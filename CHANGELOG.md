@@ -6,6 +6,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed (breaking)
 
+- **Memory Trace now has one supported frontend.** The React/TypeScript client is served at `/`;
+  `/next` redirects existing bookmarks to it. The retired vanilla `static/index.html`,
+  `static/app.js`, and `static/styles.css`, `--open-both`, their Node-VM golden/capture
+  harnesses, and the Python tests that inspected implementation strings were removed. The
+  independent renderer benchmark and unversioned compatibility APIs remain.
 - **`session append` no longer accepts entry-level lifecycle links.** `--related` / `--replaces` /
   `--evolves` (and the matching `related_entries` / `replaces` / `evolves` arguments to
   `session_append_entry`) are refused; declare the edge on the decision that owns it via

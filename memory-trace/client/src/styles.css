@@ -390,9 +390,8 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 .adr-empty { grid-row: 2 / 4; display: grid; place-content: center; padding: 30px; text-align: center; color: var(--muted); }.adr-empty h2 { color: var(--text-bright); }
 @media (max-width: 760px) { .adr-workspace { grid-template-columns: 1fr; grid-template-rows: minmax(160px, 32vh) minmax(420px, 1fr); }.adr-index { border-right: 0; border-bottom: 1px solid var(--border); }.adr-detail { padding: 14px; } }
 
-/* Decision-diagram viewer — class names and geometry lifted from the vanilla
-   UI (static/styles.css) rather than re-invented, so a diagram opened from
-   either client looks identical and one stylesheet change tracks both. */
+/* Decision-diagram viewer — class names and geometry retained from the retired
+   UI rather than re-invented. */
 .diagram-viewer-backdrop {
   position: fixed;
   inset: 0;

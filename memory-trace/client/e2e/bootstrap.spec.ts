@@ -33,7 +33,7 @@ const isFullTrail = (url: string) => url.includes("/trail") && !url.includes("to
 test.describe("lazy bootstrap", () => {
   test("initial Trail load requests no graph projection and one full trail index", async ({ page }) => {
     const requests = recordApiRequests(page);
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
     // Let any stray post-paint fetches land before counting.
     await page.waitForTimeout(1_000);
@@ -44,7 +44,7 @@ test.describe("lazy bootstrap", () => {
 
   test("entering Graph view fetches the projection once and preserves the selection", async ({ page }) => {
     const requests = recordApiRequests(page);
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
 
     // Select a Trail row so there is a selection to preserve.

@@ -815,10 +815,13 @@ graph TD
 - Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the Trace source boundary). Controlled entry-YAML `topics:` and project-local `.memory-seed/topics.yaml` now run end-to-end through parser, retrieval, CLI, MCP, and Trace chronological topic chains; deterministic read-only `topics suggest --from <file>` completed the plan on 2026-07-15. Historical entries still use the hashtag/heading fallback. See `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md`.
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). Phase 1 now uses a schema-versioned git-watermark plus dirty-signature freshness check, a short freshness memo, memoized chunks/derived structures, and full wipe-and-atomic-replace on rebuild; a cross-process rebuild lease serializes shared-cache writers, and a bounded lease wait falls back to a per-process temporary projection rather than surfacing Windows file contention as a UI failure. Ambiguity fails toward rebuilding and no-git projects fall back to tracked-document metadata. The cache is never authoritative and Markdown stays the source of truth.
 - **Incremental startup (shipped 2026-07-21; `PROJECTION_SCHEMA_VERSION` 2).** The derived-projection plan's last deferred piece. Immutable git derivations are persisted by SHA (`fork_points`, `commit_parents`, `changed_paths`) and carried across rebuilds, since a commit's parents and diff can never change; reconciliation is incremental over changed documents only; and the file→entry index is built lazily on first use rather than at startup. Fork points are computed in-process by maximal-common-ancestor, with `git merge-base` retained only for criss-cross cases. Measured on the real corpus: forced rebuild 44.25 s / 990 git subprocesses → 1.46 s / 7; live warm start 308 ms, one changed file 1.15 s, one new commit 1.62 s, one merge 2.20 s. The acceptance bar was explicitly *not* "the warm cache is fast" — it already was.
-- **Decision-diagram viewer (React parity, 2026-07-22).** The diamond badge in the Trail and each diagram figure in the reader open a modal zoom/pan viewer (`role="dialog"`, Escape and backdrop-click close), matching the vanilla UI. Before this the React badge was an inert `<span>` reading "open the entry to view", and opening the entry rendered the diagram inline in the inspector column — narrower than most authored diagrams, so a wide diagram had no readable path at all. Class names and geometry are reused from the vanilla stylesheet so one change tracks both clients; the zoom arithmetic lives in `diagramZoom.ts` as pure, unit-tested functions. **Known gap:** `arc2d` parses no `subgraph`, while `compact_mermaid_diagrams.md` tells authors to use tier subgraphs — such diagrams lose their grouping silently in both clients.
-- **Launch ergonomics:** `memory-trace --open-both` starts one local server and opens the vanilla `/` plus React `/next` routes in browser tabs. The source checkout also provides `scripts/launch-memory-trace.ps1` for Windows; it supplies the local import path, reuses a healthy Trace process on the chosen port, and otherwise launches the same two-route server.
+- **Decision-diagram viewer (React, 2026-07-22).** The diamond badge in the Trail and each diagram figure in the reader open a modal zoom/pan viewer (`role="dialog"`, Escape and backdrop-click close). Before this the badge was an inert `<span>` reading "open the entry to view", and opening the entry rendered the diagram inline in the narrow inspector column. The zoom arithmetic lives in `diagramZoom.ts` as pure, unit-tested functions; real Mermaid now renders the maintained inline and modal surfaces.
+- **Launch ergonomics:** `memory-trace` starts one local server and opens the React UI at `/`; `/next`
+  redirects existing bookmarks. The source checkout's `scripts/launch-memory-trace.ps1` supplies the
+  local import path and reuses a healthy Trace process on the chosen port.
 - **Deterministic Evidence Packs (Phase 1 shipped 2026-07-15).** `memory_trace.evidence.build_timeline_evidence_pack()` creates normalized, fingerprinted, snapshot-tested evidence over bounded date/entry/topic/user/agent/graph-neighbourhood selections. It includes entry/section, edge, commit, and diagram provenance, invokes no provider, writes no memory, and is non-authoritative. Provider/local-model summarisation remains Phase 2 in `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md`.
-- Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the root `memory-seed` wheel/sdist when the `trace` extra is used.
+- Content-addressed React assets under `memory-trace/memory_trace/static/react/`, the manifest,
+  fonts, and independent renderer benchmark ship inside the root `memory-seed` wheel/sdist.
 - **Next-generation planning (promoted 2026-07-11):** `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level product/system entry point; `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences the future API/React/Trail/evidence/hosted phases; `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` explains which older plans remain active; and the new live specs are `docs/3_Spec/memory-trace-trail-search-and-graph-ux.md` plus `docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md`.
 
 ```mermaid
@@ -1193,11 +1196,11 @@ Sources: `docs/2_Todo/0_NEXT_STEPS.md`, `CHANGELOG.md`, and the completed-plan l
 is published; the work below is merged locally and documented as shipped-but-unreleased until a user
 explicitly approves the 2.19 release/publish step.
 
-**Current condition (2026-07-16):** Wave 1 and B0a are complete. The React `/next` workspace now carries
-the accepted vanilla graph/search/selection rules over Cytoscape and the renderer-neutral projection.
-React Trail parity, reader/evidence workspace, React diagram rendering, evidence-backed topology modes,
-and formal accessibility/scale acceptance remain open; vanilla `/` is still the fallback. The 2.19 release
-cut criterion is met, but push/publish remains an explicit approval gate.
+**Current condition (2026-08-11):** Wave 1 and B0a are complete. The React workspace carries the accepted
+graph/search/selection, Trail, reader, diagram, accessibility, and scale behavior over Cytoscape and the
+renderer-neutral projection. JNL approved the cutover, React owns `/`, and the vanilla fallback plus its
+parity-only harnesses are retired. Evidence-backed topology modes remain planned. Push/publish remains an
+explicit approval gate.
 
 **Newly planned, not implemented:** Constitution v1.1 permits narrowly scoped append-only Markdown
 sidecars to own declared lifecycles. The active semantic foundation will prove ADR promotion/lifecycle on
@@ -1213,9 +1216,8 @@ advanced selectors remain planned rather than implied by that first slice.
 
 ### Near term - current lead
 
-- **B0b Trail parity and acceptance** - complete the remaining formal scale sign-off while retaining vanilla
-  fallback. The living ADR foundation shipped 2026-08-03; later semantic-record/ranking work still waits for
-  BG1/BG2.
+- **B0b Trail parity and acceptance** - complete as of the 2026-08-11 product-owner cutover. The living ADR
+  foundation shipped 2026-08-03; later semantic-record/ranking work still waits for BG1/BG2.
 
 ### Current implementation order
 

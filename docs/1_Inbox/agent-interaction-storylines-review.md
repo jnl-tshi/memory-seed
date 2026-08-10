@@ -671,11 +671,11 @@ write parity: R8 discharged only the three approved reads.
 A second memory pass audited every apparently-redundant tool or endpoint — candidates for deletion,
 not for reframing — against recorded decisions. Nothing was deleted.
 
-The memory-trace HTTP API carries two surfaces: legacy `/api/*` and versioned `/api/v1/*`. Six
-legacy endpoints (search, graph, facets, runtime, chunks, worktrees) are duplicated by v1 but still
-consumed by the vanilla frontend (`static/app.js`); the React client at `/next` uses only v1. This
-duplication is deliberate and gated — `docs/3_Spec/memory-trace-vanilla-parity-checklist.md`
-forbids retiring the vanilla fallback until React reproduces every item on it.
+The memory-trace HTTP API carries two surfaces: compatibility `/api/*` and versioned `/api/v1/*`.
+The maintained React client uses only v1. JNL retired the vanilla frontend on 2026-08-11 after its
+behavioral contract had moved to React and the accessibility/scale closeout landed; the old parity gate
+is preserved at `docs/3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md`. The unversioned
+endpoints remain separate compatibility contracts and need their own evidence before deprecation.
 
 `/api/timeline` has no frontend consumer, but it was deliberately retained twice on record: the
 2026-07-11 Timeline-tab retirement kept the endpoint so that retirement stayed "cleanly

@@ -9,8 +9,8 @@ parent: "../../2_Todo/memory-trace-next-generation-implementation-roadmap.md"
 # Memory Trace Phase 0 Baseline Report
 
 Measured 2026-07-11 on the vanilla application (branch `claude-feature-phase0-baseline`),
-Windows 11, CPython 3.11, Chrome headless captures. Companion documents: the parity gate is
-[`../../3_Spec/memory-trace-vanilla-parity-checklist.md`](../../3_Spec/memory-trace-vanilla-parity-checklist.md);
+Windows 11, CPython 3.11, Chrome headless captures. Companion documents: the retired parity gate is
+[`../../3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md`](../../3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md);
 phase sequencing is the next-generation implementation roadmap.
 
 ## Fixtures
@@ -19,19 +19,11 @@ phase sequencing is the next-generation implementation roadmap.
   (same count+seed -> byte-identical tree), exercises branches (up to 3 parallel, bounded
   lifetimes), lifecycle edges, topics, and searchable prose. Generate on demand:
   `python tests/fixtures/generate_synthetic.py <count> <out-dir> [seed]` (default seed 20260711).
-- **Trail golden fixture**: `memory-trace/tests/fixtures/trail-golden-48.json` - trailModel()
-  output over the 48-entry corpus: 54 items (48 nodes + 6 day separators), 5 lanes, main pinned
-  to lane 0, three branches daisy-chained onto lane 1, 44 lifecycle edges.
-  **Regeneration** (browserless since 2026-07-13):
-  `PYTHONPATH=".;memory-trace" python memory-trace/tests/fixtures/regen_trail_golden.py`
-  regenerates the corpus, replays the app's exact `/api/graph` request, evaluates the REAL
-  `app.js` in a node vm (`regen_trail_golden.mjs`, DOM stubs only), and rewrites the fixture -
-  deterministic, byte-identical across runs; requires node. The original manual procedure
-  (serve the corpus, evaluate `window.memoryTraceDebug.trailModel(graph)` in the browser)
-  remains valid but is no longer needed. The fixture has been regenerated against the current
-  model (time-ordered lane allocation; trailer-aware `linkRows` carrying an `estimated` flag),
-  superseding the lane/edge snapshot described elsewhere in this report.
-  `tests/test_trail_golden.py` validates internal consistency offline.
+- **Historical Trail golden fixture**: the 48-entry vanilla `trailModel()` snapshot and its
+  Node-VM regeneration harness were retired with that client on 2026-08-11. The measured values
+  below remain baseline evidence; maintained Trail behavior is covered by
+  `memory-trace/client/src/trailModel.test.ts` and packaged-browser tests. The removed fixture and
+  harness remain recoverable from Git history.
 
 ## Server-side measurements (synthetic corpora; median of 5 unless noted)
 

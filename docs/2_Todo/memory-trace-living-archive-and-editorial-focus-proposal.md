@@ -63,7 +63,7 @@ The proposal is a composition of existing work rather than a new platform:
 
 | Current capability | Role here |
 |---|---|
-| React `/next` shell and shared selection | Common workspace for both editions |
+| React root shell and shared selection | Common workspace for both editions |
 | Trail timeline, branch lanes, lifecycle arcs, search dimming | Historical and relational context |
 | Entry Reader | Authored document body and deterministic subsection display |
 | Inspector authority/provenance rows | Trust boundary for authored and generated content |

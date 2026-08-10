@@ -59,7 +59,8 @@ Resolution:
 
 ## Resolved Clashes
 
-- **Vanilla UI vs React migration.** Resolved by sequencing: keep vanilla as fallback until parity, package-wheel smoke tests, and product-owner sign-off.
+- **Vanilla UI vs React migration.** Resolved by sequencing and completed on 2026-08-11: parity,
+  package-wheel/browser checks, accessibility/scale closeout, then product-owner sign-off and cutover.
 - **Open core vs commercial wedge.** Resolved by keeping complete local history, retrieval, and basic graph access free; monetise convenience, scale, advanced analysis, cross-project views, hosted collaboration, managed AI, exports, and enterprise controls.
 - **Graph as primary surface vs Trail-first product.** Resolved by role separation: Trail is the primary chronological evidence surface; graph is a specialised topic/document/relationship exploration surface.
 - **AI summaries vs authoritative memory.** Resolved by Evidence Packs and provenance manifests: generated output is derived, cited, and non-authoritative unless explicitly promoted.

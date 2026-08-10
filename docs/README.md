@@ -61,12 +61,11 @@ work and agent-namespaced branches/worktrees follow the policy shipped in
 ## Current Memory Trace status
 
 The B0a shell, renderer-neutral fixture contract, and complete renderer evidence harness are implemented.
-JNL selected Cytoscape 3.34.0 on 2026-07-16, and the React `/next` workspace now carries the accepted
-graph, search, selection, and Inspector behaviour over the renderer-neutral projection. React diagram
-rendering shipped 2026-07-20 (the Arc-2d flowchart/sequence-diagram engine ported to `arc2d.ts` +
-`DiagramView.tsx`). React Trail parity, the Trail transition, evidence-backed topology/file/evolution
-modes, and final accessibility/scale acceptance remain open. The vanilla SVG graph and Trail remain the
-fallback until explicit B0b parity sign-off.
+JNL selected Cytoscape 3.34.0 on 2026-07-16, and the React workspace carries the accepted graph, search,
+selection, Trail, diagram, and Inspector behaviour over the renderer-neutral projection. Accessibility
+and scale closeout landed on 2026-07-29; JNL gave explicit product-owner sign-off on 2026-08-11, so React
+now owns `/` and the vanilla frontend and its parity-only harnesses are retired. Evidence-backed
+topology/file/evolution modes remain roadmap work independent of that completed migration.
 
 ## Side-folder allowlist
 
@@ -108,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 1 · 2_Todo 52 · 3_Spec 10 · 4_Reference 14 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 1 · 2_Todo 52 · 3_Spec 9 · 4_Reference 14 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.

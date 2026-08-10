@@ -1,7 +1,6 @@
-// Pure Trail layout model — a faithful port of the vanilla `trailModel`
-// (static/app.js:709-1008), kept framework-free so it can be unit-tested and
-// cross-checked against the vanilla `window.memoryTraceDebug.trailModel` on the
-// same corpus. Scope: chronological rows + day separators, branch-lane
+// Pure Trail layout model, kept framework-free so it can be unit-tested.
+// It originated as a parity port from the retired client. Scope:
+// chronological rows + day separators, branch-lane
 // assignment (greedy interval packing over fork-to-merge occupancy), colours,
 // fork/merge connector rows, and trunk merge dots. Lifecycle-edge arrows and
 // continuity lanes are deferred to later slices and are NOT computed here.

@@ -2,20 +2,20 @@
 title: "Memory Trace Vanilla Parity Checklist"
 date: "2026-07-11"
 project: "memory-seed"
-status: "active-parity-gate"
-parent: "../2_Todo/memory-trace-next-generation-implementation-roadmap.md"
+status: "deprecated"
+deprecated_date: "2026-08-11"
+deprecated_by: "../../2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md"
+parent: "../../2_Todo/memory-trace-next-generation-implementation-roadmap.md"
 ---
 
 # Memory Trace Vanilla Parity Checklist
 
-Status: Active parity gate - Phase 0 deliverable of the next-generation roadmap.
+Status: Deprecated on 2026-08-11 after explicit product-owner sign-off retired the vanilla frontend.
 Scope: Every user-observable behaviour of the vanilla Memory Trace frontend as of 2026-07-11
-(branch `claude-feature-phase0-baseline`). The React migration (Phases 2-5) may not retire the
-vanilla fallback until each item below is reproduced or an explicit divergence is approved by the
-product owner and recorded here.
-Evidence: screenshots in `../4_Reference/memory-trace-phase0-baseline/`, golden fixture
-`memory-trace/tests/fixtures/trail-golden-48.json`, measurements in
-`../4_Reference/memory-trace-phase0-baseline/README.md`.
+(branch `claude-feature-phase0-baseline`). The checklist remains as historical migration evidence;
+unchecked items are no longer release blockers because the product owner approved the React cutover
+after the maintained client gained Trail, diagrams, packaged-browser, accessibility, and scale coverage.
+Evidence: screenshots and measurements in `../../4_Reference/memory-trace-phase0-baseline/`.
 
 Marking: `[ ]` = not yet reproduced in React; check items only from the React app, never from
 vanilla (this document starts all-unchecked by design).
@@ -69,7 +69,8 @@ vanilla (this document starts all-unchecked by design).
       envelope occupancy
 - [ ] Daisy-chaining: branches whose occupancy touches only at a shared junction row share a
       lane; the trunk column (lane 0) is main's alone
-- [ ] Golden fixture reproduced: `trail-golden-48.json` (items order, laneOf, spans, linkRows incl. `estimated`; regenerate with `tests/fixtures/regen_trail_golden.py`)
+- [x] Historical golden fixture and regeneration harness retired with the vanilla client; maintained
+      Trail invariants live in `client/src/trailModel.test.ts`.
 - [ ] Rounded-elbow routing (radius 7) for every lane change: connectors, arcs, no sharp turns
 - [ ] Commit-accurate fork/merge connectors: anchors from `Memory-Entry` trailer merge events
       (`graph.branches`/`graph.merges`), time-interpolated to fractional trunk rows and clamped

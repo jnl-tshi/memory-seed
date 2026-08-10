@@ -16,7 +16,7 @@ async function waitForProjectLoaded(page: Page) {
 
 test.describe("search to strongest Trail match", () => {
   test("typing a query surfaces local title matches with a live match count", async ({ page }) => {
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
 
     const search = page.getByRole("textbox", { name: "Search memory or entry ID" });
@@ -33,7 +33,7 @@ test.describe("search to strongest Trail match", () => {
   });
 
   test("next/previous match navigation moves the position without changing the total", async ({ page }) => {
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
 
     const search = page.getByRole("textbox", { name: "Search memory or entry ID" });
@@ -70,7 +70,7 @@ test.describe("search to strongest Trail match", () => {
   });
 
   test("keyboard-only operation: Enter in the search box cycles to the next match", async ({ page }) => {
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
 
     const search = page.getByRole("textbox", { name: "Search memory or entry ID" });

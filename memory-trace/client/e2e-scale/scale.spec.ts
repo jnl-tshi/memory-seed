@@ -8,7 +8,7 @@ const OUT = path.join(here, "measurements.json");
 const results: Record<string, unknown> = {};
 
 async function enterGraph(page: Page) {
-  await page.goto("/next");
+  await page.goto("/");
   await expect(page.getByText("Loading entries")).toHaveCount(0, { timeout: 60_000 });
   await expect(page.getByText("Loading trail")).toHaveCount(0, { timeout: 60_000 });
   await page.locator(".view-switch").getByRole("button", { name: "Graph" }).click();

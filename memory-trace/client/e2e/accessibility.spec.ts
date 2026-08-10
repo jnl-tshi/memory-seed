@@ -7,7 +7,7 @@ async function waitForProjectLoaded(page: Page) {
 
 test.describe("accessible next-generation workflows", () => {
   test("folder modal restores focus to its opener", async ({ page }) => {
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
 
     const opener = page.getByRole("button", { name: "Open folder" });
@@ -24,7 +24,7 @@ test.describe("accessible next-generation workflows", () => {
   });
 
   test("graph list alternative is keyboard selectable and updates the inspector", async ({ page }) => {
-    await page.goto("/next");
+    await page.goto("/");
     await waitForProjectLoaded(page);
     await page.locator(".view-switch").getByRole("button", { name: "Graph" }).click();
     await expect(page.locator(".graph-canvas")).toBeVisible({ timeout: 30_000 });

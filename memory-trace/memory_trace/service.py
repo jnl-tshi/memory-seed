@@ -2238,27 +2238,27 @@ class TraceService:
 
 
 def _resolve_static_root(static_root: str | Path | None) -> Path | None:
-    """Resolve a static-asset override to the directory holding index.html.
+    """Resolve a static-asset override to the React build directory.
 
-    Accepts either the static directory itself or a checkout root (a git
-    worktree), in which case the packaged layout
-    ``memory-trace/memory_trace/static`` is tried underneath. This is the
-    verify-a-worktree's-UI path: the running server keeps its data source but
-    serves that checkout's index.html/app.js/styles.css, replacing the
-    copy-into-primary-then-restore dance. Raises when the override points at
-    nothing servable - a typo must not silently fall back to packaged assets.
+    Accepts the Vite output directory, the package static directory, or a
+    checkout root. This is the verify-a-worktree's-UI path: the running server
+    keeps its data source but serves that checkout's React build. Raises when
+    the override points at nothing servable - a typo must not silently fall
+    back to packaged assets.
     """
     if static_root is None:
         return None
     candidate = Path(static_root).resolve()
     if (candidate / "index.html").is_file():
         return candidate
-    nested = candidate / "memory-trace" / "memory_trace" / "static"
+    if (candidate / "react" / "index.html").is_file():
+        return candidate / "react"
+    nested = candidate / "memory-trace" / "memory_trace" / "static" / "react"
     if (nested / "index.html").is_file():
         return nested
     raise RuntimeError(
         f"static root {candidate} contains no index.html (looked in the directory itself and "
-        "under memory-trace/memory_trace/static/)"
+        "under react/ and memory-trace/memory_trace/static/react/)"
     )
 
 
@@ -2271,7 +2271,7 @@ def create_app(
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException, Query
-        from fastapi.responses import FileResponse, HTMLResponse
+        from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
     except ModuleNotFoundError as exc:
         raise RuntimeError(missing_optional_dependency_hint()) from exc
 
@@ -2281,30 +2281,17 @@ def create_app(
     service = TraceService(cache)
     app = FastAPI(title="Memory Trace", version="1.0")
 
-    static_dir = _resolve_static_root(static_root or os.environ.get("MEMORY_TRACE_STATIC_ROOT"))
+    react_static_dir = _resolve_static_root(static_root or os.environ.get("MEMORY_TRACE_STATIC_ROOT"))
 
     def _static_file(*parts: str) -> Any:
-        if static_dir is not None:
-            override = static_dir.joinpath(*parts)
-            if override.is_file():
-                return override
         return resources.files("memory_trace").joinpath("static", *parts)
 
-    def _asset_version() -> str:
-        # Serve-time cache busting: the ?v= tags in index.html are rewritten
-        # per request with a content hash of the two mutable assets, so a
-        # changed app.js/styles.css can never be masked by a stale browser
-        # cache and no manual tag bump exists to forget. Recomputed per page
-        # load (two small file reads) so even a same-process asset swap - the
-        # static-root override pointing at an actively edited worktree - stays
-        # correct without a restart.
-        digest = hashlib.sha256()
-        for name in ("app.js", "styles.css"):
-            try:
-                digest.update(_static_file(name).read_bytes())
-            except OSError:
-                pass
-        return digest.hexdigest()[:10]
+    def _react_file(*parts: str) -> Any:
+        if react_static_dir is not None:
+            override = react_static_dir.joinpath(*parts)
+            if override.is_file():
+                return override
+        return _static_file("react", *parts)
 
     def _benchmark_asset_version() -> str:
         digest = hashlib.sha256()
@@ -2366,22 +2353,12 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> Any:
-        text = _static_file("index.html").read_text(encoding="utf-8")
-        text = re.sub(r"\?v=[^\"']+", f"?v={_asset_version()}", text)
-        return HTMLResponse(text)
+        return HTMLResponse(_react_file("index.html").read_text(encoding="utf-8"))
 
-    @app.get("/assets/{name}")
-    def asset(name: str) -> Any:
-        if name not in {"app.js", "styles.css"}:
-            raise HTTPException(status_code=404, detail="asset not found")
-        return FileResponse(_static_file(name))
-
-    @app.get("/next", response_class=HTMLResponse)
+    @app.get("/next", response_class=RedirectResponse)
     def next_index() -> Any:
-        # The React shell is additive while it earns parity. Its Vite output
-        # has content-addressed asset names, so the document itself can be
-        # served directly without the legacy app's mutable-asset rewrite.
-        return HTMLResponse(_static_file("react", "index.html").read_text(encoding="utf-8"))
+        # Preserve existing bookmarks while the former preview route ages out.
+        return RedirectResponse(url="/", status_code=307)
 
     @app.get("/assets/react/{asset_path:path}")
     def next_asset(asset_path: str) -> Any:
@@ -2389,7 +2366,7 @@ def create_app(
         relative = Path(asset_path)
         if not asset_path or relative.is_absolute() or ".." in relative.parts:
             raise HTTPException(status_code=404, detail="asset not found")
-        target = _static_file("react", *relative.parts)
+        target = _react_file(*relative.parts)
         if not target.is_file():
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(target)
@@ -2536,11 +2513,10 @@ def create_app(
         return service.rebuild()
 
     # Versioned contract (roadmap Phase 1): same TraceService, same params,
-    # response_model-validated/typed. The legacy /api/* routes above are
-    # untouched and keep serving the vanilla frontend unchanged - v1 is
-    # additive, not a replacement, so a future React client has something
-    # stable to build against. /api/timeline has no v1 counterpart: Trail is
-    # its designated successor (roadmap Phase 4) and nothing consumes it.
+    # response_model-validated/typed. The unversioned /api/* routes above stay
+    # available for compatibility, while the maintained React client consumes
+    # the stable v1 contract. /api/timeline has no v1 counterpart: Trail is its
+    # designated successor and nothing consumes it.
     from .models import AdrRecordResponse, AdrsResponse, BrowseResponse, ChunkResponse, Facets, GraphResponse, OpenProjectResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
 
     @app.get("/api/v1/worktrees", response_model=WorktreesResponse)
@@ -2754,7 +2730,7 @@ def create_app(
         activity: str | None = None,
         worktree: str | None = None,
     ) -> dict[str, Any]:
-        # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
+        # Fixed to the Trail's own edge set - the
         # Trail is a dedicated product surface, not a parameterization of the
         # general graph, so its contract doesn't expose edge_types at all.
         # include_decisions is Trail-only: this is the single call site that
@@ -2800,11 +2776,7 @@ def run_server(args: argparse.Namespace) -> int:
         port = _free_port(args.host)
     url = f"http://{args.host}:{port}"
     if not args.no_open and not os.environ.get("MEMORY_SEED_LENSE_SKIP_BROWSER"):
-        if getattr(args, "open_both", False):
-            webbrowser.open(url, new=2)
-            webbrowser.open(f"{url}/next", new=2)
-        else:
-            webbrowser.open(url)
+        webbrowser.open(url)
     print(f"Memory Trace serving {Path(args.cwd).resolve()} at {url}")
     uvicorn.run(app, host=args.host, port=port, log_level="info")
     return 0
@@ -3963,7 +3935,7 @@ def _graph_node(
         # lazily from the chunk endpoint when the badge is engaged (the graph
         # payload stays lean across hundreds of nodes). Legacy /api surface only
         # for now - the v1 GraphNode model strips it until the badge UI is
-        # polished, matching the merge-geometry vanilla-first precedent.
+        # polished, matching the merge-geometry staged-promotion precedent.
         "has_diagram": has_diagram,
     }
 

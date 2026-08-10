@@ -26,18 +26,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cwd", default=".", help="project/runtime path to inspect (default: current directory)")
     parser.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=0, help="port to bind; 0 chooses a free port")
-    browser_group = parser.add_mutually_exclusive_group()
-    browser_group.add_argument("--no-open", action="store_true", help="do not open a browser")
-    browser_group.add_argument(
-        "--open-both",
-        action="store_true",
-        help="open the vanilla / and React /next views in browser tabs",
-    )
+    parser.add_argument("--no-open", action="store_true", help="do not open a browser")
     parser.add_argument("--rebuild-cache", action="store_true", help="rebuild the SQLite cache before serving")
     parser.add_argument(
         "--static-root",
         default=None,
-        help="serve UI assets (index.html/app.js/styles.css) from this directory or checkout root "
+        help="serve the packaged React build from this directory or checkout root "
         "instead of the installed package - verify a worktree's UI without copying files "
         "(also: MEMORY_TRACE_STATIC_ROOT)",
     )

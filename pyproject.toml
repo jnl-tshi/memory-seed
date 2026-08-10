@@ -113,9 +113,6 @@ memory_seed = [
   "seed/.memory-seed/hooks/file-touch-decisions.py",
 ]
 memory_trace = [
-  "static/index.html",
-  "static/app.js",
-  "static/styles.css",
   "static/benchmark.html",
   "static/renderer-benchmark.js",
   "static/renderer-benchmark.css",

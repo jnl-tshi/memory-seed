@@ -32,7 +32,7 @@ export default defineConfig({
       ...process.env,
       PYTHONPATH: [repoRoot, path.join(repoRoot, "memory-trace")].join(path.delimiter),
     },
-    url: `http://127.0.0.1:${PORT}/next`,
+    url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
