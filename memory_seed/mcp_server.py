@@ -52,6 +52,18 @@ SERVER_NAME = "memory-seed"
 SERVER_VERSION = "0.1.0"
 _MCP_TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
+# The only MCP tools allowed to mutate project state.  Keep this production
+# classifier explicit: a schema feature such as ``dry_run`` is not evidence of
+# mutation, and read tools must never gain write status by convention alone.
+MUTATING_TOOL_NAMES = frozenset(
+    {
+        "memory_session_append",
+        "memory_session_integrate",
+        "memory_adr_reviewed",
+        "memory_link_retract",
+    }
+)
+
 
 def _link_suggestion_rows(ranked: Any) -> list[dict[str, Any]]:
     return [
@@ -868,10 +880,6 @@ def call_tool(
         _reject_unsupported_arguments(args, {"ref", "cwd"})
         ref = _required_str(args, "ref")
         cwd = _cwd(args)
-        # Resolve first so an unknown entry/decision follows the normal MCP
-        # error path rather than being indistinguishable from a known decision
-        # with no refines predecessor or successor.
-        get_chunk(ref, cwd)
         return describe_refines_chain(cwd, ref)
 
     if name == "memory_link_audit":

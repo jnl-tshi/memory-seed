@@ -2845,7 +2845,7 @@ def link_audit_payload(
             "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
             "evolves": "the newer decision refines or extends the older one while it stays valid",
             "related": "the two inform each other but neither replaces nor evolves",
-            "none": "no genuine lifecycle or relatedness link â€” a shared file or topic is not itself a link",
+            "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
             "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
             "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
             "chain_position": "every lifecycle edge into a refines chain attaches at its HEAD - a candidate marked interior has its refines slot taken and may receive only related; replaced candidates are never offered (their terminal replacement substitutes)",
