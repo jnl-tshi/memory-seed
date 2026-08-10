@@ -193,6 +193,39 @@ topics:
             snapshots[0].chunks("entry", "augmented"),
         )
 
+    def test_postwrite_cache_failure_falls_back_without_losing_the_append(self):
+        earlier = self._append(title="Earlier", _now="2026-06-13 08:00")
+
+        with patch(
+            "memory_seed.corpus_cache.get_corpus_snapshot",
+            side_effect=OSError("cache unavailable"),
+        ):
+            result = self._append(
+                title="Still committed",
+                _now="2026-06-13 09:00",
+                consulted=[earlier["entry_id"]],
+            )
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["written"])
+        self.assertTrue(Path(result["path"]).is_file())
+        self.assertIn(result["entry_id"], Path(result["path"]).read_text(encoding="utf-8"))
+        self.assertEqual(result["link_suggestions"]["related_entries"][0], earlier["entry_id"])
+        self.assertNotIn("warning", result["link_suggestions"])
+
+    def test_postwrite_suggestion_failure_is_a_nonfatal_diagnostic(self):
+        with patch(
+            "memory_seed.mcp_server.suggest_related_for_draft",
+            side_effect=OSError("ranking unavailable"),
+        ):
+            result = self._append(title="Committed without ranking", _now="2026-06-13 09:00")
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["written"])
+        self.assertTrue(Path(result["path"]).is_file())
+        self.assertEqual(result["link_suggestions"]["suggestions"], [])
+        self.assertIn("append result is unaffected", result["link_suggestions"]["warning"])
+
     def test_multi_target_append_shares_one_prewrite_snapshot_with_suggestions(self):
         snapshots = []
         real_get = corpus_cache.get_corpus_snapshot

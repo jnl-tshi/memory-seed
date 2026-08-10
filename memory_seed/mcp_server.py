@@ -1221,28 +1221,45 @@ def call_tool(
             payload["rendered_sidecars"] = result.rendered_sidecars
         if result.ok and unlinked:
             if snapshot is None:
-                from .corpus_cache import get_corpus_snapshot
+                try:
+                    from .corpus_cache import get_corpus_snapshot
 
-                snapshot = get_corpus_snapshot(cwd)
-            _, ranked = suggest_related_for_draft(
-                cwd,
-                entry_id=result.entry_id or "",
-                title=_required_str(args, "title"),
-                body=body,
-                timestamp=result.timestamp or (supplied or now),
-                top_k=5,
-                consulted=list(args.get("consulted") or []) or None,
-                chunks=snapshot.chunks("entry", "augmented"),
+                    snapshot = get_corpus_snapshot(cwd)
+                except Exception:
+                    # Cache maintenance must not turn a successful source write
+                    # into a reported failure. The suggestion helper retains its
+                    # authoritative raw-source fallback when no snapshot exists.
+                    snapshot = None
+            instruction = (
+                "Classify each consequential consulted candidate as replaces, evolves, related, "
+                "or no-edge before treating this append as fully linked."
             )
-            payload["link_suggestions"] = {
-                "unlinked_decisions": unlinked,
-                "suggestions": _append_link_suggestion_rows(ranked),
-                "related_entries": [item.chunk.entry_id for item in ranked],
-                "instruction": (
-                    "Classify each consequential consulted candidate as replaces, evolves, related, "
-                    "or no-edge before treating this append as fully linked."
-                ),
-            }
+            try:
+                _, ranked = suggest_related_for_draft(
+                    cwd,
+                    entry_id=result.entry_id or "",
+                    title=_required_str(args, "title"),
+                    body=body,
+                    timestamp=result.timestamp or (supplied or now),
+                    top_k=5,
+                    consulted=list(args.get("consulted") or []) or None,
+                    chunks=snapshot.chunks("entry", "augmented") if snapshot is not None else None,
+                )
+            except Exception:
+                payload["link_suggestions"] = {
+                    "unlinked_decisions": unlinked,
+                    "suggestions": [],
+                    "related_entries": [],
+                    "instruction": instruction,
+                    "warning": "suggestion ranking was unavailable; the append result is unaffected",
+                }
+            else:
+                payload["link_suggestions"] = {
+                    "unlinked_decisions": unlinked,
+                    "suggestions": _append_link_suggestion_rows(ranked),
+                    "related_entries": [item.chunk.entry_id for item in ranked],
+                    "instruction": instruction,
+                }
         if supplied:
             drift = _clock_drift_warning(supplied, now)
             if drift:
