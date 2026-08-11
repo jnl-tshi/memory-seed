@@ -1,13 +1,12 @@
 # Next Steps
 
-Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17;
-v1.3 2026-07-19; v1.4 2026-07-23; v1.5 2026-07-26; v1.6 2026-07-26).
-Updated: 2026-07-31
+Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; current v1.8 ratified 2026-08-11).
+Updated: 2026-08-12
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
-> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.6**
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.8**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > **v1.3 (2026-07-19)** amended Invariant #2 with write-surface parity: any surface that writes session
@@ -18,7 +17,7 @@ Updated: 2026-07-31
 > — every YAML topic/edge in this corpus was agent-chosen, so the real distinction is who observed the
 > fact directly — and is what the new topic-sidecar authority (below) is built on.
 > The ranking/graph core now includes the full-corpus gate, `replacing_head` plus its bounded boost,
-> and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
+> and inert `link audit --apply` scaffolding. **2.20.0 released 2026-08-12** (live on PyPI). **B0a
 > graph/workspace contracts and B0b formal accessibility/scale acceptance are complete. The UX
 > reference-model sequence delivered M1 Decision Reader and M2 Trail orientation on 2026-07-30, then
 > refined the Inspector on 2026-07-31; M3 bounded graph perspectives and controlled expansion is the
@@ -37,13 +36,11 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 
 ## Current state
 
-- **Released: v2.19.0 (2026-07-17)** — live on PyPI, both wheel + sdist; see `CHANGELOG.md`
-  "## 2.19.0" for the authoritative list (highlights: memory-quality report/baseline; `link add`;
-  `worktree classify --apply`; `docs check`/`docs index`; unified entry grammar + decision-density
-  advisory; the breaking `/api/v1` `authority_class` enum rename; OpenSSF hardening — SHA-pinned
-  actions, CodeQL, Scorecard, SECURITY/CONTRIBUTING; plus the full 2.18→2.19 tranche folded in).
-  The `memory-seed[lense]` deprecated alias **shipped intact in 2.19** (removal never consented at the
-  time). **Removed 2026-07-20**, targeted at the 2.20 release — see Track A.4 below.
+- **Released: v2.20.0 (2026-08-12)** — live on PyPI as both wheel and sdist; see `CHANGELOG.md`
+  "## 2.20.0" for the authoritative dated list. Highlights include durable bootstrap-to-ADR
+  authority, Constitution-aware control-plane precedence, the React-only Memory Trace frontend,
+  memory-grounded consequential conclusions, CLI/MCP review parity, and the reconstructable corpus
+  projection cache. The deprecated `memory-seed[lense]` alias and vanilla Trace client are removed.
 - **Foundation SHIPPED 2026-07-15:** derived-projection Phase 1 — git-watermark warm start (O(changes)
   freshness, no whole-corpus scan; ~6.2 s rebuild → ~78 ms warm) + atomic build/swap + schema version, plus
   three read-path perf refinements (freshness memoize, chunk memoize, sidecar-first-class freshness):
@@ -54,7 +51,7 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 - **Wave 1 + closeout SHIPPED 2026-07-15:** `topics suggest --from`, deterministic timeline Evidence
   Packs, the Trail continuity axis, `replacing_head` plus the gated boost, all four configurable
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
-- **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
+- **Release cadence:** 2.20.0 is **released** (2026-08-12). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
 
 ## Immediate next step — Memory Trace UX M3
@@ -991,7 +988,7 @@ exists in the working tree or in git history.)*
 ## Discipline
 
 - **Releases:** never cut/publish without the user's explicit go; the PyPI push is a manual-approval gate.
-  2.19.0 released 2026-07-17; the next tranche accumulates under `CHANGELOG.md` "## Unreleased".
+  2.20.0 released 2026-08-12; the next tranche accumulates under `CHANGELOG.md` "## Unreleased".
 - **Ranking:** keep `main` behavior stable; run ranking experiments on a branch, merge only after **both**
   fixtures **and** the shipped real-corpus A/B (`ranking-ab`) show a clear win with no text-ranking
   regression. This is the enforced "expose before you rank" gate from the trio's item 1.
