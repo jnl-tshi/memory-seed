@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.20.0 - 2026-08-12
+
 Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git
 history is used only as a cross-check.
 
