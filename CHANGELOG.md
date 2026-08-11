@@ -4,14 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git
+history is used only as a cross-check.
+
 ### Changed (breaking)
 
-- **Memory Trace now has one supported frontend.** The React/TypeScript client is served at `/`;
+- [2026-08-11] **Memory Trace now has one supported frontend.** The React/TypeScript client is served at `/`;
   `/next` redirects existing bookmarks to it. The retired vanilla `static/index.html`,
   `static/app.js`, and `static/styles.css`, `--open-both`, their Node-VM golden/capture
   harnesses, and the Python tests that inspected implementation strings were removed. The
   independent renderer benchmark and unversioned compatibility APIs remain.
-- **`session append` no longer accepts entry-level lifecycle links.** `--related` / `--replaces` /
+- [2026-08-09] **`session append` no longer accepts entry-level lifecycle links.** `--related` / `--replaces` /
   `--evolves` (and the matching `related_entries` / `replaces` / `evolves` arguments to
   `session_append_entry`) are refused; declare the edge on the decision that owns it via
   `--decisions-file` / MCP `decisions[].links`, which is where its evidence and evolution type now
@@ -24,14 +27,14 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
-- **Read-only MCP twins complete the chain, sweep, and ESR workflow.**
+- [2026-08-10] **Read-only MCP twins complete the chain, sweep, and ESR workflow.**
   `memory_links_chain(ref, cwd)`, `memory_link_audit(entry_id?, session_date?, top_k?,
   semantic_enabled?, cwd)`, and `memory_esr(session_date?, cwd)` return the exact canonical
   structured results from `links chain --json`, `link audit --json`, and `esr --json`.
   They share the chain reader, audit serializer, and ESR report rather than reimplementing them;
   audit deliberately has no apply/scaffold mode and ESR preserves its read-only cache inspection.
   The MCP registry grows by three read tools while the four-tool write set is unchanged.
-- **The canonical corpus now has a reconstructable core projection cache.** Raw and sidecar-augmented
+- [2026-08-10] **The canonical corpus now has a reconstructable core projection cache.** Raw and sidecar-augmented
   entry, section, and decision views are persisted outside the repository under a stable
   runtime/worktree key while session Markdown, link/topic sidecars, and project configuration remain
   authoritative. Exact source fingerprints, Git HEAD watermarks, schema/integrity checks, owner-token
@@ -39,23 +42,23 @@ All notable changes to Memory Seed are summarized here.
   reconstruction. ESR independently rebuilds the live corpus and reports cache health without
   repairing or mutating the artifact; ESR and append tool calls reuse one invocation snapshot instead
   of repeatedly reconstructing the same canonical view.
-- **Memory is now an explicit prerequisite for consequential conclusions.** The universal rules and
+- [2026-08-10] **Memory is now an explicit prerequisite for consequential conclusions.** The universal rules and
   history-retrieval trigger cover reviews, audits, recommendations, and claims that behavior is
   redundant, obsolete, removable, replaceable, or ready to consolidate. Decision Harvest carries
   every consequential fetched entry to an explicit `replaces` / typed `evolves` / `related` /
   authoring-only `no-edge` disposition, with byte-identical live and seed control files.
-- **Append review and no-change recording have CLI/MCP parity.** CLI `session append` now runs the
+- [2026-08-10] **Append review and no-change recording have CLI/MCP parity.** CLI `session append` now runs the
   same content-bound ADR review preflight as `memory_session_append`, returning the full contexts and
   receipt before a zero-byte refusal and accepting the retry through `--adr-review-receipt`.
   `memory-seed adr reviewed --adr-id <id> --entry <entry-id> --reason <text>` and MCP twin
   `memory_adr_reviewed` append the same evidence-backed `reviewed-no-change` event without moving the
   ADR head or manufacturing a session entry.
-- **Unlinked append decisions receive a memory-aware nudge.** Passing MCP dry runs and real writes
+- [2026-08-10] **Unlinked append decisions receive a memory-aware nudge.** Passing MCP dry runs and real writes
   return the same `link_suggestions` payload when a decision has no lifecycle or related link;
   optional `consulted` entry ids sort first, no edge is auto-written, and the response requires an
   explicit replaces/evolves/related/no-edge classification.
 
-- **`links graph-diff` snapshots and gates the effective evolves graph.** `--snapshot <path>` writes
+- [2026-08-10] **`links graph-diff` snapshots and gates the effective evolves graph.** `--snapshot <path>` writes
   `effective_graph_snapshot()` (the same effective corpus every graph reader uses) to JSON;
   `--against <path>` rebuilds it and diffs. Exit 1 iff the entry-level `evolves` edge set changed —
   a per-node addition/removal or either evolves aggregate — naming every changed node; `refines`
@@ -63,7 +66,7 @@ All notable changes to Memory Seed are summarized here.
   design. Promotes an assertion that had only ever lived in throwaway campaign scripts, despite
   catching two silent corruptions (the 807-edge vanishing, a +3 edge resurrection) that `links
   check` read as OK.
-- **`link retract` writes the append-only correction.** `memory-seed link retract <kind> <ref>
+- [2026-08-10] **`link retract` writes the append-only correction.** `memory-seed link retract <kind> <ref>
   --from <entry_id> [--retype <kind-or-evolution-type>] [--note] [--date-pin] [--dry-run]` and its
   MCP twin `memory_link_retract` — the first MCP link-write tool — append the `retracts:` block that
   fixes `untyped-evolves`, `unknown-evolution-type` and `multiple-refines-successors`, which until
@@ -74,38 +77,38 @@ All notable changes to Memory Seed are summarized here.
   a `--date-pin` that is not the declaration date, and a `refines` retype whose successor slot
   another entry holds (named in the message). The CLI re-runs `links check` after the write.
 
-- **Retractions reach entry-YAML edges.** A link sidecar's `retracts:` now removes an edge authored
+- [2026-08-09] **Retractions reach entry-YAML edges.** A link sidecar's `retracts:` now removes an edge authored
   in the entry's own YAML, not only edges declared in sidecar lists — previously a silent no-op
   covering 232 of the 807 evolution-type backfill edges. Scoped strictly to the retracting block's
   own `entry_id`, and mirroring the surviving-projection rule so a retract-and-retype keeps its
   typed replacement.
-- **The evolution-type backfill is applied.** Every effective untyped `evolves` edge is typed via
+- [2026-08-09] **The evolution-type backfill is applied.** Every effective untyped `evolves` edge is typed via
   retract-and-retype sidecar blocks: 109 `refines` / 692 `builds-on` across 471 entries, under the
   two-run agreement rule (`refines` only where both independent judgment runs said so). Six edges
   the snapshot carried but hand audits had already retracted were left dead rather than
   resurrected. Gated on a graph assertion — effective edge set byte-identical before and after;
   nodes carrying a `refines` successor went 1 → 105.
-- **The `refines` lineage walk is decision-keyed.** `build_refines_spine` / `RefinesSpine` in
+- [2026-08-09] **The `refines` lineage walk is decision-keyed.** `build_refines_spine` / `RefinesSpine` in
   `semantic_cache` key successors and predecessors by `(entry_id, ordinal)` — an ADR head is
   `mse_x:dN`, and the one-successor cap is a per-decision contract. `head()` walks to the terminus;
   `chain_through()` returns the ordered root → head chain. A missing ordinal on a single-decision
   entry normalises to `d1`.
-- **Chains are artifacts, and a chain takes one link — at its head.** `links chain <ref>` renders
+- [2026-08-09] **Chains are artifacts, and a chain takes one link — at its head.** `links chain <ref>` renders
   the refines chain a decision belongs to (root, ordered members, head, length, owning ADRs),
   derived entirely from the edges. `session append` refuses a decision whose `evolves` names two
   members of one chain, with the fix in the message; `links check` raises the same shape as the
   `redundant-chain-edge` warning on published history. Cross-chain multi-evolves (a merge) stays
   fully legal.
-- **Link-audit candidates know their chain position.** `link audit` annotates every candidate from
+- [2026-08-09] **Link-audit candidates know their chain position.** `link audit` annotates every candidate from
   the decision-keyed spine: interior chain members arrive marked **related-only** (`refines` slot
   taken, chain lives at `current_form`), replaced decisions never arrive at all — their terminal
   replacement substitutes, marked `substitute_for`. Carried on all five projections and taught to
   the swarm in `link_swarm.md`.
-- **Untyped `evolves` is now a `links check` error.** With the backfill landed, an EFFECTIVE
+- [2026-08-09] **Untyped `evolves` is now a `links check` error.** With the backfill landed, an EFFECTIVE
   `evolves` edge carrying no type raises `untyped-evolves` at error severity, with no cutoff.
   Judged over the effective graph, so retracted untyped originals in published files do not fire;
   any instance is closable append-only via retract-and-retype.
-- **`esr` reports an ADR review queue.** When the decision an ADR is headed by has an agreed
+- [2026-08-09] **`esr` reports an ADR review queue.** When the decision an ADR is headed by has an agreed
   `refines` successor, the concern's current form has moved and the ADR has not — a mechanical
   fact, reported the way `needs-diagram-review` reports a diagram invalidated by evolution. The
   walk runs to the chain's terminus, not one hop, and non-head decisions attached to the ADR are
@@ -113,7 +116,7 @@ All notable changes to Memory Seed are summarized here.
   an authored revision or a recorded reviewed-no-change. On the control-plane corpus (57 ADRs, 109
   agreed `refines` edges) this is six lines — a queue that gets read, not a firehose.
 
-- **Typed evolution: `refines` and `builds-on`.** An `evolves` ref may carry its kind as a trailing
+- [2026-08-09] **Typed evolution: `refines` and `builds-on`.** An `evolves` ref may carry its kind as a trailing
   `(refines)` / `(builds-on)`, and the decisions envelope requires one on every new `evolves` edge.
   `refines` is the next form of a decision and is capped at **one successor per target**;
   `builds-on` is later work resting on a decision that stays valid, and is unlimited. That cap is
@@ -123,25 +126,25 @@ All notable changes to Memory Seed are summarized here.
   `links check` — two branches can each author a `refines` without either being refused, so write
   time cannot be the only guard. An unrecognised word raises `unknown-evolution-type`. Edges
   written before this grammar are *unclassified*, never "neither".
-- **Write-time link evidence.** A `replaces` or `evolves` item in the decisions envelope requires
+- [2026-08-09] **Write-time link evidence.** A `replaces` or `evolves` item in the decisions envelope requires
   `why` — one line for why the edge was drawn — rendered into the link sidecar's `edge_evidence:`
   list, keyed by the exact ref token. `related_entries` needs none. The author knows the reason
   exactly once, at authoring, and append-only makes it unrecoverable afterwards.
 
 ### Fixed
 
-- **`session merge-branch` no longer reports a completed merge as a failed commit after a Git
+- [2026-08-10] **`session merge-branch` no longer reports a completed merge as a failed commit after a Git
   timeout/non-zero result.** It now reconciles only a fully evidenced merge: a changed two-parent
   HEAD with the recorded base and exact source tip, every planned `Memory-Entry` trailer, and no
   remaining merge state. Proven success follows the existing safe source-worktree cleanup; every
   ambiguous or genuine failure remains inspectable.
-- **`esr --json` dropped both ADR queues, and the review-queue section named no runnable
+- [2026-08-10] **`esr --json` dropped both ADR queues, and the review-queue section named no runnable
   command.** `EsrReport.to_dict()` omitted `adr_attachment_candidates` and `adr_head_reviews` -
   now top-level keys, so `esr --json` automation can see them. The `## ADR review queue`
   preamble now names both answer paths concretely: the `adr revise` / `adr transition` command
   pair for a revision, and the MCP `memory_session_append` no-change review gate (the CLI has no
   equivalent) for reviewed-no-change.
-- **`dangling-retract` no longer fires on entry-YAML edges.** `links check` counted an edge as
+- [2026-08-10] **`dangling-retract` no longer fires on entry-YAML edges.** `links check` counted an edge as
   "declared" only when a link *sidecar* declared it, so retracting an edge authored in the entry's
   own YAML — which the reader has honoured since 2026-08-09 — was reported as a retraction of
   nothing. Latent rather than observed: this corpus currently carries no such retract (its 179
@@ -151,36 +154,36 @@ All notable changes to Memory Seed are summarized here.
   declared can only remove false refusals: a retract naming an edge that exists nowhere is still an
   error.
 
-- **The mandatory ADR review gate could be bypassed by a link shape it did not recognise.**
+- [2026-08-09] **The mandatory ADR review gate could be bypassed by a link shape it did not recognise.**
   `adr.lifecycle_targets` and the lifecycle-assertion builder both read only bare ref strings, so a
   structured link item read as "no lifecycle target" and the gate silently did not fire. Both now
   accept either shape.
 
-- **Decision-level retrieval is the default memory unit** (`granularity="decision"`). `memory_search`
+- [2026-08-05] **Decision-level retrieval is the default memory unit** (`granularity="decision"`). `memory_search`
   now returns one result per recorded decision, keyed by the canonical `mse_<entry>:dN` identity that
   topics, lifecycle edges, ADRs and Trace already use, and each result carries that decision's
   **whole DRAFT block** rather than a 280-character preview. Entries without `#### Dn` headings keep
   the whole-entry unit, which preserves the 2026-05-26 rule that a decision must never be separated
   from its rationale - a `Dn` block satisfies it by construction. Measured cost: ~1,800 tokens per
   eight-result search against ~560 for entry granularity, on an 836-entry corpus.
-- **Attention signal: retrieval events are logged and exposed read-only.** `memory_get_chunk`
+- [2026-08-04] **Attention signal: retrieval events are logged and exposed read-only.** `memory_get_chunk`
   fetches score into a decayed per-entry `attention_score` (30-day half-life) alongside
   `fetch_count` and `last_fetch` on every search result and chunk payload; `memory_search`
   impressions are logged at weight zero so the ranker cannot feed on its own output. Both state
   files are gitignored and self-registering. Default ranking is unchanged and the flip stays behind
   `memory-seed ranking-ab --signal attention`.
-- **File-touch decision surfacing** (`.memory-seed/hooks/file-touch-decisions.py`). A Claude
+- [2026-08-04] **File-touch decision surfacing** (`.memory-seed/hooks/file-touch-decisions.py`). A Claude
   PostToolUse hook: editing a file named in a decision's `F:` refs injects that decision mid-turn,
   names its supersession successors, and states the duty to record a `replaces`/`evolves` edge if
   the change contradicts it. Fail-open, rate-limited per session and file.
-- **Durable non-decision facts route to `index.md` at capture time.** The Decision Harvest gained a
+- [2026-08-05] **Durable non-decision facts route to `index.md` at capture time.** The Decision Harvest gained a
   step for facts that have no `R:` to give - roles, codenames, cadences, budgets - which previously
   fell through every capture path; a turn that establishes only facts and changes no code now
   records. One claim per Active State bullet, filed by its own predicate.
 
 ### Changed
 
-- **`sidecar-unclassified-stub` is resolved by a later sibling block.** The warning was decided per
+- [2026-08-07] **`sidecar-unclassified-stub` is resolved by a later sibling block.** The warning was decided per
   block, but append-only forbids editing a stub to record its own answer — the verdict always
   arrives as a later sibling block, so the warning could never be cleared. It is now an entry-level
   question decided after every block is read: a stub survives only when no later block for that
@@ -189,7 +192,7 @@ All notable changes to Memory Seed are summarized here.
   resolution written *before* a stub correctly leaves it standing. On this repo's corpus the count
   fell 71 → 67 immediately: four 2026-07-21 stubs had been answered long ago and had been warning
   falsely ever since. A subsequent link-swarm campaign over the remaining 67 took it to 9.
-- **`link audit --apply` sorts a non-chronological sidecar instead of refusing it.** A link sidecar
+- [2026-08-07] **`link audit --apply` sorts a non-chronological sidecar instead of refusing it.** A link sidecar
   is filed under its SOURCE entry's session date, but a later enrichment pass stamps its blocks with
   the authoring wall clock (block identity is `(entry_id, heading timestamp)`, so a second block for
   one entry needs a distinct stamp). Those two rules together make a re-visited file legitimately
@@ -200,7 +203,7 @@ All notable changes to Memory Seed are summarized here.
   corpus (`2026-07-03`, `-05`, `-12`, `-17`) were stuck this way and have been re-sorted.
   `link_swarm.md` step 5 and the sidecar spec now state both rules explicitly — "the day's sidecar"
   read as *today's*, which would have failed `links check` with `link-sidecar-date-mismatch`.
-- **Reversing a recorded decision on a live instruction is no longer a STOP.**
+- [2026-08-04] **Reversing a recorded decision on a live instruction is no longer a STOP.**
   `.memory-seed/skills/risk_signaling.md` splits its former "Constitutional / architectural
   conflict" category: ratified invariants keep the hard Stop, while an explicit live instruction to
   reverse a *recorded decision* is Proceed-and-flag with two mandatory parts - carry the old
@@ -210,10 +213,10 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
-- `memory-seed ranking-ab` no longer reports a vacuous PASS for a signal whose evidence base is
+- [2026-08-05] `memory-seed ranking-ab` no longer reports a vacuous PASS for a signal whose evidence base is
   empty. Signals may declare `requires_affected_hits`; the `attention` signal does, so an empty
   retrieval log now refuses with a stated reason and a non-zero exit instead of certifying nothing.
-- The retrieval relevance band (`relevance`, `no_match_above_threshold`) is labelled
+- [2026-08-05] The retrieval relevance band (`relevance`, `no_match_above_threshold`) is labelled
   **uncalibrated**: measured on the 836-entry corpus it does not discriminate - nonsense queries
   band `strong` and the no-match signal never fires. `search_memory` now returns
   `relevance_calibrated: False` and the retrieval guidance tells agents to judge relevance from the
@@ -221,18 +224,18 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
-- **Graphify structural-analysis skill ships in the coding profile** (`graphify_analysis.md`).
+- [2026-08-04] **Graphify structural-analysis skill ships in the coding profile** (`graphify_analysis.md`).
   The skill had been registered in both trigger registries and `SEED_FILES` without a profile,
   description, or package-data entry, so `init` never installed it and wheels would not have
   shipped it. It now installs with `--profile coding` alongside `code_search.md`, covering
   architecture, dependency-impact, call-path, and community-level structural questions.
-- **ESR orphan-worktree residue detection.** The read-only Worktrees section now compares Git's
+- [2026-08-04] **ESR orphan-worktree residue detection.** The read-only Worktrees section now compares Git's
   registered worktrees with physical checkout directories beneath the Claude, Codex, Gemini, and
   Cursor worktree namespaces, including when ESR runs from a secondary checkout. Deregistered
   directories are surfaced as `ORPHAN RESIDUE CANDIDATE`; the End Of Turn runbook adds a fail-closed
   audit, recovery, consent, Windows long-path cleanup, and verification pass so partial Git removal
   cannot silently accumulate multi-gigabyte checkouts again.
-- **Stale-console-script guard** (`package_provenance()` in `core.py`). When a `memory_seed/` source
+- [2026-07-27] **Stale-console-script guard** (`package_provenance()` in `core.py`). When a `memory_seed/` source
   tree exists at or above the working directory and the imported package resolves **outside** it, the
   CLI refuses with exit code 2 and prints both resolved paths, both versions, and the working
   invocation; `version` and `help` stay runnable because they are how the mismatch gets diagnosed, and
@@ -245,7 +248,7 @@ All notable changes to Memory Seed are summarized here.
   nothing in the diff. The predicate is silent under an editable install, so `verify.yml` (already on
   `python -m memory_seed.cli`) is unaffected. A *pre-guard* global build cannot check itself; refresh
   the global install so the next stale invocation is loud.
-- **Decision-level topic judgment swarm** (`topic_swarm` skill, 2026-07-26). The sibling of `link_swarm`
+- [2026-07-26] **Decision-level topic judgment swarm** (`topic_swarm` skill, 2026-07-26). The sibling of `link_swarm`
   for the third sidecar family: a suggest-only, mechanically validated, human-approved backfill of
   `<slug>:dN` topics across the whole corpus, including entries that already carry authored entry-level
   topics (those have no per-decision attribution). The judgment unit is the **addressable** decision
@@ -255,19 +258,19 @@ All notable changes to Memory Seed are summarized here.
   human-adjudicated per-decision attribution that must beat free inheritance. Registered under the
   `curation` skill profile. No swarm has been run; zero topic sidecars exist. Specs:
   `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/2_Todo/decision-level-topics-proposal.md`.
-- **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
+- [2026-07-25] **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
   of small models judges `link audit` gaps at decision granularity — the automated judgment layer above
   the mechanical sweep. It only suggests: a mechanical validator (quote-grounding, ordinal existence,
   forward-only) and a human scope approval gate every write, and stored edges are ordinary `:dN` edges
   with no dependency on the model that suggested them (Invariants #1, #5). A campaign judged all 1,108
   file-overlap never-linked pairs and landed 696 decision-level edges. Spec:
   `docs/3_Spec/draft/link-audit-decision-judgment-swarm-proposal.md`.
-- **Structured `edge_confidence` link-sidecar field.** Each machine-suggested edge carries
+- [2026-07-25] **Structured `edge_confidence` link-sidecar field.** Each machine-suggested edge carries
   `{ref, confidence, tier}` per authored ref; `links check` tolerates it as an unknown sibling key (no
   parser change). The Trace graph payload exposes `confidence` on `GraphEdge`/`RendererGraphEdge`
   (`/api/v1`), and the graph + Trail **fade low-confidence edges** so an unverified suggestion never
   reads as settled fact. Spec: `docs/3_Spec/draft/edge-confidence-metadata.md`.
-- **Append-only link retraction (`retracts:`).** Downgrade or remove a published lifecycle edge through a
+- [2026-07-25] **Append-only link retraction (`retracts:`).** Downgrade or remove a published lifecycle edge through a
   new-block `retracts: <kind> <ref> [(date)]` correction (the fuse refuses in-place edits to published
   link sidecars); the reader subtracts it and `links check` validates `malformed-retract`,
   `dangling-retract`, and `retract-before-declaration`. A downgrade is a retract of the old kind plus a
@@ -276,12 +279,12 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
-- **Session-entry persona-name metadata retired.** New entries carry `agent_type` but no longer accept or
+- [2026-08-01] **Session-entry persona-name metadata retired.** New entries carry `agent_type` but no longer accept or
   write `agent_name`; the CLI, MCP schema, retrieval payloads, Memory Trace contracts, and active
   control-plane documentation use the reduced shape. Historical append-only entries remain untouched
   and readable. The dependent end-of-turn persona-usage heuristic was retired with its lossy signal.
 
-- **`related_entries` may carry decision-level refs (`:dN`)** (JNL's direction
+- [2026-07-25] **`related_entries` may carry decision-level refs (`:dN`)** (JNL's direction
   2026-07-25). The decision-ref grammar, previously scoped to
   `replaces`/`evolves`, now generalizes to `related` too: `related_entries:
   - mse_x:d2` (or `- d1 -> mse_x:d2`) draws a `related` edge terminating on the
@@ -296,7 +299,7 @@ All notable changes to Memory Seed are summarized here.
   channel (canonical kind `related`; the entry-level list key stays
   `related_entries`).
 
-- **BREAKING (write path): decision granularity is mandated on lifecycle
+- [2026-07-24] **BREAKING (write path): decision granularity is mandated on lifecycle
   edges** (grammar v2, JNL's direction 2026-07-24). `session append` /
   `memory_session_append` name a decision on an edge end exactly when the
   entry it belongs to has more than one decision: a target with **2+
@@ -322,7 +325,7 @@ All notable changes to Memory Seed are summarized here.
   block-level `source_decision:` field. Published pre-mandate entries are
   untouched and stay quiet.
 
-- **BREAKING (vocabulary): `supersedes` is renamed `replaces` across Seed and
+- [2026-07-24] **BREAKING (vocabulary): `supersedes` is renamed `replaces` across Seed and
   Trace** (JNL's direction, 2026-07-24: one term everywhere - the Trace UI
   already said "replaces" while the data layer said "supersedes"). The entry
   and link-sidecar field is `replaces:`; computed inverses are `replaced_by`;
@@ -339,7 +342,7 @@ All notable changes to Memory Seed are summarized here.
   `superseded_by:` docs - so corpora and repos written by <=2.19 keep
   working unchanged; writers and displays emit only the new spellings.
 
-- **`situate` reports which checkout you are actually in.** A new `## Location`
+- [2026-07-22] **`situate` reports which checkout you are actually in.** A new `## Location`
   section, printed first, classifies the caller's cwd through the existing
   `worktree_guard` and names the checkout as the primary/root tree or an
   agent-owned worktree. It exists because worktree identity is routinely
@@ -360,7 +363,7 @@ All notable changes to Memory Seed are summarized here.
   a real linked worktree (`--git-dir` and `--git-common-dir` differ there) so a
   correctly-isolated session is never nagged. Stdlib-only and fail-open.
 
-- **Memory Trace incremental startup.** A changed project (new commit, merge,
+- [2026-07-21] **Memory Trace incremental startup.** A changed project (new commit, merge,
   or dirty session file) no longer triggers a full projection rebuild that
   spawned one git subprocess per historical item (~44s / 990 processes on a
   570-entry corpus). Fork points, commit parents and first-parent changed
@@ -377,7 +380,7 @@ All notable changes to Memory Seed are summarized here.
   `extract_memory_chunks` gained an additive `paths=` filter so incremental
   consumers can reparse specific session documents.
 
-- **Gated MCP write surface (Constitution 1.3).** MCP could not write session
+- [2026-07-19] **Gated MCP write surface (Constitution 1.3).** MCP could not write session
   files, so agents authored entries by hand with `memory_entry_id` +
   `memory_session_target` — an id and a target path — which enforced none of the
   guards `session append` does; violations only surfaced later in `links check`.
@@ -395,7 +398,7 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
-- **First-message operating-mode gate.** `orientation.md` (+ seed twin) gains a
+- [2026-07-24] **First-message operating-mode gate.** `orientation.md` (+ seed twin) gains a
   routine that runs once the user's intent is known — the layer neither
   SessionStart nor `situate` can supply, since both fire before the user has said
   anything. It sets the session variables in order (`checkout_posture` →
@@ -412,7 +415,7 @@ All notable changes to Memory Seed are summarized here.
   procedural detail in skills. `session_logging.md` now records that on-branch
   logging is what `merge_trigger: manual` buys.
 
-- **`merge_trigger` switch — hold branch landings for an explicit user
+- [2026-07-24] **`merge_trigger` switch — hold branch landings for an explicit user
   go-ahead.** A new `.memory-seed/project.yaml` scalar (`read_merge_trigger`,
   fail-open to `automatic` so legacy/unconfigured projects are unchanged) decides
   whether the agent auto-advances a task branch to its integration handoff at a
@@ -428,30 +431,30 @@ All notable changes to Memory Seed are summarized here.
   merges a PR). `situate`/`esr` surface the trigger. Handoff-only: the actual PR
   merge in `pr` mode is always the human reviewer's.
 
-- **`memory_session_integrate`** MCP tool: merges a task branch and fuses its
+- [2026-07-19] **`memory_session_integrate`** MCP tool: merges a task branch and fuses its
   branch-local session memory into the trunk in chronological order, applying
   autonomously (no in-progress-merge precondition). Aborts and restores a clean
   tree on a non-session conflict rather than stranding a half-merged repo, and
   declines when the project's `integration_mode` is `pr` (which pushes).
-- Session-file ordering is now stable across the fuse and reorder paths: both
+- [2026-07-19] Session-file ordering is now stable across the fuse and reorder paths: both
   break same-minute timestamp ties by input order (existing entries keep their
   positions, incoming ones append after), so a fuse can no longer silently
   re-position trunk history it never touched. Previously the two paths disagreed
   and each could undo the other.
-- New **`entry-future-timestamp` warning** in `links check` / `esr`: an entry
+- [2026-07-18] New **`entry-future-timestamp` warning** in `links check` / `esr`: an entry
   whose `## YYYY-MM-DD HH:MM` heading is more than 10 minutes ahead of the wall
   clock at check time is flagged (heading timestamps are authored inputs and
   nothing validated temporal sanity, so an agent once stamped entries hours into
   the future). Advisory only, never blocking — append-only forbids restamping
   published entries, so historical corpora with known drifted stamps stay valid.
-- New **`malformed-entry-yaml` error** in `links check` / `esr`, a sibling to the
+- [2026-07-19] New **`malformed-entry-yaml` error** in `links check` / `esr`, a sibling to the
   existing `malformed-entry-format`: an entry whose YAML metadata fence is opened
   but never closed. The unterminated fence swallows the following text and leaves
   the entry unparseable to the fuse, so this is an error, not a warning.
-- Two new canonical topics, **`security`** and **`performance`**, bringing
+- [2026-07-19] Two new canonical topics, **`security`** and **`performance`**, bringing
   `.memory-seed/topics.yaml` from 21 to **23** slugs. Existing entries are
   unaffected; the vocabulary gate accepts the new slugs immediately.
-- **`.gitattributes` now marks `.memory-seed/sessions/**` `-merge`.** Session
+- [2026-07-19] **`.gitattributes` now marks `.memory-seed/sessions/**` `-merge`.** Session
   entries share line-identical `topics:`/`related_entries:` scaffolding, so git's
   line-based three-way merge anchored on those shared lines and could splice one
   entry's body into another while stranding a YAML fence — a silent corruption
@@ -460,16 +463,16 @@ All notable changes to Memory Seed are summarized here.
   rebuild the file from parsed entry records) as the only correct integration
   path. The tools themselves are unaffected: they already reset branch-touched
   session files to base content before fusing.
-- Memory Trace `/next` React workspace: the Inspector now renders a full entry
+- [2026-07-17] Memory Trace `/next` React workspace: the Inspector now renders a full entry
   reader — markdown-rendered body (frontmatter code block, headings, bullets,
   inline code/bold), search-match subsection highlighting at parity with the
   legacy reader, an evidence strip (commit + `path:line`), and navigable
   linked-memories and related-activity cards.
-- Memory Trace Inspector surfaces the BG1 provenance/authority taxonomy: an
+- [2026-07-17] Memory Trace Inspector surfaces the BG1 provenance/authority taxonomy: an
   entry's `Authority` and `Provenance` classes display as distinct rows (never a
   merged trust score), with `Provider`/revision and a `stale` flag when present,
   and a muted advisory band for provider/generated authority (BG1 step 4).
-- Memory Trace `/next` adds a **Trail** presentation mode: a git-graph decision
+- [2026-07-18] Memory Trace `/next` adds a **Trail** presentation mode: a git-graph decision
   timeline over `/api/v1/trail` — day-grouped newest-first rows in branch lanes,
   a rendered rail (main spine, rounded-elbow fork/merge connectors, clickable
   trunk merge dots), row-click selection into the Inspector, and client-side
@@ -489,17 +492,17 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
-- Worktree switching reuses shared history: merge fork points (the dominant
+- [2026-07-18] Worktree switching reuses shared history: merge fork points (the dominant
   rebuild cost — one `git merge-base` subprocess per trailer merge) memoize
   process-wide by commit sha, since every checkout shares the object database;
   switching worktrees now only computes the target's own divergence, and
   unchanged worktrees warm-start from their persisted projection instead of
   rebuilding.
-- Memory Trace `/api/v1` is now worktree-scoped: every v1 endpoint accepts an
+- [2026-07-18] Memory Trace `/api/v1` is now worktree-scoped: every v1 endpoint accepts an
   additive `worktree` query parameter and a typed `/api/v1/worktrees` endpoint
   enumerates the repository's checkouts; the `/next` React workspace gains a
   worktree picker that switches the whole app between corpora.
-- The MCP write path owns the clock: omit `timestamp` and the server stamps from
+- [2026-07-19] The MCP write path owns the clock: omit `timestamp` and the server stamps from
   its machine clock, returning the value for verbatim write-back. Explicitly
   supplied timestamps remain allowed for sanctioned backfill but earn a
   `clock_drift_warning` when far from the server clock — agents must never
@@ -507,12 +510,12 @@ All notable changes to Memory Seed are summarized here.
   to `memory_session_append` when that tool replaced it later in this same
   unreleased tranche; echo a `dry_run`'s returned `timestamp` into the real call
   so the previewed and written entry ids agree across a minute boundary.
-- CI now gates on `docs index --check`, so a stale generated docs index fails
+- [2026-07-17] CI now gates on `docs index --check`, so a stale generated docs index fails
   verification instead of drifting silently.
 
 ### Fixed
 
-- **`session append` no longer records a foreign branch.** `branch:` captures the HEAD of the working
+- [2026-07-26] **`session append` no longer records a foreign branch.** `branch:` captures the HEAD of the working
   tree that owns the memory dir, so when `resolve_runtime`'s walk-up escaped the caller's own checkout —
   an **untracked `.memory-seed` seen from a git worktree**, or a submodule whose superproject owns the
   memory dir — the entry was written into the enclosing tree's `.memory-seed` *and* stamped with that
@@ -523,7 +526,7 @@ All notable changes to Memory Seed are summarized here.
   place — are unaffected: their worktrees resolve to their own memory dir and their own HEAD, and
   continue to record it. Two agents sharing *one* checkout remain undecidable from git and still need
   explicit `--branch`/`--no-branch`; see `docs/2_Todo/branch-field-provenance.md`.
-- Memory Trace graph/projection overview (no focus entry, no date filter): the
+- [2026-07-18] Memory Trace graph/projection overview (no focus entry, no date filter): the
   node slice is now chosen by connectivity — deterministic greedy expansion from
   high-degree seeds with newest-first tie-breaks — instead of truncating in
   corpus order. The old positional cut kept the oldest entries, which largely
@@ -533,7 +536,7 @@ All notable changes to Memory Seed are summarized here.
 
 ### Removed
 
-- **`memory-seed[lense]` extra and the `memory-seed lense` CLI command.** Both were a deprecated
+- [2026-07-20] **`memory-seed[lense]` extra and the `memory-seed lense` CLI command.** Both were a deprecated
   compatibility alias kept for one release window while the product renamed from Memory Lense to
   Memory Trace (shipped 2.13.0, deprecated since 2.16.0). The window has elapsed; install
   `memory-seed[trace]` and run `memory-trace` instead.
