@@ -14,6 +14,7 @@ from memory_seed.core import (
     session_open_pr,
     session_prepare_pr_branch,
 )
+from memory_seed.adr import promote_decision
 
 
 class SessionFuseAndMergeTests(unittest.TestCase):
@@ -133,6 +134,35 @@ class SessionFuseAndMergeTests(unittest.TestCase):
                     "```mermaid",
                     "graph TD",
                     "  A[Branch] --> B[Main]",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _write_adr_diagram(self, cwd, date, adr_id, title="ADR shape"):
+        path = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / date[:7] / f"{date}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {date}",
+                    "---",
+                    "",
+                    f"## {date} 09:00 - {title}",
+                    "",
+                    "```yaml",
+                    f"adr_id: {adr_id}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "graph TD",
+                    "  A[Concern] --> B[Authority]",
                     "```",
                     "",
                 ]
@@ -461,7 +491,41 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertTrue(result.issues)
         self.assertIn("diagram sidecar block", result.issues[0])
-        self.assertIn("has no entry_id", result.issues[0])
+        self.assertIn("has no entry_id or adr_id", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_allows_diagram_keyed_by_existing_adr(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        promoted = promote_decision(
+            cwd,
+            adr_id="adr_fuse_shape",
+            title="Fuse shape",
+            topics=(),
+            user_initials="JN",
+            agent_type="codex",
+            source="write-time",
+            decision="Fuse diagrams by their declared authority.",
+            why="ADR diagrams do not have a parent session entry.",
+            founding_source="bootstrap",
+            founding_quote="Fuse diagrams by their declared authority.",
+            timestamp="2026-07-10T08:00:00Z",
+        )
+        self.assertTrue(promoted.ok, promoted.issues)
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_adr_diagram(cwd, "2026-07-10", "adr_fuse_shape")
+        self._commit_all(cwd, "add ADR diagram")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_sidecars,
+            ["adr:adr_fuse_shape 2026-07-10 09:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-10.md"],
+        )
 
     @pytest.mark.integration
     def test_session_fuse_imports_a_later_diagram_block_for_a_known_entry(self):
