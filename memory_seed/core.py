@@ -370,6 +370,7 @@ class _SessionEntryRecord:
 class _DiagramSidecarRecord:
     text: str
     entry_id: str | None
+    adr_id: str | None
     timestamp: str | None
     diagram_date: str | None
     source_path: str
@@ -5417,11 +5418,13 @@ def _split_diagram_records(text: str, *, source_path: str, diagram_date: str | N
         block_text = text[block.start():section_end].rstrip() + "\n"
         timestamp, yaml_block = block.groups()
         entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+        adr_id = (_parse_frontmatter_scalars(yaml_block).get("adr_id") or "").strip() or None
         target_date = diagram_date or timestamp[:10]
         records.append(
             _DiagramSidecarRecord(
                 text=block_text,
                 entry_id=entry_id_match.group(1) if entry_id_match else None,
+                adr_id=adr_id,
                 timestamp=timestamp,
                 diagram_date=diagram_date,
                 source_path=source_path,
@@ -6472,7 +6475,7 @@ def _plan_session_fuse(
 
     base_entries: dict[str, _SessionEntryRecord] = {}
     source_entries: dict[str, _SessionEntryRecord] = {}
-    # Keyed by (entry_id, heading timestamp), same as the link family - see the
+    # Keyed by (authority identity, heading timestamp), same as the link family - see the
     # block-identity comment at the diagram collection loop below.
     base_sidecars: dict[tuple[str, str], _DiagramSidecarRecord] = {}
     source_sidecars: dict[tuple[str, str], _DiagramSidecarRecord] = {}
@@ -6506,9 +6509,10 @@ def _plan_session_fuse(
     for entry_id in sorted(duplicate_source_entries):
         issues.append(f"source {source_label}: duplicate session entry_id blocks safe fuse: {entry_id}")
 
-    # Diagram sidecar block identity is (entry_id, heading timestamp), NOT
-    # entry_id alone - the same rule the link family uses, and for the same
-    # reason. Keying by entry_id made the first block the only block forever, so
+    # Diagram sidecar block identity is (authority identity, heading timestamp),
+    # where authority identity is either entry:<entry_id> or adr:<adr_id>. It is
+    # NOT the bare authority identity - the same rule the link family uses, and
+    # for the same reason. Keying by identity made the first block the only block forever, so
     # the sole route to a diagram that renders was editing the published one:
     # that missing append path is precisely why Constitution v1.4 needed a
     # human-gated in-place Mermaid repair exception. Appending a NEW dated block
@@ -6517,24 +6521,35 @@ def _plan_session_fuse(
     seen_source_sidecars: set[tuple[str, str]] = set()
     duplicate_source_sidecars: set[tuple[str, str]] = set()
     for record in base_sidecar_records:
-        if record.entry_id:
-            key = (record.entry_id, record.timestamp or "")
+        identity = f"entry:{record.entry_id}" if record.entry_id else (f"adr:{record.adr_id}" if record.adr_id else None)
+        if identity:
+            key = (identity, record.timestamp or "")
             if key not in base_sidecars:
                 base_sidecars[key] = record
     for record in source_sidecar_records:
-        if not record.entry_id:
-            issues.append(f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} has no entry_id")
+        if record.entry_id and record.adr_id:
+            issues.append(
+                f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} "
+                "has both entry_id and adr_id"
+            )
             continue
-        key = (record.entry_id, record.timestamp or "")
+        identity = f"entry:{record.entry_id}" if record.entry_id else (f"adr:{record.adr_id}" if record.adr_id else None)
+        if not identity:
+            issues.append(
+                f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} "
+                "has no entry_id or adr_id"
+            )
+            continue
+        key = (identity, record.timestamp or "")
         if key in seen_source_sidecars:
             duplicate_source_sidecars.add(key)
             continue
         seen_source_sidecars.add(key)
         source_sidecars[key] = record
-    for entry_id, timestamp in sorted(duplicate_source_sidecars):
+    for identity, timestamp in sorted(duplicate_source_sidecars):
         issues.append(
             f"source {source_label}: duplicate diagram sidecar blocks safe fuse: "
-            f"{entry_id} at {timestamp or '(unknown time)'}"
+            f"{identity} at {timestamp or '(unknown time)'}"
         )
 
     # Link sidecar block identity is (entry_id, heading timestamp), NOT entry_id
@@ -6625,17 +6640,50 @@ def _plan_session_fuse(
         import_entries.append(source_entry)
         imported_ids.add(entry_id)
 
-    for (entry_id, _block_ts), source_sidecar in sorted(
+    base_adr_ids = {
+        Path(path).stem
+        for path in base_paths
+        if _is_adr_relative_path(path)
+    }
+    source_adr_ids = {
+        Path(path).stem
+        for path in changed_paths
+        if _is_adr_relative_path(path) and _git_show_text(root, source_commit, path) is not None
+    }
+    for (identity, _block_ts), source_sidecar in sorted(
         source_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])
     ):
-        base_sidecar = base_sidecars.get((entry_id, _block_ts))
+        base_sidecar = base_sidecars.get((identity, _block_ts))
         if base_sidecar is not None:
             # Same (entry_id, timestamp) block on both sides: its text is
             # immutable. A NEW timestamp for a known entry_id is not a
             # modification - it is a later declaration, imported below.
             if base_sidecar.text != source_sidecar.text:
-                issues.append(f"{source_sidecar.source_path}: existing diagram sidecar modified for entry_id {entry_id}")
+                issues.append(f"{source_sidecar.source_path}: existing diagram sidecar modified for {identity}")
             continue
+        if source_sidecar.adr_id:
+            if source_sidecar.adr_id not in base_adr_ids | source_adr_ids:
+                issues.append(
+                    f"{source_sidecar.source_path}: diagram sidecar references adr_id {source_sidecar.adr_id} "
+                    "without an ADR on the base branch or accepted for this fuse"
+                )
+                continue
+            if source_sidecar.timestamp is None:
+                issues.append(
+                    f"{source_sidecar.source_path}: diagram sidecar for adr_id {source_sidecar.adr_id} "
+                    "has no parseable timestamp"
+                )
+                continue
+            if source_sidecar.diagram_date and source_sidecar.diagram_date != source_sidecar.timestamp[:10]:
+                issues.append(
+                    f"{source_sidecar.source_path}: diagram date {source_sidecar.diagram_date} does not match "
+                    f"heading date {source_sidecar.timestamp[:10]} for adr_id {source_sidecar.adr_id}"
+                )
+                continue
+            import_sidecars.append(source_sidecar)
+            continue
+        entry_id = source_sidecar.entry_id
+        assert entry_id is not None
         parent_entry = source_entries.get(entry_id) if entry_id in imported_ids else base_entries.get(entry_id)
         if parent_entry is None:
             issues.append(
@@ -6824,7 +6872,8 @@ def _plan_session_fuse(
                 removed_sources.append(entry.source_path)
 
     for sidecar in import_sidecars:
-        planned_sidecars.append(f"{sidecar.entry_id} {sidecar.timestamp} -> {sidecar.target_path}")
+        identity = sidecar.entry_id or f"adr:{sidecar.adr_id}"
+        planned_sidecars.append(f"{identity} {sidecar.timestamp} -> {sidecar.target_path}")
         if sidecar.source_path != sidecar.target_path and sidecar.source_path not in base_paths:
             if sidecar.source_path not in removed_sources:
                 removed_sources.append(sidecar.source_path)
