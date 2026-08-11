@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.19
+memory-system-version: 2.20
 tags:
   - memory-seed
   - project-bootstrap
@@ -53,6 +53,9 @@ GEMINI.md
   agent-rules.md
   project-bootstrap.md
   project.yaml
+  topics.yaml
+  hooks/
+  decisions/
   skills/
     index.md
     session_logging.md
@@ -94,6 +97,10 @@ Bootstrap is incomplete until these generated files also exist:
 .memory-seed/policy.md
 .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
 ```
+
+`docs/CONSTITUTION.md` is optional. Bootstrap detects and registers an existing Constitution, but
+does not invent one for every project. Create one only when the project has long-lived normative
+invariants that should formally constrain ordinary policy and ADRs.
 
 Sub-project runtimes do not need their own root `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` unless the sub-project is meant to be opened independently as a repository.
 
@@ -175,8 +182,38 @@ Include:
 - skill trigger registry expectations, including `.memory-seed/skills/index.md` in `Always Read` and `Lazy Skills`
 - MCP history retrieval expectations, including `memory_search`, `memory_get_chunk`, entry granularity by default, section granularity for narrow searches, and direct session-file fallback when MCP is unavailable
 - session memory location and promotion guidance
+- an authority map naming any declared Constitution and the accepted/proposed ADRs by concern
 
 Record durable behavioral constraints in `.memory-seed/policy.md`, not in `index.md`.
+
+### Durable Decision Classification
+
+During inspection, build a short candidate table for choices that constrain future sessions:
+
+| Candidate | Evidence | User-confirmed? | Durable concern? | Destination |
+|---|---|---:|---:|---|
+| concise choice | file/answer | yes/no | yes/no | ADR, policy, index, or session only |
+
+A choice deserves an ADR when it establishes architecture, safety, a source of truth, a project
+boundary, integration/release behavior, or a recurring process that future agents must preserve.
+Transient status and obvious discoveries stay in the session log or index. Policy may state the
+executable rule, but rationale and evolution belong in the ADR.
+
+For a durable choice found before the first session exists, create a **proposed** ADR with
+`memory-seed adr promote --founding-source bootstrap --founding-quote ...`. A confirmed answer still
+remains proposed until the first bootstrap session records the decision; then transition it to
+accepted. Unconfirmed assumptions remain proposed and must not govern policy. After the session is
+written, a later revision should converge the founding head onto the real session decision rather
+than leave two authorities for the same concern.
+
+### Optional Constitution
+
+- If a Constitution exists, record its path, version, status, and clause anchors in the authority
+  map. Only a document explicitly declared ratified governs lower control-plane files.
+- If none exists, record `Constitution: none declared`; do not create a dead link or imply authority.
+- Ask whether to create one only when project evidence exposes durable normative invariants that
+  ordinary ADR evolution should not be able to override.
+- A draft or candidate Constitution is evidence, not governing authority.
 
 ## Step 4: Create Or Repair Routing Files
 
@@ -195,6 +232,7 @@ Create or repair:
 - `.memory-seed/skills/index.md`: deterministic trigger registry.
 - `.memory-seed/skills/*.md`: reusable runbooks.
 - `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`: first session log.
+- `.memory-seed/decisions/`: append-only ADR records for durable concerns (create when needed).
 - `.memory-seed/archive/`: archive directory.
 
 Do not copy source-project domain facts into the target runtime.
@@ -218,12 +256,17 @@ Minimum sections:
 ## Active State
 ## Topology
 ## Workflows
+## Authority Map
 ## Design Decisions
 ## Risks And Open Questions
 ## Session Memory
 ```
 
 Keep it concise but substantive. It is not a raw history, but it should carry enough durable context for a new agent to understand what the project is, what matters now, how to navigate it, and which mistakes to avoid.
+
+`Authority Map` is a thin routing surface. Declare precedence, the Constitution status (or none),
+one-line accepted ADR digests with links, and proposed concerns that do not yet govern. Do not copy
+ADR rationale into the index.
 
 Use enough situating detail for a new agent to understand the project purpose, current state, important paths, workflows, risks, and active decisions without relying on historical context.
 
@@ -248,6 +291,10 @@ Security must be proportional:
 - Production-facing, public, networked, or user-data projects require explicit security best practices.
 - Private local knowledge projects require privacy and backup guidance, not unnecessary production process.
 - If uncertain, protect secrets, credentials, personal data, and destructive operations by default.
+
+Keep policy thin: one concise executable rule plus a link to the accepted ADR that explains it.
+Proposed ADRs may be listed as open concerns but cannot supply mandatory policy. Do not duplicate
+alternatives, history, or rationale from an ADR into policy.
 
 ## Step 8: Create Skills
 
@@ -463,7 +510,8 @@ subproject_path: null
 
 Generate `entry_id` with the canonical generator - `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` (or a `memory_session_append` `dry_run` over MCP for just the id), or simply author the whole entry with `memory-seed session append`, which computes it for you. The id is a deterministic 80-bit `mse_` hash of metadata only (timestamp, title, user initials, agent type, project path, subproject path - never the body); do not invent it by hand. Legacy `ms-` IDs remain valid and must not be rewritten.
 
-Record the bootstrap entry using DRAFT decision records in the meaningful decision or multi-decision shape from `.memory-seed/agent-rules.md`.
+Record the bootstrap entry using DRAFT decision records in the shape from
+`.memory-seed/skills/session_logging.md`.
 
 Include:
 
@@ -487,6 +535,9 @@ Do not require reason for obvious file discoveries. Do not invent reason; mark i
 
 Keep sessions append-only.
 
+After appending the first entry, transition each user-confirmed founding ADR to `accepted` and leave
+each unconfirmed one `proposed`. The index and policy may link only accepted ADRs as governing.
+
 ## Step 11: Validate Bootstrap
 
 Bootstrap is incomplete until all checks pass:
@@ -504,5 +555,8 @@ Bootstrap is incomplete until all checks pass:
 - No stale `.AGENTS/` paths are presented as canonical.
 - Security posture matches risk level.
 - `index.md` is enough for project traversal without guessing.
+- The authority map declares Constitution status and separates accepted ADRs from proposed concerns.
+- `memory-seed doctor`, `memory-seed topics check`, `memory-seed links check`, and
+  `memory-seed adr check` pass (or a check is explicitly inapplicable because its corpus is absent).
 
 After validation, switch to operating mode and stop using this file.

@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.19
+memory-system-version: 2.20
 tags:
   - memory-seed
   - agent-rules
@@ -71,12 +71,17 @@ At the start of work:
 1. Read `AGENTS.md`.
 2. Discover the nearest `.memory-seed/` runtime.
 3. Read `.memory-seed/agent-rules.md`.
-4. Read `.memory-seed/index.md`, especially `Active State`, `Topology`, `Inheritance`, and `Lazy Skills`.
+4. Read `.memory-seed/index.md`, especially `Authority Map`, `Active State`, `Topology`, `Inheritance`, and `Lazy Skills`.
 5. Read inherited parent policy only when the active index says policy inheritance is enabled.
 6. Read `.memory-seed/policy.md`.
+   - If the authority map declares a ratified Constitution, read it. Do not assume a conventional
+     path or treat a draft/candidate Constitution as governing.
 7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not. For a one-shot reconciliation of local state — git posture, the newest session entry, worktrees, and the local-vs-CHANGELOG version — run `memory-seed situate` and follow `.memory-seed/skills/orientation.md` (the start-of-session mirror of End Of Turn); it also prompts verifying the *published* version from the source of truth instead of assuming. On the **first substantive message**, once the user's intent is known, run that skill's **operating-mode gate**: it sets the enforcement-classed session variables (`checkout_posture`, `integration_mode`/`merge_trigger`, `write_intent`, `risk_tier`, `orchestration_level`, `worktree_decision`, `skills_to_load`) in order, and read-only work exits it after step 3.
 8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
+   - Once the task's concern is known, list ADRs (`memory-seed adr list --json` or
+     `memory_adrs_list`) and read only the accepted or proposed records relevant to that concern.
+     Do not preload the whole ADR corpus.
 10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. **Primary agents only:** a spawned worker inherits state from its Task Packet and follows the Worker Context Contract in `.memory-seed/skills/agent_collaboration.md` — packet + at most one persona + triggered skills, skipping 4/7/8/10, but still running `base_sha`/preflight and the worktree guard.
 
 When multiple personas are active, the one most relevant to the current task governs. Default to the first active entry in `_registry.yaml` when ambiguous.
@@ -91,7 +96,12 @@ Use MCP history retrieval when prior decisions, reason, unresolved risks, archit
 
 Newest-state questions use direct session-file reads by date. Topical questions use `memory_search`, with consequential results fetched by `memory_get_chunk`. These are different workflows and should not be substituted for each other.
 
-Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and reason, not automatic authority.
+Resolve authority in this order: a declared ratified Constitution; the current control file that owns
+the concern; accepted ADR heads; session evidence; derived projections. The index routes and
+summarizes; policy states executable constraints; ADRs own durable decision rationale and evolution.
+Proposed ADRs and draft Constitutions are evidence, not governing authority. Source/config files
+remain implementation truth, and session history remains evidence and reason rather than automatic
+authority.
 
 If the conflict remains ambiguous or unresolved, ask the user before changing durable design, policy, bootstrap behavior, memory structure, release behavior, or similarly consequential workflow.
 ## Inheritance
@@ -125,6 +135,9 @@ Default to the least expensive level and smallest context set that can safely ha
 - `.memory-seed/project-bootstrap.md`: bootstrap and repair procedure.
 - `.memory-seed/index.md`: rich project orientation, current state, topology, inheritance, and skill pointers.
 - `.memory-seed/policy.md`: behavioral constraints only.
+- `.memory-seed/decisions/*.md`: append-only durable concern decisions, rationale, and evolution.
+- A Constitution, only when its path and ratified status are declared by the active index: the
+  normative ceiling for lower control-plane documents.
 - `.memory-seed/skills/*.md`: task-specific runbooks, loaded on demand.
 - `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` or `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`: append-only chronological work history.
 - `.memory-seed/archive/`: archived prior control-plane states.

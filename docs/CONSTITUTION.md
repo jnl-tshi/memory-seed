@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.6 — **RATIFIED 2026-07-26** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.8 — **RATIFIED 2026-08-11** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
 **Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
 append-only sidecars (Invariant #6); amended 2026-07-17 with a human-gated, one-off exception for
@@ -8,7 +8,9 @@ untyped `related_entries` metadata curation (Invariant #2); amended 2026-07-19 w
 parity — every write passes identical validation on any surface (Invariant #2); amended 2026-07-23
 with a human-gated, one-off exception for diagram-sidecar syntax repair (Invariant #2), **retired
 2026-07-26** once an append path made it unnecessary; amended 2026-07-26 adding the *minimal but
-sufficient context* principle (§3, `[candidate]`). **Source:** distilled from demonstrated behaviour
+sufficient context* principle (§3, `[candidate]`); amended 2026-08-06 with stable clause anchors;
+amended 2026-08-11 to make a declared ratified Constitution formally govern lower control-plane
+documents. **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -201,7 +203,7 @@ downstream of Invariant #6 (derived, rebuildable). Grouped by distance from the 
   candidates — **DuckDB** for analytical Trace/graph processing, **SQLite FTS5** for full-text, and a
   **vector index** (sqlite-vec / pgvector / hnswlib) for semantic search.
 - **Optional-local capability** (adds features, still offline, degrades to the core): Model2Vec embeddings;
-  a **React/Vite** Trace shell (*planned*); a **VS Code extension** (memory beside the code — a candidate
+  the supported **React/Vite** Memory Trace client; a **VS Code extension** (memory beside the code — a candidate
   high-leverage adoption surface); a desktop shell; pluggable local AI providers.
 - **Hosted / collaborative** (paid tier — still Markdown-authoritative per Invariant #6): a team-sync /
   managed backend and cross-project memory — candidate directions, not adopted.
@@ -256,16 +258,16 @@ The live record of what is *not* settled (this is the honest half of "discovery"
   The Constitution was ratified 2026-07-14 and development **resumed the same day** — each item now answers
   the five-question test and respects Invariant #6, rather than gating all work behind further governance.
   *(This is the decision that created this document; the pause achieved its purpose.)*
-- **The next-generation Trace shell** (React/Vite) and a **VS Code extension** are candidate optional-local
-  surfaces (§5), not yet committed.
+- **The next-generation Trace shell — RESOLVED (2026-08-11):** React/Vite is the sole supported
+  Memory Trace frontend. A **VS Code extension** remains a candidate optional-local surface (§5).
 - **Trust taxonomy (§7) and quality metrics (§8)** are named but undefined.
 - **Source-of-truth under collaboration — RESOLVED (2026-07-14):** even a future hosted/collaborative tier
   keeps Markdown authoritative; any server database is a derived projection (Invariant #6). *Still open:*
   **which** commercial tier to reach (local-pro / team-hosted / enterprise) and when — parked pending
   usage + market validation (`8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`).
-- **Where the Constitution sits relative to the locked control plane.** Today it *describes*
-  `agent-rules.md`; making agent-rules formally *subordinate* to this document is a future amendment, not
-  assumed here.
+- **Where the Constitution sits relative to the locked control plane — RESOLVED (2026-08-11):** a
+  ratified Constitution explicitly declared by the active runtime index formally governs the lower
+  control plane. A draft, candidate, or undisclosed Constitution remains evidence only.
 
 ---
 
@@ -283,10 +285,19 @@ A proposal that conflicts with a live invariant is rejected or must first amend 
 silently override it. "[candidate]" clauses graduate to cited/established only when a shipped artifact
 demonstrates them.
 
+<!-- constitution-ref: constitution:v1#control-plane-precedence -->
+A runtime that declares this Constitution ratified applies the following authority order:
+**Constitution → current concern-owning control file → accepted ADR head → session evidence → derived
+projection**. The index is a thin router, policy states executable constraints, and ADRs own durable
+decision rationale and evolution. Lower layers may operationalize higher ones but may not contradict
+or silently redefine them. Projects without a declared ratified Constitution remain valid and begin
+their authority chain at the concern-owning control file.
+
 ### Amendment log
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.8 | 2026-08-11 | **Formal control-plane precedence** — a ratified Constitution declared by the active runtime index now governs lower control files; the index routes, policy states concise executable constraints, accepted ADR heads own durable decision rationale/evolution, sessions retain evidence, and projections remain derived. Draft or undeclared Constitutions do not govern, preserving Constitution-optional bootstrap for other projects. | JNL |
 | 1.7 | 2026-08-06 | **Per-clause anchor markers** — every invariant (and its live sub-clauses), principle, and §4 policy clause gains an HTML-comment `constitution-ref` anchor (`constitution:v1#slug`, 24 in all). Structural only: zero content changed, verified by a markers-stripped byte comparison against v1.6. Added so ADR constitution bindings and the ESR ADR↔Constitution audit resolve against declared anchors rather than prose numbering (the ADR contract extension of the same date validates refs against these markers). Slugs are semantic, not positional, so renumbering never breaks a binding. | Claude, under JNL's delegated ratification (live instruction, 2026-08-06: "ratify for me and get me to the end goal and then i will iterate") |
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
 | 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |

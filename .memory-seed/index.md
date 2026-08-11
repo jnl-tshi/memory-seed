@@ -26,6 +26,21 @@ Memory Seed is a portable local memory system for AI coding agents. This runtime
 - Skills: local only unless this file explicitly allows parent skill fallback.
 - This root runtime has no parent runtime.
 
+## Authority Map
+
+Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
+head → session evidence → derived projection.
+
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.8 ratified 2026-08-11**.
+- Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
+- Markdown source-of-truth boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md).
+- Append-only history: [`adr_append_rule_is_an_invariant`](decisions/adr_append_rule_is_an_invariant.md).
+- Integration and worktree posture: [`adr_integration_mode`](decisions/adr_integration_mode.md) and
+  [`adr_worktree_convention`](decisions/adr_worktree_convention.md).
+- Release topology and archive-before-replace: [`adr_release_topology`](decisions/adr_release_topology.md)
+  and [`adr_archive_before_replace`](decisions/adr_archive_before_replace.md).
+- Proposed concerns are non-governing until accepted; inspect them with `memory-seed adr list --json`.
+
 ## Always Read
 
 1. `AGENTS.md`
@@ -33,8 +48,8 @@ Memory Seed is a portable local memory system for AI coding agents. This runtime
 3. `.memory-seed/index.md`
 4. `.memory-seed/policy.md`
 5. `.memory-seed/skills/index.md`
-6. `docs/CONSTITUTION.md` — this project's ratified constitution (currently **v1.6**, ratified
-   2026-07-26). It is the highest authority for what may change and what may not; weigh any
+6. `docs/CONSTITUTION.md` — this project's ratified constitution (currently **v1.8**, ratified
+   2026-08-11). It is the highest authority for what may change and what may not; weigh any
    non-trivial design or control-plane change against its invariants and its five-question test.
 
 ## Lazy Skills
@@ -72,7 +87,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `replacing_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
 - Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b packages the React/TypeScript shell with the accepted graph, search, selection, Trail, reader, diagram, and workspace interaction rules. Accessibility and scale closeout landed 2026-07-29; JNL approved the frontend cutover on 2026-08-11, so React owns `/` and the vanilla frontend and parity-only harnesses are retired. **Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)** — an ADR records the corpus-density measurement that ruled it out; it does not gate B0b acceptance. **Navigation and layout gained ground 2026-07-28/29**: the flat topic-chip list became a recursive Areas/Activities ontology tree; long lifecycle chains now wind into a spiral (oldest innermost, gated by a concordance check so a chain only spirals when its topology actually tracks chronology); the layout leans away from crossing edges via a soft force; and Trace can now open any correctly-initialised folder from inside the app, not only switch between this repo's own git worktrees. The stated 2.19 memory-quality cut criterion is met, but release/publish still requires explicit user approval.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v1.6** as of 2026-07-26 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v1.8** as of 2026-08-11 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
   `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
   living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
@@ -86,8 +101,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
-- Control-plane version: `2.19`.
-- Package version: `2.19.0`.
+- Control-plane version: `2.20`.
+- Package version: `2.20.0` (prepared locally; not published).
 
 ## Topology
 

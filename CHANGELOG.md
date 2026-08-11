@@ -27,6 +27,16 @@ history is used only as a cross-check.
 
 ### Added
 
+- [2026-08-11] **Bootstrap now turns durable choices into an explicit ADR authority chain.** It
+  classifies future-session constraints, creates proposed founding ADRs before a session corpus
+  exists, accepts only user-confirmed choices after the first session records them, and generates a
+  thin index authority map plus policy links instead of duplicating rationale. Constitutions remain
+  optional and govern only when the active index declares them ratified.
+- [2026-08-11] **`adr promote` exposes the founding and binding contract already supported by the
+  ledger.** CLI callers may choose either `--entry-id` + `--decision` or `--founding-source` +
+  `--founding-quote`, and may repeat `--constitution-ref ref=role` and `--supporting-decision`.
+  Existing session-decision promotion remains compatible, and ADR head-changing writes remain
+  intentionally CLI-only.
 - [2026-08-10] **Read-only MCP twins complete the chain, sweep, and ESR workflow.**
   `memory_links_chain(ref, cwd)`, `memory_link_audit(entry_id?, session_date?, top_k?,
   semantic_enabled?, cwd)`, and `memory_esr(session_date?, cwd)` return the exact canonical
@@ -133,6 +143,10 @@ history is used only as a cross-check.
 
 ### Fixed
 
+- [2026-08-11] **Re-filing an ADR diagram review now clears its stale review tick.** Historical
+  append-only diagram blocks remain syntax- and reference-validated, but only the newest block for
+  an ADR is compared with the current authoritative decision date. Previously every old block kept
+  emitting `needs-diagram-review`, so the documented re-file action could never satisfy the check.
 - [2026-08-10] **`session merge-branch` no longer reports a completed merge as a failed commit after a Git
   timeout/non-zero result.** It now reconciles only a fully evidenced merge: a changed two-parent
   HEAD with the recorded base and exact source tip, every planned `Memory-Entry` trailer, and no

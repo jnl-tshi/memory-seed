@@ -24,7 +24,7 @@ from .text_files import (
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.19"
+VERSION = "2.20"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -2460,7 +2460,33 @@ def check_session_links(
     # unanswered ADRs into a red gate on the commit that introduces it.
     known_adrs = known_adr_ids(cwd)
     adr_head_entries = adr_head_entry_ids(cwd)
-    for diagram_doc in iter_diagram_sidecar_documents(sessions_dir):
+    diagram_docs = list(iter_diagram_sidecar_documents(sessions_dir))
+    # ADR diagram review is append-only: older blocks remain historical evidence, while the
+    # newest block for the concern is the current review tick. Without this selection, re-filing
+    # a reviewed diagram under a new head date could never clear the old block's stale warning.
+    latest_adr_review: dict[str, tuple[str, str, str, int]] = {}
+    for diagram_doc in diagram_docs:
+        if diagram_doc.malformed_reason:
+            continue
+        try:
+            preflight_text = diagram_doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for block_index, block in enumerate(_ENTRY_TS_YAML_RE.finditer(preflight_text)):
+            heading_ts, yaml_block = block.groups()
+            adr_id = (_parse_frontmatter_scalars(yaml_block).get("adr_id") or "").strip()
+            if not adr_id:
+                continue
+            key = (
+                diagram_doc.diagram_date or "",
+                heading_ts,
+                diagram_doc.path.as_posix(),
+                block_index,
+            )
+            if key > latest_adr_review.get(adr_id, ("", "", "", -1)):
+                latest_adr_review[adr_id] = key
+
+    for diagram_doc in diagram_docs:
         files_checked += 1
         diagram_path = diagram_doc.path
         try:
@@ -2492,6 +2518,7 @@ def check_session_links(
             adr_scalars = _parse_frontmatter_scalars(yaml_block)
             adr_id = (adr_scalars.get("adr_id") or "").strip()
             if adr_id:
+                review_key = (file_date, heading_ts, diagram_path.as_posix(), index)
                 issues.extend(
                     _validate_adr_diagram_block(
                         rel,
@@ -2505,6 +2532,7 @@ def check_session_links(
                         entry_decision_ordinals=entry_decision_ordinals,
                         adr_head_entries=adr_head_entries,
                         entry_timestamps=entry_timestamps,
+                        is_latest_review=review_key == latest_adr_review.get(adr_id),
                     )
                 )
                 continue
@@ -5092,6 +5120,7 @@ def _validate_adr_diagram_block(
     entry_decision_ordinals: dict[str, set[str]],
     adr_head_entries: dict[str, str],
     entry_timestamps: dict[str, str],
+    is_latest_review: bool = True,
 ) -> list[LinkIssue]:
     """An ADR diagram answers 'what shape is this concern?' - and the answer may
     be 'none'. Rules, all mechanical:
@@ -5125,7 +5154,7 @@ def _validate_adr_diagram_block(
         if head_date
         else (heading_ts[:10], "the date it was drawn (no authoritative decision yet)")
     )
-    if file_date and expected_date and expected_date != file_date:
+    if is_latest_review and file_date and expected_date and expected_date != file_date:
         issues.append(
             LinkIssue(
                 rel,

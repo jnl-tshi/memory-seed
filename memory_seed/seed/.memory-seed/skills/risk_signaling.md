@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.19
+memory-system-version: 2.20
 tags:
   - memory-seed
   - skill
@@ -41,8 +41,8 @@ that exact class of action in the current context:
   encryption, privileged network dependencies, or user-data exposure.
 - **Shared / control-plane state** - routing files, `.memory-seed/` control files, skill registry
   entries, seed templates, lockfiles, or session/memory files outside the assigned scope.
-- **Constitutional conflict** - anything contradicting a ratified invariant in
-  `docs/CONSTITUTION.md`. Per Constitution §11, such a change "is rejected or must first amend the
+- **Constitutional conflict** - anything contradicting an invariant in the ratified Constitution
+  declared by the active `.memory-seed/index.md`. Per its governance rules, such a change "is rejected or must first amend the
   invariant - it cannot silently override it". There is no tier below Stop here: an agent may not
   decide for itself that an invariant does not apply. Either the user grants live consent for a
   change that stays inside the invariant, or the invariant is formally amended first.

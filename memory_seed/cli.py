@@ -418,10 +418,23 @@ def main(argv: list[str] | None = None) -> int:
 
     adr_parser = subparsers.add_parser("adr", help="promote and transition append-only ADR sidecars")
     adr_sub = adr_parser.add_subparsers(dest="adr_command", required=True)
-    adr_promote = adr_sub.add_parser("promote", help="promote one existing decision into a proposed ADR")
+    adr_promote = adr_sub.add_parser(
+        "promote",
+        help="promote a session decision or bootstrap founding source into a proposed ADR",
+    )
     adr_promote.add_argument("--adr-id", required=True, help="stable lowercase id, e.g. adr_local_index")
-    adr_promote.add_argument("--entry-id", required=True, help="source session entry id")
-    adr_promote.add_argument("--decision", required=True, help="source decision ordinal, e.g. d1")
+    adr_promote.add_argument("--entry-id", default=None, help="source session entry id")
+    adr_promote.add_argument("--decision", default=None, help="source decision ordinal, e.g. d1")
+    adr_promote.add_argument(
+        "--founding-source",
+        default=None,
+        help="bootstrap or a control-file location such as .memory-seed/index.md#L42",
+    )
+    adr_promote.add_argument(
+        "--founding-quote",
+        default="",
+        help="exact project evidence for a founding promotion",
+    )
     adr_promote.add_argument("--title", required=True)
     adr_promote.add_argument("--topics", default="", help="comma-separated topic slugs")
     adr_promote.add_argument("--user-initials", required=True)
@@ -436,6 +449,18 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         help="decision=relation_assertion, e.g. mse_old:d1=link:mse_new:d1:evolves:mse_old:d1",
+    )
+    adr_promote.add_argument(
+        "--constitution-ref",
+        action="append",
+        default=[],
+        help="ref=role binding, where role is governing or supporting",
+    )
+    adr_promote.add_argument(
+        "--supporting-decision",
+        action="append",
+        default=[],
+        help="additional evidence decision, e.g. mse_entry:d2 (repeatable)",
     )
     adr_promote.add_argument("--timestamp", default=None, help="UTC ISO timestamp; default: now")
     adr_promote.add_argument("--dry-run", action="store_true")
@@ -943,6 +968,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "adr":
         from .adr import (
             AdrPredecessor,
+            ConstitutionRef,
             adr_to_dict,
             check_adrs,
             iter_adrs,
@@ -962,6 +988,13 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
                 decision, assertion = raw.split("=", 1)
                 predecessors.append(AdrPredecessor(decision.strip(), assertion.strip()))
+            constitution_refs: list[ConstitutionRef] = []
+            for raw in args.constitution_ref:
+                if "=" not in raw:
+                    print("--constitution-ref must be ref=role", file=sys.stderr)
+                    return 1
+                ref, role = raw.rsplit("=", 1)
+                constitution_refs.append(ConstitutionRef(ref.strip(), role.strip()))
             result = promote_decision(
                 cwd,
                 adr_id=args.adr_id,
@@ -977,6 +1010,10 @@ def main(argv: list[str] | None = None) -> int:
                 evolution=args.evolution,
                 update_entry_id=args.update_entry_id,
                 direct_predecessors=predecessors,
+                supporting_decisions=tuple(args.supporting_decision),
+                constitution_refs=constitution_refs,
+                founding_source=args.founding_source,
+                founding_quote=args.founding_quote,
                 timestamp=args.timestamp,
                 dry_run=args.dry_run,
             )

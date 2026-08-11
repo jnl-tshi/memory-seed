@@ -25,10 +25,11 @@ only once checked against recorded decisions, not on code reading alone.
 The [storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md)
 records the completed R5, R8, and R13 work and its validation evidence.
 
-The eight storylines:
+The nine storylines:
 
 | # | Name | One line | Trigger |
 |---|------|----------|---------|
+| S0 | **BOOTSTRAP** | Establish the runtime and its durable authority map | A runtime is missing or incomplete |
 | S1 | **ORIENT** | Establish where and when you are | Session start / re-entry |
 | S2 | **RECALL** | Retrieve the *why* behind existing work | Before consequential conclusions on non-obvious behavior |
 | S3 | **LOG** | Record a unit of work as a decision-carrying entry | After each meaningful unit of work |
@@ -40,14 +41,37 @@ The eight storylines:
 
 ---
 
+## S0 BOOTSTRAP — establish the runtime and durable authority
+
+**Trigger:** the reusable runtime is missing or `index.md` / `policy.md` has not been generated.
+
+**Flow**
+
+1. Inspect local evidence and ask only questions that materially change orientation or policy.
+2. Classify future-session constraints as durable ADR candidates; keep transient state in the index
+   or first session entry.
+3. Create proposed founding ADRs from bootstrap evidence. A confirmed answer is accepted only after
+   the first session records it; an unconfirmed assumption remains proposed and non-governing.
+4. Detect an existing Constitution and declare its status; create one only when long-lived normative
+   invariants justify it.
+5. Generate a thin authority map in the index and concise policy rules that link to accepted ADRs.
+6. Append the first session and validate doctor, topics, links, and ADRs.
+
+**Tools:** bootstrap guide plus CLI `adr promote` (founding-source form), `adr transition`,
+`session append`, `doctor`, `topics check`, `links check`, and `adr check`. ADR head writes remain
+CLI-only by design.
+
+---
+
 ## S1 ORIENT — establish where and when you are
 
 **Trigger:** session start (automatic via SessionStart hook) or mid-session re-entry (`/situate`).
 
 **Flow**
 
-1. SessionStart hook injects: nearest `AGENTS.md` routing, the five newest session entries (read
-   directly by date, never by search), and skill inventory.
+1. SessionStart hook injects: nearest `AGENTS.md` routing and the five newest session entries (read
+   directly by date, never by search). The routed startup contract then directs the agent to the
+   skill registry; the hook does not inject the inventory itself.
 2. `situate` reports measured facts: which checkout this actually is (worktree identity is
    measured, not declared), git branch + cleanliness, `integration_mode` / `merge_trigger`, newest
    session entry, worktree roster, local version vs CHANGELOG state.
@@ -94,7 +118,8 @@ removable, replaceable, or ready to consolidate.
 **Flow**
 
 1. Frame the question topically (this is *not* the recency path — S1 owns "what is latest").
-2. `memory_search` over the corpus (lexical + semantic, decision granularity).
+2. List ADRs and read the accepted/proposed record for the concern, if one exists.
+3. `memory_search` over the corpus (lexical + semantic, decision granularity).
 3. Pull full context for a hit: `memory_get_chunk`; follow lifecycle fields (`replacing_head`,
    `evolved_head`, `refined_by`) to the current form rather than the hit itself.
 4. Inspect edges around it: `memory_link_show`; since this tranche, `links chain <ref>` shows the
@@ -304,7 +329,10 @@ three different `links check` errors, so this closes the clearest single gap the
 
 **Flow**
 
-1. Promote: an existing decision becomes a proposed ADR (`adr promote`); founding sources allowed.
+1. Promote: an existing decision becomes a proposed ADR (`adr promote`). Bootstrap may instead use
+   `--founding-source bootstrap` or a control-file line plus `--founding-quote`; bindings and
+   supporting evidence are repeatable CLI flags. A founding ADR becomes accepted only after the
+   first session ratifies a confirmed choice; unconfirmed bootstrap assumptions stay proposed.
 2. Head movement is authored-only: `revision-proposed` + `revision-accepted` (`adr revise`,
    `adr transition`). Machine edges NEVER move heads.
 3. Standing review inputs, all mechanical, all flag-only:
