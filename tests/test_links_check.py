@@ -827,6 +827,32 @@ class LinksCheckTests(unittest.TestCase):
             result = check_session_links(cwd=cwd)
         self.assertTrue(result.ok, result.issues)
 
+    def test_new_adr_diagram_review_clears_the_historical_stale_tick(self):
+        from unittest.mock import patch
+
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - old", "mse_ffffffffffffffff", ()))
+        self._flat_session(cwd, "2026-06-02.md", ("2026-06-02 09:00 - head", "mse_eeeeeeeeeeeeeeee", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            file_date="2026-06-01",
+            heading_date="2026-06-01",
+            block_lines=["adr_id: adr_real", "diagram_status: not_applicable", "note: old review"],
+        )
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            file_date="2026-06-02",
+            heading_date="2026-06-02",
+            block_lines=["adr_id: adr_real", "diagram_status: not_applicable", "note: current review"],
+        )
+
+        with patch("memory_seed.core.adr_head_entry_ids", return_value={"adr_real": "mse_eeeeeeeeeeeeeeee"}):
+            result = check_session_links(cwd=cwd)
+        self.assertNotIn("needs-diagram-review", [issue.kind for issue in result.issues])
+        self.assertTrue(result.ok, result.issues)
+
     def _two_block_link_sidecar(self, cwd, file_date, entry_id, first, second):
         """Two blocks for one entry in one file. ``first``/``second`` are
         (heading_time, [extra yaml lines]) - the stub can be either one, which is

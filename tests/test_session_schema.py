@@ -555,6 +555,32 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
+    def test_bootstrap_builds_a_thin_durable_authority_chain(self):
+        content = Path(".memory-seed/project-bootstrap.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "Durable Decision Classification",
+            "--founding-source bootstrap",
+            "Unconfirmed assumptions remain proposed",
+            "Authority Map",
+            "Constitution: none declared",
+            "policy thin",
+            "may link only accepted ADRs as governing",
+        ):
+            self.assertIn(phrase, content)
+
+    def test_operating_start_resolves_declared_authority_and_relevant_adrs(self):
+        content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "declares a ratified Constitution",
+            "memory-seed adr list --json",
+            "Do not preload the whole ADR corpus",
+            "accepted ADR heads",
+            "Proposed ADRs and draft Constitutions are evidence",
+        ):
+            self.assertIn(phrase, content)
+
     def test_bootstrap_documents_mcp_history_expectations(self):
         content = Path(".memory-seed/project-bootstrap.md").read_text(encoding="utf-8")
 

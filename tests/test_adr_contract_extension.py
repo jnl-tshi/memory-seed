@@ -12,6 +12,9 @@ render change here breaks two suites, not one.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import os
 import shutil
 import tempfile
 import unittest
@@ -35,6 +38,7 @@ from memory_seed.adr import (
     validate_adr,
 )
 from memory_seed.core import read_text_file
+from memory_seed.cli import main as cli_main
 
 REPO = Path(__file__).resolve().parents[1]
 LIVE_ADRS = sorted((REPO / ".memory-seed" / "decisions").glob("adr_*.md"))
@@ -302,6 +306,75 @@ class FoundingSourceTests(ProjectFixture):
         )
         ok, issues = check_adrs(root)
         self.assertTrue(ok, issues)
+
+
+class FoundingSourceCliTests(ProjectFixture):
+    def run_cli(self, root: Path, arguments: list[str]) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(root)
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = cli_main(arguments)
+        finally:
+            os.chdir(previous)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_cli_promotes_founding_source_with_bindings_and_support(self):
+        root = self.make_project()
+        code, _stdout, stderr = self.run_cli(
+            root,
+            [
+                "adr", "promote", "--adr-id", "adr_cli_founded",
+                "--founding-source", "bootstrap",
+                "--founding-quote", "Project inspection established the boundary.",
+                "--title", "CLI founding source", "--topics", "retrieval",
+                "--user-initials", "JNL", "--agent-type", "codex",
+                "--source", "derived", "--summary-decision", "Keep the boundary.",
+                "--why", "Bootstrap evidence requires a durable home.",
+                "--constitution-ref", "constitution:v1#authority=governing",
+                "--supporting-decision", "mse_extension0000001:d1",
+                "--timestamp", "2026-08-06T10:10:00Z",
+            ],
+        )
+        self.assertEqual(code, 0, stderr)
+        record = parse_adr(root / ".memory-seed" / "decisions" / "adr_cli_founded.md")
+        event = record.events[0]
+        self.assertEqual(event.founding_source, "bootstrap")
+        self.assertEqual(event.supporting_decisions, ("mse_extension0000001:d1",))
+        self.assertEqual(event.constitution_refs[0].role, "governing")
+
+    def test_cli_keeps_session_decision_source_compatible(self):
+        root = self.make_project()
+        code, _stdout, stderr = self.run_cli(
+            root,
+            [
+                "adr", "promote", "--adr-id", "adr_cli_session",
+                "--entry-id", "mse_extension0000001", "--decision", "d1",
+                "--title", "CLI session source", "--user-initials", "JNL",
+                "--agent-type", "codex", "--source", "derived",
+                "--timestamp", "2026-08-06T10:11:00Z",
+            ],
+        )
+        self.assertEqual(code, 0, stderr)
+        record = parse_adr(root / ".memory-seed" / "decisions" / "adr_cli_session.md")
+        self.assertEqual(record.events[0].decision_ref, "mse_extension0000001:d1")
+
+    def test_cli_rejects_malformed_constitution_binding(self):
+        root = self.make_project()
+        code, _stdout, stderr = self.run_cli(
+            root,
+            [
+                "adr", "promote", "--adr-id", "adr_cli_bad",
+                "--founding-source", "bootstrap", "--founding-quote", "Evidence.",
+                "--title", "Bad binding", "--user-initials", "JNL",
+                "--agent-type", "codex", "--source", "derived",
+                "--constitution-ref", "constitution:v1#authority",
+            ],
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("--constitution-ref must be ref=role", stderr)
 
 
 if __name__ == "__main__":
