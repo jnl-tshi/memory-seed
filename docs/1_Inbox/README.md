@@ -73,4 +73,5 @@ were themselves reference material, not undecided captures — moved the same da
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
 | [harness-engineering-comparison-claude.md](harness-engineering-comparison-claude.md) | — | — | — |
 | [harness-engineering-comparison-codex.md](harness-engineering-comparison-codex.md) | — | — | — |
+| [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
 <!-- docs-index:end -->
