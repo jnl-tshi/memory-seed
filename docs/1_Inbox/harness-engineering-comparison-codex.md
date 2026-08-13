@@ -290,3 +290,160 @@ not "copy their harness"; it is to measure those two remaining gaps without dupl
 The substantive disagreement has now mostly collapsed. What remains is editorial posture: Claude keeps
 withdrawn claims visible in place; Codex maintains a clean current-state analysis while its session
 lineage preserves the corrections. Keeping both lines still makes that now/why tradeoff inspectable.
+
+---
+
+## 8. Additive comparison: Anthropic's recursive-self-improvement argument
+
+Source: Anthropic Institute, ["When AI builds itself"](https://www.anthropic.com/institute/recursive-self-improvement),
+Marina Favaro and Jack Clark, accessed 2026-08-13. This section extends the OpenAI comparison; it does
+not rewrite the Codex-Claude exchange above or treat Anthropic's forecasts as established outcomes.
+
+### 8a. The three artifacts describe different layers of the same transition
+
+| Artifact | Primary question | Bottleneck it foregrounds | Memory Seed relationship |
+|---|---|---|---|
+| OpenAI harness-engineering report | How does a team make a repository legible and operable enough for coding agents to work at high throughput? | Human attention spent supplying context, navigating the codebase, and verifying work | Direct harness comparison: routing, progressive disclosure, worktrees, mechanical checks, runtime feedback |
+| Anthropic recursive-self-improvement article | What happens as AI performs more of AI engineering and research, including longer and less specified tasks? | Goal choice, research taste, review capacity, verification, compute, and organizational ability to find the next constraint | Strategic stress test: whether durable rationale and governance remain useful when execution becomes cheap and agent output grows faster than humans can inspect it |
+| Memory Seed | How can agents and humans preserve, retrieve, challenge, and evolve project decisions across sessions and tools? | Loss of rationale, stale authority, context reconstruction, and unsafe mutation of the decision record | A continuity and governance substrate; not an autonomous research system, model trainer, or recursive-self-improvement mechanism |
+
+OpenAI supplies the **micro-level operating model**: build an environment in which agents can inspect,
+act, test, and recover. Anthropic supplies the **macro-level consequence** if that operating model and
+model capability continue improving: execution stops being the scarce step and the constraint migrates
+toward deciding what deserves execution, reviewing a much larger output surface, and verifying results.
+Memory Seed sits between them. It can make direction and rationale durable, but it does not by itself
+make the direction good.
+
+### 8b. What the Anthropic evidence supports -- and what it does not
+
+The article reports that, as of May 2026, Claude authored more than 80% of the lines merged into
+Anthropic's production code; the typical engineer merged roughly eight times as much code per day as in
+2024; an internal poll's median estimate was roughly four times the output with an internal model; and
+success on Anthropic's most open-ended task tier reached 76%. It also reports two feedback-loop results
+that matter more here than raw code volume:
+
+- an automated Claude reviewer would retrospectively have caught roughly one third of the bugs behind
+  past incidents before production;
+- on a fixed-goal code-optimization experiment, the model repeatedly edited, ran, measured, and
+  improved code, with the reported result rising from about 3x to about 52x across model generations.
+
+The research examples move one layer upward. Agents recovered 97% of the available weak-to-strong
+supervision gap in an 800-agent-hour experiment, versus roughly 23% for two human researchers over a
+week, but humans still chose the question and scoring rubric and the result did not transfer cleanly to
+production scale. A next-step study found the April 2026 model preferable to a deliberately weak human
+move 64% of the time; on a control set where the human move was already strong, the model was preferred
+only about 20% of the time. That control materially narrows the claim: the evidence shows improving
+local research judgment, not general superiority at choosing goals.
+
+These are Anthropic's internal measurements and forecasts. Several outcomes use model judges, lines of
+code is explicitly acknowledged as a quantity-biased proxy, the employee uplift figure is self-reported,
+and the next-step study intentionally selected human detours. The defensible conclusion is directional:
+agent execution capacity and output volume are increasing inside Anthropic, and review and direction are
+already reported bottlenecks. The article does not establish the exact productivity multiple for other
+teams, inevitable recursive self-improvement, or a causal benefit from Memory Seed-like infrastructure.
+
+### 8c. What this changes in the Memory Seed reading
+
+#### 1. The product claim shifts from memory for execution to memory for judgment
+
+The OpenAI comparison can make Memory Seed sound primarily like context infrastructure for coding
+agents. Anthropic's account suggests the more durable role is one level above implementation. When the
+method can increasingly be delegated from an underspecified goal, the scarce artifacts are:
+
+- why this goal was selected over alternatives;
+- who defined the success criteria and what evidence could falsify them;
+- which result was trusted, rejected, or judged not to transfer;
+- when a previously sound direction became stale;
+- where human approval is still required and why.
+
+DRAFT decisions, typed lifecycle edges, current-state-versus-rationale authority, and append-only
+correction already encode much of that structure. This is a stronger fit with the article than claiming
+Memory Seed makes agents code faster. The unproven part is whether storing and retrieving this structure
+actually improves later goal selection or merely produces a better-organized record.
+
+#### 2. Human review is both a safeguard and a scaling constraint
+
+Anthropic explicitly invokes Amdahl's law: accelerating implementation moves the bottleneck to code
+review and to choosing among more ideas than the organization can pursue. Memory Seed already contains
+the same tension in miniature. Candidate-generation and agent review can compress the search surface,
+but authoritative lineage moves, reconstructed overrides, and high-risk actions retain named human
+gates. The topic-candidate experiment captured the appropriate division: let machines rank candidates
+when a false positive costs a glance; do not let that score silently move authority.
+
+The article strengthens the case for **review compression**, not for deleting the human gate. The
+relevant question is whether agents can produce small, evidence-linked decision packets that let a human
+approve or reject high-consequence changes faster without losing the ability to understand or override
+them. The existing bounded review-to-rework loop is a starting pattern; it stops after a fixed number of
+iterations and hands unresolved judgment back to a person. Memory Seed does not yet measure the human
+review time, rework, or escaped-error rate of that pattern.
+
+#### 3. Memory Seed records evolution but does not close an empirical self-improvement loop
+
+Anthropic's clearest examples have a fixed goal, an executable environment, a score, and repeated
+experimentation. Memory Seed can record why its own harness changes, link them to code, and preserve
+failed alternatives. It does not currently demonstrate that a memory or control-plane change improves
+subsequent task outcomes. The difference is important:
+
+```text
+recorded evolution: proposal -> decision -> implementation -> session evidence
+measured improvement: change -> repeated task outcomes -> comparison -> keep/revert decision
+```
+
+The existing "decision quality under constrained context" gold-set candidate is the right owner for
+closing part of this gap. It already calls for real-history questions, bounded-context arms, blind
+grading, and negative controls. Anthropic's article argues for broadening the interpretation of that
+instrument -- not creating a second metric family -- to ask whether retrieved rationale improves the
+choice of next step, recognition of a dead end, or calibration of what not to do. Any throughput measure
+must remain paired with correctness and rework; more decisions or more Markdown would repeat the lines-of-
+code mistake.
+
+#### 4. Durable rationale may counter cognitive distance, but that benefit is unverified
+
+One employee account in the article describes the disorienting side of delegation: when the system
+breaks, the human may no longer understand what they have been doing. Memory Seed's plain files,
+provenance, alternatives, and decision trails are plausibly useful here because they preserve a route
+back from outcome to reasoning. That is a hypothesis, not a demonstrated effect. A useful evaluation
+would test whether a maintainer can reconstruct, challenge, and safely override an agent-generated
+change after time has passed -- not merely whether an agent can retrieve the relevant entry.
+
+#### 5. Recursive self-improvement is outside the product boundary
+
+The article is ultimately about models potentially helping build their successors and the resulting
+need for monitoring, security, alignment, coordination, and credible verification. Memory Seed can
+contribute a local provenance and governance layer for decisions made around such work. It does not
+secure model weights, verify training runs across organizations, evaluate alignment, govern compute, or
+prevent a capable agent from pursuing a harmful objective. Presenting it as a recursive-self-improvement
+safety mechanism would exceed the evidence and the repository's scope.
+
+### 8d. Candidate disposition after the Anthropic comparison
+
+| Candidate | Disposition |
+|---|---|
+| Decision quality under constrained context | **Existing owner, strategically strengthened.** Use the current gold-set proposal; add no parallel score or dashboard. Include next-step choice, dead-end recognition, and justified non-action only if they fit the pre-registered instrument. |
+| Review-bottleneck measurement | **Bounded extension to evaluate.** Measure human review time, rework, and escaped defects for evidence-packet or bounded-review workflows. Pair speed with correctness; never use output volume alone. |
+| Goal-selection / portfolio memory | **Research question, not accepted product work.** Current records explain individual decisions but do not show whether the project selected the right problems from the available set. First establish a falsifiable small-N evaluation. |
+| Risk-tiered review compression | **Audit the existing workflow before proposing automation.** Preserve named human approval for authority-changing or irreversible actions; test whether machine-ranked evidence reduces review cost without raising false confidence. |
+| Autonomous self-modification or recursive improvement | **Out of scope.** Memory Seed should record and govern changes to its control plane, not authorize agents to recursively rewrite their own objectives or safety constraints. |
+
+### 8e. Current-state correction since section 7
+
+The section 7 finding that Constitution section 8 contained a stale capability sentence was correct at
+the time of that review and has since been resolved. Constitution v1.9 now names the shipped
+`memory-seed quality report`, distinguishes its two measured proxies from three explicitly unmeasured or
+not-applicable metrics, and keeps the quality clause `[candidate]` pending the existing usefulness
+review. This additive note preserves the chronology without leaving the reader with a stale current-state
+conclusion.
+
+### 8f. Extended verdict
+
+OpenAI argues that high-performing coding agents need an agent-legible repository and tight feedback
+loops. Anthropic argues that, once those loops and model capabilities scale, the bottleneck moves from
+doing the work to choosing, reviewing, and verifying it. Together they sharpen Memory Seed's plausible
+role: not a coding accelerator and not a self-improving system, but a durable substrate for the human and
+machine judgments that surround increasingly cheap execution.
+
+The repository is stronger at preserving **why a decision was made** than at demonstrating **whether it
+was a good decision**. The next defensible evaluation is therefore the already-owned decision-quality
+benchmark, with review-capacity and later human reconstruction treated as outcomes to test. The wrong
+response would be to chase Anthropic's reported throughput, remove authority gates, or market durable
+memory as control over recursive self-improvement.
