@@ -69,14 +69,19 @@ CLI-only by design.
 
 **Flow**
 
-1. SessionStart hook injects: nearest `AGENTS.md` routing and the five newest session entries (read
-   directly by date, never by search). The routed startup contract then directs the agent to the
-   skill registry; the hook does not inject the inventory itself.
-2. `situate` reports measured facts: which checkout this actually is (worktree identity is
-   measured, not declared), git branch + cleanliness, `integration_mode` / `merge_trigger`, newest
-   session entry, worktree roster, local version vs CHANGELOG state.
-3. Published version verified from PyPI (printed command; never assumed).
-4. If the session will write and this is the PRIMARY checkout: create an isolated worktree first.
+1. SessionStart directs the agent through the nearest `AGENTS.md` and `orientation.md`, then injects
+   the shared `situate` report's measured facts and latest applicable session-file route. It injects
+   no session bodies and never invokes a model.
+2. The route is mechanical: read the entire file directly at or below 12,000 characters; above the
+   boundary, ask one read-only economy worker to compress the entire file to an at-most-800-token,
+   source-linked briefing. If no suitable worker is available, read directly; split only at entry
+   boundaries when even the worker context cannot hold the source.
+3. `situate` reports which checkout this actually is (worktree identity is measured, not declared),
+   git branch + cleanliness, `integration_mode` / `merge_trigger`, latest-session size and route,
+   worktree roster, and local version vs CHANGELOG state.
+4. Published-version, roadmap, policy, Constitution, and ADR reads remain lazy until the task makes
+   them relevant. Before consequential reasoning from a compressed briefing, reopen its exact source.
+5. If the session will write and this is the PRIMARY checkout: create an isolated worktree first.
 
 **Tools**
 

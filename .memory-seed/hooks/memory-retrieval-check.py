@@ -39,9 +39,9 @@ if shutil.which("memory-seed-mcp") is not None:
         "MEMORY RETRIEVAL REMINDER: Before substantive work, retrieve relevant "
         "prior context. For topical recall (\"why was X decided\", \"what do we "
         "know about Y\"), call the memory_search MCP tool. To establish the "
-        "current/latest state, read the newest .memory-seed/sessions/*.md file "
-        "directly by date (the SessionStart hook injects this) rather than "
-        "memory_search, whose ranking can bury the newest entry beneath older "
+        "current/latest state, apply the SessionStart hook's measured context_route "
+        "(or run memory-seed situate and follow orientation.md) rather than "
+        "memory_search, whose ranking can bury the newest session beneath older "
         f"topically-similar ones. {_draft}"
     )
 else:
@@ -49,8 +49,8 @@ else:
         "MEMORY RETRIEVAL REMINDER: memory-seed-mcp is not on PATH — the "
         "memory_search tool is unavailable. To fix: run "
         "`uv tool install memory-seed` (or `pip install memory-seed`), then "
-        "restart your editor. For now, read the newest "
-        f".memory-seed/sessions/*.md files directly by date before substantive work. {_draft}"
+        "restart your editor. For current state, run `memory-seed situate` and "
+        f"follow `.memory-seed/skills/orientation.md` before substantive work. {_draft}"
     )
 
 if agent == "codex":

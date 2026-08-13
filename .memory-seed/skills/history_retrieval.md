@@ -15,7 +15,11 @@ Use this skill when prior decisions, reason, unresolved risks, architecture, pol
 
 Pick the retrieval method by question type. They are not interchangeable.
 
-- Current state / "what is the latest": read the newest dated `.memory-seed/sessions/*.md` files directly by filename date, newest first. Do not use `memory_search` for latest-state questions because semantic and lexical ranking optimize for topical similarity, not recency.
+- Current state / "what is the latest": use the SessionStart/`situate` route for the newest applicable
+  session file — direct whole-file reading at or below 12,000 characters, or the source-linked economy-
+  worker briefing above it. Do not use `memory_search` for latest-state questions because semantic and
+  lexical ranking optimize for topical similarity, not recency; reopen exact entries when their reasoning
+  will support a consequential decision.
 - Topical / "why was X decided" / "what do we know about Y": use `memory_search`, then fetch consequential results with `memory_get_chunk`.
 
 ## When To Search

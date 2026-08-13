@@ -4,6 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed
+
+- [2026-08-13] **SessionStart now routes whole-session context by measured size instead of injecting five
+  capped entries.** `situate` reports the latest applicable session's character/byte/entry counts and
+  selects direct reading at or below 12,000 characters or an ≤800-token, source-linked economy-worker
+  briefing above it. The hook consumes that shared report, remains model-free, and keeps policy,
+  Constitution, roadmap, and release checks lazy until the task requires them.
+
 ## 2.20.0 - 2026-08-12
 
 Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git

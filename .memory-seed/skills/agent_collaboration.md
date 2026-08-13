@@ -60,9 +60,10 @@ else.
 
 `agent-rules.md` "Operating Mode Start" is written for the **primary** agent, which has to establish
 current project state for itself. A worker does not: the orchestrator already holds that state and
-distilled it into the packet. So a worker **skips** the full index read (step 4), the newest-session
-recency read (step 7), the whole skill registry as a read-everything pass (step 8), and
-load-all-active-personas (step 10).
+distilled it into the packet. So a worker **skips** primary orientation and latest-session loading
+(steps 4–5), the whole skill registry (step 6), project-wide index/policy/Constitution/ADR loading
+(steps 7–9), and load-all-active-personas (step 10). Its packet names the one persona, triggered skills,
+and any policy, Constitution, or ADR context its objective actually requires.
 
 It **still runs** `base_sha` verification, the packet's `preflight`, and the worktree guard. The
 exemption is about *context volume*, never about safety rails — a worker that skips the guard is not

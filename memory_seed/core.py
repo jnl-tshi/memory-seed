@@ -8638,10 +8638,10 @@ _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.p
 # The hook filters tool_name itself, so no matcher is needed in the config.
 _CLAUDE_FILE_TOUCH_COMMAND = "python3 .memory-seed/hooks/file-touch-decisions.py"
 
-# SessionStart orientation hook: routes agents through AGENTS.md and injects the
-# five newest session entries directly so agents do not lean on semantic search
-# (which can bury the newest entry) to establish current state. Fires once per
-# session, unlike the per-prompt reminder.
+# SessionStart orientation hook: routes agents through AGENTS.md, consumes the
+# shared situate report, and injects the measured direct-or-summarize route for
+# the whole latest session file. It never injects entry bodies or invokes a
+# model. Fires once per session, unlike the per-prompt reminder.
 _CLAUDE_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py"
 _CODEX_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --codex"
 _CURSOR_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --cursor"
@@ -8684,11 +8684,12 @@ _COPILOT_STARTUP_MARKER = "memory-seed:"
 _COPILOT_STARTUP_PROMPT = (
     "memory-seed: Before any work, locate the nearest applicable AGENTS.md by "
     "walking upward from the current directory, read it first, and follow every "
-    "instruction and routing path it defines. Then read the five newest applicable "
-    "entries directly from the latest .memory-seed/sessions/ files to establish "
-    "current project context. Do NOT use memory_search/semantic search to find the "
-    "most recent work - use it only for topical 'why was X decided / what do we "
-    "know about Y' questions."
+    "instruction and routing path it defines. Load .memory-seed/skills/orientation.md, "
+    "run memory-seed situate, and apply its measured latest-session context_route: "
+    "read the whole file when direct, or use the skill's read-only economy-worker "
+    "compression contract when summarize. Do NOT use memory_search to find the most "
+    "recent work - use it only for topical 'why was X decided / what do we know "
+    "about Y' questions."
 )
 
 BOOTSTRAP_GENERATED_FILES = [
