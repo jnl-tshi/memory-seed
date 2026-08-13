@@ -37,6 +37,9 @@ This document indexes all files in the project and their purposes.
 | `warranty_embedding_eval_prompt.md` | Embedding evaluation pipeline spec — model roster, metrics, hybrid retrieval strategy |
 | (index file)                        | You're reading it!                                                                    |
 
+> Source-capture note: `QUICKSTART.md` and `MIGRATION.md` belonged to the indexed warranty project but
+> were not included in this repository.
+
 ## `src/` Package (6 files)
 
 ### Root Level
@@ -420,7 +423,5 @@ Contains files that predate or fall outside the refactored pipeline structure.
 
 ✅ **Status**: All structural improvements have been implemented.
 
-Start with:
-1. [QUICKSTART.md](QUICKSTART.md) - How to run
-2. [README.md](README.md) - What things do
-3. [MIGRATION.md](MIGRATION.md) - Where old code went
+The source project directed readers to `QUICKSTART.md`, `README.md`, and `MIGRATION.md`. Only this
+imported index is retained here; the companion documents were not included in this repository.

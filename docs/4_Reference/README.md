@@ -15,6 +15,12 @@ Lifecycle:
 When a reference document produces actionable work, promote the actionable scope into a focused
 `docs/2_Todo/*.md` plan and keep the source document here.
 
+Other retained provenance:
+
+- `warranty-file-structure-index.md` is an imported warranty-claims ML project index retained as the
+  source that informed Memory Seed's tree-first runtime-index format. Its companion `QUICKSTART.md` and
+  `MIGRATION.md` files were not included in this repository.
+
 Current Memory Trace provenance:
 
 - `memory-trace-next-generation-plan-document-set.md` records the 2026-07-11 imported plan package
@@ -39,4 +45,5 @@ Current Memory Trace provenance:
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
+| [warranty-file-structure-index.md](warranty-file-structure-index.md) | — | — | — |
 <!-- docs-index:end -->
