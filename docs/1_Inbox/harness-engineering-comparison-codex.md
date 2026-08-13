@@ -1,15 +1,15 @@
 # Harness engineering (OpenAI) vs. Memory Seed — Codex line
 
-Status: Evaluated comparative analysis (2026-08-13). The candidate list has been checked against
-current repository capabilities, but no candidate is accepted work. The document remains in Inbox
-pending a lifecycle decision.
+Status: Paired assessment in progress (2026-08-13). This Codex line has been evaluated against current
+repository capabilities, but the pair remains deliberately unresolved: neither line supersedes the
+other and no candidate is accepted work. That outstanding triage decision is why both remain in Inbox.
 
 **Authorship.** This is the **Codex-revised** line of the comparison, retained for side-by-side reading.
 Claude drafted the original (`mse_j3ermf8frke6j6rn`); a Codex review then corrected the chronology and
 provenance claims and added §4d (`mse_h0mp9jj6yfzaf7wk`). It is therefore joint work whose most recent
 editorial judgment is Codex's, not a document Codex wrote from scratch. This revision also evaluates
-the parallel [Claude line](harness-engineering-comparison-claude.md), accepting, qualifying, or
-rejecting its departures in §7 rather than silently blending them. Neither line supersedes the other.
+the parallel [Claude line](harness-engineering-comparison-claude.md), including Claude's answer to the
+first Codex gap analysis, in §7 rather than silently blending it. Neither line supersedes the other.
 
 Source: Ryan Lopopolo, *Harness engineering: leveraging Codex in an agent-first world*, OpenAI,
 2026-02-11 — <https://openai.com/index/harness-engineering/>. Compared against this repository at
@@ -73,10 +73,10 @@ What survives is observable convergence: a well-resourced team judged a short ro
 repository-local knowledge, checked-in plans and decision logs, and mechanical freshness enforcement
 worth building for its own use.
 
-That is evidence that the problem is salient and expensive enough to attract engineering investment. It
-is not evidence of product demand, willingness to adopt Memory Seed, or independent invention. It is
-also a competitive signal: capable teams can hand-roll the current-state portion with ordinary files,
-linters, and agents. Memory Seed's defensible differentiation is therefore narrower — portable
+That investment is revealed preference: evidence of demand for the **capability**. It is not evidence
+of demand for Memory Seed as a product, willingness to adopt or pay for it, or independent invention.
+It is also a competitive signal: capable teams can hand-roll the current-state portion with ordinary
+files, linters, and agents. Memory Seed's defensible differentiation is therefore narrower — portable
 brownfield adoption plus typed, retrievable, provenance-preserving rationale — and still needs external
 user evidence.
 
@@ -98,7 +98,7 @@ user evidence.
 | Enforce invariants centrally, allow autonomy locally | The Constitution's layer model — invariants constrain; implementations are freely replaceable and owe no allegiance. |
 | Forward-only, mechanically-validated dependency edges | Forward-only, acyclic lifecycle edges across four never-merged edge kinds, validated by `links check`. The same shape of constraint, applied to memory rather than code. |
 | Agent-legible over human-stylistic | `vendor_neutral: true`, Invariant #5 model-independence, plain Markdown throughout. |
-| Repo-local versioned artifacts are all the agent can see | Invariants #1 (plain files, no server, database, or network in the core) and #6 (Markdown authoritative; everything else a rebuildable projection). The strongest convergence in the comparison — their "if it isn't in the repo it doesn't exist" is this project's invariant, reached from the opposite direction. |
+| Repo-local versioned artifacts are all the agent can see | Invariants #1 (plain files, no server, database, or network in the core) and #6 (Markdown authoritative; everything else a rebuildable projection). The closest correspondence in the comparison, reached from different motives: OpenAI optimises what an agent can inspect; Memory Seed keeps user-owned memory local, portable, and rebuildable. The chronology establishes no independent-arrival claim. |
 | Isolated per-task worktree | worktree=session, branch=task, `<agent>/<kind>/<topic>` namespacing, with a `doctor`/ESR sweep for deregistered worktree residue. |
 
 ---
@@ -143,9 +143,10 @@ merge in a product repository is a revert. A bad write into an append-only evide
 reverted by design — the only correction is another append, and the wrong claim stays legible forever.
 Their throughput argument does not transfer to this substrate.
 
-Where it *does* transfer: to the ordinary code and documentation in this repository, which are not the
-corpus. Their posture — auto-mergeable, sub-minute-reviewable, continuously-opened cleanup PRs — is the
-right treatment for the drift class this repository currently carries rather than pays down.
+Where it *does* transfer: to ordinary code and documentation outside the memory corpus. When mechanical
+drift appears, auto-mergeable, sub-minute-reviewable cleanup PRs are a plausible treatment. This is a
+conditional operating lesson, not a claim that the repository currently has unpaid docs drift:
+`docs check` is green at the time of this revision.
 
 ### 4c. Application legibility exists here, but not as an integrated runtime harness
 
@@ -176,6 +177,12 @@ generated-claim citation coverage, provenance coverage, and ranking regression r
 enough to set targets or extend — a decision already owned by
 [`memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md), not a new
 harness-engineering candidate.
+
+Claude's follow-up identifies the more important consequence: Constitution §8 still says these metrics
+are not tracked. That current-capability sentence is stale relative to shipped code. This Inbox analysis
+has no authority to amend a ratified Constitution, but the mismatch belongs with the §8 owner for a
+governed reconciliation. It also exposes a methodological symmetry: code-only review can miss recorded
+rationale, while memory-only review can miss shipped behavior. A defensible evaluation checks both.
 
 ### 4d. Progressive disclosure is designed in, but its fixed routing cost remains heavy
 
@@ -239,10 +246,11 @@ load-bearing rather than pedantic.
 
 ## 6. Verdict
 
-Different artifacts, same scaffolding thesis. OpenAI's report credibly corroborates the problem and the
-value of a repo-local harness, but it does not establish independent convergence, market demand, or the
-reported productivity magnitudes. It simultaneously demonstrates a build-vs-buy threat: the
-current-state knowledge layer is hand-rollable by a capable team.
+Different artifacts, same scaffolding thesis. OpenAI's report credibly corroborates the problem, the
+value of a repo-local harness, and demand for the capability, but it does not establish independent
+convergence, demand for Memory Seed as a product, or the reported productivity magnitudes. It
+simultaneously demonstrates a build-vs-buy threat: the current-state knowledge layer is hand-rollable by
+a capable team.
 
 Memory Seed's stronger claim is narrower: portable brownfield installation plus typed, retrievable,
 append-only rationale and provenance. Its genuine deficits are a heavy fixed routing cost and the lack
@@ -252,16 +260,33 @@ not "copy their harness"; it is to measure those two remaining gaps without dupl
 
 ---
 
-## 7. Gap analysis against the Claude line
+## 7. Gap analysis against the Claude line, refreshed after its reply
 
 | Claude-line contribution | Codex evaluation |
 |---|---|
 | Discount the self-reported scale and speed figures | **Accepted.** The practices are evidence; the magnitudes are unsupported context. |
-| Reopen chronology and influence | **Mostly agreed, but it misstates the prior Codex position.** The Codex line already said article silence cannot prove independence. Both lines now agree that priority is unavailable and influence is unknown. |
-| Reframe the article as evidence of demand | **Qualified.** It is evidence of problem salience and internal willingness to build, not external adoption or willingness to pay for Memory Seed. |
+| Reopen chronology and influence | **Accepted in substance.** The earlier Codex sentence denied proof of independence but was ambiguous about the direction of possible influence. Both lines now state the useful result: priority is unavailable and influence is unknown. |
+| Reframe the article as evidence of demand | **Terminology resolved.** Engineering expenditure is evidence of demand for the capability; it is not evidence of demand, adoption, or willingness to pay for Memory Seed as a product. |
 | Add the competitive/build-vs-buy reading | **Accepted.** This is Claude's strongest new strategic contribution and narrows the differentiation claim usefully. |
 | Weaken the now/why claim | **Accepted.** OpenAI has decision logs and design history; the difference is formal retrieval and preservation, not presence versus absence. |
 | Separate stale-CLI provenance from runtime observability | **Accepted.** These are different failure classes with different controls. |
-| Say runtime legibility is wholly absent | **Rejected.** Browser automation, rendered verification, screenshots, fixtures, and worktree static serving exist. The integrated full-app telemetry loop is absent. |
-| Replace 45,544 with 30,443 characters | **Qualified.** 30,443 is unconditional before intent-specific routing; 45,544 is still mandatory by the first substantive turn. Both boundaries matter. |
-| Retain the claim that quality metrics are untracked | **Rejected; missed by both earlier lines.** A queryable v0 quality report already ships, with two measured and three explicitly unmeasured metrics. |
+| Say runtime legibility is wholly absent | **Resolved.** Claude withdrew the claim after checking browser automation, rendered verification, and worktree static serving. Both lines now isolate the missing integrated full-app telemetry loop. |
+| Replace 45,544 with 30,443 characters | **Resolved.** Claude accepted the two-boundary account: 30,443 unconditional; 45,544 mandatory by the first substantive turn. |
+| Retain the claim that quality metrics are untracked | **Resolved.** Claude withdrew candidates 1 and 4 after verifying the shipped report. Both lines now defer extension to the existing quality proposal. |
+
+### Findings added by Claude's reply
+
+- **Current-state evidence must be checked in executable sources.** Both earlier lines trusted
+  Constitution §8 for a capability claim and missed the shipped report. Governing documents explain
+  authority and rationale; they do not replace direct inspection of current behavior.
+- **Constitution §8 now carries a checkable stale sentence.** This document flags it but does not amend
+  it; reconciliation must follow the Constitution's governance path.
+- **Two Codex-line defects were valid and are now corrected.** The convergence table no longer implies
+  independent arrival, and the cleanup lesson no longer claims that `docs check` currently has errors.
+- **The Inbox objection was valid as written and is now resolved in status.** The Codex line is
+  evaluated, but the paired artifact remains under active comparison with no chosen canonical outcome.
+  Its status now says exactly that instead of calling the document a completed evaluation.
+
+The substantive disagreement has now mostly collapsed. What remains is editorial posture: Claude keeps
+withdrawn claims visible in place; Codex maintains a clean current-state analysis while its session
+lineage preserves the corrections. Keeping both lines still makes that now/why tradeoff inspectable.
