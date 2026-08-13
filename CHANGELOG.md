@@ -6,6 +6,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- [2026-08-13] **Bootstrap-generated runtime indexes are now tree-first.** Every new project index
+  must put a purpose-annotated repository tree and an expanded `.memory-seed/` tree immediately after
+  its purpose. A small path/purpose/read-when table may clarify non-obvious entry points, but cannot
+  replace the visual trees or grow into an exhaustive file inventory.
+
 - [2026-08-13] **SessionStart now routes whole-session context by measured size instead of injecting five
   capped entries.** `situate` reports the latest applicable session's character/byte/entry counts and
   selects direct reading at or below 12,000 characters or an ≤800-token, source-linked economy-worker

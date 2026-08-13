@@ -49,7 +49,7 @@ Then ask your coding agent to read `AGENTS.md` and follow nearest-runtime discov
   archive/
 ```
 
-The first bootstrap pass generates `.memory-seed/index.md` and `.memory-seed/policy.md` from local inspection and user answers.
+The first bootstrap pass generates `.memory-seed/index.md` and `.memory-seed/policy.md` from local inspection and user answers. Generated indexes use a tree-first map: one clear repository tree and one expanded `.memory-seed/` runtime tree are the primary navigation surface, with tables used only as optional clarification for non-obvious entry points.
 
 For an existing project that already has Memory Seed:
 

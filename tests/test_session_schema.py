@@ -142,10 +142,40 @@ class SessionSchemaTests(unittest.TestCase):
             "skill trigger registry expectations",
             ".memory-seed/skills/index.md`: deterministic trigger registry",
             "Always include `skills/index.md` as the deterministic trigger registry",
-            "Generated `index.md` should reference it in `Always Read` and `Lazy Skills`",
+            "Generated `index.md` should reference it in `Startup And On-Demand Read` and `Lazy Skills`",
             ".memory-seed/skills/index.md` contains the deterministic skill trigger registry",
         ):
             self.assertIn(phrase, bootstrap)
+
+    def test_bootstrap_requires_tree_first_runtime_indexes(self):
+        bootstrap = Path(".memory-seed/project-bootstrap.md").read_text(encoding="utf-8")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "`Repository Structure` and `Memory Runtime Structure` are mandatory",
+            "They are the primary navigation surface",
+            "fenced `text` tree",
+            "short inline `# purpose` comments",
+            "It supplements the trees and must never replace them",
+            "Tailor both trees to evidence found in the target",
+            "its file trees match paths that actually exist",
+        ):
+            self.assertIn(phrase, bootstrap)
+
+        self.assertLess(
+            bootstrap.index("## Repository Structure"),
+            bootstrap.index("## Fast Orientation"),
+        )
+        self.assertLess(
+            runtime_index.index("## Repository Structure"),
+            runtime_index.index("## Runtime Boundary"),
+        )
+        self.assertLess(
+            runtime_index.index("## Memory Runtime Structure"),
+            runtime_index.index("### Key Entry Points"),
+        )
+        self.assertIn("```text\nmemory-seed/", runtime_index)
+        self.assertIn("```text\n.memory-seed/", runtime_index)
 
     def test_public_docs_cover_current_v2_routing_and_mcp_contract(self):
         readme = Path("README.md").read_text(encoding="utf-8")
