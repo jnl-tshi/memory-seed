@@ -72,6 +72,8 @@ experiments/context-derivation/runs/
 experiments/context-derivation/shards/
 experiments/context-derivation/packs/
 experiments/context-derivation/judgements/
+# Decision-replay pilot: sealed arm receipts and disposable historical repos.
+experiments/decision-replay/claude-quality-report-v0/runs/
 experiments/stack-benchmark/solar-filaments-001/generated/
 experiments/stack-benchmark/solar-filaments-001/runs/
 experiments/stack-benchmark/solar-filaments-001/data/
