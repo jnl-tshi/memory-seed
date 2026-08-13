@@ -1,7 +1,9 @@
 # Memory Seed Constitution
 
-**Version:** 1.8 — **RATIFIED 2026-08-11** by JNL. Changes go through [Governance](#11-governance).
-**Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
+**Version:** 1.9 — **RATIFIED 2026-08-13** by JNL. Changes go through [Governance](#11-governance).
+**Status:** Living document. Its substance changes only by amendment; the version also increments for
+evolution-class corrections, so the log below is a complete version history (see
+[Governance](#11-governance)).
 **Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
 append-only sidecars (Invariant #6); amended 2026-07-17 with a human-gated, one-off exception for
 untyped `related_entries` metadata curation (Invariant #2); amended 2026-07-19 with write-surface
@@ -10,7 +12,8 @@ with a human-gated, one-off exception for diagram-sidecar syntax repair (Invaria
 2026-07-26** once an append path made it unnecessary; amended 2026-07-26 adding the *minimal but
 sufficient context* principle (§3, `[candidate]`); amended 2026-08-06 with stable clause anchors;
 amended 2026-08-11 to make a declared ratified Constitution formally govern lower control-plane
-documents. **Source:** distilled from demonstrated behaviour
+documents; **corrected** 2026-08-13 (1.9, evolution-class — not an amendment) to record the shipped
+quality instrumentation in §8. **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -236,9 +239,17 @@ safety depend on it. Today only the DRAFT labels (Decision/Reason/Alternatives/F
 
 "Good memory" means: retrievable, explainable, attributable, current-without-losing-history, and low in
 stale/orphan/contradiction rate. The Constitution defines *what* quality is; implementations decide *how*
-to measure it. Today `links check`, `topics check`, and `esr` are the partial instrumentation; named
-quality metrics (stale-rate, orphan-rate, evidence/decision coverage) are not yet tracked.
-*(Ref: `../business/wedges/memory-seed-strategic-synthesis-report.md`.)*
+to measure it. Today `links check`, `topics check`, `esr`, and the read-only `memory-seed quality report`
+are the partial instrumentation. Of the named metrics, orphan-rate and evidence/decision coverage are
+measured — as `unlinked_entry_rate` and structural `draft_reason_coverage` — while stale-rate remains
+unmeasured by deliberate v0 scope. Two further metrics declare themselves `unavailable` and one
+`not_applicable`, each with a stated reason. This clause remains **[candidate]**: graduation is gated on
+the step-6 usefulness review in
+[`2_Todo/memory-quality-metrics-v0-proposal.md`](2_Todo/memory-quality-metrics-v0-proposal.md), which is
+a decision to be made, not further implementation to be done.
+*(Ref: [`2_Todo/memory-quality-metrics-v0-proposal.md`](2_Todo/memory-quality-metrics-v0-proposal.md);
+[`4_Reference/memory-quality-v0-baseline.md`](4_Reference/memory-quality-v0-baseline.md);
+`../business/wedges/memory-seed-strategic-synthesis-report.md`.)*
 
 ## 9. The five-question test
 
@@ -281,6 +292,16 @@ This document is **versioned and living**. Two change classes:
   model**. Requires higher scrutiny: an explicit proposal, the maintainer's ratification, and a new row in
   the log below. Amendments bump the version (`1.x` for additive, `2.0` for a changed invariant).
 
+**Versioning covers both classes.** An amendment always bumps the version. An **evolution-class
+correction to this document's own text** — a clause whose factual claim has decayed relative to shipped
+behaviour — also bumps the minor version and earns a log row marked as such, so the version is a complete
+history of what this document has said rather than a history of amendments alone. The distinction is
+preserved *in* the row, not by omitting it: a reader must be able to tell whether a version changed what
+the Constitution requires or only what it accurately reports. An evolution row still records the
+maintainer's acceptance, but needs no proposal cycle. A correction may never be used to change a
+requirement — if the text and the code disagree about what *should* be true rather than what *is* true,
+that is an amendment, and the lower layer does not get to win by having shipped first.
+
 A proposal that conflicts with a live invariant is rejected or must first amend the invariant — it cannot
 silently override it. "[candidate]" clauses graduate to cited/established only when a shipped artifact
 demonstrates them.
@@ -293,10 +314,14 @@ decision rationale and evolution. Lower layers may operationalize higher ones bu
 or silently redefine them. Projects without a declared ratified Constitution remain valid and begin
 their authority chain at the concern-owning control file.
 
-### Amendment log
+### Version log
+
+Amendment rows change what the Constitution *requires*. Correction rows change only what it *reports*,
+and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.9 | 2026-08-13 | **Correction (evolution-class — not an amendment): §8 records the shipped quality instrumentation.** §8 claimed that named quality metrics "are not yet tracked" and listed only `links check`, `topics check`, and `esr` as the partial instrumentation. That was true when written and had since decayed: `memory-seed quality report` shipped 2026-07-17 and measures `unlinked_entry_rate` (180/901 at this revision) and structural `draft_reason_coverage` (857/857, 44 excluded), with `generated_claim_citation_coverage`, `provenance_coverage`, and `ranking_ab_regression_rate` declaring `unavailable`/`not_applicable` and a reason each. Two of the three named metrics — orphan-rate and evidence/decision coverage — therefore have measured proxies; stale-rate does not, and its absence is deliberate v0 scope, not an oversight. §8 **remains `[candidate]`**: graduation is separately gated on the step-6 usefulness review in `2_Todo/memory-quality-metrics-v0-proposal.md`, whose `next_action` names §8 graduation explicitly, so the correction records shipped fact without touching that hold. Nothing this document requires has changed. §11 gains the versioning rule that makes an evolution-class bump legible rather than indistinguishable from an amendment. Found while comparing this project against an external report and noticing that two review passes had read current capability out of §8 — a *why* document — instead of out of the code, which Invariant #4 assigns as the authority for what is true now. | JNL (accepted 2026-08-13; version bump requested so the log tracks document versions, not amendments alone) |
 | 1.8 | 2026-08-11 | **Formal control-plane precedence** — a ratified Constitution declared by the active runtime index now governs lower control files; the index routes, policy states concise executable constraints, accepted ADR heads own durable decision rationale/evolution, sessions retain evidence, and projections remain derived. Draft or undeclared Constitutions do not govern, preserving Constitution-optional bootstrap for other projects. | JNL |
 | 1.7 | 2026-08-06 | **Per-clause anchor markers** — every invariant (and its live sub-clauses), principle, and §4 policy clause gains an HTML-comment `constitution-ref` anchor (`constitution:v1#slug`, 24 in all). Structural only: zero content changed, verified by a markers-stripped byte comparison against v1.6. Added so ADR constitution bindings and the ESR ADR↔Constitution audit resolve against declared anchors rather than prose numbering (the ADR contract extension of the same date validates refs against these markers). Slugs are semantic, not positional, so renumbering never breaks a binding. | Claude, under JNL's delegated ratification (live instruction, 2026-08-06: "ratify for me and get me to the end goal and then i will iterate") |
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
