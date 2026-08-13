@@ -179,7 +179,7 @@ Include:
 - known nested runtimes
 - inheritance rules for policy and skills
 - active local skills, inherited parent skills, and disabled/unneeded skills
-- skill trigger registry expectations, including `.memory-seed/skills/index.md` in `Always Read` and `Lazy Skills`
+- skill trigger registry expectations, including `.memory-seed/skills/index.md` in `Startup And On-Demand Read` and `Lazy Skills`
 - MCP history retrieval expectations, including `memory_search`, `memory_get_chunk`, entry granularity by default, section granularity for narrow searches, and direct session-file fallback when MCP is unavailable
 - session memory location and promotion guidance
 - an authority map naming any declared Constitution and the accepted/proposed ADRs by concern
@@ -245,22 +245,48 @@ Minimum sections:
 # Memory Seed Runtime Index
 
 ## Purpose
+## Repository Structure
+## Memory Runtime Structure
+### Key Entry Points
 ## Fast Orientation
 ## Current State
 ## Project Type And Risk
 ## Audience And Outputs
 ## Runtime Boundary
 ## Inheritance
-## Always Read
+## Startup And On-Demand Read
 ## Lazy Skills
 ## Active State
-## Topology
+## Topology Notes
 ## Workflows
 ## Authority Map
 ## Design Decisions
 ## Risks And Open Questions
 ## Session Memory
 ```
+
+`Repository Structure` and `Memory Runtime Structure` are mandatory and appear immediately after
+`Purpose`. They are the primary navigation surface, not prose summaries or tables. Render each as a
+fenced `text` tree with real project-relative names and short inline `# purpose` comments:
+
+```text
+project-root/
+├── src/                 # Application or library source
+├── tests/               # Automated verification
+├── docs/                # Project documentation
+└── README.md            # Human-facing entry point
+```
+
+The repository tree should show the important top-level folders and entry files a new agent must be
+able to locate. The runtime tree should expand `.memory-seed/` separately so its control files,
+`skills/`, `sessions/`, `hooks/`, `decisions/` when present, and `archive/` are visually clear.
+Tailor both trees to evidence found in the target; do not copy example paths that do not exist.
+
+A small `Path | Purpose | Read when` table may follow under `Key Entry Points` for genuinely
+non-obvious files. It supplements the trees and must never replace them. Do not turn the index into an
+exhaustive inventory: omit line counts, transient build outputs, generated caches, and per-file lists
+inside ordinary source folders. Use `Topology Notes` only for relationships, compatibility boundaries,
+nested-runtime behavior, or generated/configured surfaces that the trees cannot express.
 
 Keep it concise but substantive. It is not a raw history, but it should carry enough durable context for a new agent to understand what the project is, what matters now, how to navigate it, and which mistakes to avoid.
 
@@ -322,7 +348,7 @@ skills; use `memory-seed skills add <skill-or-profile>` and
 
 For sub-projects, inherit parent skills by default and create local skill files only when the sub-project needs an override or a genuinely local runbook. Record local, inherited, and disabled skills in `index.md`.
 
-Always include `skills/index.md` as the deterministic trigger registry for universal skills. Generated `index.md` should reference it in `Always Read` and `Lazy Skills` so agents can decide which full skill runbooks to load without preloading all skills.
+Always include `skills/index.md` as the deterministic trigger registry for universal skills. Generated `index.md` should reference it in `Startup And On-Demand Read` and `Lazy Skills` so agents can decide which full skill runbooks to load without preloading all skills.
 
 For project-specific execution patterns, create a local skill instead of expanding `agent-rules.md` or `policy.md`.
 
@@ -546,7 +572,7 @@ Bootstrap is incomplete until all checks pass:
 - Optional tool-specific routing files point back to `AGENTS.md`.
 - `.memory-seed/agent-rules.md` exists and defines operating-mode rules.
 - `.memory-seed/project-bootstrap.md` exists and is marked bootstrap/repair only.
-- `.memory-seed/index.md` contains enough project purpose, current state, topology, risk, workflows, design decisions, inheritance, and skill context for a new LLM session to situate itself.
+- `.memory-seed/index.md` contains its mandatory tree-first `Repository Structure` and `Memory Runtime Structure`, followed by enough project purpose, current state, topology notes, risk, workflows, design decisions, inheritance, and skill context for a new LLM session to situate itself.
 - `.memory-seed/policy.md` contains behavioral constraints only.
 - `.memory-seed/skills/index.md` contains the deterministic skill trigger registry.
 - `.memory-seed/skills/` contains runbooks only, not active state.
@@ -554,7 +580,7 @@ Bootstrap is incomplete until all checks pass:
 - `.memory-seed/archive/` exists.
 - No stale `.AGENTS/` paths are presented as canonical.
 - Security posture matches risk level.
-- `index.md` is enough for project traversal without guessing.
+- `index.md` is enough for project traversal without guessing, and its file trees match paths that actually exist.
 - The authority map declares Constitution status and separates accepted ADRs from proposed concerns.
 - `memory-seed doctor`, `memory-seed topics check`, `memory-seed links check`, and
   `memory-seed adr check` pass (or a check is explicitly inapplicable because its corpus is absent).

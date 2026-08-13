@@ -12,6 +12,73 @@ tags:
 
 Memory Seed is a portable local memory system for AI coding agents. This runtime is the active control plane for developing the reusable seed, CLI, MCP memory retrieval, and compatibility behavior.
 
+## Repository Structure
+
+The file tree is the primary map of the repository. Inline comments describe ownership without
+turning this index into an exhaustive file inventory.
+
+```text
+memory-seed/
+├── .memory-seed/       # Active agent memory and control plane; expanded below
+├── .agents/            # Project personas and their registry
+├── .claude/            # Claude command and hook configuration
+├── .codex/             # Codex configuration and agent-owned worktrees
+├── .cursor/            # Cursor hook and MCP configuration
+├── .gemini/            # Gemini commands, hooks, and MCP configuration
+├── .github/            # GitHub workflows plus Copilot configuration
+├── .vscode/            # VS Code Copilot MCP configuration
+├── memory_seed/        # Python package, CLI/MCP implementation, and reusable seed
+├── memory-trace/       # Companion memory-review application
+├── docs/               # Product, implementation, reference, and lifecycle documents
+├── business/           # Commercial strategy and research
+├── experiments/        # Isolated research and evaluation work
+├── demo/               # Nested HyperFrames demonstration project and runtime
+├── landing-page/       # Product-interest landing page
+├── scripts/            # Repository maintenance and validation scripts
+├── tests/              # Automated verification suite
+├── AGENTS.md            # Cross-agent entry point into the nearest runtime
+├── README.md            # Public project and usage guide
+├── CHANGELOG.md         # Release history and unreleased changes
+└── pyproject.toml       # Package metadata, dependencies, and build configuration
+```
+
+## Memory Runtime Structure
+
+```text
+.memory-seed/
+├── agent-rules.md       # Operating contract, authority rules, and safety gates
+├── project-bootstrap.md # Bootstrap and repair procedure
+├── index.md             # This project map, active state, and durable orientation
+├── policy.md            # Project-specific behavioural constraints
+├── project.yaml         # Participants, integration mode, and merge trigger
+├── topics.yaml          # Controlled area/activity vocabulary
+├── decisions/           # Living ADR records and accepted heads
+├── skills/
+│   ├── index.md         # Deterministic task-to-runbook trigger registry
+│   └── *.md             # Lazy-loaded execution runbooks
+├── sessions/
+│   ├── YYYY-MM/         # Month-grouped dated session logs
+│   ├── links/           # Decision lifecycle and related-entry sidecars
+│   ├── topics/          # Decision-level area/activity sidecars
+│   └── diagrams/        # Decision and ADR diagram sidecars
+├── hooks/               # Session-start, prompt, turn-end, and Git hooks
+└── archive/             # Historical control-plane snapshots
+```
+
+### Key Entry Points
+
+The trees above remain the canonical visual map. This table only clarifies when the few non-obvious
+entry points matter.
+
+| Path | Purpose | Read when |
+|---|---|---|
+| `AGENTS.md` | Routes every supported agent into the nearest runtime | At session start |
+| `.memory-seed/skills/orientation.md` | Applies measured checkout and latest-session context routing | At session start or re-entry |
+| `.memory-seed/skills/index.md` | Selects task-specific runbooks deterministically | After the task intent is known |
+| `.memory-seed/index.md` | Provides topology, authority, active state, and durable orientation | When those project facts matter |
+| `.memory-seed/policy.md` | Defines local behavioural constraints | Before writes or constrained actions |
+| `docs/CONSTITUTION.md` | Sets the ratified normative ceiling | Before consequential design or governance work |
+
 ## Runtime Boundary
 
 - Active runtime: nearest ancestor directory containing `.memory-seed/`.
@@ -103,13 +170,16 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
 - Control-plane version: `2.20`.
-- Package version: `2.20.0` (prepared locally; not published).
+- Package version: `2.20.0` (published 2026-08-12).
 
-## Topology
+## Topology Notes
+
+The trees above show where things live. These notes capture relationships, compatibility boundaries,
+and configured surfaces that a folder tree cannot explain by itself.
 
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` (Copilot thin router).
 - Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
-- Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects the newest session entries so agents establish current state by recency, not semantic search), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
+- Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects measured checkout/session facts and a whole-file direct-or-compress route without injecting session bodies), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
 - Agent hook configs (auto-merged by `init`/`update`): `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, plus Copilot CLI `.github/hooks/memory-seed.json` (sessionStart prompt hook).
 - Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only), `.github/mcp.json` (Copilot CLI, `mcpServers` key), `.vscode/mcp.json` (VS Code Copilot, `servers` key).
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
@@ -213,7 +283,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   `docs/2_Todo/decision-level-topics-proposal.md`.
 - Append-only link retraction (current unreleased worktree, 2026-07-25): a published lifecycle edge is downgraded or removed via a NEW `retracts: <kind> <ref> [(date)]` block (the fuse refuses in-place edits to published blocks), the reader subtracts it, and `links check` validates malformed/dangling/forward-only. A downgrade is a retract of the old kind plus a fresh edge of the new kind — the sanctioned append-only correction path for link edges, realizing Invariant #2. Spec: `docs/3_Spec/draft/link-retraction.md`.
 - ESR generalization (2.11.0): the "End Of Turn" routine in `agent-rules.md` (+ seed twin) now runs a consolidation review (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`) and a baseline-promotion check (flag generic adaptations, record in `.memory-seed/plans/`, create-if-needed). Shipped as a seeded `/esr` command via two `SeedFile`s: `.claude/commands/esr.md` (agent=claude, version-tracked frontmatter, refreshes on update) and `.gemini/commands/esr.toml` (agent=gemini, deploy-once via `_is_runtime_local_file` since TOML carries no version marker). Codex/Cursor run the routine from `agent-rules.md`. No blocking `Stop` hook (deliberate — evolution needs reasoning + approval).
-- User-aware session targets (2.10.0, month-grouped after current work): user identity is opt-in and local-first. Resolution order is explicit CLI/function argument, `MEMORY_SEED_USER`, gitignored `.memory-seed/local.yaml`, then shared flat behavior. `session_target()` returns `sessions/YYYY-MM/YYYY-MM-DD.md` when no user is configured or fewer than 2 participants are registered, and `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` when a valid slug is active and the per-user gate is met; `--create` initializes per-user file frontmatter with `schema_version: 2`, `session_date`, immutable `msm_` file `hash_id`, `user`, and `created_at`. Hooks are user-aware and grouped-path-aware: `session-log-check.py` checks only the active user's target, while `session-start-context.py` injects the active user's latest entry and lists same-day co-contributor files by count.
+- User-aware session targets (2.10.0, month-grouped after current work): user identity is opt-in and local-first. Resolution order is explicit CLI/function argument, `MEMORY_SEED_USER`, gitignored `.memory-seed/local.yaml`, then shared flat behavior. `session_target()` returns `sessions/YYYY-MM/YYYY-MM-DD.md` when no user is configured or fewer than 2 participants are registered, and `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` when a valid slug is active and the per-user gate is met; `--create` initializes per-user file frontmatter with `schema_version: 2`, `session_date`, immutable `msm_` file `hash_id`, `user`, and `created_at`. Hooks are user-aware and grouped-path-aware: `session-log-check.py` checks only the active user's target, while `session-start-context.py` routes the active user's latest whole session file and lists same-day co-contributor files by count without injecting their content.
 - Agent-selective install (2.6.0 plus current unreleased UX refinement): `init` installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml` (`agents:` list) and respected by `doctor`/`update`. Interactive init now presents agent integrations as an opt-out step with all agents selected by default; `--agents none` writes the explicit zero-agent state and `--no-agent-prompt` skips the prompt. Driven by the `KNOWN_AGENTS`/`_AGENT_MERGES`/`_AGENT_UNINSTALLS` registries in `core.py` and a per-`SeedFile` `agent` tag. Absent `project.yaml` means all agents for legacy projects; present-but-empty `agents:` means zero agents. `agents list` reports selected and ignored agents. `agents add/remove` reconfigure; `remove` strips only our entries (foreign config preserved), never deletes shared dirs, backs up first. `codex`/`cursor` have no routing file (read `AGENTS.md` natively). (ADR [`adr_agent_selective_install`](decisions/adr_agent_selective_install.md))
 
 ## Session Memory
