@@ -99,8 +99,9 @@ memory is the authority for *why*. Invariant #2: append-only, corrections are ne
 back. Invariant #7: retrieval down-ranks a superseded entry, never removes it.
 
 Note that the article makes the argument *for* this position and then does not follow it through.
-Their critique of the monolithic instruction file is precisely that it becomes a graveyard of stale
-rules an agent cannot distinguish from live ones. Their remedy is a gardener that clears the graves.
+Their critique of the monolithic instruction file is precisely that it fills up with rules nobody can
+tell are still live — Lopopolo calls it "a graveyard of stale rules." Their remedy is a gardener that
+clears the graves.
 The alternative remedy is to mark them — supersede, down-rank, keep readable — which is what lets an
 agent answer "was this tried before, and why was it dropped?" On a five-month-old repository the
 gardener is cheap and correct. Their own open question is what happens over *years*, and that is the

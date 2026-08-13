@@ -1,6 +1,7 @@
 # Inbox
 
-Status: **EMPTY 2026-07-29 — no documents of any kind remain**.
+Status: **2 documents awaiting or exempt from triage (2026-08-13)**, plus one foreign artifact that does
+not belong in this repository at all.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -10,9 +11,21 @@ untriaged captures.
 
 ## Current contents
 
-Nothing but this README. The Superpowers collaboration proposal was approved for implementation and promoted
-to [`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md)
-on 2026-07-29.
+- [`agent-interaction-storylines-review.md`](agent-interaction-storylines-review.md) — a **living** review of
+  every agent interaction storyline, kept synchronised with shipped behaviour. JNL explicitly recorded that it
+  stays in this lane rather than moving to `4_Reference/`, so it is an exemption from the triage rule above,
+  not an untriaged capture.
+- [`harness-engineering-comparison.md`](harness-engineering-comparison.md) — added 2026-08-13. An unassessed
+  comparison of OpenAI's "harness engineering" post against this project. Its candidate list is not accepted
+  work; it awaits triage into an active, reference, or rejected lane.
+- `FILE_INDEX.md` — **not a Memory Seed document.** It is a warranty-claims ML project's file index that
+  arrived here by mistake, and its two broken links are the only errors `docs check` currently reports. It is
+  listed in the generated table below because `docs index` enumerates the lane mechanically; that listing is
+  not an endorsement of its placement. Awaiting JNL's confirmation before removal.
+
+The Inbox stood empty from 2026-07-29, when the Superpowers collaboration proposal was approved for
+implementation and promoted to
+[`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md).
 
 The two assessment artifacts and the design-reference folder that sat here after the 2026-07-20 triage
 were themselves reference material, not undecided captures — moved the same day to
