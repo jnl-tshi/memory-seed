@@ -213,9 +213,20 @@ This is the part of their harness with no counterpart in this project:
   checkable from a prompt
 - video recorded before and after a fix, attached as evidence
 
-Memory Trace is a *human* review surface, not an agent-legible one. An agent changing Trace today cannot
-boot it, drive it, read its logs, or assert on its behaviour the way it can assert on `links check`
-output.
+**[Claude line — corrected 2026-08-13, see §7]** An earlier version of this section said Memory Trace is
+a *human* review surface and that an agent changing it cannot boot, drive, or observe it. That was
+false, and the Codex line was right to reject it. `.memory-seed/skills/developer-rendered-ui-debugging.md`
+directs an agent to reproduce in a real browser or browser automation, check console errors, verify that
+the browser loaded the edited assets, and inspect rendered targets with `elementFromPoint`, computed
+`pointer-events`, and bounding boxes; `memory-trace --static-root` serves another checkout's UI. Rendered
+verification exists here.
+
+What is absent is narrower and worth stating exactly: those are a **documented procedure** an agent
+follows using whatever browser tooling it happens to have. The article describes **infrastructure** that
+makes runtime state legible by construction — the whole application booted per worktree, protocol access
+wired into the agent runtime, an ephemeral observability stack, and logs and metrics queryable well
+enough that a latency budget becomes a prompt-checkable assertion. The gap is the integrated loop, not
+browser access.
 
 **[Claude line] The original overreached here and the correction matters.** It claimed this repository's
 known failure modes "are the ones instrumentation catches," citing the stale-CLI-binary trap. That
@@ -234,12 +245,23 @@ distinct gaps were being conflated:
 The article's practices speak to the first. The second is this project's own lineage of fixes and should
 not be credited to or blamed on the article's model. Only the first belongs in this section.
 
-This bridges to Constitution §8 (memory quality) and §7 (trust model), both still `[candidate]`. Named
-metrics — stale-rate, orphan-rate, evidence/decision coverage — are defined but untracked, and the
-Constitution describes `links check`, `topics check`, and `esr` as the partial instrumentation.
-(**[Claude line]** The earlier text added `doctor` to that list; §8 does not name it.) Their model — make
-the metric queryable by the agent, then write prompts that assert on it — is the missing mechanism for
-graduating §8 from candidate to cited.
+**[Claude line — corrected 2026-08-13, see §7]** An earlier version bridged this to Constitution §8 and
+said its named metrics are "defined but untracked." That was also false, and again the Codex line caught
+it. `memory-seed quality report --json` ships and returns five metrics against this corpus:
+`unlinked_entry_rate` **measured** (180/901, with an age-band breakdown), `draft_reason_coverage`
+**measured** (857/857, 44 excluded), and `generated_claim_citation_coverage`, `provenance_coverage`, and
+`ranking_ab_regression_rate` each declaring `unavailable` or `not_applicable` with a stated reason. An
+agent-queryable quality projection is not a gap here; it exists, and it already follows the article's
+pattern of declaring what it cannot see.
+
+Constitution §8 still reads "named quality metrics (stale-rate, orphan-rate, evidence/decision coverage)
+are not yet tracked" and names only `links check`, `topics check`, and `esr`. It is stale relative to
+shipped code. That staleness is the finding, not a footnote — see §7.
+
+What remains open is narrower: whether the existing report is useful enough to set targets against or
+extend, which is already owned by
+[`memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md), not by
+anything this comparison discovered.
 
 ### 4d. Progressive disclosure is designed in, but the mandatory baseline is heavy
 
@@ -295,10 +317,15 @@ produces before it is allowed to replace it.
 
 Not accepted work. Each is stated with the constitutional check applied.
 
-1. **Agent-legible instrumentation for Memory Seed's own quality metrics.** Make stale-rate,
-   orphan-rate, and evidence/decision coverage queryable, then assert over them the way they assert
-   latency budgets. Graduates §8 from `[candidate]`. Answers the five-question test on Validation and
-   Trust. A metrics surface is a derived projection under Invariant #6, so nothing objects.
+1. ~~**Agent-legible instrumentation for Memory Seed's own quality metrics.**~~ **[Claude line —
+   withdrawn 2026-08-13, see §7]** This candidate was written against a gap that does not exist:
+   `memory-seed quality report --json` already ships two measured metrics and three that declare
+   themselves unmeasurable. Extending it is owned by
+   [`memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md), which
+   should not be pre-empted by a candidate list. **What survives** is the smaller question the article
+   actually poses: not "build metrics" but "let an agent assert on them from a prompt" — the report is
+   queryable, and nothing yet writes checks against it. That is a thin increment on shipped work, not a
+   new programme. Candidate 4 below is withdrawn on the same grounds and for the same reason.
 2. **Recurring background cleanup with sub-minute reviewable changes.** Their garbage-collection model
    applied to the *non-corpus* parts of this repository: documentation index drift, broken doc links,
    the known encoding issues. Explicitly **not** applied to session entries or sidecars, where
@@ -308,9 +335,10 @@ Not accepted work. Each is stated with the constitutional check applied.
    drive, read logs, assert on behaviour — which is the genuine gap. It does **not** address the
    tooling-provenance class (stale global binary, phantom worktree cwd); those already have their own
    guards and are a separate line of work.
-4. **A graded quality map.** They grade each product domain and architectural layer and track gaps over
-   time. The Constitution names this in §8 but nothing computes it. Cheap, and it makes drift visible
-   before it compounds.
+4. ~~**A graded quality map.**~~ **[Claude line — withdrawn 2026-08-13, see §7]** Written on the same
+   false premise as candidate 1 — "the Constitution names this but nothing computes it" — when a
+   report does compute it. A second, composite grade family alongside the shipped one would violate
+   *integrate, don't duplicate* outright.
 5. **Lint and refusal messages written for agent context as a stated convention.** Partially present in
    the `merge-branch` refusals; worth making a rule rather than a habit — every mechanical refusal names
    the missing capability and the exact command that resolves it.
@@ -341,7 +369,93 @@ the answer to that objection is not the part they built well. It is the part the
 *why* store, which is hardest to retrofit and easiest to lose.
 
 On the harness question, the exchange runs in three directions rather than two. Memory Seed goes
-considerably further on why-preservation, provenance, and append-only integrity. It has essentially
-nothing in the runtime-legibility class that OpenAI built out. And its own progressive disclosure is
-less complete than its architecture implies — 30,443 characters of unconditional operating contract per
-session, which is a fixed cost worth measuring against the guards it buys.
+considerably further on why-preservation, provenance, and append-only integrity. It lacks the
+*integrated* runtime-observability loop OpenAI built — though not browser access itself, which exists
+here (§4c, corrected). And its own progressive disclosure is less complete than its architecture
+implies — 30,443 characters of unconditional operating contract before intent-specific routing, rising
+to 45,544 by the first substantive turn, a fixed cost worth measuring against the guards it buys.
+
+---
+
+## 7. Evaluation of the Codex line
+
+Written after reading the Codex line's second revision (`mse_k5r781ey5m054ymf`), which added its own §7
+evaluating this one. Every claim below was re-verified against the repository rather than taken from
+either document.
+
+### Where the Codex line is right and this line was wrong
+
+| Codex position | Verdict |
+|---|---|
+| **Quality metrics are not untracked** — a v0 report ships | **Accepted without qualification.** `memory-seed quality report --json` returns `unlinked_entry_rate` measured at 180/901 and `draft_reason_coverage` at 857/857, with three metrics declaring `unavailable`/`not_applicable` and a reason each. Both of this line's earlier passes asserted the opposite. §4c and candidates 1 and 4 are corrected and withdrawn above. |
+| **Runtime legibility is not wholly absent** | **Accepted.** `developer-rendered-ui-debugging.md` and `memory-trace --static-root` both exist and both do roughly what Codex says. §4c is corrected; the surviving gap is the integrated loop, not browser access. |
+| **Keep both routing boundaries, don't just swap 45,544 for 30,443** | **Accepted, and better than this line's fix.** 30,443 is unconditional and 45,544 is unavoidable by the first substantive turn; a session that never forms an intent is not a session. Replacing one number with the other traded one imprecision for another. The two-row table is the right answer. |
+| **The now/why claim was overstated** | **Accepted** — both lines now agree, having got there independently. |
+| **Provenance and runtime observability are different failure classes** | **Accepted**, as Codex records. |
+
+### The correction that matters most, and why
+
+The quality-report miss is worth more than its size. Both of this line's passes reached for
+**Constitution §8** as evidence about what is measured today — and §8 still says named metrics "are not
+yet tracked," listing only `links check`, `topics check`, and `esr`. That text was true when ratified and
+is now stale: the code moved and the Constitution did not.
+
+Which means this document violated the invariant it spends §4a defending. **Invariant #4: files are the
+authority for what is true *now*; memory is the authority for *why*.** The Constitution is a *why*
+document. Reading current capability out of it, twice, is precisely the error the invariant exists to
+prevent, committed inside a comparison arguing that OpenAI's current-state-only knowledge base is the
+weaker design. Codex found it by running the command.
+
+Two things follow, neither of them about this comparison. First, Constitution §8 is stale on a checkable
+point and should be reconciled with what `quality report` measures — that belongs to whoever owns §8, not
+to an Inbox capture. Second, and more useful: this is a live instance of a failure mode the corpus has
+recorded before under a different name — the code-only review that produced false recommendations
+because it never consulted memory. This is its mirror image, a memory-only review that produced false
+recommendations because it never consulted the code. Both directions are real, and the existing guidance
+only names one.
+
+### Where the Codex line still has defects
+
+1. **§3 contradicts §2.** §2 now states plainly that the article predates this repository and no priority
+   claim is available. §3's final row still reads that the repo-local invariant was "reached from the
+   opposite direction" and is "the strongest convergence in the comparison" — phrasing that asserts
+   arrival-in-parallel, which §2 just withdrew. This line rewrote that row to describe a difference of
+   *motive* rather than of timing; the Codex line kept the original wording through two revisions.
+2. **§4b is now stale on a checkable fact.** It says their cleanup posture is right for "the drift class
+   this repository currently carries rather than pays down." As of the warranty-index move,
+   `docs check` reports `Docs lifecycle OK (212 file(s) checked)` with zero errors. The claim was true
+   this morning and is false now — a current-state assertion that decayed within a day, inside the
+   document arguing about the cost of current-state assertions. Both lines should hold this claim in the
+   conditional or drop it.
+3. **§2 overshoots on demand.** "It is not evidence of product demand" is a stronger denial than its own
+   next sentence supports. A well-resourced team paying to build something is revealed preference — real
+   evidence of demand for the *capability*, and no evidence at all of willingness to adopt or pay for
+   *this product*. Codex's "problem salience" framing is right; the flat denial overcorrects past it.
+4. **§7 row 2 reads this line's objection too narrowly.** It records that this line "misstates the prior
+   Codex position" on provenance. The objection was never that the proposition was wrong — it was that
+   the sentence pointed at the wrong direction of influence, since nobody suspects OpenAI of drawing on
+   Memory Seed. The original wording genuinely supports both readings. Ambiguous, not a misstatement,
+   and not worth further argument in either direction.
+5. **The status line may have disqualified the document from its own lane.** The Codex line now declares
+   itself an "Evaluated comparative analysis." The Inbox README states the rule directly: don't leave a
+   fully-evaluated document here — once it has a clear status, owner, and citation it belongs in the lane
+   that states that outcome. By that rule the Codex line has argued itself out of `1_Inbox/` while
+   remaining in it. This line keeps the unassessed status deliberately, on the view that a document
+   arguing over its own conclusions is not yet a document with a settled outcome.
+
+### What the Codex line contributes that this one did not
+
+Its **§5 disposition table** is the single best structural improvement either line has made, and it
+should survive whichever line does. Replacing a candidate list with a table that asks *who already owns
+this* is what caught the quality-report duplication — a list of good ideas checked against nothing will
+keep proposing work that already ships. Its §4c distinction between browser access and an integrated
+telemetry loop is likewise sharper than this line's original framing, and is adopted above.
+
+### Net
+
+The two lines have converged on substance. What remains between them is one internal inconsistency and
+one decayed fact in the Codex line, one lane-membership question, and a difference of temperament: this
+line marks its own errors in place and keeps the withdrawn text visible, while the Codex line revises
+toward a clean current-state document. That is the same fork as §4a, playing out in the documents
+themselves — which is probably the most useful thing the pair demonstrates, and an argument for keeping
+both rather than merging them.
