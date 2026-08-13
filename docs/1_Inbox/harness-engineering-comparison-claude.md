@@ -14,10 +14,16 @@ self-reported figures, and adds the reading in which the article is a competitiv
 only a supportive one. Every point of departure is marked **[Claude line]** so a reader can find them
 without diffing.
 
-Source: Ryan Lopopolo, *Harness engineering: leveraging Codex in an agent-first world*, OpenAI,
+Primary source: Ryan Lopopolo, *Harness engineering: leveraging Codex in an agent-first world*, OpenAI,
 2026-02-11 — <https://openai.com/index/harness-engineering/>. Compared against this repository at
-control plane 2.20 and [Constitution](../CONSTITUTION.md) v1.8. All characterisations of the article
-are paraphrase.
+control plane 2.20 and [Constitution](../CONSTITUTION.md) v1.8 (now v1.9 — see §8). All
+characterisations of the articles are paraphrase.
+
+Second source, added 2026-08-13 in §8: Marina Favaro and Jack Clark, *When AI builds itself*, The
+Anthropic Institute — <https://www.anthropic.com/institute/recursive-self-improvement>. No publication
+date appears in the body; the latest data it cites is May 2026, and it was read on 2026-08-13. §1–§7
+were written before it and are **not** revised in light of it; §8 is additive and says where it
+contradicts them.
 
 ---
 
@@ -459,3 +465,139 @@ line marks its own errors in place and keeps the withdrawn text visible, while t
 toward a clean current-state document. That is the same fork as §4a, playing out in the documents
 themselves — which is probably the most useful thing the pair demonstrates, and an argument for keeping
 both rather than merging them.
+
+---
+
+## 8. Extension: Anthropic's recursive-self-improvement report
+
+Added 2026-08-13 as a second source. **Additive by construction** — §1–§7 are left as written, and where
+this section contradicts them it says so rather than editing them. That is the same posture §4a argues
+for, applied to this document.
+
+### 8a. What the second article is, and why it is not the same kind of claim
+
+*When AI builds itself* reports on delegating AI development to AI at Anthropic, and asks where the
+trend leads. Its through-line: engineering is largely automatable, research execution is already at or
+above skilled-human level in narrow settings, and the residual human role is **direction-setting** —
+choosing which problems matter, which results to trust, and when an approach is a dead end.
+
+The two articles sit at different altitudes on the same phenomenon and neither substitutes for the
+other:
+
+| | OpenAI, *Harness engineering* | Anthropic, *When AI builds itself* |
+|---|---|---|
+| Altitude | Mechanism — how one repository was built | Trajectory — where the capability curve goes |
+| Scope | One product, three-to-seven engineers, five months | Organisation-wide, five years, plus public benchmarks |
+| Deliverable | A harness you could copy | A forecast, three scenarios, and a governance ask |
+| Stance on generalising | Explicitly disclaims it | Explicitly extrapolates from it |
+| What it omits | Any trajectory or governance frame | Any harness detail — *how* the uplift was obtained |
+
+Read together, the OpenAI post is roughly the **implementation note** for one point on Anthropic's
+curve, and Anthropic's report is the **context** the OpenAI post refuses to supply about itself.
+
+### 8b. The strongest finding: OpenAI's post is Anthropic's Scenario 2, written from inside it
+
+Anthropic's second scenario — the one it says the evidence suggests is most likely — is compounding
+efficiency: development substantially automated while **humans keep setting direction and judging
+results**. OpenAI's post states that thesis in four words: *Humans steer. Agents execute.*
+
+The match goes further than slogan. Anthropic invokes Amdahl's law — speeding one stage just relocates
+the constraint — and reports the specific relocation it hit: **human code review became the new
+bottleneck.** OpenAI reports the same discovery independently (its bottleneck became human QA capacity)
+and describes the engineering answer: make the application legible to the agent (§4c) and push review
+agent-to-agent (§4e) so the human stage stops gating throughput.
+
+So the second article names the constraint and the first one answers it. That is a genuinely useful
+pairing, and it upgrades §4c from "an interesting capability they have" to "the response to the
+predicted bottleneck." Anyone acting on §5 candidate 3 should read it that way.
+
+### 8c. Where this cuts against §4b, and it should be said plainly
+
+§4b concludes that the fail-closed, human-gated posture is correct for the memory corpus because a bad
+append cannot be reverted. Nothing in the second article falsifies that argument. What it does supply is
+the cost side, which §4b understated.
+
+Anthropic reports the rate at which staff correct or take over from Claude falling steadily for a year;
+Claude-written code at rough parity with human-written code and expected to pass it within the year; and
+an automated reviewer that, in retrospect, would have caught about a third of the bugs behind past
+production incidents — mistakes made by engineers it describes as among the best in the world at this.
+It then states the consequence directly: if humans cannot review as fast as the system generates, human
+review *is* the bottleneck.
+
+Applied here: every machine-suggested lifecycle edge in this project is human-gated, and mandatory ADR
+review gates lineage-linked evolution. Those gates are correct **and** they are precisely the Amdahl
+constraint. Both are true, and §4b only said the first. The honest formulation is that the fail-closed
+posture is right for an append-only corpus and is the thing that will not scale — so the question worth
+carrying forward is not whether to keep the gates but *what evidence would justify narrowing them*, and
+nothing in this project currently measures that.
+
+### 8d. The finding that matters most for Memory Seed is not about code
+
+Anthropic's Scenario 2 says the bottleneck moves to code review **and opportunity identification**, and
+it reports the second one as already live: an explosion of ideas, initiatives, and tools far exceeding
+capacity to pursue them, with the observation that the rate at which an organisation can spot and clear
+its own bottlenecks may become the most important skill it has.
+
+That is a memory problem before it is a management problem. Knowing which of a hundred candidate
+directions was already tried, how far it got, and why it was dropped is exactly what a *why* store
+answers and a current-state knowledge base cannot. This project already holds the shape of it — the
+DRAFT `A:` field records rejected alternatives at decision granularity, and the `6_Rejected`/`8_Deferred`
+lanes keep terminal outcomes addressable rather than deleted.
+
+This is a better statement of the Axis B product case than §2 reached. §2 argued from *demand* — a
+frontier team paid to build a knowledge base, so the problem is real. This is stronger and more
+specific: a second frontier lab, independently, names the scarce resource as knowing-what-to-do-next,
+and that is the thing decision provenance is for. It does not resolve §2's competitive objection — a
+capable team can still hand-roll this — but it moves the argument from "they built something similar" to
+"the constraint they both report is the one this addresses."
+
+### 8e. Research taste is the Constitution's two `[candidate]` clauses, named from outside
+
+Anthropic locates the human comparative advantage in research taste: which problems matter, **which
+results to trust**, and when an approach is a dead end. Those map onto clauses this project already has
+and has not yet made operational:
+
+- *which results to trust* → Constitution §7, the trust model — classifying what kind of knowledge an
+  entry carries. Still `[candidate]`; §4c of this document confirmed only `edge_confidence` and declared
+  provenance ship.
+- *when an approach is a dead end* → the rejected-alternatives record, which does ship.
+- *which problems matter* → unaddressed here, and unaddressed there.
+
+Worth noting how weak the evidence is even in the source: its research-judgment result comes from 129
+moments *selected* for the human having taken a wrong turn, which the article says outright is not a
+like-for-like comparison, and a bias check on 127 moments where the human's move was already strong put
+the models ahead only about 20% of the time. Taste is the least demonstrated capability in the piece and
+the one everything downstream depends on. §7 staying `[candidate]` is not a lag; it is the correct
+status for something nobody can yet measure.
+
+### 8f. Evidence discipline: the two sources are not equivalent, and §1 should be read accordingly
+
+§1 discounts OpenAI's self-reported magnitudes. That discount was right and it does **not** transfer
+symmetrically. Anthropic's report caveats itself in ways the OpenAI post does not: it flags lines of
+code as quantity over quality and "almost certainly an overstatement"; it says the survey's true uplift
+was likely lower and cites external research that developer self-estimates run high; it states that its
+headline optimisation multiple should not be read as a real-world speedup and is not the figure to
+anchor on; and it runs and reports a judge-bias control that partly undercuts its own result.
+
+None of that makes the numbers verified — they remain self-reported by a vendor about its own product,
+with the same structural incentive. But an author who supplies the counter-evidence against their own
+headline is making a different kind of claim than one who supplies none, and a comparison that discounts
+both identically is being lazy rather than skeptical. Where §1 says the magnitudes should not be carried
+into any argument as if measured, that still holds for both. The asymmetry is in how much of the
+reasoning each source lets a reader check.
+
+### 8g. A footnote this session earned
+
+Anthropic's fourth stage is agents delegating work to other agents. The pair of documents in this folder
+is a small instance: a Claude line and a Codex line revised the same source material several times, each
+correcting real errors in the other — the Codex review caught a false chronology claim, and later caught
+this line asserting two capability gaps that do not exist, by running the command instead of reading the
+Constitution (§7).
+
+Two things follow, and they point in opposite directions. Agent-to-agent review demonstrably worked:
+neither line would be as accurate alone. And the corrective substrate was the repository — the shipped
+command, the versioned proposal, the session entries — which is the harness thesis and this project's
+thesis at the same time. But the error that survived longest was the one where both passes read a
+governing document instead of the code, and no amount of agent review caught it until an agent went and
+looked. Legible current state and preserved rationale are not substitutes for each other. That is §4a's
+argument, arrived at the hard way, in this folder, by the documents making the mistake themselves.
