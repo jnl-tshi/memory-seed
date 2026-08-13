@@ -1,7 +1,15 @@
-# Harness engineering (OpenAI) vs. Memory Seed
+# Harness engineering (OpenAI) vs. Memory Seed — Codex line
 
 Status: Unassessed external capture (2026-08-13). No decision is implied by its presence here; the
 "What is worth taking" section is a candidate list, not an accepted plan.
+
+**Authorship.** This is the **Codex-revised** line of the comparison, frozen for side-by-side reading.
+Claude drafted the original (`mse_j3ermf8frke6j6rn`); a Codex review then corrected the chronology and
+provenance claims and added §4d (`mse_h0mp9jj6yfzaf7wk`). It is therefore joint work whose most recent
+editorial judgment is Codex's, not a document Codex wrote from scratch. The parallel
+[Claude line](harness-engineering-comparison-claude.md) starts from this text and applies a further
+round of corrections; the two are kept apart deliberately so their evaluations can be compared rather
+than merged. Neither supersedes the other yet — that is a triage decision still to be made.
 
 Source: Ryan Lopopolo, *Harness engineering: leveraging Codex in an agent-first world*, OpenAI,
 2026-02-11 — <https://openai.com/index/harness-engineering/>. Compared against this repository at
