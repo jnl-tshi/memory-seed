@@ -1,6 +1,6 @@
 # Inbox
 
-Status: **2 documents awaiting or exempt from triage (2026-08-13)**.
+Status: **3 documents awaiting or exempt from triage (2026-08-13)**.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -14,9 +14,18 @@ untriaged captures.
   every agent interaction storyline, kept synchronised with shipped behaviour. JNL explicitly recorded that it
   stays in this lane rather than moving to `4_Reference/`, so it is an exemption from the triage rule above,
   not an untriaged capture.
-- [`harness-engineering-comparison.md`](harness-engineering-comparison.md) — added 2026-08-13. An unassessed
-  comparison of OpenAI's "harness engineering" post against this project. Its candidate list is not accepted
-  work; it awaits triage into an active, reference, or rejected lane.
+- **Two parallel lines of the OpenAI "harness engineering" comparison**, added 2026-08-13 and deliberately
+  kept apart so their evaluations can be compared rather than merged. Both are unassessed; neither
+  supersedes the other, and picking one — or folding them together — is itself the triage decision still
+  outstanding. Their candidate lists are not accepted work.
+  - [`harness-engineering-comparison-codex.md`](harness-engineering-comparison-codex.md) — the Codex-revised
+    line: Claude's original draft with Codex's chronology/provenance corrections and its startup-context
+    section.
+  - [`harness-engineering-comparison-claude.md`](harness-engineering-comparison-claude.md) — the Claude line:
+    accepts those corrections, then recomputes the startup measurement, redirects the provenance question,
+    follows the chronology correction through to the verdict, repairs a category error in the
+    application-legibility section, and adds the competitive reading. Departures are marked
+    **[Claude line]** inline.
 
 The warranty-claims ML project's file index that arrived here by mistake was assessed and moved to
 [`../4_Reference/warranty-file-structure-index.md`](../4_Reference/warranty-file-structure-index.md) on
@@ -62,5 +71,6 @@ were themselves reference material, not undecided captures — moved the same da
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
-| [harness-engineering-comparison.md](harness-engineering-comparison.md) | — | — | — |
+| [harness-engineering-comparison-claude.md](harness-engineering-comparison-claude.md) | — | — | — |
+| [harness-engineering-comparison-codex.md](harness-engineering-comparison-codex.md) | — | — | — |
 <!-- docs-index:end -->
