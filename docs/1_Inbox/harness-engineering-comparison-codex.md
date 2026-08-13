@@ -1,15 +1,15 @@
 # Harness engineering (OpenAI) vs. Memory Seed — Codex line
 
-Status: Unassessed external capture (2026-08-13). No decision is implied by its presence here; the
-"What is worth taking" section is a candidate list, not an accepted plan.
+Status: Evaluated comparative analysis (2026-08-13). The candidate list has been checked against
+current repository capabilities, but no candidate is accepted work. The document remains in Inbox
+pending a lifecycle decision.
 
-**Authorship.** This is the **Codex-revised** line of the comparison, frozen for side-by-side reading.
+**Authorship.** This is the **Codex-revised** line of the comparison, retained for side-by-side reading.
 Claude drafted the original (`mse_j3ermf8frke6j6rn`); a Codex review then corrected the chronology and
 provenance claims and added §4d (`mse_h0mp9jj6yfzaf7wk`). It is therefore joint work whose most recent
-editorial judgment is Codex's, not a document Codex wrote from scratch. The parallel
-[Claude line](harness-engineering-comparison-claude.md) starts from this text and applies a further
-round of corrections; the two are kept apart deliberately so their evaluations can be compared rather
-than merged. Neither supersedes the other yet — that is a triage decision still to be made.
+editorial judgment is Codex's, not a document Codex wrote from scratch. This revision also evaluates
+the parallel [Claude line](harness-engineering-comparison-claude.md), accepting, qualifying, or
+rejecting its departures in §7 rather than silently blending them. Neither line supersedes the other.
 
 Source: Ryan Lopopolo, *Harness engineering: leveraging Codex in an agent-first world*, OpenAI,
 2026-02-11 — <https://openai.com/index/harness-engineering/>. Compared against this repository at
@@ -25,6 +25,11 @@ code** — every line (application logic, tests, CI, documentation, observabilit
 authored by Codex. Reported figures: first commit late August 2025; roughly one million lines of code;
 about 1,500 pull requests; three engineers initially, seven now; ~3.5 PRs per engineer per day, with
 throughput *rising* as the team grew; about a tenth of the time hand-writing would have taken.
+
+Those magnitudes are self-reported in a vendor article about its own product. The article supplies no
+repository, counting definition, counterfactual method, or independent verification for the
+million-line and one-tenth-time estimates. The practices below are concrete enough to compare; the
+magnitudes are context, not evaluation evidence.
 
 Their thesis: when engineers stop writing code, the engineering work becomes **designing the
 environment the agent works inside** — the harness. Their named practices:
@@ -61,13 +66,19 @@ nonsense. Two separate axes:
   Seed productises for any repository: a thin routing entry point over a structured,
   mechanically-validated, repo-local knowledge base that agents read instead of reading humans' heads.
 
-**The strongest finding is on Axis B: external corroboration.** A seven-person team optimising for
-shipping velocity describes the same cluster of needs that Memory Seed addresses — a short router,
-structured repository-local knowledge, progressive disclosure, checked-in plans and decision logs, and
-mechanical freshness enforcement. The article does not mention Memory Seed, but that is not evidence
-that the work was independent; the defensible conclusion is convergence, not provenance. It remains
-strong validation of the product premise from a credible source and is worth more to this project than
-any individual technique in the post.
+**The strongest finding is on Axis B: credible corroboration of the problem, not market validation.**
+The article predates this repository by three months, so Memory Seed has no priority claim and the
+corpus cannot establish whether its design was influenced by the article or the surrounding discourse.
+What survives is observable convergence: a well-resourced team judged a short router, structured
+repository-local knowledge, checked-in plans and decision logs, and mechanical freshness enforcement
+worth building for its own use.
+
+That is evidence that the problem is salient and expensive enough to attract engineering investment. It
+is not evidence of product demand, willingness to adopt Memory Seed, or independent invention. It is
+also a competitive signal: capable teams can hand-roll the current-state portion with ordinary files,
+linters, and agents. Memory Seed's defensible differentiation is therefore narrower — portable
+brownfield adoption plus typed, retrievable, provenance-preserving rationale — and still needs external
+user evidence.
 
 ---
 
@@ -98,28 +109,24 @@ any individual technique in the post.
 
 Their knowledge base is a **current-state** artifact. The doc-gardening agent finds documentation that
 no longer reflects real code behaviour and opens PRs to fix it; stale content is corrected or removed.
-That is coherent for their goal — the agent reads the repository and must not be misled — and it is
-also the standard failure mode Memory Seed exists to prevent. Once the stale document is overwritten,
-the *reasoning that produced it* is gone, and the next agent re-litigates a decision that was already
-made and rejected.
+That is coherent for their goal — the agent reads the repository and must not be misled. The article
+does not describe whether a corrected document's prior rationale remains queryable, so it cannot
+support the stronger claim that their reasoning is necessarily lost.
 
 Memory Seed splits the axis instead. Invariant #4: files are the authority for what is true *now*,
 memory is the authority for *why*. Invariant #2: append-only, corrections are new entries pointing
 back. Invariant #7: retrieval down-ranks a superseded entry, never removes it.
 
-Note that the article makes the argument *for* this position and then does not follow it through.
-Their critique of the monolithic instruction file is precisely that it fills up with rules nobody can
-tell are still live — Lopopolo calls it "a graveyard of stale rules." Their remedy is a gardener that
-clears the graves.
-The alternative remedy is to mark them — supersede, down-rank, keep readable — which is what lets an
-agent answer "was this tried before, and why was it dropped?" On a five-month-old repository the
-gardener is cheap and correct. Their own open question is what happens over *years*, and that is the
-regime where the distinction begins to bite.
+Their critique of a monolithic instruction file is that it becomes what Lopopolo calls "a graveyard of
+stale rules." Their remedy is current-state gardening. Memory Seed's alternative is to mark the graves:
+supersede, down-rank, and keep the old rationale readable so an agent can ask what was tried and why it
+was dropped.
 
-What they do have that partly closes the gap: exec plans carrying decision logs, checked in, with a
-completed lane. That is a partial *why* store. It is not indexed, typed, graph-linked, or retrievable
-the way session entries plus ADRs plus lifecycle edges are — but it is not nothing, and it suggests
-they met the same need and solved it lightly.
+OpenAI also keeps checked-in execution plans with progress and decision logs, a completed-plan lane,
+and documentation/design history. That is a real *why* store, not an absence. The defensible divergence
+is that the article does not describe Memory Seed's typed decision identity, append-only correction,
+lifecycle graph, authority hierarchy, or retrieval semantics. Whether the lighter mechanism is
+insufficient is a multi-year prediction, not a failure demonstrated by the five-month report.
 
 ### 4b. Merge philosophy is inverted, and both are correct
 
@@ -140,9 +147,9 @@ Where it *does* transfer: to the ordinary code and documentation in this reposit
 corpus. Their posture — auto-mergeable, sub-minute-reviewable, continuously-opened cleanup PRs — is the
 right treatment for the drift class this repository currently carries rather than pays down.
 
-### 4c. Application legibility is genuinely absent here
+### 4c. Application legibility exists here, but not as an integrated runtime harness
 
-This is the part of their harness with no counterpart in this project:
+OpenAI's implementation combines capabilities this project does not yet combine:
 
 - the application bootable **per worktree**, so an agent drives its own isolated instance
 - Chrome DevTools Protocol in the agent runtime, with skills for DOM snapshots, screenshots, navigation
@@ -151,31 +158,45 @@ This is the part of their harness with no counterpart in this project:
   checkable from a prompt
 - video recorded before and after a fix, attached as evidence
 
-Memory Trace is a *human* review surface, not an agent-legible one, and this repository's known failure
-modes are the ones instrumentation catches: the worktree preview serving worktree static over the
-primary backend, the stale-CLI-binary trap in worktrees, phantom worktree working directories. All of
-those are "the agent cannot see the running system" bugs.
+Memory Trace is not human-only. The repository already has a rendered-UI debugging skill requiring a
+real browser or browser automation, `memory-trace --static-root` for worktree frontend verification,
+and browser fixtures, screenshots, and rendered checks. What it lacks is an isolated, per-worktree
+*whole application* plus agent-queryable logs, metrics, traces, and prompt-checkable runtime budgets.
+That integrated feedback loop is the transferable gap.
 
-This also bridges to Constitution §8 (memory quality) and §7 (trust model), both still `[candidate]`.
-Named metrics — stale-rate, orphan-rate, evidence/decision coverage — are defined but untracked, and
-the Constitution itself describes `links check` / `topics check` / `doctor` / `esr` as *partial
-instrumentation*. Their model, make the metric queryable by the agent and then write prompts that
-assert on it, is the missing mechanism for graduating §8 from candidate to cited.
+The stale-global-CLI and phantom-worktree incidents are a separate **environment provenance** class.
+DevTools, LogQL, and PromQL would not prove which checkout or executable was loaded; Memory Seed's
+package-provenance refusal and worktree guard address that class. Runtime observability and tooling
+provenance should not be presented as one missing capability.
 
-### 4d. Progressive disclosure is designed in, but the mandatory baseline is still heavy
+The earlier quality-metrics bridge was also stale. `memory-seed quality report --json` already provides
+an agent-queryable projection: unlinked-entry rate and DRAFT reason coverage are measured, while
+generated-claim citation coverage, provenance coverage, and ranking regression report explicit
+`unavailable` or `not_applicable` states. The remaining question is whether the existing report is useful
+enough to set targets or extend — a decision already owned by
+[`memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md), not a new
+harness-engineering candidate.
 
-Memory Seed follows the article's map-not-manual structure, but an agent does not stop at the
-76-line router. Before task-specific context, normal startup requires `AGENTS.md`, `agent-rules.md`,
-`orientation.md`, and the complete skill trigger registry. In this checkout those four files total
-**776 lines and 45,544 characters**, before the latest session file, policy, project index, applicable
-skills, or source code. The 12,000-character session threshold controls only the latest-session portion.
+### 4d. Progressive disclosure is designed in, but its fixed routing cost remains heavy
 
-This is not the same failure as one monolithic `AGENTS.md`: ownership is separated, skills still
-lazy-load, and the route is mechanically explicit. But the token bill is paid anyway when every startup
-must read the entire operating contract and registry. The article's stronger form of progressive
-disclosure is therefore only partly realised here. A mechanically compiled startup packet — measured
-checkout facts, a compact authority map, and only the matching skill entries — would preserve the
-guards while moving more of the control plane behind demand-driven retrieval.
+Memory Seed follows the article's map-not-manual structure, but an agent does not stop at the 76-line
+router. The measurement has two useful boundaries:
+
+| Boundary | Files | Lines | Characters |
+|---|---|---:|---:|
+| Unconditional orientation before intent-specific routing | `AGENTS.md`, `agent-rules.md`, `skills/orientation.md` | 452 | **30,443** |
+| Mandatory by the first substantive turn, once intent is known | + complete `skills/index.md` | 776 | **45,544** |
+
+Claude is right that calling all 45,544 characters "before task-specific context" was imprecise: the
+registry is loaded only once intent is known. But it is still a fixed cost of every substantive session,
+not selectively retrieved task guidance. The 12,000-character threshold controls only the latest-session
+portion and does not reduce either routing stack.
+
+This is not the monolithic-`AGENTS.md` failure: ownership is separated, skills remain lazy-loaded, and
+the route is mechanically explicit. The question is whether a compiled packet can preserve every safety
+decision while carrying only measured checkout facts, a compact authority map, and matching registry
+entries. That is an evaluation extension of the existing context-derivation work, not permission to
+replace source reads on intuition.
 
 ### 4e. Smaller divergences
 
@@ -185,9 +206,9 @@ guards while moving more of the control plane behind demand-driven retrieval.
   ships a harness into arbitrary ones, including repositories with a pre-existing foreign `AGENTS.md`.
 - **Reimplement over depend.** They favour reimplementing small library subsets so the agent can model
   the whole thing in-repo. This project lands in the same place from a different constraint —
-  `model2vec` is the package's only required dependency and plain `memory-seed` ships no web framework
+  `model2vec>=0.8.1` is the package's only required dependency and plain `memory-seed` ships no web framework
   — driven by local-first invariants rather than agent legibility.
-- **Scale.** Seven engineers and a million lines of code against a solo maintainer. Their central claim
+- **Scale.** Seven engineers and a large agent-generated codebase against a solo maintainer. Their central claim
   — human attention is the one scarce resource — applies *harder* solo, not less. That is a fair
   argument that some gates here are tighter than the staffing warrants, and the honest counterweight to
   §4b.
@@ -198,31 +219,17 @@ guards while moving more of the control plane behind demand-driven retrieval.
 
 ---
 
-## 5. Candidates worth considering
+## 5. Candidate disposition after repository and Claude-line review
 
-Not accepted work. Each is stated with the constitutional check applied.
+Still not accepted work. This table distinguishes new opportunities from existing owners.
 
-1. **Agent-legible instrumentation for Memory Seed's own quality metrics.** Make stale-rate,
-   orphan-rate, and evidence/decision coverage queryable, then assert over them the way they assert
-   latency budgets. Graduates §8 from `[candidate]`. Answers the five-question test on Validation and
-   Trust. A metrics surface is a derived projection under Invariant #6, so nothing objects.
-2. **Recurring background cleanup with sub-minute reviewable changes.** Their garbage-collection model
-   applied to the *non-corpus* parts of this repository: documentation index drift, broken doc links,
-   the known encoding issues. Explicitly **not** applied to session entries or sidecars, where
-   Invariant #2 governs and human gating is the settled answer.
-3. **Per-worktree bootable application and ephemeral observability for Memory Trace.** Directly
-   addresses the worktree preview/backend split and stale-CLI-binary traps, both of which have already
-   produced wrong conclusions in this project.
-4. **A graded quality map.** They grade each product domain and architectural layer and track gaps over
-   time. The Constitution names this in §8 but nothing computes it. Cheap, and it makes drift visible
-   before it compounds.
-5. **Lint and refusal messages written for agent context as a stated convention.** Partially present in
-   the `merge-branch` refusals; worth making a rule rather than a habit — every mechanical refusal names
-   the missing capability and the exact command that resolves it.
-6. **A compiled minimal startup packet.** Measure whether agents can receive the enforced checkout and
-   integration facts, a compact authority map, and only task-matching skill routes without reading the
-   current 45,544-character mandatory routing stack. Treat this as an evaluation first: the packet must
-   preserve safety decisions and improve task success or context cost before replacing source reads.
+| Candidate | Disposition |
+|---|---|
+| Quality instrumentation / graded quality map | **Already owned and partly shipped.** Extend `memory-seed quality report` only after the existing proposal's user usefulness review. Do not create a parallel metric family or composite grade. |
+| Recurring background cleanup | **Potential operating practice, not yet a product plan.** Limit it to named non-corpus target classes, dry-run first, and never auto-edit session entries or sidecars. |
+| Per-worktree Memory Trace observability | **Genuine bounded gap.** Evaluate a whole-app worktree launch plus queryable logs/metrics and rendered evidence. Keep tooling provenance under its existing guards. |
+| Agent-oriented refusal messages | **Audit before proposing work.** The convention is already partly implemented; first measure which mechanical refusals still lack cause, ownership, or an exact recovery command. |
+| Compiled minimal startup packet | **Existing evaluation extension.** Test the 30,443/45,544-character boundaries through the context-derivation work and require safety-equivalent task outcomes before replacing reads. |
 
 Explicitly **not** a candidate: minimal merge gates and self-merging agents for anything touching the
 memory corpus. That is the one place where the throughput logic inverts, and the guards there are
@@ -232,10 +239,29 @@ load-bearing rather than pedantic.
 
 ## 6. Verdict
 
-Different artifacts, same thesis: the engineering work has moved out of the code and into the
-scaffolding around it. OpenAI hand-built, for one repository under severe velocity pressure, much of
-the repository-knowledge environment that Memory Seed generalises — strong external corroboration of
-the premise, without proving independent invention. Memory Seed goes considerably further on
-*why*-preservation, provenance, and append-only integrity, but its mandatory startup context is heavier
-than its progressive-disclosure ideal and it has essentially nothing in the runtime-legibility class
-that OpenAI built out. Those are the three main directions of exchange.
+Different artifacts, same scaffolding thesis. OpenAI's report credibly corroborates the problem and the
+value of a repo-local harness, but it does not establish independent convergence, market demand, or the
+reported productivity magnitudes. It simultaneously demonstrates a build-vs-buy threat: the
+current-state knowledge layer is hand-rollable by a capable team.
+
+Memory Seed's stronger claim is narrower: portable brownfield installation plus typed, retrievable,
+append-only rationale and provenance. Its genuine deficits are a heavy fixed routing cost and the lack
+of OpenAI's integrated per-worktree application-observability loop. Its quality instrumentation and
+browser-verification capability are partial rather than absent. The most useful exchange is therefore
+not "copy their harness"; it is to measure those two remaining gaps without duplicating shipped work.
+
+---
+
+## 7. Gap analysis against the Claude line
+
+| Claude-line contribution | Codex evaluation |
+|---|---|
+| Discount the self-reported scale and speed figures | **Accepted.** The practices are evidence; the magnitudes are unsupported context. |
+| Reopen chronology and influence | **Mostly agreed, but it misstates the prior Codex position.** The Codex line already said article silence cannot prove independence. Both lines now agree that priority is unavailable and influence is unknown. |
+| Reframe the article as evidence of demand | **Qualified.** It is evidence of problem salience and internal willingness to build, not external adoption or willingness to pay for Memory Seed. |
+| Add the competitive/build-vs-buy reading | **Accepted.** This is Claude's strongest new strategic contribution and narrows the differentiation claim usefully. |
+| Weaken the now/why claim | **Accepted.** OpenAI has decision logs and design history; the difference is formal retrieval and preservation, not presence versus absence. |
+| Separate stale-CLI provenance from runtime observability | **Accepted.** These are different failure classes with different controls. |
+| Say runtime legibility is wholly absent | **Rejected.** Browser automation, rendered verification, screenshots, fixtures, and worktree static serving exist. The integrated full-app telemetry loop is absent. |
+| Replace 45,544 with 30,443 characters | **Qualified.** 30,443 is unconditional before intent-specific routing; 45,544 is still mandatory by the first substantive turn. Both boundaries matter. |
+| Retain the claim that quality metrics are untracked | **Rejected; missed by both earlier lines.** A queryable v0 quality report already ships, with two measured and three explicitly unmeasured metrics. |
