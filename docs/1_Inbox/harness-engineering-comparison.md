@@ -53,12 +53,13 @@ nonsense. Two separate axes:
   Seed productises for any repository: a thin routing entry point over a structured,
   mechanically-validated, repo-local knowledge base that agents read instead of reading humans' heads.
 
-**The strongest finding is on Axis B: independent convergence.** A seven-person team optimising purely
-for shipping velocity arrived at Memory Seed's core thesis with no contact with it — short router file,
-structured knowledge store as system of record, progressive disclosure, plans and decision logs checked
-into the repository, mechanical freshness enforcement. That is external validation of the product
-premise from a credible source, and it is worth more to this project than any individual technique in
-the post.
+**The strongest finding is on Axis B: external corroboration.** A seven-person team optimising for
+shipping velocity describes the same cluster of needs that Memory Seed addresses — a short router,
+structured repository-local knowledge, progressive disclosure, checked-in plans and decision logs, and
+mechanical freshness enforcement. The article does not mention Memory Seed, but that is not evidence
+that the work was independent; the defensible conclusion is convergence, not provenance. It remains
+strong validation of the product premise from a credible source and is worth more to this project than
+any individual technique in the post.
 
 ---
 
@@ -66,7 +67,7 @@ the post.
 
 | Their practice | Memory Seed equivalent |
 |---|---|
-| `AGENTS.md` as table of contents, not encyclopedia | [`AGENTS.md`](../../AGENTS.md) is a thin router into `.memory-seed/`; `skills/index.md` is a deterministic trigger registry; `index.md` is tree-first. Same anti-monolith argument, reached earlier. |
+| `AGENTS.md` as table of contents, not encyclopedia | [`AGENTS.md`](../../AGENTS.md) is a thin router into `.memory-seed/`; `skills/index.md` is a deterministic trigger registry; `index.md` is tree-first. Same anti-monolith argument, implemented here after the article's February 2026 publication. |
 | Progressive disclosure from a small stable entry point | "Do not read skills preemptively. Skills are lazy-loaded execution runbooks." Plus the measured whole-session context route (direct read at or below 12,000 characters, economy-worker compression above). |
 | Context is scarce; too much guidance becomes non-guidance | Constitution §3 *minimal but sufficient context* — the smallest context that preserves the ability to decide. Still `[candidate]`, but written down. |
 | Structured `docs/` tree as system of record | The `docs/` lifecycle taxonomy, where the folder a document lives in *is* its lifecycle state. Theirs has active/completed too, but only for exec plans. |
@@ -152,7 +153,22 @@ the Constitution itself describes `links check` / `topics check` / `doctor` / `e
 instrumentation*. Their model, make the metric queryable by the agent and then write prompts that
 assert on it, is the missing mechanism for graduating §8 from candidate to cited.
 
-### 4d. Smaller divergences
+### 4d. Progressive disclosure is designed in, but the mandatory baseline is still heavy
+
+Memory Seed follows the article's map-not-manual structure, but an agent does not stop at the
+76-line router. Before task-specific context, normal startup requires `AGENTS.md`, `agent-rules.md`,
+`orientation.md`, and the complete skill trigger registry. In this checkout those four files total
+**776 lines and 45,544 characters**, before the latest session file, policy, project index, applicable
+skills, or source code. The 12,000-character session threshold controls only the latest-session portion.
+
+This is not the same failure as one monolithic `AGENTS.md`: ownership is separated, skills still
+lazy-load, and the route is mechanically explicit. But the token bill is paid anyway when every startup
+must read the entire operating contract and registry. The article's stronger form of progressive
+disclosure is therefore only partly realised here. A mechanically compiled startup packet — measured
+checkout facts, a compact authority map, and only the matching skill entries — would preserve the
+guards while moving more of the control plane behind demand-driven retrieval.
+
+### 4e. Smaller divergences
 
 - **They generated the harness from an empty repository; Memory Seed's is designed then seeded.** Their
   `AGENTS.md` was itself written by Codex. This project's is a versioned seed file with a four-way
@@ -194,6 +210,10 @@ Not accepted work. Each is stated with the constitutional check applied.
 5. **Lint and refusal messages written for agent context as a stated convention.** Partially present in
    the `merge-branch` refusals; worth making a rule rather than a habit — every mechanical refusal names
    the missing capability and the exact command that resolves it.
+6. **A compiled minimal startup packet.** Measure whether agents can receive the enforced checkout and
+   integration facts, a compact authority map, and only task-matching skill routes without reading the
+   current 45,544-character mandatory routing stack. Treat this as an evaluation first: the packet must
+   preserve safety decisions and improve task success or context cost before replacing source reads.
 
 Explicitly **not** a candidate: minimal merge gates and self-merging agents for anything touching the
 memory corpus. That is the one place where the throughput logic inverts, and the guards there are
@@ -204,7 +224,9 @@ load-bearing rather than pedantic.
 ## 6. Verdict
 
 Different artifacts, same thesis: the engineering work has moved out of the code and into the
-scaffolding around it. OpenAI hand-built, for one repository under severe velocity pressure, most of
-what Memory Seed generalises — strong external validation of the premise. Memory Seed goes considerably
-further on *why*-preservation, provenance, and append-only integrity, and has essentially nothing in
-the runtime-legibility class that they have built out. Those are the two directions of exchange.
+scaffolding around it. OpenAI hand-built, for one repository under severe velocity pressure, much of
+the repository-knowledge environment that Memory Seed generalises — strong external corroboration of
+the premise, without proving independent invention. Memory Seed goes considerably further on
+*why*-preservation, provenance, and append-only integrity, but its mandatory startup context is heavier
+than its progressive-disclosure ideal and it has essentially nothing in the runtime-legibility class
+that OpenAI built out. Those are the three main directions of exchange.
