@@ -1,7 +1,6 @@
 # Inbox
 
-Status: **2 documents awaiting or exempt from triage (2026-08-13)**, plus one foreign artifact that does
-not belong in this repository at all.
+Status: **2 documents awaiting or exempt from triage (2026-08-13)**.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -18,10 +17,10 @@ untriaged captures.
 - [`harness-engineering-comparison.md`](harness-engineering-comparison.md) — added 2026-08-13. An unassessed
   comparison of OpenAI's "harness engineering" post against this project. Its candidate list is not accepted
   work; it awaits triage into an active, reference, or rejected lane.
-- `FILE_INDEX.md` — **not a Memory Seed document.** It is a warranty-claims ML project's file index that
-  arrived here by mistake, and its two broken links are the only errors `docs check` currently reports. It is
-  listed in the generated table below because `docs index` enumerates the lane mechanically; that listing is
-  not an endorsement of its placement. Awaiting JNL's confirmation before removal.
+
+The warranty-claims ML project's file index that arrived here by mistake was assessed and moved to
+[`../4_Reference/warranty-file-structure-index.md`](../4_Reference/warranty-file-structure-index.md) on
+2026-08-13. It remains available as the source that informed Memory Seed's tree-first index format.
 
 The Inbox stood empty from 2026-07-29, when the Superpowers collaboration proposal was approved for
 implementation and promoted to
@@ -63,6 +62,5 @@ were themselves reference material, not undecided captures — moved the same da
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
-| [FILE_INDEX.md](FILE_INDEX.md) | — | — | — |
 | [harness-engineering-comparison.md](harness-engineering-comparison.md) | — | — | — |
 <!-- docs-index:end -->
