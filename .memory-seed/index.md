@@ -98,7 +98,7 @@ entry points matter.
 Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
 head → session evidence → derived projection.
 
-- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.8 ratified 2026-08-11**.
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.9 ratified 2026-08-13**.
 - Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
 - Markdown source-of-truth boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md).
 - Append-only history: [`adr_append_rule_is_an_invariant`](decisions/adr_append_rule_is_an_invariant.md).
@@ -116,8 +116,8 @@ file to direct reading at or below 12,000 characters or economy-worker compressi
 
 Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
 relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
-before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.8**, ratified
-2026-08-11) before consequential design, governance, or control-plane changes. It remains the highest
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.9**, ratified
+2026-08-13) before consequential design, governance, or control-plane changes. It remains the highest
 declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
@@ -155,7 +155,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `replacing_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
 - Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b packages the React/TypeScript shell with the accepted graph, search, selection, Trail, reader, diagram, and workspace interaction rules. Accessibility and scale closeout landed 2026-07-29; JNL approved the frontend cutover on 2026-08-11, so React owns `/` and the vanilla frontend and parity-only harnesses are retired. **Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)** — an ADR records the corpus-density measurement that ruled it out; it does not gate B0b acceptance. **Navigation and layout gained ground 2026-07-28/29**: the flat topic-chip list became a recursive Areas/Activities ontology tree; long lifecycle chains now wind into a spiral (oldest innermost, gated by a concordance check so a chain only spirals when its topology actually tracks chronology); the layout leans away from crossing edges via a soft force; and Trace can now open any correctly-initialised folder from inside the app, not only switch between this repo's own git worktrees. **Memory Seed 2.20.0 released 2026-08-12** with the React-only frontend and durable bootstrap-to-ADR authority chain.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v1.8** as of 2026-08-11 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v1.9** as of 2026-08-13 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
   `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
   living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
