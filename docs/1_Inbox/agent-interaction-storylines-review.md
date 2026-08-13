@@ -1,6 +1,6 @@
 # Agent Interaction Storylines: process and tool review
 
-Status: Living document (updated 2026-08-10; kept true as storylines change)
+Status: Living document (updated 2026-08-13; kept true as storylines change)
 
 Every distinct way an agent interacts with Memory Seed, defined as a named **storyline**: what
 triggers it, the steps it walks, which tool surface carries each step (MCP / CLI / convention), a
@@ -24,6 +24,15 @@ only once checked against recorded decisions, not on code reading alone.
 
 The [storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md)
 records the completed R5, R8, and R13 work and its validation evidence.
+
+**Key change context since the 2026-08-10 review.** Current files and tool registries remain the
+authority for what ships; the memory entries below supply the reasons and rejected alternatives
+behind the changed shape.
+
+| Storyline | Shipped change | Memory context |
+|---|---|---|
+| S0 BOOTSTRAP | Bootstrap now turns durable constraints into proposed founding ADRs, accepts only user-confirmed concerns after the first session records them, and keeps index/policy as thin projections over that authority. Bootstrap-generated indexes now lead with a purpose-annotated repository tree and a separately expanded `.memory-seed/` tree. | [`mse_p2dgz4af43dhxs4p:d1`](../../.memory-seed/sessions/2026-08/2026-08-11.md) records why bootstrap inference must not become policy; [`mse_vengxdppa52t2yhy:d1`](../../.memory-seed/sessions/2026-08/2026-08-13.md) records why visible hierarchy must precede tables and topology prose. |
+| S1 ORIENT | SessionStart now routes the whole latest session file by measured length: direct primary-context reading at or below 12,000 characters, otherwise a source-linked read-only economy-worker briefing of at most 800 tokens. | [`mse_fx1gm0x6p1sts4y2:d1`](../../.memory-seed/sessions/2026-08/2026-08-13.md) retires the five-entry, 1,500-character-cap behavior introduced in [`mse_m0xs623m4cs0kjag:d2`](../../.memory-seed/sessions/2026-07/2026-07-15.md): a fixed window could hide earlier work in the same session, while always reading long files or invoking a model inside the hook would make startup unnecessarily costly or less portable. |
 
 The nine storylines:
 
@@ -54,12 +63,36 @@ The nine storylines:
    the first session records it; an unconfirmed assumption remains proposed and non-governing.
 4. Detect an existing Constitution and declare its status; create one only when long-lived normative
    invariants justify it.
-5. Generate a thin authority map in the index and concise policy rules that link to accepted ADRs.
-6. Append the first session and validate doctor, topics, links, and ADRs.
+5. Generate the index with a purpose-annotated repository tree and a separately expanded
+   `.memory-seed/` tree immediately after `Purpose`. A small `Path | Purpose | Read when` table is
+   supplemental; topology prose follows only for relationships the trees cannot express.
+6. Keep the index's authority map and policy rules thin: link accepted ADRs for rationale, and show
+   proposed concerns as non-governing.
+7. Append the first session, accept only its user-confirmed founding ADRs, and validate doctor,
+   topics, links, and ADRs.
 
 **Tools:** bootstrap guide plus CLI `adr promote` (founding-source form), `adr transition`,
 `session append`, `doctor`, `topics check`, `links check`, and `adr check`. ADR head writes remain
 CLI-only by design.
+
+```mermaid
+flowchart TD
+    A["Inspect local evidence"] --> B["Classify durable<br/>future constraints"]
+    B --> C["Create proposed<br/>founding ADRs"]
+    C --> D["Generate tree-first index<br/>+ concise policy"]
+    D --> E["First session records<br/>confirmed choices"]
+    E -->|confirmed| F["Accept ADR head"]
+    E -->|unconfirmed| G["Keep ADR proposed"]
+    F --> H["Validate runtime"]
+    G --> H
+```
+
+**Evaluation.** Bootstrap now separates three jobs that dense onboarding prose used to blur:
+locating the project, establishing durable decision authority, and stating executable constraints.
+The two trees optimize first contact for humans and agents; the authority map, ADR heads, and policy
+then explain relationships and rules that a tree cannot. The recorded alternative â€” letting a
+table replace the hierarchy â€” was rejected because it makes individual paths scannable without
+making the project shape easy to grasp.
 
 ---
 
@@ -95,13 +128,16 @@ CLI-only by design.
 
 ```mermaid
 flowchart TD
-    A["Session starts"] --> B["Hook: AGENTS.md route<br/>+ 5 newest entries"]
-    B --> C["CLI situate:<br/>checkout, git,<br/>mode, version"]
-    C --> D{"Primary checkout<br/>and will write?"}
-    D -- yes --> E["Create isolated<br/>worktree"]
-    D -- no --> F["Verify published<br/>version from PyPI"]
+    A["Session starts"] --> B["Hook: AGENTS.md route<br/>+ measured situate facts<br/>without session bodies"]
+    B --> C{"Whole latest file<br/>at most 12,000 chars?"}
+    C -- yes --> D["Primary reads<br/>the whole file"]
+    C -- no --> E["Read-only economy worker<br/>briefs the whole file<br/>in at most 800 tokens"]
+    D --> F["Brief user;<br/>exact source stays authoritative"]
     E --> F
-    F --> G["Oriented - read-only<br/>until work starts"]
+    F --> G{"Primary checkout<br/>and will write?"}
+    G -- yes --> H["Create isolated<br/>worktree"]
+    G -- no --> I["Begin task with<br/>lazy context reads"]
+    H --> I
 ```
 
 **Evaluation.** Solid: orientation is measured, not declared, and the hook makes recency-correct
@@ -111,6 +147,12 @@ the namespace-collision check `worktree`/`memory_worktree_guard` carry, and drop
 `WorktreeGuardStatus`'s and `branch_status`'s fields. There is no MCP twin for `situate`; an
 MCP-only agent still assembles orientation from the narrower posture reads. That broader orientation
 surface was outside R8's approved three read-only twins.
+
+The evolution is deliberate rather than cosmetic. The July five-entry window was a reasonable
+bounded-continuity improvement over a one-entry body, but it coupled context quality to entry count
+and could omit relevant earlier work from the same session. The measured whole-file route instead
+couples compression to actual source size, keeps the hook model-free and network-free, and requires
+any derived briefing to cite its coverage and yield to the exact entry when reasoning matters.
 
 ---
 
