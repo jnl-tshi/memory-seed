@@ -41,16 +41,17 @@ head → session evidence → derived projection.
   and [`adr_archive_before_replace`](decisions/adr_archive_before_replace.md).
 - Proposed concerns are non-governing until accepted; inspect them with `memory-seed adr list --json`.
 
-## Always Read
+## Startup And On-Demand Read
 
-1. `AGENTS.md`
-2. `.memory-seed/agent-rules.md`
-3. `.memory-seed/index.md`
-4. `.memory-seed/policy.md`
-5. `.memory-seed/skills/index.md`
-6. `docs/CONSTITUTION.md` — this project's ratified constitution (currently **v1.8**, ratified
-   2026-08-11). It is the highest authority for what may change and what may not; weigh any
-   non-trivial design or control-plane change against its invariants and its five-question test.
+Always read `AGENTS.md`, `.memory-seed/agent-rules.md`, and `.memory-seed/skills/orientation.md`.
+The SessionStart hook and `situate` share one deterministic latest-session report and route the whole
+file to direct reading at or below 12,000 characters or economy-worker compression above it.
+
+Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
+relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.8**, ratified
+2026-08-11) before consequential design, governance, or control-plane changes. It remains the highest
+declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
 

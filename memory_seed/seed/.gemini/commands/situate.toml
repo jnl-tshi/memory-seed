@@ -8,10 +8,11 @@ Run the orientation routine from `.memory-seed/skills/orientation.md`.
 2. Believe the `## Location` section over anything that told you where you are — worktree identity is
    measured, not declared. If it says PRIMARY checkout and this session will write, create an isolated
    worktree first (see `agent_collaboration.md`); orienting itself stays read-only.
-3. Verify the PUBLISHED version from the source of truth (PyPI) — never assume; `situate` prints the exact
-   command and, in the memory-seed source repo, flags that local > published means an unreleased tranche.
-4. Read the newest session file directly (not `memory_search`, whose ranking buries the latest entry) and
-   the project's next-steps doc, then brief in <= 6 lines.
+3. Apply `situate`'s measured latest-session `context_route`: read the whole file when `direct`; when
+   `summarize`, use `orientation.md`'s read-only economy-worker contract (<=800 tokens, whole-file coverage,
+   source-linked conclusions). Do not use `memory_search` for latest state.
+4. Verify the published version only for release/version questions; read next steps only for planning.
+5. Brief in <= 6 lines from the measured facts and direct/derived session context.
 
 Read-only orientation: reconcile and brief — do not edit, commit, or start work.
 """

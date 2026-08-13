@@ -43,14 +43,17 @@ If the reusable control files are missing, use bootstrap mode long enough to rep
 When initialized memory files exist, start here:
 
 1. Read `.memory-seed/agent-rules.md` for operating-mode rules.
-2. Read the active `.memory-seed/index.md` for topology, active state, and inheritance rules.
-3. Read parent `.memory-seed/policy.md` only when the active index says policy is inherited.
-4. Read the active `.memory-seed/policy.md` for behavioral constraints and local overrides.
-5. Establish current project state from the newest session log: read the most recent session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Read it directly — do not use semantic memory search to find the latest state, because search ranking can bury the newest entry beneath older topically-similar ones. A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
-6. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
-7. Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
+2. Read `.memory-seed/skills/orientation.md` and apply the SessionStart hook's measured context route. If
+   hook facts are absent, run `memory-seed situate`. Short latest-session files are read whole; long files
+   are compressed by a read-only economy worker under the skill's source-linked summary contract.
+3. Once the user's intent is known: Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry and load only matching skills.
+4. Read the active `.memory-seed/index.md` sections when the task depends on topology, authority,
+   inheritance, active state, or project-wide priorities.
+5. Read inherited and active `.memory-seed/policy.md` before writes or when behavioral constraints matter.
+6. Read a declared ratified Constitution before consequential design, governance, or control-plane work.
 
 Do not read skills preemptively. Skills are lazy-loaded execution runbooks.
+Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
 
 ## Bootstrap Mode
 
