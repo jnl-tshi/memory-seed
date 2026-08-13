@@ -50,4 +50,6 @@ were themselves reference material, not undecided captures — moved the same da
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [FILE_INDEX.md](FILE_INDEX.md) | — | — | — |
+| [harness-engineering-comparison.md](harness-engineering-comparison.md) | — | — | — |
 <!-- docs-index:end -->
