@@ -58,7 +58,8 @@ python experiments/decision-replay/claude-quality-report-v0/grade.py C:\path\to\
 
 The grader reports four independent gates rather than a composite score:
 
-1. hidden behavioral contract;
+1. hidden behavioral contract, accepting either fail-fast or an explicit `unavailable` metric when a
+   source cannot be read, but never a successful coverage number;
 2. existing public quality tests;
 3. bounded file scope;
 4. a candidate-authored regression-test change.
@@ -82,3 +83,9 @@ One pair is an instrument pilot, not evidence of a general product effect. A use
 task is solvable, the hidden grader discriminates, and the arms remain uncontaminated. A later scored
 study needs multiple independently fresh sessions, fixed model/CLI versions, randomized arm assignment,
 and per-arm reporting of correctness, elapsed time, tokens, rework, and unsupported claims.
+
+## Pilot records
+
+- [20260813T204539Z](RESULT-20260813T204539Z.md) records the first revealed instrument pilot, the
+  grader-v1 adjudication, treatment-uptake audit, timing difference, and changes required before a
+  scored study.
