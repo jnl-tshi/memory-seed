@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; current v1.9 ratified 2026-08-13).
-Updated: 2026-08-12
+Updated: 2026-08-14
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
@@ -16,6 +16,12 @@ Updated: 2026-08-12
 > **v1.6 (2026-07-26)** settled provenance as **first-hand vs reconstructed** rather than human-vs-machine
 > — every YAML topic/edge in this corpus was agent-chosen, so the real distinction is who observed the
 > fact directly — and is what the new topic-sidecar authority (below) is built on.
+> **v1.9 (2026-08-13)** is the first *evolution-class* bump rather than an amendment: §8 was corrected to
+> name the shipped `memory-seed quality report` instrumentation (it had claimed named quality metrics were
+> untracked), and §11 gained a rule distinguishing a correction from an amendment — a correction bumps the
+> minor version, earns a marked version-log row, and **may never change a requirement**. The §8 clause
+> stays `[candidate]`: correcting a decayed sentence is deliberately *not* the same act as graduating it,
+> and graduation still belongs to JNL after the quality-v0 step-6 review (open decision #7 below).
 > The ranking/graph core now includes the full-corpus gate, `replacing_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.20.0 released 2026-08-12** (live on PyPI). **B0a
 > graph/workspace contracts and B0b formal accessibility/scale acceptance are complete. The UX
@@ -53,8 +59,28 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.20.0 is **released** (2026-08-12). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
+- **On `main` since the release, unreleased (2026-08-13):** two control-plane changes, both under
+  `CHANGELOG.md` "## Unreleased". **Startup context is now routed by measured session length** — see
+  Track C item 4. **Bootstrap-generated runtime indexes are tree-first** — a new project's `index.md`
+  must lead with a purpose-annotated repository tree and an expanded `.memory-seed/` tree; a small
+  path/purpose/read-when table may clarify non-obvious entry points but cannot replace the trees or grow
+  into a file inventory (`mse_vengxdppa52t2yhy`). This is the presentation half of the durable
+  bootstrap-to-ADR authority chain that shipped in 2.20.0.
+- **Constitution v1.9 ratified 2026-08-13** — see the header block. Evolution-class correction, no
+  requirement changed.
+- **An evidence programme now exists and is not yet on any track** — the decision-replay pilot, the
+  independent-validation brief, the adjudication queue, and the context-derivation preregistration. All
+  four are gated on a JNL decision rather than on engineering; see "Evidence programme" below.
 
 ## Immediate next step — Memory Trace UX M3
+
+> **Standing, but idle since 2026-07-31 (verified 2026-08-14).** Nothing has superseded M3 and no
+> replacement was chosen — it simply has not been worked. The 2026-08-01 → 2026-08-14 stream went to the
+> control plane (ADR foundation, bootstrap-to-ADR authority, tree-first indexes, startup context routing),
+> the 2.20.0 cut, the harness-engineering comparison, and the evidence programme. No August session
+> mentions M3. Treat this section as the next Trace slice to pick up, not as a description of work in
+> flight; if the evidence programme's questions matter more than another Trace slice, that is a
+> re-sequencing decision to take explicitly rather than by drift.
 
 M0 interaction reconciliation, M1 decision reading/evidence return, and M2 Trail history orientation are
 delivered. The 2026-07-31 M1 refinement keeps canonical DRAFT content lightweight: it is recorded by
@@ -542,6 +568,66 @@ before its next step. (Market/account items live under "Parked" below.)
    `test_session_append.py` per their actual call target; one `_merge_routing_stanza` test into
    `test_core_misc.py`. `test_session_fuse_and_merge.py` itself: 69 → 41, now purely fuse/merge. Pure
    reorganization — 639 tests collected before and after, full suite unchanged at 639 passed.
+7. **Quality-v0 step-6 usefulness review — the oldest open gate here, and it now blocks three things.**
+   [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md), baseline at
+   [`../4_Reference/memory-quality-v0-baseline.md`](../4_Reference/memory-quality-v0-baseline.md).
+   Open since 2026-07-17; this file wrongly recorded it as done until 2026-08-14 (see BG2 below), which is
+   probably why it has sat. The ask is small and is *only* yours: is the baseline useful and repeatable?
+   Downstream of the answer: proposing targets or ESR surfacing, Constitution **§8** graduation out of
+   `[candidate]`, and the decision-quality benchmark the Inbox gap report puts first in its triage order.
+   *Options:* **(a)** useful as-is, keep it, set no targets — graduate §8, unblock the benchmark
+   *(recommended: it is what the command already does, and §8 is the only clause still carrying a stale
+   `[candidate]`)*; **(b)** useful but not yet worth graduating — say so, and the clause stays candidate
+   with a stated reason instead of by default; **(c)** not useful — retire v0 and stop the downstream
+   chain. Any of the three closes it; leaving it open is the one outcome that costs something.
+8. **Decision-replay — approve or decline scored execution.** See "Evidence programme" below. The pilot
+   ran and was adjudicated, but the instrument is amended rather than frozen and four preconditions are
+   unmet. Nothing may be run *as scored evidence* without your go.
+9. **Context-derivation preregistration — approve or reject.** `experiments/context-derivation/` is
+   written and waiting; it is the sanctioned way to reduce fixed startup context without guessing at
+   safety-equivalence, and startup context has since changed underneath it (Track C item 4), so the
+   preregistration wants a re-read before approval. *Recommendation:* rule either way rather than carrying
+   it — a reject is a real outcome here.
+
+## Evidence programme — does durable rationale actually change a later decision?
+
+New section 2026-08-14. Four artifacts now exist that test the project's central claim from the outside,
+and none of them had an owner in this file. They are grouped because they answer one question and share
+one failure mode: every measurement so far was designed, run, and interpreted by the same agent that
+wrote the code being measured. **None of this is engineering-blocked.** All four wait on a JNL ruling.
+
+1. **Decision replay (pilot run 2026-08-13, adjudicated 2026-08-14).**
+   `experiments/decision-replay/claude-quality-report-v0/`. A blinded two-arm replay: a fresh Claude
+   session implements a real historical defect fix in standalone `A`/`B` repositories that differ *only*
+   in whether dated session-memory documents are present, judged by four independent gates rather than a
+   composite score. The first pilot (`20260813T204539Z`) was revealed and adjudicated with the original
+   grader outputs preserved immutable. **Read the result carefully and do not quote its timing.** B was
+   faster (5m07s vs 12m05s), but the pilot has **no causal power**: n=1 pair, B ran fewer validation
+   steps, and **treatment uptake was zero** — the bug-specific rationale never reached active context
+   because the startup packet overflowed into persisted output and was not opened. The v1 gate also
+   rejected permitted behavior, so the instrument was amended prospectively to grade honest
+   unreadable-input handling instead of the historical patch shape, and this run is labelled an
+   *instrument pilot* rather than a result. **Four preconditions before anything is allowed to count:**
+   freeze schema v2; make rationale exposure observable; prevent persisted-output overflow from hiding
+   the treatment; run multiple randomized fresh sessions per arm. Gate: **open decision #8**.
+2. **Independent validation brief** (P1, open since 2026-08-05) —
+   [`independent-validation-brief.md`](independent-validation-brief.md). Asks an agent that has *not*
+   worked on this project's experiments to try to **break** a set of claims and to derive its own method,
+   precisely so it does not inherit the blind spots of the procedure it would otherwise copy. Its
+   `next_action` is to hand the file to such an agent; that has not happened. This is the cheapest
+   available answer to the same-author conflict named above.
+3. **Adjudication queue** (P2, open since 2026-07-27) —
+   [`adjudication-queue.md`](adjudication-queue.md). 22 contested rows of 77, held out from a
+   two-independent-worker run; uncontested rows are deliberately absent because agreement there buys
+   nothing. Bounded and finite. Every validity figure the project has quoted so far rests on a proxy —
+   authored tags held up only ~50% when contested, and the file-derived gold set was shown unsound — so
+   these rulings would be the first ground truth the project actually has.
+4. **Context-derivation preregistration** — `experiments/context-derivation/`. Written, unapproved. Gate:
+   **open decision #9**.
+
+*Sequencing note, not a recommendation to build:* 2 and 3 are cheap and unblock interpretation of 1. The
+Inbox gap report reaches a similar ordering by a different route, but it is an unassessed capture and is
+recorded as such below — it is not the authority for this section.
 
 ## Live work — sequenced (Constitution-aligned)
 
@@ -775,13 +861,24 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   node (2.19), and Entry details expose authority + provenance without crowding the canonical entry
   reading surface (refined 2026-07-31). Steps 5–7
   (actionability policy, fail-closed fixtures, §7 graduation) are the **open-decisions gate #1** above.
-- **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; usefulness review COMPLETE**
-  (proposal step 6). [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
+- **BG2 — Memory-quality metrics v0** — **v0 SHIPPED 2026-07-17; step-6 usefulness review STILL OPEN.**
+  [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
   `memory-seed quality report [--json]`; first baseline at
   [`../4_Reference/memory-quality-v0-baseline.md`](../4_Reference/memory-quality-v0-baseline.md)
   (unlinked 95/431 = 22.0%; DRAFT reason coverage 403/403; BG1-dependent metrics honestly `unavailable`).
-  **Review (JNL, 2026-07-17):** the baseline is useful as-is — keep it, set **no** targets. BG2 is done;
-  the BG1-dependent metrics stay `unavailable` until BG1 lands (see the open-decisions gate for BG1).
+  **Corrected 2026-08-14 — this line previously read "usefulness review COMPLETE … BG2 is done" and cited
+  a JNL review on 2026-07-17 that did not happen.** What the 2026-07-17 session actually recorded (D2 of
+  `.memory-seed/sessions/2026-07/2026-07-17.md`) is the *opposite*: record the baseline, set the proposal
+  to `blocked_by` a user usefulness review, **propose no targets**, and keep it in `2_Todo` precisely
+  because what remains is a user decision. The proposal's own front matter still carries
+  `status: v0-shipped-awaiting-usefulness-review` and a `next_action` naming JNL. Two independent sources
+  agree with the proposal and not with this file: Constitution **§8** (v1.9, 2026-08-13) leaves its clause
+  `[candidate]` with graduation gated on this review, and the Inbox gap report makes it step 1 of its
+  proposed triage order. Promoted to **open decision #7** below. The BG1-dependent metrics stay
+  `unavailable` until BG1 lands regardless (see the open-decisions gate for BG1).
+  *Remeasured 2026-08-13 at `78342e2b`:* unlinked 180/901, DRAFT reason coverage 857/857 with 44 excluded,
+  citation/provenance coverage `unavailable`, ranking-A/B regression `not_applicable`. The dated baseline
+  document is the 2026-07-17 artifact and is deliberately left as measured.
 - **B3 — Evidence annotations & projection** *(long-horizon, after B2/B0b and BG1)* —
   [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md).
   Anchors, append-only annotations, SQLite projection — needs the React shell **and** a participant/role
@@ -814,11 +911,25 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
    cleanup. Phase 1 ships the thin adapter and retained-boundary contracts; Phase 2 requires two real-plan
    pilots plus a compaction/resume test before broader promotion. Five-question test → **Validation,
    Trust, Application**, with Capture improved at the durable SDD return receipt.
+4. **Whole-session startup context, routed by measured length** — ✅ **SHIPPED 2026-08-13, unreleased**
+   (`mse_fx1gm0x6p1sts4y2`). This is Track C's thesis landing on the startup path itself. `situate`
+   measures the latest applicable session file and returns a deterministic route: **direct** primary-context
+   reading at or below **12,000 characters**, or a read-only **≤800-token economy-worker briefing** above
+   it, which must cover the whole file, cite entry IDs/headings, report N/N coverage, flag superseded
+   claims, and yield to exact source for consequential reasoning. Fallbacks are direct read and
+   entry-boundary chunk/reduce. **What it replaced:** a fixed five-entry, 1,500-character-capped payload
+   that could silently omit earlier work in the same session — a window, not a summary. A character
+   threshold was chosen over a token one because it is deterministic and tokenizer-independent, and model
+   selection stays *outside* the hook so each host picks its own smallest suitable worker and `situate`
+   stays fast, offline-safe, and portable. 205 focused/compatibility tests; the 12,000/12,001 boundary is
+   pinned exactly. **Note the interaction with open decision #9:** this changed the startup-cost baseline
+   the context-derivation preregistration was written against.
 
-The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
-other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance changes.
+The first two compound (fewer active personas → lighter worker *and* primary startup load) but neither
+blocks the other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance
+changes.
 
-3. **Declarative Retrieval Specification primitive (P1, M0/M1 delivered; M2–M5 planned)** —
+5. **Declarative Retrieval Specification primitive (P1, M0/M1 delivered; M2–M5 planned)** —
    [`declarative-retrieval-specification-proposal.md`](declarative-retrieval-specification-proposal.md).
    Context construction becomes a versioned request resolved by Memory Seed into a deterministic Evidence
    Pack and bound to a Task Packet. The former blocker path — M0 (v1 contract/fixtures) → M1 (shared
@@ -917,8 +1028,8 @@ folder) and was assessed but deliberately not promoted — see
      topics, DRAFT sections, branch and `F:` evidence.
 
   **Steps 3–5 remain undone** and no longer gate anything: step 3's gold set is the benchmark above,
-  step 4 pilots the open-questions lens under its new owner, step 5 decides promotions. The inbox is
-  clear regardless — that is the stop rule.
+  step 4 pilots the open-questions lens under its new owner, step 5 decides promotions. The inbox was
+  clear at the time — that was the stop rule. *(It is no longer clear; see the 2026-08-13 drop below.)*
 - **Raw design captures → `4_Reference/archived`.** Seven mood-board screenshots were archived once their
   palette and hierarchy themes had been extracted into the folder README; the five generated mockups
   stayed alongside them, cited by live documents (see the follow-up correction directly below).
@@ -934,6 +1045,45 @@ folder) and was assessed but deliberately not promoted — see
   (14 `7_Replaced/` pointers, three `2_Todo/` plans, the archived-captures cross-reference, the
   `docs_check.py` allowlist + its test) was updated; `docs index`/`docs check`/`links check` all clean,
   full suite unaffected.
+
+### 2026-08-13 drop — four live documents, UNTRIAGED (recorded 2026-08-14)
+
+`1_Inbox/` is no longer clear. Four documents arrived on 2026-08-13 and **no triage pass has run**;
+nothing below is accepted work, prioritised, or authorised to build. They are listed so the next triage
+starts from what is there rather than rediscovering it.
+
+- **Entry point: [`memory-seed-harness-gap-opportunity-report.md`](../1_Inbox/memory-seed-harness-gap-opportunity-report.md)**
+  (`mse_ask8e72zq76fdm9f`) — a synthesis of the two comparison lines below into one register of ten
+  opportunities (O1–O10), each dispositioned as an existing-owner extension, a bounded candidate needing
+  an owner decision, a research/market question, or an explicit non-goal. Its own status line says no
+  opportunity is accepted work or assigned a roadmap priority, and its §7 order is "a proposed order for
+  triage, not approval". **Deliberately not threaded into "Live work" or the immediate next step.** The
+  precedent is this project's own: the Constitution v1.9 decision (2026-08-13, D1) refused to cite the
+  Inbox comparison as evidence because an unassessed capture has no standing in a higher-authority
+  document. The same applies to the roadmap of record. Read it to *inform* the triage decision; do not
+  treat it as having made one. Worth knowing before reading: it withdrew a set of claims its own inputs
+  had made — including that quality instrumentation and browser verification are absent — and it names
+  its own non-goals (a second quality-metric family or composite grade, volume-as-value, minimal merge
+  gates for authoritative memory writes, automatic promotion of generated content, unbounded reviewer
+  loops, autonomous control-plane self-modification, and any framing of Memory Seed as
+  recursive-self-improvement safety).
+- **[Claude line](../1_Inbox/harness-engineering-comparison-claude.md)** and
+  **[Codex line](../1_Inbox/harness-engineering-comparison-codex.md)** — the same OpenAI
+  harness-engineering comparison worked as two deliberately parallel, unmerged evaluations, each later
+  extended with Anthropic's recursive-self-improvement report. Neither supersedes the other; the pair is
+  left unresolved on purpose, and **that outstanding triage decision is why both are still in Inbox**.
+  Both retain their `v1.8` Constitution pin by design — they record what they were compared against.
+- **[`agent-interaction-storylines-review.md`](../1_Inbox/agent-interaction-storylines-review.md)** — a
+  *living* document rather than a capture (refreshed 2026-08-13): every named agent↔Memory Seed
+  storyline, its tool surface, a surface-parity matrix, and **R1–R13** redundancies with streamlining
+  recommendations, plus a deletion-candidate audit. Ground-truthed against the 23 MCP tools and the CLI
+  tree. R1–R13 are unowned and unassessed.
+
+**Two of these were already partly consumed, which is worth stating so the triage does not re-litigate
+them.** The harness comparison surfaced the Constitution §8 drift that v1.9 then corrected — via the
+proposal and command output, not via the capture. And the decision-replay pilot in the evidence
+programme above is the direct execution of the gap report's central question. Neither counts as triage
+of the drop.
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 
@@ -966,9 +1116,13 @@ Tracked in [`document-lifecycle-system-plan.md`](document-lifecycle-system-plan.
 front door — shipped). **The bulk migration shipped 2026-07-17:** all 43 `2_Todo/completed/` docs plus the
 nested `agent-templates/` moved to `5_Completed/`, every inbound reference was repaired, and the folder is
 retired — so no legacy archive sits beside the lanes any more. **`docs check` SHIPPED 2026-07-17** (0
-errors / 29 warnings on the live tree; its first run caught three real `spec_binding` defects). Remaining:
-`docs index`, secondary-YAML backfill, and P3 (wire `docs check` into `esr` + CI). *(The former third item — removing an empty `superpowers/specs/` — is dropped: no such directory
-exists in the working tree or in git history.)*
+errors / 29 warnings on the live tree; its first run caught three real `spec_binding` defects).
+**Corrected 2026-08-14 — two of the three "remaining" items have since shipped.** `docs index` exists
+with a `--check` mode, and **P3 is done both ways**: `esr` runs `check_docs` and reports `docs_checked`
+(`memory_seed/esr.py`), and `.github/workflows/verify.yml` runs `docs check` *and* `docs index --check`
+in CI. **Genuinely remaining: the secondary-YAML backfill only.** *(The former third item — removing an
+empty `superpowers/specs/` — is dropped: no such directory exists in the working tree or in git
+history.)*
 
 ## Parked — needs your judgement / market / accounts (not engineering next-steps)
 
