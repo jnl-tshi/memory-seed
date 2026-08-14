@@ -874,7 +874,7 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   `status: v0-shipped-awaiting-usefulness-review` and a `next_action` naming JNL. Two independent sources
   agree with the proposal and not with this file: Constitution **§8** (v1.9, 2026-08-13) leaves its clause
   `[candidate]` with graduation gated on this review, and the Inbox gap report makes it step 1 of its
-  proposed triage order. Promoted to **open decision #7** below. The BG1-dependent metrics stay
+  proposed triage order. Promoted to **open decision #7** above. The BG1-dependent metrics stay
   `unavailable` until BG1 lands regardless (see the open-decisions gate for BG1).
   *Remeasured 2026-08-13 at `78342e2b`:* unlinked 180/901, DRAFT reason coverage 857/857 with 44 excluded,
   citation/provenance coverage `unavailable`, ranking-A/B regression `not_applicable`. The dated baseline
