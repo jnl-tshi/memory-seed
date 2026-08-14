@@ -103,12 +103,25 @@ class HiddenRuntimeRootContract(unittest.TestCase):
         self.assertEqual((coverage["numerator"], coverage["denominator"]), (1, 2))
         self.assertEqual(before, snapshot(self.root))
 
-    def test_source_read_failure_is_not_reported_as_success(self):
+    def test_source_read_failure_fails_or_reports_unavailable(self):
         # Extraction uses pathlib. The quality pass then uses this canonical reader;
         # raising here isolates the post-extraction read that the historical bug swallowed.
+        before = snapshot(self.root)
         with mock.patch("memory_seed.text_files.read_text_file", side_effect=OSError("blocked")):
-            with self.assertRaises(OSError):
-                build_quality_report(self.root)
+            try:
+                report = build_quality_report(self.root)
+            except OSError:
+                # Fail-fast is honest: no coverage result was produced.
+                pass
+            else:
+                # Structured degradation is equally honest when the metric makes the
+                # missing input explicit and withholds every coverage number.
+                coverage = metric(report, "draft_reason_coverage")
+                self.assertEqual(coverage.status, "unavailable")
+                self.assertIsNone(coverage.numerator)
+                self.assertIsNone(coverage.denominator)
+                self.assertIsNone(coverage.rate)
+        self.assertEqual(before, snapshot(self.root))
 
 
 if __name__ == "__main__":
@@ -176,7 +189,7 @@ def grade(candidate: Path) -> dict:
         "candidate_regression_test": test_owned,
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "candidate": str(candidate),
         "status": "PASS" if all(gates.values()) else "FAIL",
         "gates": gates,

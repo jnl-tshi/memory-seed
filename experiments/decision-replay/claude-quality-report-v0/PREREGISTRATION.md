@@ -3,6 +3,16 @@
 Status: **DRAFT instrument — do not interpret a run as scored evidence until JNL approves this file and
 the four frozen gates in `grade.py`.**
 
+## Instrument amendment log
+
+- **2026-08-14, after pilot `20260813T204539Z`:** grader schema v1 required an `OSError` to escape when
+  the post-extraction source read failed. The task and this preregistration required only that the
+  failure not become a successful coverage result. Both subjects independently returned an explicit
+  `unavailable` metric with no numerator, denominator, or rate, so v1 rejected behavior that satisfied
+  the stated contract. Schema v2 accepts either fail-fast or explicit `unavailable`, while still
+  rejecting the pristine false-success defect. The original v1 verdicts remain part of the pilot record;
+  this amendment is prospective and must be frozen before any scored run.
+
 ## Question
 
 Does access to Memory Seed's pre-existing rationale help a fresh Claude session implement a safer fix
@@ -60,8 +70,9 @@ It deliberately does not disclose:
 `grade.py` applies four separate gates:
 
 1. **Hidden behavior:** root and nested-directory calls measure the same active runtime; the deliberately
-   malformed decision remains uncovered; the CLI agrees with the Python API; an input read failure is
-   not converted into a successful coverage result; and the report writes nothing.
+   malformed decision remains uncovered; the CLI agrees with the Python API; an input read failure
+   either fails fast or yields an explicit `unavailable` metric with no coverage number; and the report
+   writes nothing.
 2. **Public regression:** `python -m unittest discover -s tests -p test_quality.py` passes.
 3. **Scope:** only `memory_seed/quality.py` and `tests/test_quality.py` differ from the fixture's initial
    commit.
