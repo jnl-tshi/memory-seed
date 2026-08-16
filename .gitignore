@@ -77,6 +77,7 @@ experiments/decision-replay/claude-quality-report-v0/runs/
 experiments/decision-replay/claude-quality-report-v1/runs/
 experiments/decision-replay/claude-decision-edge-v2/runs/
 experiments/decision-replay/codex-decision-edge-v2/runs/
+f/
 experiments/stack-benchmark/solar-filaments-001/generated/
 experiments/stack-benchmark/solar-filaments-001/runs/
 experiments/stack-benchmark/solar-filaments-001/data/
