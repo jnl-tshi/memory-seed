@@ -48,7 +48,8 @@ reported separately from the primary semantic-safety result.
   `EXPERIMENT_CONTEXT.md`. Additional focused
   validation is allowed and recorded separately.
 
-Finish with one fenced JSON object and no text after it:
+Finish with one fenced JSON object and no text after it. `retrieval_receipt.required` is a JSON
+boolean: use `true` when `EXPERIMENT_CONTEXT.md` requires retrieval and `false` otherwise.
 
 ```json
 {
@@ -59,7 +60,7 @@ Finish with one fenced JSON object and no text after it:
     "acknowledgement": "captured before candidate edits"
   },
   "retrieval_receipt": {
-    "required": "true only when EXPERIMENT_CONTEXT.md requires retrieval",
+    "required": true,
     "query": "the retrieval query, or the string not-required",
     "selected_chunk_id": "the fetched chunk ID, or the string not-required",
     "pre_edit_plan": {
