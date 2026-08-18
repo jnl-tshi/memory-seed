@@ -26,6 +26,9 @@ TOPIC_TOKEN_RE = re.compile(r"[a-z0-9]+(?:[_-][a-z0-9]+)*")
 # warning, never an error - old and over-target entries stay valid.
 TOPIC_COUNT_TARGET = 3
 
+TOPICS_SCHEMA_VERSION = "3"
+TOPIC_AXES = ("area", "activity")
+
 
 @dataclass(frozen=True)
 class TopicRecord:
@@ -54,6 +57,7 @@ class TopicIndex:
     exists: bool
     schema_version: str | None
     topics: tuple[TopicRecord, ...]
+    parse_issues: tuple["TopicIssue", ...] = ()
 
     def resolution(self) -> dict[str, str]:
         """slug -> canonical slug for every canonical and alias name.
@@ -173,19 +177,33 @@ def _parse_alias_value(value: str) -> tuple[str, ...]:
     return ()
 
 
-def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
-    """Read ``.memory-seed/topics.yaml`` fail-open with the stdlib line scanner."""
-    runtime = resolve_runtime(cwd)
-    path = runtime.memory_dir / "topics.yaml"
-    rel = f"{runtime.memory_dir.name}/topics.yaml"
-    if not path.exists():
-        return TopicIndex(path=rel, exists=False, schema_version=None, topics=())
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return TopicIndex(path=rel, exists=False, schema_version=None, topics=())
+def _scan_schema_version(lines: list[str]) -> str | None:
+    for raw in lines:
+        if raw[:1].isspace():
+            continue
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#") or ":" not in stripped:
+            continue
+        key, value = stripped.split(":", 1)
+        if key.strip() == "schema_version":
+            return value.strip().strip("'\"") or None
+    return None
 
-    schema_version: str | None = None
+
+def _topic_record(fields: dict[str, object]) -> TopicRecord:
+    return TopicRecord(
+        slug=str(fields.get("slug", "")),
+        label=str(fields.get("label", "")),
+        description=str(fields.get("description", "")),
+        status=str(fields.get("status", "active")) or "active",
+        aliases=tuple(fields.get("aliases", ()) or ()),
+        axis=str(fields.get("axis", "") or ""),
+        parent=str(fields.get("parent", "") or ""),
+    )
+
+
+def _scan_v1_v2_records(lines: list[str]) -> tuple[TopicRecord, ...]:
+    """Read the original flat list without changing its permissive behavior."""
     records: list[TopicRecord] = []
     current: dict[str, object] | None = None
     in_topics = False
@@ -194,17 +212,7 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
     def flush() -> None:
         nonlocal current
         if current is not None:
-            records.append(
-                TopicRecord(
-                    slug=str(current.get("slug", "")),
-                    label=str(current.get("label", "")),
-                    description=str(current.get("description", "")),
-                    status=str(current.get("status", "active")) or "active",
-                    aliases=tuple(current.get("aliases", ()) or ()),
-                    axis=str(current.get("axis", "") or ""),
-                    parent=str(current.get("parent", "") or ""),
-                )
-            )
+            records.append(_topic_record(current))
         current = None
 
     for raw in lines:
@@ -217,11 +225,8 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
             in_alias_block = False
             if ":" not in stripped:
                 continue
-            key, value = stripped.split(":", 1)
-            key, value = key.strip(), value.strip().strip("'\"")
-            if key == "schema_version" and value:
-                schema_version = value
-            elif key == "topics":
+            key, _value = stripped.split(":", 1)
+            if key.strip() == "topics":
                 flush()
                 in_topics = True
             continue
@@ -233,7 +238,6 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
             in_alias_block = False
             stripped = stripped[2:].strip()
         elif stripped.startswith("- "):
-            # bare list item: only legal inside a block-style aliases list
             if in_alias_block and current is not None:
                 current["aliases"] = list(current.get("aliases", ())) + [stripped[2:].strip().strip("'\"")]
             continue
@@ -249,8 +253,182 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
             in_alias_block = False
             current[key] = value.strip("'\"")
     flush()
+    return tuple(records)
 
-    return TopicIndex(path=rel, exists=True, schema_version=schema_version, topics=tuple(records))
+
+@dataclass
+class _V3Node:
+    indent: int
+    fields: dict[str, object]
+    children_indent: int | None = None
+    aliases_indent: int | None = None
+
+
+def _scan_v3_records(lines: list[str], source: str) -> tuple[tuple[TopicRecord, ...], tuple[TopicIssue, ...]]:
+    """Read ``topics -> axis -> slug -> children`` into flat TopicRecords.
+
+    The axis and parent are structural facts in v3. They are derived from the
+    enclosing axis bucket and child nesting, never repeated as node fields.
+    """
+    nodes: list[_V3Node] = []
+    stack: list[_V3Node] = []
+    issues: list[TopicIssue] = []
+    in_topics = False
+    current_axis = ""
+
+    def issue(kind: str, detail: str) -> None:
+        issues.append(TopicIssue("error", kind, detail, source))
+
+    for line_number, raw in enumerate(lines, start=1):
+        line = raw.rstrip()
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+
+        if indent == 0:
+            in_topics = False
+            current_axis = ""
+            stack.clear()
+            if ":" in stripped and stripped.split(":", 1)[0].strip() == "topics":
+                in_topics = True
+            continue
+        if not in_topics:
+            continue
+
+        if indent == 2 and ":" in stripped:
+            key, value = stripped.split(":", 1)
+            key, value = key.strip(), value.strip()
+            stack.clear()
+            if value or key not in TOPIC_AXES:
+                issue(
+                    "invalid-topic-axis",
+                    f"line {line_number}: topics must contain only the empty axis mappings "
+                    f"{', '.join(TOPIC_AXES)}; found '{stripped}'",
+                )
+                current_axis = ""
+            else:
+                current_axis = key
+            continue
+
+        if not current_axis:
+            issue("topic-outside-axis", f"line {line_number}: topic content appears outside an area/activity mapping")
+            continue
+
+        while stack and indent <= stack[-1].indent:
+            stack.pop()
+
+        if stripped.startswith("- "):
+            if stack and stack[-1].aliases_indent is not None and indent > stack[-1].aliases_indent:
+                alias = stripped[2:].strip().strip("'\"")
+                stack[-1].fields["aliases"] = list(stack[-1].fields.get("aliases", ())) + [alias]
+            else:
+                issue("malformed-topic-node", f"line {line_number}: schema v3 uses slug mapping keys, not list items")
+            continue
+
+        if ":" not in stripped:
+            issue("malformed-topic-node", f"line {line_number}: expected a YAML mapping entry")
+            continue
+        key, value = stripped.split(":", 1)
+        key, value = key.strip().strip("'\""), value.strip()
+
+        parent: _V3Node | None = None
+        if indent == 4:
+            is_node = not value
+        else:
+            for candidate in reversed(stack):
+                if candidate.children_indent is not None and indent == candidate.children_indent + 2:
+                    parent = candidate
+                    break
+            is_node = parent is not None and not value
+
+        if is_node:
+            if parent is None:
+                stack.clear()
+            else:
+                stack = stack[: stack.index(parent) + 1]
+            fields: dict[str, object] = {
+                "slug": key,
+                "axis": current_axis if parent is None else "",
+                "parent": "" if parent is None else str(parent.fields["slug"]),
+                "aliases": [],
+            }
+            node = _V3Node(indent=indent, fields=fields)
+            nodes.append(node)
+            stack.append(node)
+            continue
+
+        if not stack or indent != stack[-1].indent + 2:
+            issue(
+                "malformed-topic-node",
+                f"line {line_number}: '{key}' is not a root slug, nested child slug, or detail row",
+            )
+            continue
+
+        node = stack[-1]
+        node.aliases_indent = None
+        if key == "children":
+            if value:
+                issue("malformed-topic-children", f"line {line_number}: children must be an indented mapping")
+            else:
+                node.children_indent = indent
+            continue
+        if key in {"axis", "parent"}:
+            issue(
+                "redundant-topic-structure",
+                f"line {line_number}: schema v3 derives '{key}' from the tree and must not repeat it",
+            )
+            continue
+        if key not in {"label", "description", "status", "aliases"}:
+            issue("unknown-topic-detail", f"line {line_number}: unknown topic detail '{key}'")
+            continue
+        if key == "aliases":
+            if value:
+                node.fields["aliases"] = list(_parse_alias_value(value))
+            else:
+                node.fields["aliases"] = []
+                node.aliases_indent = indent
+        else:
+            node.fields[key] = value.strip("'\"")
+
+    return tuple(_topic_record(node.fields) for node in nodes), tuple(issues)
+
+
+def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
+    """Read ``.memory-seed/topics.yaml`` fail-open with the stdlib line scanner."""
+    runtime = resolve_runtime(cwd)
+    path = runtime.memory_dir / "topics.yaml"
+    rel = f"{runtime.memory_dir.name}/topics.yaml"
+    if not path.exists():
+        return TopicIndex(path=rel, exists=False, schema_version=None, topics=())
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return TopicIndex(path=rel, exists=False, schema_version=None, topics=())
+
+    schema_version = _scan_schema_version(lines)
+    if schema_version == TOPICS_SCHEMA_VERSION:
+        records, parse_issues = _scan_v3_records(lines, rel)
+    elif schema_version in {None, "1", "2"}:
+        records, parse_issues = _scan_v1_v2_records(lines), ()
+    else:
+        records = ()
+        parse_issues = (
+            TopicIssue(
+                "error",
+                "unsupported-topic-schema",
+                f"schema_version '{schema_version}' is not supported (expected 1, 2, or {TOPICS_SCHEMA_VERSION})",
+                rel,
+            ),
+        )
+
+    return TopicIndex(
+        path=rel,
+        exists=True,
+        schema_version=schema_version,
+        topics=records,
+        parse_issues=parse_issues,
+    )
 
 
 def _parent_cycles(index: TopicIndex) -> tuple[tuple[str, ...], ...]:
@@ -285,7 +463,7 @@ def _parent_cycles(index: TopicIndex) -> tuple[tuple[str, ...], ...]:
 
 
 def _validate_topic_index(index: TopicIndex) -> tuple[TopicIssue, ...]:
-    issues: list[TopicIssue] = []
+    issues: list[TopicIssue] = list(index.parse_issues)
     seen: dict[str, str] = {}
     for record in index.topics:
         for name, role in ((record.slug, "slug"), *((alias, f"alias of {record.slug}") for alias in record.aliases)):
