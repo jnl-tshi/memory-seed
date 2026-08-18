@@ -31,6 +31,12 @@ schema_version: 3
 # genuine spelling variants. 3 are flagged in place as wrong - see the notes on `graph`,
 # `session-logging` and `agent-collaboration`.
 #
+# A flagged historical use is corrected decision-by-decision, not by rewriting an entry: preview
+# `memory-seed topics amend --entry <id> --decision dN --area <canonical> --activity <canonical>
+# --reason "..." --dry-run`, then re-run without `--dry-run`. The command appends a later complete
+# topic-sidecar snapshot in the entry's original date file, preserving sibling decisions and the old
+# evidence. It changes inferred decision attribution only; the authored entry topic remains historical.
+#
 # THE PROMOTION RULE IS EVIDENCE, NOT TASTE. Only aliases some entry actually wrote were promoted.
 # `supply-chain` and `profiling` are narrower than their parents in exactly the same way `merge`
 # is, but no entry ever authored them, so minting slugs for them would be the unearned depth the

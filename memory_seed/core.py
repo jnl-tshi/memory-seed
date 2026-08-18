@@ -3531,6 +3531,208 @@ class SessionAppendResult:
 
 
 @dataclass(frozen=True)
+class TopicAmendResult:
+    """Receipt for an append-only decision-topic correction."""
+
+    ok: bool
+    path: Path | None = None
+    entry_id: str | None = None
+    decision: str | None = None
+    timestamp: str | None = None
+    issues: tuple[str, ...] = ()
+    written: bool = False
+    rendered: str | None = None
+
+
+def amend_topic_sidecar(
+    *,
+    entry_id: str,
+    decision: str,
+    area: str,
+    activities: Sequence[str],
+    reason: str,
+    cwd: str | Path = ".",
+    timestamp: str | None = None,
+    dry_run: bool = False,
+) -> TopicAmendResult:
+    """Append a corrected topic snapshot for one existing decision.
+
+    Topic sidecars are state snapshots, so an amendment must restate every
+    existing sibling attribution as well as the changed decision.  The entry's
+    authored YAML is deliberately not consulted as amendment input: it is a
+    separate provenance channel and remains historical evidence.
+    """
+    runtime = resolve_runtime(cwd)
+    sessions_dir = runtime.memory_dir / "sessions"
+    issues: list[str] = []
+    entry_date = ""
+    ordinals: set[str] = set()
+    entry_timestamp = ""
+    for doc in iter_session_documents(sessions_dir):
+        try:
+            text = doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+        for index, block in enumerate(blocks):
+            found = _ENTRY_ID_RE.search(block.group(2))
+            if not found or found.group(1) != entry_id:
+                continue
+            entry_date = doc.session_date
+            entry_timestamp = block.group(1)
+            body_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            ordinals = set(_entry_decision_ordinals(text[block.end():body_end]))
+            break
+        if entry_date:
+            break
+    if not entry_date:
+        issues.append(f"entry_id {entry_id!r} does not exist in a session log")
+    if decision not in ordinals:
+        available = ", ".join(sorted(ordinals, key=lambda item: int(item[1:]))) or "none"
+        issues.append(f"decision {decision!r} is not recorded by {entry_id} (available: {available})")
+
+    try:
+        from .topics import load_topic_index
+
+        topic_index = load_topic_index(runtime.workspace_root)
+        resolution = topic_index.resolution()
+    except Exception as exc:  # noqa: BLE001 - report the vocabulary failure with the amendment
+        topic_index = None
+        resolution = {}
+        issues.append(f"cannot load topics.yaml: {exc}")
+    if topic_index is not None and not topic_index.exists:
+        issues.append("topics.yaml is required to amend decision topics")
+
+    requested = [area, *activities]
+    canonical: list[str] = []
+    for slug in requested:
+        resolved = resolution.get(slug)
+        if resolved is None:
+            issues.append(f"topic {slug!r} is not a canonical slug in topics.yaml")
+        elif resolved != slug:
+            issues.append(f"topic {slug!r} is an alias; use canonical slug {resolved!r}")
+        elif resolved not in canonical:
+            canonical.append(resolved)
+    if not area:
+        issues.append("area is required")
+    if not activities:
+        issues.append("at least one activity is required")
+    if len(canonical) > MAX_TOPICS_PER_DECISION:
+        issues.append(f"{decision} carries {len(canonical)} topics; at most {MAX_TOPICS_PER_DECISION}")
+    if topic_index is not None and resolution:
+        if area in resolution and topic_index.axis_of(area) != "area":
+            issues.append(f"topic {area!r} is not an area topic")
+        for activity in activities:
+            if activity in resolution and topic_index.axis_of(activity) != "activity":
+                issues.append(f"topic {activity!r} is not an activity topic")
+
+    # Reuse the authoritative reader for precedence, then re-render its complete
+    # current state.  This is what prevents a partial correction from silently
+    # deleting unrelated decisions in the newest snapshot.
+    from .retrieval import entry_topic_sidecars
+
+    current = entry_topic_sidecars(runtime.workspace_root).get(entry_id, {})
+    current_pairs = current.get("decision_topics", ())
+    snapshot: dict[str, list[str]] = {}
+    for ordinal, slug in current_pairs:
+        snapshot.setdefault(ordinal, []).append(slug)
+    snapshot[decision] = canonical
+    if not any(snapshot.values()):
+        issues.append("an amendment must leave at least one topic attribution")
+    if topic_index is not None:
+        for ordinal, slugs in snapshot.items():
+            for slug in slugs:
+                if resolution.get(slug) != slug:
+                    issues.append(f"existing sidecar topic {slug!r} is not canonical; repair it before amending")
+            if ordinal and len(slugs) > MAX_TOPICS_PER_DECISION:
+                issues.append(f"existing {ordinal} snapshot exceeds {MAX_TOPICS_PER_DECISION} topics")
+
+    latest_timestamp = entry_timestamp
+    topics_dir = sessions_dir / "topics"
+    if topics_dir.is_dir():
+        for doc in iter_topic_sidecar_documents(sessions_dir):
+            try:
+                text = doc.path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for block in _ENTRY_TS_YAML_RE.finditer(text):
+                found = _ENTRY_ID_RE.search(block.group(2))
+                if found and found.group(1) == entry_id:
+                    latest_timestamp = max(latest_timestamp, block.group(1))
+    if timestamp is None:
+        try:
+            candidate = datetime.strptime(latest_timestamp, "%Y-%m-%d %H:%M") + timedelta(minutes=1)
+            timestamp = candidate.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            issues.append(f"cannot derive a later timestamp from {latest_timestamp!r}")
+            timestamp = ""
+    if timestamp:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", timestamp):
+            issues.append("timestamp must be YYYY-MM-DD HH:MM")
+        elif timestamp[:10] != entry_date:
+            issues.append(f"timestamp date must remain the entry date {entry_date}")
+        elif timestamp <= latest_timestamp:
+            issues.append(f"timestamp must be later than the current sidecar snapshot ({latest_timestamp})")
+    if timestamp and timestamp[:10] == entry_date and timestamp[11:] == "00:00" and latest_timestamp.endswith("23:59"):
+        issues.append("no later minute remains on the entry date for this amendment")
+    if not reason.strip():
+        issues.append("reason is required so the correction remains auditable")
+    if issues:
+        return TopicAmendResult(ok=False, entry_id=entry_id, decision=decision, issues=tuple(issues))
+
+    buckets: dict[str, list[str]] = {"area": [], "activity": []}
+    for ordinal, slugs in snapshot.items():
+        for slug in slugs:
+            axis = topic_index.axis_of(slug) if topic_index is not None else ""
+            token = f"{slug}:{ordinal}" if ordinal else slug
+            if axis in buckets:
+                buckets[axis].append(token)
+            else:
+                issues.append(f"topic {slug!r} has no declared area/activity axis")
+    if issues:
+        return TopicAmendResult(ok=False, entry_id=entry_id, decision=decision, issues=tuple(issues))
+    title_reason = " ".join(reason.split())
+    rendered_lines = [
+        f"## {timestamp} - Amend decision topics: {title_reason}",
+        "",
+        "```yaml",
+        f"entry_id: {entry_id}",
+        # This is a human-reviewed correction made after the original entry,
+        # not a claim that the original author knew the replacement at write
+        # time.  Readers preserve it as a distinct, declared provenance value.
+        "source: human-amendment",
+        "topics:",
+    ]
+    for axis in ("area", "activity"):
+        if buckets[axis]:
+            rendered_lines.append(f"  {axis}:")
+            rendered_lines.extend(f"    - {token}" for token in buckets[axis])
+    rendered_lines.extend(["```", ""])
+    rendered = "\n".join(rendered_lines)
+    path = runtime.workspace_root / _topic_target_relative_path(entry_date)
+    if dry_run:
+        return TopicAmendResult(
+            ok=True, path=path, entry_id=entry_id, decision=decision, timestamp=timestamp, rendered=rendered
+        )
+    existing = read_text_file(path) if path.exists() else ""
+    records = _split_topic_sidecar_records(
+        existing, source_path=_topic_target_relative_path(entry_date), topic_date=entry_date
+    )
+    records.append(
+        _TopicSidecarRecord(
+            text=rendered,
+            entry_id=entry_id,
+            timestamp=timestamp,
+            topic_date=entry_date,
+            source_path=_topic_target_relative_path(entry_date),
+            target_path=_topic_target_relative_path(entry_date),
+        )
+    )
+    _write_chronological_topic_sidecar_file(path, entry_date, records)
+    return TopicAmendResult(ok=True, path=path, entry_id=entry_id, decision=decision, timestamp=timestamp, written=True)
+
+
+@dataclass(frozen=True)
 class _DecisionSidecarWrite:
     """Validated, decision-scoped payload ready for sidecar rendering."""
 
