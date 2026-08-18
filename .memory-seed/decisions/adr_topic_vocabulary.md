@@ -20,19 +20,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `mse_25zzy3cmdjgrsf69:d1`
+Authoritative decision: `mse_sbq4ar5bq4wyrt69:d1`
 
 ### Decision
 
-`axis: area` / `axis: activity` is declared on the 23 root slugs and on nothing else; every child resolves its axis through the nearest declaring ancestor.
+Schema v3 authors the controlled topic vocabulary as `topics -> area|activity -> slug -> children`; the reader derives axis and parent into the stable normalized topic model, with v1/v2 compatibility retained.
 
 ### Why
 
-Declaring the axis once per root keeps the two-axis vocabulary consistent without restating the axis on every child, and lets a child move without re-declaring it.
+The tree expresses each structural fact once, removes 53 repeated live data rows, and improves human scanning without changing vocabulary meaning or consumer behavior.
 
 ### How it evolved
 
-Converged from the control-file founding onto the decision that shaped the vocabulary's axis hierarchy.
+Refines the accepted two-axis hierarchy by moving axis and parent from repeated scalar rows into YAML position while retaining the same axes, hierarchy, detail fields, and runtime semantics.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -123,3 +123,48 @@ Converged from the control-file founding onto the decision that shaped the vocab
 #### Reason
 
 Approved by JNL 2026-08-07 from the screening shortlist.
+
+### revision-proposed - 2026-08-18T13:30:00
+
+```json
+{
+  "decision_ref": "mse_sbq4ar5bq4wyrt69:d1",
+  "event_id": "adre_4d728f48511ea0c3713d",
+  "predecessors": [
+    {
+      "decision": "mse_25zzy3cmdjgrsf69:d1",
+      "relation_assertion": "link:mse_sbq4ar5bq4wyrt69:d1:evolves:mse_25zzy3cmdjgrsf69:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_sbq4ar5bq4wyrt69"
+}
+```
+
+#### Decision
+
+Schema v3 authors the controlled topic vocabulary as `topics -> area|activity -> slug -> children`; the reader derives axis and parent into the stable normalized topic model, with v1/v2 compatibility retained.
+
+#### Why
+
+The tree expresses each structural fact once, removes 53 repeated live data rows, and improves human scanning without changing vocabulary meaning or consumer behavior.
+
+#### Evolution
+
+Refines the accepted two-axis hierarchy by moving axis and parent from repeated scalar rows into YAML position while retaining the same axes, hierarchy, detail fields, and runtime semantics.
+
+### revision-accepted - 2026-08-18T13:31:00
+
+```json
+{
+  "decision_ref": "mse_sbq4ar5bq4wyrt69:d1",
+  "event_id": "adre_74ff4f3365abb90c3103",
+  "expected_authoritative_decision": "mse_25zzy3cmdjgrsf69:d1",
+  "source": "write-time",
+  "update_entry_id": "mse_sbq4ar5bq4wyrt69"
+}
+```
+
+#### Reason
+
+Accepted as part of JNL-approved schema-v3 tree implementation.

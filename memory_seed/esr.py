@@ -32,7 +32,7 @@ DECISION_ORDINAL_RE = re.compile(r"d\d+")
 
 from .core import check_session_links, read_integration_mode, read_merge_trigger, resolve_runtime
 from .corpus_cache import CorpusSnapshot, inspect_corpus_cache
-from .topics import check_topics
+from .topics import check_topics, load_topic_index
 
 
 @dataclass(frozen=True)
@@ -246,8 +246,8 @@ def _adr_attachment_candidates(
             "are", "be", "that", "this", "it", "as", "by", "from", "not", "never", "only",
         }
 
-        vocabulary = yaml.safe_load((memory_dir / "topics.yaml").read_text(encoding="utf-8"))
-        alias = {a: t["slug"] for t in vocabulary["topics"] for a in (t.get("aliases") or [])}
+        topic_index = load_topic_index(cwd)
+        alias = topic_index.resolution()
         topics_of: dict[str, set[str]] = {}
         for entry_id, record in entry_topic_sidecars(cwd).items():
             for ordinal, slug in record.get("decision_topics", ()):
