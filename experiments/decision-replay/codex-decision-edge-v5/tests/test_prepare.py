@@ -21,7 +21,7 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 import common  # noqa: E402
 import prepare  # noqa: E402
 
-EXPECTED_TASK_SHA256 = "7413aa892c699629d6e3e5a69d330289a5014960469b2f6febb5f2977642e755"
+EXPECTED_TASK_SHA256 = "3a7f44a605d7be177f9f4b7269ee001f73c66c09dd10e02fdec4444ca68eaac9"
 
 
 def _remove_fixture_tree(path: Path) -> None:
@@ -277,6 +277,11 @@ class PrepareStudyTests(unittest.TestCase):
         self.assertEqual(EXPECTED_TASK_SHA256, common.sha256_bytes(expected))
         for fixture in self.fixtures.values():
             self.assertEqual(expected, (fixture / "TASK.md").read_bytes())
+
+    def test_task_receipt_uses_a_json_boolean_for_retrieval_requirement(self) -> None:
+        task = common.TASK_PATH.read_text(encoding="utf-8")
+        self.assertIn('"required": true,', task)
+        self.assertNotIn('"required": "true', task)
 
     def test_mapping_is_sealed_and_public_manifest_has_no_conditions(self) -> None:
         serialized_public = json.dumps(self.public, sort_keys=True)

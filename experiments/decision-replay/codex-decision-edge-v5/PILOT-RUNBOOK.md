@@ -18,7 +18,8 @@ Do not edit or run candidate tests yet. Read CODEX_EXPERIMENT_CONTRACT.md,
 EXPERIMENT_CONTEXT.md, and TASK.md. If EXPERIMENT_CONTEXT.md prescribes the
 fixture-local Memory Seed retrieval commands, run exactly those commands and inspect their output.
 Do not use any other history, checkout, network, connector, or tool. Return only one JSON object with
-pre_coding_receipt and retrieval_receipt. retrieval_receipt.pre_edit_plan must name an invariant,
+pre_coding_receipt and retrieval_receipt. retrieval_receipt.required must be a JSON boolean: `true`
+when the context required retrieval and `false` otherwise. retrieval_receipt.pre_edit_plan must name an invariant,
 affected code path, acceptance cases, and non-goals.
 ```
 

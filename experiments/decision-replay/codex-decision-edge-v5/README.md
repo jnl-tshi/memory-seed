@@ -63,6 +63,7 @@ must run a receipt-only stage before allowing candidate edits:
 4. Only then permit edits to the two task-authorized paths and run `python RUN_TASK_TESTS.py`.
 5. Persist the final report and grade the candidate without opening the condition map.
 
+Every `retrieval_receipt.required` must be the JSON boolean `true` for treatment or `false` for control.
 Every `retrieval_receipt.pre_edit_plan` must contain nonempty `invariant`, `affected_code_path`,
 `acceptance_cases`, and `non_goals`. In this non-adversarial experiment, externally captured receipts
 are compliance evidence—not a security attestation that a model could not fabricate.
