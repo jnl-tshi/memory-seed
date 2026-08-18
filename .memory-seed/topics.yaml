@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 # Project-local controlled topic vocabulary (memory-trace-topic-neighbourhoods-plan.md).
 # Derived 2026-07-10 from the slugs already authored across 50 session entries, consolidated to
 # 21 canonical topics with every observed slug preserved as canonical or alias (user-approved);
@@ -10,23 +10,22 @@ schema_version: 2
 #
 # 2026-07-26 - schema_version 1 -> 2, step 2 of hierarchical-topic-vocabulary-proposal.md.
 #
-# TWO FIELDS ARE NEW.
+# 2026-08-18 - schema_version 2 -> 3. AXIS AND PARENT NOW LIVE IN THE TREE STRUCTURE.
 #
-# `axis:` is declared on the 23 ROOT slugs only - `area` (WHAT you are working on) or `activity`
-# (what KIND of work it is). Children deliberately leave it EMPTY and inherit it through
-# `TopicIndex.axis_of()`. Restating an axis on a child would be a second copy of a fact that can
-# drift; leaving it blank makes "a child never crosses its parent's axis" true by construction
-# rather than by review. The axis assignment is the one already measured and published in
-# docs/2_Todo/topic-vocabulary-concentration-review.md, not a fresh opinion.
+# `topics.area` and `topics.activity` are the two axis branches. Each slug is a mapping key under
+# its axis, and narrower concepts nest below its `children:` key. `TopicIndex` derives the same
+# `axis` and `parent` values exposed by schema v2, so consumers keep one normalized model without
+# repeating structural facts on every row. The axis assignment is the one already measured and
+# published in docs/2_Todo/topic-vocabulary-concentration-review.md, not a fresh opinion.
 #
-# `parent:` carries the hierarchy that had been crushed into `aliases:`. The two fields answer
-# different questions and only one of them preserves what the author wrote:
+# Hierarchy and aliases answer different questions, and only hierarchy preserves what the author
+# wrote:
 #
 #   aliases:  a different SPELLING of the same concept (`perf` -> `performance`). Resolution
 #             folds the alias into its canonical and DISCARDS it.
-#   parent:   a NARROWER concept (`merge` is not a spelling of `git-workflow`; it is a kind of
-#             git work). A child slug RESOLVES TO ITSELF, so the specificity the author recorded
-#             survives, and the parent stays derivable through `ancestors()`.
+#   children: NARROWER concepts (`merge` is not a spelling of `git-workflow`; it is a kind of git
+#             work). A child slug RESOLVES TO ITSELF, so the specificity the author recorded
+#             survives, and its parent stays derivable through `ancestors()`.
 #
 # 31 aliases the corpus had actually authored were promoted to child slugs. 16 stayed aliases as
 # genuine spelling variants. 3 are flagged in place as wrong - see the notes on `graph`,
@@ -49,580 +48,527 @@ schema_version: 2
 # explicitly anyway. The concentration was never in the alias field. It is in what authors wrote
 # directly, so only a sweep against child slugs can move it.
 topics:
-  - slug: git-workflow
-    label: Git Workflow
-    description: Branching, merging, integration topology, and push/publish mechanics.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: merge
-    label: Merge
-    description: Merging a branch into main and the integration step itself.
-    status: active
-    parent: git-workflow
-    aliases: []
-  - slug: branch-history
-    label: Branch History
-    description: Branch topology, provenance, and history guardrails.
-    status: active
-    parent: git-workflow
-    aliases: []
-  - slug: git-publishing
-    label: Git Publishing
-    description: Push and publish mechanics against the remote.
-    status: active
-    parent: git-workflow
-    aliases: []
-  - slug: session-fuse
-    label: Session Fuse
-    description: Branch-session fuse and merge-branch integration machinery.
-    status: active
-    axis: area
-    aliases: []
-  - slug: session-logging
-    label: Session Logging
-    description: Entry authoring, DRAFT discipline, harvest, and append-only chronology.
-    status: active
-    axis: area
-    # `session-authoring` is kept as a spelling variant: "entry authoring" is this slug's own
-    # first clause, so it names the same concept.
-    # `append-only` is FLAGGED AS WRONG and deliberately left where it is. It is a cross-cutting
-    # INVARIANT, not an area or an activity, so it fails the axis test - promoting it here would
-    # make it inherit `area` from session logging. Worse, its one authored use ("Constraint:
-    # evolved_by is read-time inferred only, never stored") is about the GRAPH, not session
-    # logging, so today it resolves to a slug that entry is not about. Re-pointing it at `graph`
-    # would be just as arbitrary, since the append-only model governs all three sidecar families.
-    # It stays resolvable so the entry stays valid, and stays flagged so the fix is deliberate.
-    aliases: [session-authoring, append-only]
-  - slug: decision-harvest
-    label: Decision Harvest
-    description: Harvesting decisions out of a session into logged entries.
-    status: active
-    parent: session-logging
-    aliases: []
-  - slug: backfill
-    label: Backfill
-    description: Recording work into the log after the fact.
-    status: active
-    parent: session-logging
-    aliases: []
-  # `graph` STAYS A ROOT. Reparenting it under `memory-trace` was approved 2026-07-27 and is now
-  # WITHDRAWN - not deferred. Three reasons, in order of how long each will stay true:
-  #
-  # 1. IT HAS NO UPSIDE. Measured: 64 entries carry `graph` WITH `memory-trace` and 45 carry it
-  #    WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true
-  #    positives and 45 false ones** - a filter on `memory-trace` returning 249 rows instead of
-  #    204, an 18% false-positive rate, pulling in "Draft evolution-edges proposal" and "Replace
-  #    core topics with structured continuity field". This is arithmetic; no future mechanism
-  #    changes it.
-  # 2. TOPIC RETRACTION DOES NOT EXIST. The way to move the 45 would be a derived block overriding
-  #    the authored slug, which sidecar-supersession-model.md specs as "step 1 of the consolidation
-  #    build order" and nothing implements. `augment_chunks_with_topic_sidecars` deliberately does
-  #    not union into `chunk.topics`, so a sidecar cannot un-say an authored topic.
-  # 3. IT WOULD FAIL THE RETRACTION RULE ANYWAY. JNL, 2026-07-27: "a retraction should be judgeable
-  #    as *was this claim wrong?*. If the answer is 'no, it was true but I would rather it were more
-  #    specific', the answer is a child slug, not a retract." `graph` on "Draft evolution-edges
-  #    proposal" was TRUE - the Seed edge model IS the graph's data model. This is the 86-entry
-  #    parent-retraction trap in a new costume.
-  #
-  # What remains true is that `graph` names two things. That is now recorded rather than fixed:
-  # `lifecycle-edges` below gives the Seed edge MODEL its own root and takes the four data-model
-  # children, so new work has somewhere specific to go. The historical dual meaning stays, because
-  # every one of those tags was true when written.
-  #
-  # Do NOT resurrect `graph-view` as a Trace child either - it would be a slug with zero authored
-  # entries and zero swarm evidence, which is the case `settings` and `workspace-bar` were declined
-  # for, and reason 1 makes it unnecessary.
-  - slug: graph
-    label: Decision Graph
-    description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema. Still spans the Trace view and the Seed edge model - see the note above.
-    status: active
-    axis: area
-    # `topics` is FLAGGED AS WRONG and deliberately left as an alias. Its single authored use
-    # ("Core continuity topics (rename/migration/removal) as D6") does mean the graph's continuity
-    # topics, so the mapping is defensible for that entry - but the bare name collides head-on with
-    # the topic VOCABULARY, a first-class concept in this system and the name of the very field
-    # every entry carries. Promoting it to a canonical slug would offer that collision to every
-    # future author and to the swarm. It stays resolvable so the entry stays valid; the real fix is
-    # to drop the alias once that entry's intent can be re-expressed.
+  area:
+    session-fuse:
+      label: Session Fuse
+      description: Branch-session fuse and merge-branch integration machinery.
+      status: active
+      aliases: []
+    session-logging:
+      label: Session Logging
+      description: Entry authoring, DRAFT discipline, harvest, and append-only chronology.
+      status: active
+      # `session-authoring` is kept as a spelling variant: "entry authoring" is this slug's own
+      # first clause, so it names the same concept.
+      # `append-only` is FLAGGED AS WRONG and deliberately left where it is. It is a cross-cutting
+      # INVARIANT, not an area or an activity, so it fails the axis test - promoting it here would
+      # make it inherit `area` from session logging. Worse, its one authored use ("Constraint:
+      # evolved_by is read-time inferred only, never stored") is about the GRAPH, not session
+      # logging, so today it resolves to a slug that entry is not about. Re-pointing it at `graph`
+      # would be just as arbitrary, since the append-only model governs all three sidecar families.
+      # It stays resolvable so the entry stays valid, and stays flagged so the fix is deliberate.
+      aliases: [session-authoring, append-only]
+      children:
+        decision-harvest:
+          label: Decision Harvest
+          description: Harvesting decisions out of a session into logged entries.
+          status: active
+          aliases: []
+        backfill:
+          label: Backfill
+          description: Recording work into the log after the fact.
+          status: active
+          aliases: []
+    # `graph` STAYS A ROOT. Reparenting it under `memory-trace` was approved 2026-07-27 and is now
+    # WITHDRAWN - not deferred. Three reasons, in order of how long each will stay true:
     #
-    # NOTE: that alias is now doubly wrong - `topic-vocabulary` is a canonical root as of
-    # 2026-07-27, so `topics` reads as an alias for the graph while naming the thing next door.
+    # 1. IT HAS NO UPSIDE. Measured: 64 entries carry `graph` WITH `memory-trace` and 45 carry it
+    #    WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true
+    #    positives and 45 false ones** - a filter on `memory-trace` returning 249 rows instead of
+    #    204, an 18% false-positive rate, pulling in "Draft evolution-edges proposal" and "Replace
+    #    core topics with structured continuity field". This is arithmetic; no future mechanism
+    #    changes it.
+    # 2. TOPIC RETRACTION DOES NOT EXIST. The way to move the 45 would be a derived block overriding
+    #    the authored slug, which sidecar-supersession-model.md specs as "step 1 of the consolidation
+    #    build order" and nothing implements. `augment_chunks_with_topic_sidecars` deliberately does
+    #    not union into `chunk.topics`, so a sidecar cannot un-say an authored topic.
+    # 3. IT WOULD FAIL THE RETRACTION RULE ANYWAY. JNL, 2026-07-27: "a retraction should be judgeable
+    #    as *was this claim wrong?*. If the answer is 'no, it was true but I would rather it were more
+    #    specific', the answer is a child slug, not a retract." `graph` on "Draft evolution-edges
+    #    proposal" was TRUE - the Seed edge model IS the graph's data model. This is the 86-entry
+    #    parent-retraction trap in a new costume.
     #
-    # `settings` is FLAGGED AS WRONG and deliberately left as an alias (2026-07-29). One entry
-    # ("Four spiral controls, reading in real units rather than slider positions") used it after
-    # `settings` was already PROPOSED AND DECLINED as a `panes` child below - no worker ever placed
-    # an entry there, so it was never earned as its own concept. Structural evidence (a graphify
-    # AST pass over memory-trace/client/src) puts `SettingsMenu.tsx` and `graphForces.ts` in the
-    # SAME community as `GraphWorkspace.tsx` - the entry is graph-physics tuning exposed through a
-    # Settings panel, not a settings concept in its own right, and it already links to a `graph`
-    # entry (the chain-spiral work it tunes). Resolving to `graph` fixes the one wrong use without
-    # reopening the `panes`-child ruling, which is about minting a NEW slug, not this.
-    aliases: [topics, settings]
-  # The four below DID move from `graph` to `lifecycle-edges`, even though `graph` itself did not
-  # move. They are all data-MODEL concepts - what an edge IS - and they were the evidence that
-  # `graph`'s centre of gravity is the Seed side. Moving them is safe in a way moving `graph` was
-  # not: every entry authoring one of these is Seed edge work, so no filter gains a false positive.
-  # It also seeds `lifecycle-edges` with real entries, which is the first step toward unblocking
-  # the deferred reparenting above.
-  - slug: related-entries
-    label: Related Entries
-    description: Undirected related-entry edges and their authoring surface.
-    status: active
-    parent: lifecycle-edges
-    aliases: []
-  - slug: supersession
-    label: Supersession
-    description: Supersedes/superseded_by lifecycle edges and retirement records.
-    status: active
-    parent: lifecycle-edges
-    aliases: []
-  - slug: continuity
-    label: Continuity
-    description: Continuity lineage across renames, migrations, and artifact history.
-    status: active
-    parent: lifecycle-edges
-    aliases: []
-  - slug: schema
-    label: Graph Schema
-    description: The shape of graph and sidecar records - fields, versions, and their contracts.
-    status: active
-    parent: lifecycle-edges
-    aliases: []
-  - slug: proposal-lifecycle
-    label: Proposal Lifecycle
-    description: Roadmap, proposals, goals, and docs-lifecycle movement.
-    status: active
-    axis: activity
-    # Its own description lists three coordinate things. They are children, not spellings: an
-    # entry writing `goal` ("S4: cut Memory Seed 2.17.0") is not doing the same work as one
-    # writing `proposal` ("Draft evolution-edges proposal").
-    aliases: []
-  - slug: proposal
-    label: Proposal
-    description: Drafting and revising a proposal document.
-    status: active
-    parent: proposal-lifecycle
-    aliases: []
-  - slug: roadmap
-    label: Roadmap
-    description: Roadmap authoring, refinement, and staging.
-    status: active
-    parent: proposal-lifecycle
-    aliases: []
-  - slug: goal
-    label: Goal Run
-    description: Goal directives and the staged execution runs that discharge them.
-    status: active
-    parent: proposal-lifecycle
-    aliases: []
-  - slug: release
-    label: Release
-    description: Version cuts, changelog folds, packaging, and publish gates.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: release-packaging
-    label: Release Packaging
-    description: Packaging and distribution artifacts for a cut.
-    status: active
-    parent: release
-    aliases: []
-  - slug: release-preflight
-    label: Release Preflight
-    description: Pre-cut checks and gates before a version is published.
-    status: active
-    parent: release
-    aliases: []
-  - slug: changelog
-    label: Changelog
-    description: Changelog folds, Unreleased hygiene, and release notes.
-    status: active
-    parent: release
-    aliases: []
-  - slug: documentation
-    label: Documentation
-    description: README, audits, and public-facing docs accuracy.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: readme
-    label: README
-    description: The README front door and its accuracy.
-    status: active
-    parent: documentation
-    aliases: []
-  - slug: functionality-audit
-    label: Functionality Audit
-    description: Auditing shipped behaviour against what the docs claim, and closing the gaps.
-    status: active
-    parent: documentation
-    # `audit` is a spelling of this, not of `documentation`: the one entry that wrote `audit`
-    # wrote `functionality-audit` alongside it, which is the corpus saying they are the same thing.
-    aliases: [audit]
-  - slug: document-ingestion
-    label: Document Ingestion
-    description: Bringing external documents and transcripts into the corpus as notes.
-    status: active
-    parent: documentation
-    aliases: []
-  - slug: session-layout
-    label: Session Layout
-    description: Session file layouts, migrations, and multi-user structure.
-    status: active
-    axis: area
-    aliases: []
-  - slug: migration
-    label: Layout Migration
-    description: Moving an existing session tree onto a new layout.
-    status: active
-    parent: session-layout
-    aliases: []
-  - slug: multi-user-sessions
-    label: Multi-User Sessions
-    description: Per-user session structure and the switch away from the flat layout.
-    status: active
-    parent: session-layout
-    aliases: []
-  - slug: mcp-tools
-    label: MCP And CLI Tools
-    description: MCP tool surface and CLI command design.
-    status: active
-    axis: area
-    aliases: []
-  - slug: cli
-    label: CLI
-    description: The command-line surface - command design, flags, and output.
-    status: active
-    # The parent's SLUG says "mcp" but its LABEL and description say "MCP And CLI Tools", so the
-    # concept being parented is the tool-surface area and `cli` is one of its two surfaces - not a
-    # kind of MCP tool. The slug name is the defect, and renaming it would orphan 19 entries. The
-    # sibling `mcp` slug is deliberately NOT minted: no entry ever authored it, so it would be a
-    # level the corpus has not paid for.
-    parent: mcp-tools
-    aliases: [cli-audit]
-  - slug: retrieval
-    label: Retrieval
-    description: Search, ranking, and the public retrieval service.
-    status: active
-    axis: area
-    aliases: []
-  - slug: windows-encoding
-    label: Windows Encoding
-    description: UTF-8 policy, cp1252 hazards, and encoding hygiene.
-    status: active
-    axis: area
-    aliases: [encoding-hygiene]
-  - slug: mermaid
-    label: Mermaid Diagrams
-    description: Decision-diagram sidecars and diagram authoring.
-    status: active
-    axis: area
-    # Both aliases name this slug's own description back at it - genuine spelling variants.
-    aliases: [mermaid-sidecars, diagram-sidecars]
-  - slug: agent-collaboration
-    label: Agent Collaboration
-    description: Subagents, worktrees, task packets, and multi-agent hazards.
-    status: active
-    axis: activity
-    # `windows-worktree-hazard` is FLAGGED AS WRONG and deliberately left as an alias. It fails the
-    # axis test: this parent is an `activity`, and a platform hazard is a SUBJECT, not a kind of
-    # work, so promoting it would have it inherit the wrong axis. It does not belong under
-    # `windows-encoding` either - that slug is scoped by its own description to UTF-8 and cp1252,
-    # and a worktree lifecycle hazard is not an encoding hazard. Its correct home is a
-    # Windows-platform area that does not exist, and minting one for a single entry would be
-    # unearned depth.
-    aliases: [team-collaboration, windows-worktree-hazard]
-  - slug: hooks
-    label: Lifecycle Hooks
-    description: Session-start, prompt, and stop hooks.
-    status: active
-    axis: area
-    aliases: []
-  - slug: memory-trace
-    label: Memory Trace
-    description: The companion review UI package and its views. A real subsystem parent, not a residual - filing Trace work here is correct when no child fits.
-    status: active
-    axis: area
-    # Was 43.7% of the corpus with no children. The five below took it to 12.8% canonical, measured
-    # by two blind swarm workers over the whole population (cycles 3 and 4, 2026-07-27). Reach is
-    # unchanged at 204 - a filter on this slug still finds every one of them through the children.
-    # `lense` and `memory-lense` are the product's OWN former name - `lense.py` ->
-    # `service.py`, `LenseCache` -> `TraceCache`, the `memory-seed[lense]` extra.
-    # Added 2026-07-27 because the full-corpus swarm proposed `GAP:memory-lense`
-    # 23 times and disagreed with `memory-trace` on 15 entries: the vocabulary
-    # simply did not know the old name, so a chunk of real Trace history read as
-    # a missing area. That is what an alias is FOR - a different spelling of the
-    # same concept - and it only surfaced once workers judged without being shown
-    # the old labels.
-    aliases: [memory-trace-ui, lense, memory-lense]
-  - slug: trail
-    label: Trail
-    description: The chronological timeline view - lanes, brackets, branch continuity, the git-graph spine, decision rows in the trail.
-    status: active
-    parent: memory-trace
-    aliases: []
-  - slug: trace-cache
-    label: Trace Cache
-    description: Memory Trace startup, caching, incremental derivation, freshness, and worktree switching.
-    status: active
-    parent: memory-trace
-    aliases: []
-  - slug: trace-harness
-    label: Trace Harness
-    description: The test apparatus for the Trace client - Storybook, Playwright, e2e, a11y gates, and its CI wiring.
-    status: active
-    parent: memory-trace
-    aliases: []
-  # `panes` earns its place on evidence that surprised the proposal: of its 13 entries, 5 chose
-  # `panes` ITSELF - work spanning several panes at once, with no single child fitting. So it
-  # clears the floor even with every child removed, which is a grouping parent doing its job
-  # rather than a bag holding thin slugs.
-  #
-  # Its children are bounded by the DOM: a change is in one region or another, so two siblings
-  # cannot overlap. That is the strongest kind of boundary the vocabulary has, and it is why they
-  # are admissible at 1 and 2 entries - generation 3 carries no floor.
-  #
-  # `settings` and `workspace-bar` were PROPOSED AND DECLINED. Both are equally well bounded and
-  # equally floor-free, and NEITHER blind worker placed a single entry on either. A slug with no
-  # precedent is one that gets applied wrongly the first time it is used. Add them when the corpus
-  # asks for them, not before.
-  #
-  # This ruling still stands (2026-07-29): `settings` now resolves as an ALIAS on `graph` below,
-  # for the one entry that used it wrongly - that is fixing a wrong slug, not minting a new one, and
-  # does not reopen this decision.
-  - slug: panes
-    label: Panes
-    description: Memory Trace UI panes. Use a specific pane when the work is in one; use this slug when it genuinely spans several.
-    status: active
-    parent: memory-trace
-    aliases: []
-  - slug: topbar
-    label: Top Bar
-    description: The header strip - search box, view switch, worktree picker, refresh.
-    status: active
-    parent: panes
-    aliases: []
-  - slug: navigation
-    label: Navigation Pane
-    description: The left aside - project picker, topic filters, and the entry list.
-    status: active
-    parent: panes
-    aliases: []
-  - slug: inspector
-    label: Inspector
-    description: The entry reader aside - an entry's body, metadata, and links.
-    status: active
-    parent: panes
-    aliases: []
-  - slug: diagram-view
-    label: Diagram View
-    description: The Mermaid diagram viewer and its zoom-pan modal.
-    status: active
-    parent: panes
-    aliases: []
-  # THE LINE BETWEEN THESE TWO IS THE WHOLE POINT OF ADDING `feature-build`, and it is one rule:
-  #
-  #   feature-build - a capability that did not exist before.
-  #   ui-design     - changing how an existing thing looks or behaves.
-  #
-  # The axis had slugs for fixing, designing, documenting, proposing, merging and shipping, and
-  # none for BUILDING. `ui-design` had been absorbing it for UI work, which is why the gap only
-  # surfaced on a backend row during adjudication. Applied across the 22 adjudicated rows the rule
-  # moved six of them and took `ui-design` from 9 to 4.
-  #
-  # Estimated at ~116 entries (25% of the corpus) by keyword, which would make it the largest
-  # activity slug - but the activity axis has had NO swarm pass, and cycle 4 showed what these
-  # estimates are worth: `inspector` was estimated at ~40 and measured 1. Treat the number as
-  # unverified; the category is a ruling.
-  - slug: feature-build
-    label: Feature Build
-    description: Building a capability that did not exist before, on any surface. Not ui-design, which changes how an existing thing looks or behaves.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: testing
-    label: Testing
-    description: Writing, wiring, or gating tests and verification - as an activity, whatever area it lands in.
-    status: active
-    axis: activity
-    # Found by the split-swarm design, not by a person: the AREA axis had a home for harness work
-    # (`trace-harness`) and the ACTIVITY axis had none, so Storybook and Playwright entries were
-    # filed as `ui-design` - one worker reasoning they were "reasonably subsumed" there. Building a
-    # test harness is not design work. Neither worker proposed the slug, because each saw only half
-    # the corpus and it clears the floor only when pooled: proposal detection has to run over the
-    # COMBINED result, which is a protocol fix for the sweep rather than a one-off.
-    aliases: []
-  - slug: ui-design
-    label: UI Design
-    description: Changing how an existing thing looks or behaves - interface layout, visual hierarchy, interaction design, rendered UI behaviour. Not feature-build, which creates a capability that did not exist.
-    status: active
-    axis: activity
-    aliases: [frontend-design, visual-design]
-  # RENAMED `memory-seed` -> `seed-core` 2026-07-27 (user-approved). The old name read like the
-  # whole package, which is exactly what a residual must NOT read like - it invited every entry
-  # with no obvious home, and collected 127 of them. `memory-seed` stays an alias, so every entry
-  # that authored it resolves here and nothing is rewritten.
-  #
-  # The residual rule below is UNCHANGED and is why the four new areas are ROOTS rather than
-  # children of this slug: anything specific enough to name is by construction not residual. The
-  # swarm measured that rule holding - of the 39 entries it declined to file under a new area, 34
-  # belonged to a DIFFERENT existing root and only 5 were genuinely residual.
-  - slug: seed-core
-    label: Seed Core (residual area)
-    description: RESIDUAL area - use ONLY when no narrower area applies, and never alongside another area slug. Narrower areas own their surfaces - mcp-tools owns CLI and MCP, retrieval owns search and ranking, lifecycle-edges owns the edge model, topic-vocabulary owns the topic system, test-suite owns the test corpus, docs-lifecycle owns the docs lanes, session-fuse owns merge machinery, session-logging owns entry authoring, control-plane owns agent rules and runtime files, release owns packaging. What remains is core library behaviour with no narrower home - validation, situate/esr, runtime resolution, quality metrics.
-    status: active
-    axis: area
-    # A residual area takes no children by definition: anything specific enough to name is by
-    # construction not residual and belongs under the area that owns it.
-    aliases: [memory-seed, memory-seed-core]
-  # THE FOUR AREAS BELOW ARE ROOTS, NOT CHILDREN OF seed-core (user-approved 2026-07-27). Counts
-  # are swarm-agreed - two workers judging blind, 119/126 agreement, only labels both reached
-  # independently are counted.
-  - slug: lifecycle-edges
-    label: Lifecycle Edges
-    description: The relationship MODEL between entries - link sidecars, evolves/supersedes/replaces/related edges, decision-level refs, and the edge rules in links check and link audit.
-    status: active
-    axis: area
-    # 63 entries, the largest of the four, and already near the band that earns children of its
-    # own - the ~14 `Cycle N` link-campaign entries are the obvious `link-swarm`, floor-free at
-    # generation 3 whenever someone wants it.
-    aliases: []
-  - slug: topic-vocabulary
-    label: Topic Vocabulary
-    description: This file and the system around it - axes, hierarchy, concentration, the topic swarm, caps and aliases.
-    status: active
-    axis: area
-    # The area doing the classifying had no slug of its own, so every entry about the vocabulary -
-    # including the ones that created this slug - landed on the residual with nothing more specific
-    # available. 25 entries, and the swarm's count matched the hand classification exactly.
-    aliases: []
-  - slug: test-suite
-    label: Test Suite
-    description: The pytest suite as an artefact - splitting, culling, coverage measurement, slow-test markers, harness dedup.
-    status: active
-    axis: area
-    aliases: []
-  - slug: docs-lifecycle
-    label: Docs Lifecycle
-    description: The docs/ lane system - which folder a doc lives in, docs check, docs index, and roadmap reconciliation sweeps.
-    status: active
-    axis: area
-    aliases: []
-  # `package` comes from JNL's adjudication of a contested row, NOT from a swarm pass. It spans
-  # Seed and Trace - a package-wide rename, the extras layout, the install path - and was landing
-  # on whichever residual was nearest. Unlike the four above it has no measured count; the
-  # CATEGORY is a ruling, which is different evidence from a count, not weaker evidence of the
-  # same kind. Roots carry no floor, so nothing is being waived.
-  - slug: package
-    label: Package
-    description: Distribution shape across both products - package metadata, extras, install paths, module layout, and cross-package renames.
-    status: active
-    axis: area
-    aliases: []
-  - slug: control-plane
-    label: Control Plane
-    description: Agent rules, skills governance, and reusable runtime files.
-    status: active
-    axis: area
-    aliases: []
-  - slug: agent-rules
-    label: Agent Rules
-    description: The agent-rules runtime file and the policy it carries.
-    status: active
-    parent: control-plane
-    aliases: []
-  - slug: skill-architecture
-    label: Skill Architecture
-    description: How skills are structured, discovered, and governed.
-    status: active
-    parent: control-plane
-    aliases: []
-  - slug: governance-profile
-    label: Governance Profile
-    description: Profile-keyed governance of shipped control-plane content.
-    status: active
-    parent: control-plane
-    aliases: []
-  - slug: lazy-loading
-    label: Lazy Loading
-    description: Progressive disclosure of control-plane content so agents load only what they need.
-    status: active
-    parent: control-plane
-    aliases: []
-  - slug: process-management
-    label: Process Management
-    description: Package process discovery, shutdown, and upgrade workflows.
-    status: active
-    axis: area
-    aliases: [processes]
-  - slug: upgrade-workflow
-    label: Upgrade Workflow
-    description: Upgrading an installed package and the safe-shutdown path around it.
-    status: active
-    parent: process-management
-    aliases: []
-  - slug: bugfix
-    label: Bug Fixes
-    description: Defect repairs, corrections, and cleanup passes.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: process-correction
-    label: Process Correction
-    description: Correcting a followed process rather than a defect in code.
-    status: active
-    parent: bugfix
-    aliases: []
-  - slug: memory-repair
-    label: Memory Repair
-    description: Repairing the memory tree itself - malformed entries, misplaced files, bad stamps.
-    status: active
-    parent: bugfix
-    aliases: []
-  - slug: cleanup
-    label: Cleanup
-    description: Tidying passes that remove residue rather than fix a reported defect.
-    status: active
-    parent: bugfix
-    aliases: []
-  - slug: tooling-evaluation
-    label: Tooling Evaluation
-    description: External tool/library assessment and licensing checks.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: licensing
-    label: Licensing
-    description: Licence checks on external tools and libraries before adoption.
-    status: active
-    # Promoted on evidence, against the suspicion that licensing is not a kind of tooling
-    # evaluation. The parent's own description says "and licensing checks", and the one authored
-    # use ("Triage dev-tools reel: adopt Fontjoy, reference fffuel and 21st.dev") is licence
-    # triage of external tools - exactly what the parent claims to cover.
-    parent: tooling-evaluation
-    aliases: []
-  - slug: design-evaluation
-    label: Design Evaluation
-    description: Weighing an internal design before committing to an implementation.
-    status: active
-    # Promoted as the LESS lossy of two imperfect options, not as a clean fit. Its one authored
-    # use ("Evaluate session fuse design before implementation") is an internal design, not
-    # external tooling, so the parent's name is narrower than the evaluation family it collects.
-    # As a child the term survives and re-parenting is a one-line vocabulary edit; as an alias it
-    # would be discarded at every read. The first candidate to move if an `evaluation` parent is
-    # ever earned.
-    parent: tooling-evaluation
-    aliases: []
-  - slug: security
-    label: Security
-    description: Supply-chain and repo hardening - OpenSSF posture, CI security gates, permissions.
-    status: active
-    axis: activity
-    aliases: [openssf, supply-chain]
-  - slug: performance
-    label: Performance
-    description: Profiling, caching, and speed work across core and Trace.
-    status: active
-    axis: activity
-    aliases: [perf, profiling]
+    # What remains true is that `graph` names two things. That is now recorded rather than fixed:
+    # `lifecycle-edges` below gives the Seed edge MODEL its own root and takes the four data-model
+    # children, so new work has somewhere specific to go. The historical dual meaning stays, because
+    # every one of those tags was true when written.
+    #
+    # Do NOT resurrect `graph-view` as a Trace child either - it would be a slug with zero authored
+    # entries and zero swarm evidence, which is the case `settings` and `workspace-bar` were declined
+    # for, and reason 1 makes it unnecessary.
+    graph:
+      label: Decision Graph
+      description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema. Still spans the Trace view and the Seed edge model - see the note above.
+      status: active
+      # `topics` is FLAGGED AS WRONG and deliberately left as an alias. Its single authored use
+      # ("Core continuity topics (rename/migration/removal) as D6") does mean the graph's continuity
+      # topics, so the mapping is defensible for that entry - but the bare name collides head-on with
+      # the topic VOCABULARY, a first-class concept in this system and the name of the very field
+      # every entry carries. Promoting it to a canonical slug would offer that collision to every
+      # future author and to the swarm. It stays resolvable so the entry stays valid; the real fix is
+      # to drop the alias once that entry's intent can be re-expressed.
+      #
+      # NOTE: that alias is now doubly wrong - `topic-vocabulary` is a canonical root as of
+      # 2026-07-27, so `topics` reads as an alias for the graph while naming the thing next door.
+      #
+      # `settings` is FLAGGED AS WRONG and deliberately left as an alias (2026-07-29). One entry
+      # ("Four spiral controls, reading in real units rather than slider positions") used it after
+      # `settings` was already PROPOSED AND DECLINED as a `panes` child below - no worker ever placed
+      # an entry there, so it was never earned as its own concept. Structural evidence (a graphify
+      # AST pass over memory-trace/client/src) puts `SettingsMenu.tsx` and `graphForces.ts` in the
+      # SAME community as `GraphWorkspace.tsx` - the entry is graph-physics tuning exposed through a
+      # Settings panel, not a settings concept in its own right, and it already links to a `graph`
+      # entry (the chain-spiral work it tunes). Resolving to `graph` fixes the one wrong use without
+      # reopening the `panes`-child ruling, which is about minting a NEW slug, not this.
+      aliases: [topics, settings]
+    session-layout:
+      label: Session Layout
+      description: Session file layouts, migrations, and multi-user structure.
+      status: active
+      aliases: []
+      children:
+        migration:
+          label: Layout Migration
+          description: Moving an existing session tree onto a new layout.
+          status: active
+          aliases: []
+        multi-user-sessions:
+          label: Multi-User Sessions
+          description: Per-user session structure and the switch away from the flat layout.
+          status: active
+          aliases: []
+    mcp-tools:
+      label: MCP And CLI Tools
+      description: MCP tool surface and CLI command design.
+      status: active
+      aliases: []
+      children:
+        cli:
+          label: CLI
+          description: The command-line surface - command design, flags, and output.
+          status: active
+          # The parent's SLUG says "mcp" but its LABEL and description say "MCP And CLI Tools", so the
+          # concept being parented is the tool-surface area and `cli` is one of its two surfaces - not a
+          # kind of MCP tool. The slug name is the defect, and renaming it would orphan 19 entries. The
+          # sibling `mcp` slug is deliberately NOT minted: no entry ever authored it, so it would be a
+          # level the corpus has not paid for.
+          aliases: [cli-audit]
+    retrieval:
+      label: Retrieval
+      description: Search, ranking, and the public retrieval service.
+      status: active
+      aliases: []
+    windows-encoding:
+      label: Windows Encoding
+      description: UTF-8 policy, cp1252 hazards, and encoding hygiene.
+      status: active
+      aliases: [encoding-hygiene]
+    mermaid:
+      label: Mermaid Diagrams
+      description: Decision-diagram sidecars and diagram authoring.
+      status: active
+      # Both aliases name this slug's own description back at it - genuine spelling variants.
+      aliases: [mermaid-sidecars, diagram-sidecars]
+    hooks:
+      label: Lifecycle Hooks
+      description: Session-start, prompt, and stop hooks.
+      status: active
+      aliases: []
+    memory-trace:
+      label: Memory Trace
+      description: The companion review UI package and its views. A real subsystem parent, not a residual - filing Trace work here is correct when no child fits.
+      status: active
+      # Was 43.7% of the corpus with no children. The five below took it to 12.8% canonical, measured
+      # by two blind swarm workers over the whole population (cycles 3 and 4, 2026-07-27). Reach is
+      # unchanged at 204 - a filter on this slug still finds every one of them through the children.
+      # `lense` and `memory-lense` are the product's OWN former name - `lense.py` ->
+      # `service.py`, `LenseCache` -> `TraceCache`, the `memory-seed[lense]` extra.
+      # Added 2026-07-27 because the full-corpus swarm proposed `GAP:memory-lense`
+      # 23 times and disagreed with `memory-trace` on 15 entries: the vocabulary
+      # simply did not know the old name, so a chunk of real Trace history read as
+      # a missing area. That is what an alias is FOR - a different spelling of the
+      # same concept - and it only surfaced once workers judged without being shown
+      # the old labels.
+      aliases: [memory-trace-ui, lense, memory-lense]
+      children:
+        trail:
+          label: Trail
+          description: The chronological timeline view - lanes, brackets, branch continuity, the git-graph spine, decision rows in the trail.
+          status: active
+          aliases: []
+        trace-cache:
+          label: Trace Cache
+          description: Memory Trace startup, caching, incremental derivation, freshness, and worktree switching.
+          status: active
+          aliases: []
+        trace-harness:
+          label: Trace Harness
+          description: The test apparatus for the Trace client - Storybook, Playwright, e2e, a11y gates, and its CI wiring.
+          status: active
+          aliases: []
+        # `panes` earns its place on evidence that surprised the proposal: of its 13 entries, 5 chose
+        # `panes` ITSELF - work spanning several panes at once, with no single child fitting. So it
+        # clears the floor even with every child removed, which is a grouping parent doing its job
+        # rather than a bag holding thin slugs.
+        #
+        # Its children are bounded by the DOM: a change is in one region or another, so two siblings
+        # cannot overlap. That is the strongest kind of boundary the vocabulary has, and it is why they
+        # are admissible at 1 and 2 entries - generation 3 carries no floor.
+        #
+        # `settings` and `workspace-bar` were PROPOSED AND DECLINED. Both are equally well bounded and
+        # equally floor-free, and NEITHER blind worker placed a single entry on either. A slug with no
+        # precedent is one that gets applied wrongly the first time it is used. Add them when the corpus
+        # asks for them, not before.
+        #
+        # This ruling still stands (2026-07-29): `settings` now resolves as an ALIAS on `graph` below,
+        # for the one entry that used it wrongly - that is fixing a wrong slug, not minting a new one, and
+        # does not reopen this decision.
+        panes:
+          label: Panes
+          description: Memory Trace UI panes. Use a specific pane when the work is in one; use this slug when it genuinely spans several.
+          status: active
+          aliases: []
+          children:
+            topbar:
+              label: Top Bar
+              description: The header strip - search box, view switch, worktree picker, refresh.
+              status: active
+              aliases: []
+            navigation:
+              label: Navigation Pane
+              description: The left aside - project picker, topic filters, and the entry list.
+              status: active
+              aliases: []
+            inspector:
+              label: Inspector
+              description: The entry reader aside - an entry's body, metadata, and links.
+              status: active
+              aliases: []
+            diagram-view:
+              label: Diagram View
+              description: The Mermaid diagram viewer and its zoom-pan modal.
+              status: active
+              aliases: []
+    # RENAMED `memory-seed` -> `seed-core` 2026-07-27 (user-approved). The old name read like the
+    # whole package, which is exactly what a residual must NOT read like - it invited every entry
+    # with no obvious home, and collected 127 of them. `memory-seed` stays an alias, so every entry
+    # that authored it resolves here and nothing is rewritten.
+    #
+    # The residual rule below is UNCHANGED and is why the four new areas are ROOTS rather than
+    # children of this slug: anything specific enough to name is by construction not residual. The
+    # swarm measured that rule holding - of the 39 entries it declined to file under a new area, 34
+    # belonged to a DIFFERENT existing root and only 5 were genuinely residual.
+    seed-core:
+      label: Seed Core (residual area)
+      description: RESIDUAL area - use ONLY when no narrower area applies, and never alongside another area slug. Narrower areas own their surfaces - mcp-tools owns CLI and MCP, retrieval owns search and ranking, lifecycle-edges owns the edge model, topic-vocabulary owns the topic system, test-suite owns the test corpus, docs-lifecycle owns the docs lanes, session-fuse owns merge machinery, session-logging owns entry authoring, control-plane owns agent rules and runtime files, release owns packaging. What remains is core library behaviour with no narrower home - validation, situate/esr, runtime resolution, quality metrics.
+      status: active
+      # A residual area takes no children by definition: anything specific enough to name is by
+      # construction not residual and belongs under the area that owns it.
+      aliases: [memory-seed, memory-seed-core]
+    # THE FOUR AREAS BELOW ARE ROOTS, NOT CHILDREN OF seed-core (user-approved 2026-07-27). Counts
+    # are swarm-agreed - two workers judging blind, 119/126 agreement, only labels both reached
+    # independently are counted.
+    lifecycle-edges:
+      label: Lifecycle Edges
+      description: The relationship MODEL between entries - link sidecars, evolves/supersedes/replaces/related edges, decision-level refs, and the edge rules in links check and link audit.
+      status: active
+      # 63 entries, the largest of the four, and already near the band that earns children of its
+      # own - the ~14 `Cycle N` link-campaign entries are the obvious `link-swarm`, floor-free at
+      # generation 3 whenever someone wants it.
+      aliases: []
+      children:
+        # The four below DID move from `graph` to `lifecycle-edges`, even though `graph` itself did not
+        # move. They are all data-MODEL concepts - what an edge IS - and they were the evidence that
+        # `graph`'s centre of gravity is the Seed side. Moving them is safe in a way moving `graph` was
+        # not: every entry authoring one of these is Seed edge work, so no filter gains a false positive.
+        # It also seeds `lifecycle-edges` with real entries, which is the first step toward unblocking
+        # the deferred reparenting above.
+        related-entries:
+          label: Related Entries
+          description: Undirected related-entry edges and their authoring surface.
+          status: active
+          aliases: []
+        supersession:
+          label: Supersession
+          description: Supersedes/superseded_by lifecycle edges and retirement records.
+          status: active
+          aliases: []
+        continuity:
+          label: Continuity
+          description: Continuity lineage across renames, migrations, and artifact history.
+          status: active
+          aliases: []
+        schema:
+          label: Graph Schema
+          description: The shape of graph and sidecar records - fields, versions, and their contracts.
+          status: active
+          aliases: []
+    topic-vocabulary:
+      label: Topic Vocabulary
+      description: This file and the system around it - axes, hierarchy, concentration, the topic swarm, caps and aliases.
+      status: active
+      # The area doing the classifying had no slug of its own, so every entry about the vocabulary -
+      # including the ones that created this slug - landed on the residual with nothing more specific
+      # available. 25 entries, and the swarm's count matched the hand classification exactly.
+      aliases: []
+    test-suite:
+      label: Test Suite
+      description: The pytest suite as an artefact - splitting, culling, coverage measurement, slow-test markers, harness dedup.
+      status: active
+      aliases: []
+    docs-lifecycle:
+      label: Docs Lifecycle
+      description: The docs/ lane system - which folder a doc lives in, docs check, docs index, and roadmap reconciliation sweeps.
+      status: active
+      aliases: []
+    # `package` comes from JNL's adjudication of a contested row, NOT from a swarm pass. It spans
+    # Seed and Trace - a package-wide rename, the extras layout, the install path - and was landing
+    # on whichever residual was nearest. Unlike the four above it has no measured count; the
+    # CATEGORY is a ruling, which is different evidence from a count, not weaker evidence of the
+    # same kind. Roots carry no floor, so nothing is being waived.
+    package:
+      label: Package
+      description: Distribution shape across both products - package metadata, extras, install paths, module layout, and cross-package renames.
+      status: active
+      aliases: []
+    control-plane:
+      label: Control Plane
+      description: Agent rules, skills governance, and reusable runtime files.
+      status: active
+      aliases: []
+      children:
+        agent-rules:
+          label: Agent Rules
+          description: The agent-rules runtime file and the policy it carries.
+          status: active
+          aliases: []
+        skill-architecture:
+          label: Skill Architecture
+          description: How skills are structured, discovered, and governed.
+          status: active
+          aliases: []
+        governance-profile:
+          label: Governance Profile
+          description: Profile-keyed governance of shipped control-plane content.
+          status: active
+          aliases: []
+        lazy-loading:
+          label: Lazy Loading
+          description: Progressive disclosure of control-plane content so agents load only what they need.
+          status: active
+          aliases: []
+    process-management:
+      label: Process Management
+      description: Package process discovery, shutdown, and upgrade workflows.
+      status: active
+      aliases: [processes]
+      children:
+        upgrade-workflow:
+          label: Upgrade Workflow
+          description: Upgrading an installed package and the safe-shutdown path around it.
+          status: active
+          aliases: []
+  activity:
+    git-workflow:
+      label: Git Workflow
+      description: Branching, merging, integration topology, and push/publish mechanics.
+      status: active
+      aliases: []
+      children:
+        merge:
+          label: Merge
+          description: Merging a branch into main and the integration step itself.
+          status: active
+          aliases: []
+        branch-history:
+          label: Branch History
+          description: Branch topology, provenance, and history guardrails.
+          status: active
+          aliases: []
+        git-publishing:
+          label: Git Publishing
+          description: Push and publish mechanics against the remote.
+          status: active
+          aliases: []
+    proposal-lifecycle:
+      label: Proposal Lifecycle
+      description: Roadmap, proposals, goals, and docs-lifecycle movement.
+      status: active
+      # Its own description lists three coordinate things. They are children, not spellings: an
+      # entry writing `goal` ("S4: cut Memory Seed 2.17.0") is not doing the same work as one
+      # writing `proposal` ("Draft evolution-edges proposal").
+      aliases: []
+      children:
+        proposal:
+          label: Proposal
+          description: Drafting and revising a proposal document.
+          status: active
+          aliases: []
+        roadmap:
+          label: Roadmap
+          description: Roadmap authoring, refinement, and staging.
+          status: active
+          aliases: []
+        goal:
+          label: Goal Run
+          description: Goal directives and the staged execution runs that discharge them.
+          status: active
+          aliases: []
+    release:
+      label: Release
+      description: Version cuts, changelog folds, packaging, and publish gates.
+      status: active
+      aliases: []
+      children:
+        release-packaging:
+          label: Release Packaging
+          description: Packaging and distribution artifacts for a cut.
+          status: active
+          aliases: []
+        release-preflight:
+          label: Release Preflight
+          description: Pre-cut checks and gates before a version is published.
+          status: active
+          aliases: []
+        changelog:
+          label: Changelog
+          description: Changelog folds, Unreleased hygiene, and release notes.
+          status: active
+          aliases: []
+    documentation:
+      label: Documentation
+      description: README, audits, and public-facing docs accuracy.
+      status: active
+      aliases: []
+      children:
+        readme:
+          label: README
+          description: The README front door and its accuracy.
+          status: active
+          aliases: []
+        functionality-audit:
+          label: Functionality Audit
+          description: Auditing shipped behaviour against what the docs claim, and closing the gaps.
+          status: active
+          # `audit` is a spelling of this, not of `documentation`: the one entry that wrote `audit`
+          # wrote `functionality-audit` alongside it, which is the corpus saying they are the same thing.
+          aliases: [audit]
+        document-ingestion:
+          label: Document Ingestion
+          description: Bringing external documents and transcripts into the corpus as notes.
+          status: active
+          aliases: []
+    agent-collaboration:
+      label: Agent Collaboration
+      description: Subagents, worktrees, task packets, and multi-agent hazards.
+      status: active
+      # `windows-worktree-hazard` is FLAGGED AS WRONG and deliberately left as an alias. It fails the
+      # axis test: this parent is an `activity`, and a platform hazard is a SUBJECT, not a kind of
+      # work, so promoting it would have it inherit the wrong axis. It does not belong under
+      # `windows-encoding` either - that slug is scoped by its own description to UTF-8 and cp1252,
+      # and a worktree lifecycle hazard is not an encoding hazard. Its correct home is a
+      # Windows-platform area that does not exist, and minting one for a single entry would be
+      # unearned depth.
+      aliases: [team-collaboration, windows-worktree-hazard]
+    # THE LINE BETWEEN THESE TWO IS THE WHOLE POINT OF ADDING `feature-build`, and it is one rule:
+    #
+    #   feature-build - a capability that did not exist before.
+    #   ui-design     - changing how an existing thing looks or behaves.
+    #
+    # The axis had slugs for fixing, designing, documenting, proposing, merging and shipping, and
+    # none for BUILDING. `ui-design` had been absorbing it for UI work, which is why the gap only
+    # surfaced on a backend row during adjudication. Applied across the 22 adjudicated rows the rule
+    # moved six of them and took `ui-design` from 9 to 4.
+    #
+    # Estimated at ~116 entries (25% of the corpus) by keyword, which would make it the largest
+    # activity slug - but the activity axis has had NO swarm pass, and cycle 4 showed what these
+    # estimates are worth: `inspector` was estimated at ~40 and measured 1. Treat the number as
+    # unverified; the category is a ruling.
+    feature-build:
+      label: Feature Build
+      description: Building a capability that did not exist before, on any surface. Not ui-design, which changes how an existing thing looks or behaves.
+      status: active
+      aliases: []
+    testing:
+      label: Testing
+      description: Writing, wiring, or gating tests and verification - as an activity, whatever area it lands in.
+      status: active
+      # Found by the split-swarm design, not by a person: the AREA axis had a home for harness work
+      # (`trace-harness`) and the ACTIVITY axis had none, so Storybook and Playwright entries were
+      # filed as `ui-design` - one worker reasoning they were "reasonably subsumed" there. Building a
+      # test harness is not design work. Neither worker proposed the slug, because each saw only half
+      # the corpus and it clears the floor only when pooled: proposal detection has to run over the
+      # COMBINED result, which is a protocol fix for the sweep rather than a one-off.
+      aliases: []
+    ui-design:
+      label: UI Design
+      description: Changing how an existing thing looks or behaves - interface layout, visual hierarchy, interaction design, rendered UI behaviour. Not feature-build, which creates a capability that did not exist.
+      status: active
+      aliases: [frontend-design, visual-design]
+    bugfix:
+      label: Bug Fixes
+      description: Defect repairs, corrections, and cleanup passes.
+      status: active
+      aliases: []
+      children:
+        process-correction:
+          label: Process Correction
+          description: Correcting a followed process rather than a defect in code.
+          status: active
+          aliases: []
+        memory-repair:
+          label: Memory Repair
+          description: Repairing the memory tree itself - malformed entries, misplaced files, bad stamps.
+          status: active
+          aliases: []
+        cleanup:
+          label: Cleanup
+          description: Tidying passes that remove residue rather than fix a reported defect.
+          status: active
+          aliases: []
+    tooling-evaluation:
+      label: Tooling Evaluation
+      description: External tool/library assessment and licensing checks.
+      status: active
+      aliases: []
+      children:
+        licensing:
+          label: Licensing
+          description: Licence checks on external tools and libraries before adoption.
+          status: active
+          # Promoted on evidence, against the suspicion that licensing is not a kind of tooling
+          # evaluation. The parent's own description says "and licensing checks", and the one authored
+          # use ("Triage dev-tools reel: adopt Fontjoy, reference fffuel and 21st.dev") is licence
+          # triage of external tools - exactly what the parent claims to cover.
+          aliases: []
+        design-evaluation:
+          label: Design Evaluation
+          description: Weighing an internal design before committing to an implementation.
+          status: active
+          # Promoted as the LESS lossy of two imperfect options, not as a clean fit. Its one authored
+          # use ("Evaluate session fuse design before implementation") is an internal design, not
+          # external tooling, so the parent's name is narrower than the evaluation family it collects.
+          # As a child the term survives and re-parenting is a one-line vocabulary edit; as an alias it
+          # would be discarded at every read. The first candidate to move if an `evaluation` parent is
+          # ever earned.
+          aliases: []
+    security:
+      label: Security
+      description: Supply-chain and repo hardening - OpenSSF posture, CI security gates, permissions.
+      status: active
+      aliases: [openssf, supply-chain]
+    performance:
+      label: Performance
+      description: Profiling, caching, and speed work across core and Trace.
+      status: active
+      aliases: [perf, profiling]
