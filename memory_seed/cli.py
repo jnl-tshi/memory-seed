@@ -13,6 +13,7 @@ from .core import (
     KNOWN_AGENTS,
     RETRACTABLE_KINDS,
     add_agent,
+    amend_topic_sidecar,
     add_skill,
     apply_link_retract,
     branch_status,
@@ -550,6 +551,22 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="file to inspect for topic suggestions",
     )
+    topics_amend = topics_sub.add_parser(
+        "amend",
+        help="append a corrected full decision-topic snapshot without editing history",
+    )
+    topics_amend.add_argument("--entry", required=True, help="existing session entry id")
+    topics_amend.add_argument("--decision", required=True, help="decision ordinal to amend, e.g. d1")
+    topics_amend.add_argument("--area", required=True, help="canonical area topic slug")
+    topics_amend.add_argument(
+        "--activity",
+        action="append",
+        required=True,
+        help="canonical activity topic slug; repeat for a second activity",
+    )
+    topics_amend.add_argument("--reason", required=True, help="short audit reason retained in the sidecar heading")
+    topics_amend.add_argument("--timestamp", help="optional later timestamp on the entry's original date")
+    topics_amend.add_argument("--dry-run", action="store_true", help="render and validate without writing")
 
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
@@ -2036,6 +2053,29 @@ def main(argv: list[str] | None = None) -> int:
             print("topics:")
             for item in suggestions:
                 print(f"  - {item.topic.slug}")
+            return 0
+        if args.topics_command == "amend":
+            result = amend_topic_sidecar(
+                cwd=Path(".").resolve(),
+                entry_id=args.entry,
+                decision=args.decision,
+                area=args.area,
+                activities=args.activity,
+                reason=args.reason,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+            if not result.ok:
+                print("Topic amendment refused:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if args.dry_run:
+                print(f"Would append corrected snapshot to {result.path}")
+                print()
+                print(result.rendered, end="")
+            else:
+                print(f"Appended corrected snapshot for {result.entry_id}:{result.decision} to {result.path}")
             return 0
 
     if args.command == "docs":

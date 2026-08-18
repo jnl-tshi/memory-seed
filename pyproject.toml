@@ -52,6 +52,10 @@ addopts = ["-p", "no:cacheprovider"]
 # sat on main from 2026-07-28 until the next push surfaced them. One line here means
 # `pytest` from the root runs what CI runs.
 pythonpath = ["memory-trace"]
+# Product verification is deliberately bounded. Frozen research instruments and
+# captured subject artifacts are runnable by explicit path, but must not make a
+# bare `pytest` collect duplicate test-module names from archival copies.
+testpaths = ["tests", "memory-trace/tests"]
 markers = [
   "integration: spawns real git subprocesses across a multi-step workflow (>=0.5s measured); run the fast loop with `pytest -m \"not integration\"`, full suite (default `pytest`) still runs everything.",
 ]
