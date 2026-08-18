@@ -315,6 +315,156 @@ class TopicsTests(unittest.TestCase):
         # Alias expansion is byte-for-byte what it was: canonical plus aliases.
         self.assertEqual(expand_topic_filter(cwd, ["retrieval"]), {"retrieval", "search", "ranking"})
 
+    # --- Recursive mapping tree (schema_version 3) ---
+
+    V3 = """schema_version: 3
+topics:
+  area:
+    memory-trace:
+      label: Memory Trace
+      description: Review interface.
+      status: active
+      aliases: [memory-trace-ui]
+      children:
+        trail:
+          label: Trail
+          description: Timeline view.
+          status: active
+          aliases:
+            - timeline
+          children:
+            trail-lanes:
+              label: Trail Lanes
+              description: Lane assignment.
+              status: active
+              aliases: []
+  activity:
+    documentation:
+      label: Documentation
+      description: Public docs.
+      status: active
+      aliases: []
+"""
+
+    V2_EQUIVALENT = """schema_version: 2
+topics:
+  - slug: memory-trace
+    label: Memory Trace
+    description: Review interface.
+    status: active
+    axis: area
+    aliases: [memory-trace-ui]
+  - slug: trail
+    label: Trail
+    description: Timeline view.
+    status: active
+    parent: memory-trace
+    aliases: [timeline]
+  - slug: trail-lanes
+    label: Trail Lanes
+    description: Lane assignment.
+    status: active
+    parent: trail
+    aliases: []
+  - slug: documentation
+    label: Documentation
+    description: Public docs.
+    status: active
+    axis: activity
+    aliases: []
+"""
+
+    def test_v3_mapping_tree_derives_axis_parent_and_arbitrary_depth(self):
+        cwd = self.make_project()
+        self.write_index(cwd, self.V3)
+
+        index = load_topic_index(cwd)
+        by = {topic.slug: topic for topic in index.topics}
+
+        self.assertEqual(index.schema_version, "3")
+        self.assertEqual([topic.slug for topic in index.topics], [
+            "memory-trace", "trail", "trail-lanes", "documentation"
+        ])
+        self.assertEqual(by["memory-trace"].axis, "area")
+        self.assertEqual(by["trail"].axis, "")
+        self.assertEqual(by["trail"].parent, "memory-trace")
+        self.assertEqual(by["trail-lanes"].parent, "trail")
+        self.assertEqual(by["trail"].aliases, ("timeline",))
+        self.assertEqual(index.ancestors("trail-lanes"), ("trail", "memory-trace"))
+        self.assertEqual(index.axis_of("trail-lanes"), "area")
+        self.assertEqual(index.axis_of("documentation"), "activity")
+        self.assertEqual(index.parse_issues, ())
+
+    def test_v2_and_v3_normalize_to_identical_topic_records(self):
+        v2 = self.make_project()
+        v3 = self.make_project()
+        self.write_index(v2, self.V2_EQUIVALENT)
+        self.write_index(v3, self.V3)
+
+        before = {topic.slug: topic for topic in load_topic_index(v2).topics}
+        after = {topic.slug: topic for topic in load_topic_index(v3).topics}
+
+        self.assertEqual(before, after)
+        self.assertEqual(expand_topic_filter(v2, ["memory-trace"]), expand_topic_filter(v3, ["memory-trace"]))
+
+    def test_v3_rejects_redundant_structure_and_malformed_children(self):
+        cwd = self.make_project()
+        self.write_index(
+            cwd,
+            """schema_version: 3
+topics:
+  area:
+    root:
+      axis: area
+      children: []
+      aliases: []
+""",
+        )
+
+        result = check_topics(cwd)
+        kinds = {issue.kind for issue in result.issues}
+
+        self.assertFalse(result.ok)
+        self.assertIn("redundant-topic-structure", kinds)
+        self.assertIn("malformed-topic-children", kinds)
+
+    def test_v3_rejects_list_records_unknown_axes_and_duplicate_slugs(self):
+        cwd = self.make_project()
+        self.write_index(
+            cwd,
+            """schema_version: 3
+topics:
+  subject:
+    ignored: {}
+  area:
+    shared:
+      aliases: []
+    - slug: old-list-record
+  activity:
+    shared:
+      aliases: []
+""",
+        )
+
+        result = check_topics(cwd)
+        kinds = [issue.kind for issue in result.issues]
+
+        self.assertFalse(result.ok)
+        self.assertIn("invalid-topic-axis", kinds)
+        self.assertIn("malformed-topic-node", kinds)
+        self.assertIn("duplicate-slug", kinds)
+
+    def test_unknown_topic_schema_is_reported_without_guessing_a_shape(self):
+        cwd = self.make_project()
+        self.write_index(cwd, "schema_version: 4\ntopics:\n  area:\n    retrieval:\n      aliases: []\n")
+
+        index = load_topic_index(cwd)
+        result = check_topics(cwd)
+
+        self.assertEqual(index.topics, ())
+        self.assertFalse(result.ok)
+        self.assertIn("unsupported-topic-schema", [issue.kind for issue in result.issues])
+
 
 if __name__ == "__main__":
     unittest.main()
