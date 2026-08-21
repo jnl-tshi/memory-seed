@@ -36,6 +36,7 @@ Current Memory Trace provenance:
 | [designing-user-interfaces-source-learnings.md](designing-user-interfaces-source-learnings.md) | — | — | source-learnings |
 | [fffuel-svg-css-generators.md](fffuel-svg-css-generators.md) | — | — | — |
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |
+| [inbox-2026-08-20-drop-review-claude.md](inbox-2026-08-20-drop-review-claude.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT-2026-08-13-DROP.md](INBOX-ASSESSMENT-2026-08-13-DROP.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT-2026-08-20-DROP.md](INBOX-ASSESSMENT-2026-08-20-DROP.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT.md](INBOX-ASSESSMENT.md) | — | — | inbox-assessed |

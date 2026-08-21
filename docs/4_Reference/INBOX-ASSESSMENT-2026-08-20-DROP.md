@@ -18,14 +18,25 @@ against current shipped capability. No item is promoted, retired, or moved by th
 3. [`memory-seed-governed-interactive-retrieval-proposal.md`](../1_Inbox/memory-seed-governed-interactive-retrieval-proposal.md) — 513 lines, retrieval protocol
 4. [`semantic-compression-benchmark-proposal.md`](../1_Inbox/semantic-compression-benchmark-proposal.md) — 685 lines, experiment design
 
-## Headline finding: none of the four cite this repository
+## Headline finding: the four are grounded in the ecosystem, not in the repository
 
-Every one of the 2026-07-20 and 2026-08-13 drops this project has triaged so far arrived with at least
-some grounding in the actual codebase — file names, ADR ids, measured line/char counts. These four do
-not. No file path, entry id, ADR id, or command output appears anywhere across 2,829 lines. Document 4
-is the exception in spirit: it explicitly *requires* "Repository Investigation First" (§16) before any
-implementation, and treats "document anything already present that overlaps" as a mandatory step it
-has not yet performed itself.
+The distinction matters and the first version of this assessment got it wrong, so it is stated
+precisely here.
+
+These four documents **do** know the project's component landscape: they name Memory Trace, Trail,
+sidecars, the Constitution, ADRs, MCP/CLI/REST, Graphify, Semble, and ICM (Interpretable Context
+Methodology, the methodology behind ICM Architect) — and they place each correctly relative to Memory
+Seed. That is real grounding, and an earlier draft of this document wrongly flagged the ICM references
+as invented. ICM is named in this repository's own
+[`experiments/stack-benchmark/solar-filaments-001/PREREGISTRATION.md`](../../experiments/stack-benchmark/solar-filaments-001/PREREGISTRATION.md)
+as one of the treatments evaluated alongside Memory Seed, Graphify, and Semble.
+
+What they do **not** contain is any citation of shipped repository state: no file path, entry id, ADR
+id, spec reference, or command output appears across their 2,829 lines. Ecosystem awareness is not the
+same as checking what already ships, and it is the second kind of grounding that the crosswalk
+discipline requires. Document 4 is the exception in spirit — it explicitly *requires* "Repository
+Investigation First" (§16) before any implementation, and treats "document anything already present
+that overlaps" as a mandatory step it has simply not performed yet.
 
 This is precisely the failure mode `adr_inbox_promotion_workflow` exists to catch: proposals that "read
 as missing capability only because they predated the code that shipped them." Below is the crosswalk
@@ -98,10 +109,9 @@ rather than invent a parallel one.
 The most disciplined of the four by construction: explicit ablation design (raw → core → core+why →
 core+why+constraint → structured), a stated null result as a valid outcome ("Outcome A: no semantic
 layer required"), fidelity checks against meaning loss, and an explicit requirement to audit the
-repository before writing implementation code. It cites "ICM" repeatedly as if it were an existing
-Memory Seed component; it is not — no such term appears anywhere else in this repository (checked
-across `docs/`, `experiments/`, and code). That is a concrete instance of the ungrounded-authorship
-problem this assessment opened with, inside the one document that explicitly warns against it.
+repository before writing implementation code. Its ICM references are correct — ICM (Interpretable
+Context Methodology) is a real adjacent methodology, already named in this repository's
+stack-benchmark preregistration as a treatment evaluated alongside Memory Seed.
 
 Its topic overlaps with the already-retired `information-theoretic-evolution-exploration.md`
 (2026-07-25, retired on arrival — see
@@ -111,9 +121,8 @@ mostly restate shipped capability. This proposal is narrower and more empirical 
 it isn't simply a repeat, but the disposition doc is required reading before scoping it.
 
 **My take:** the proposal design itself is sound and could run largely as written — but only after its
-own §16 "Repository Investigation First" is actually performed, the "ICM" references are corrected or
-removed, and the 2026-07-25 disposition doc is read so the experiment isn't re-deriving that one's
-already-answered questions.
+own §16 "Repository Investigation First" is actually performed, and the 2026-07-25 disposition doc is
+read so the experiment isn't re-deriving that one's already-answered questions.
 
 ## Overall recommendation
 
