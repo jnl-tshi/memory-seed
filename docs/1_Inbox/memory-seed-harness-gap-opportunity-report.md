@@ -7,8 +7,10 @@ than from either line alone.
 
 Primary inputs:
 
-- [Codex comparison](harness-engineering-comparison-codex.md)
-- [Claude comparison](harness-engineering-comparison-claude.md)
+- [Codex comparison](../7_Replaced/harness-engineering-comparison-codex.md) (retired 2026-08-21; this
+  synthesis is its replacement)
+- [Claude comparison](../7_Replaced/harness-engineering-comparison-claude.md) (retired 2026-08-21; this
+  synthesis is its replacement)
 - Ryan Lopopolo, [*Harness engineering: leveraging Codex in an agent-first world*](https://openai.com/index/harness-engineering/), OpenAI, 2026-02-11
 - Marina Favaro and Jack Clark, [*When AI builds itself*](https://www.anthropic.com/institute/recursive-self-improvement), Anthropic Institute, accessed 2026-08-13
 

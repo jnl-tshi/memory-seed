@@ -11,6 +11,10 @@ intact; each points forward to what replaced it.
   cross-proposal reviews (2.13-era snapshots). Every proposal they weighed has since shipped and both
   self-declare "no further research loop is open," so they are superseded by the shipped work plus the
   refreshed `2_Todo/0_NEXT_STEPS.md`.
+- `harness-engineering-comparison-claude.md`, `harness-engineering-comparison-codex.md` — the two
+  parallel OpenAI harness-engineering comparison lines (2026-08-13), retired 2026-08-21 once
+  `1_Inbox/memory-seed-harness-gap-opportunity-report.md` was confirmed to already fold both lines'
+  unique contributions into one opportunity register.
 
 The P2 migration (2026-07-17) moved the whole `2_Todo/completed/` archive into `5_Completed/` as-is and
 retired the folder. Docs there marked "SOURCE RESOLVED / folded into <canonical>" may still deserve
@@ -35,6 +39,8 @@ mechanical migration.
 | [entry-intent-metadata-exploration.md](entry-intent-metadata-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [evidence-envelope-and-task-packet-reference-proposal.md](evidence-envelope-and-task-packet-reference-proposal.md) | P2 | — | After React Trail parity, decide whether a stable cross-surface evidence hand-off is needed; if… |
 | [evidence-model-and-packets-exploration.md](evidence-model-and-packets-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
+| [harness-engineering-comparison-claude.md](harness-engineering-comparison-claude.md) | — | — | ../1_Inbox/memory-seed-harness-gap-opportunity-report.md |
+| [harness-engineering-comparison-codex.md](harness-engineering-comparison-codex.md) | — | — | ../1_Inbox/memory-seed-harness-gap-opportunity-report.md |
 | [high-signal-knowledge-lenses-exploration.md](high-signal-knowledge-lenses-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [idea-to-ship-trace-model-exploration.md](idea-to-ship-trace-model-exploration.md) | — | — | ../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md |
 | [information-theoretic-evolution-exploration.md](information-theoretic-evolution-exploration.md) | — | — | ../4_Reference/information-theoretic-evolution-disposition.md |

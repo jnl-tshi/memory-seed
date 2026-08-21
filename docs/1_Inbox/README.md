@@ -1,6 +1,8 @@
 # Inbox
 
-Status: **3 documents awaiting or exempt from triage (2026-08-13)**.
+Status: **2 documents awaiting or exempt from triage (2026-08-21)**. The two harness-engineering
+comparison lines retired to `7_Replaced/` this same day — see
+[`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -14,18 +16,12 @@ untriaged captures.
   every agent interaction storyline, kept synchronised with shipped behaviour. JNL explicitly recorded that it
   stays in this lane rather than moving to `4_Reference/`, so it is an exemption from the triage rule above,
   not an untriaged capture.
-- **Two parallel lines of the OpenAI "harness engineering" comparison**, added 2026-08-13 and deliberately
-  kept apart so their evaluations can be compared rather than merged. Both are unassessed; neither
-  supersedes the other, and picking one — or folding them together — is itself the triage decision still
-  outstanding. Their candidate lists are not accepted work.
-  - [`harness-engineering-comparison-codex.md`](harness-engineering-comparison-codex.md) — the Codex-revised
-    line: Claude's original draft with Codex's chronology/provenance corrections and its startup-context
-    section.
-  - [`harness-engineering-comparison-claude.md`](harness-engineering-comparison-claude.md) — the Claude line:
-    accepts those corrections, then recomputes the startup measurement, redirects the provenance question,
-    follows the chronology correction through to the verdict, repairs a category error in the
-    application-legibility section, and adds the competitive reading. Departures are marked
-    **[Claude line]** inline.
+- [`memory-seed-harness-gap-opportunity-report.md`](memory-seed-harness-gap-opportunity-report.md) — the
+  2026-08-13 synthesis of the (now-retired) Claude and Codex comparison lines into one ten-item
+  opportunity register (O1–O10). Its own status line still says no opportunity is accepted work; the
+  2026-08-21 assessment re-verified its claims against current HEAD and found no material drift, but its
+  §7 recommended decision sequence has not been confirmed as JNL's actual sequence. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
 
 The warranty-claims ML project's file index that arrived here by mistake was assessed and moved to
 [`../4_Reference/warranty-file-structure-index.md`](../4_Reference/warranty-file-structure-index.md) on
@@ -50,6 +46,19 @@ were themselves reference material, not undecided captures — moved the same da
   extracted and it is actively cited by a `2_Todo/` proposal, so it was triaged reference material sitting
   in the wrong lane, not a document still awaiting a decision.
 
+## Triaged out on 2026-08-21
+
+- **Both harness-engineering comparison lines → [`../7_Replaced/`](../7_Replaced/)**, pointing back at the
+  synthesis report ([`memory-seed-harness-gap-opportunity-report.md`](memory-seed-harness-gap-opportunity-report.md),
+  which stays in this lane — its own opportunities remain undispositioned). Retired rather than promoted:
+  the synthesis already folds each line's unique contributions (Claude's bottleneck/product reading and
+  Amdahl framing; Codex's owner-aware disposition and recorded-vs-measured evolution-loop framing) into
+  one opportunity register, so the README's earlier framing — "picking one or folding them together is
+  the outstanding decision" — was itself stale: the fold had already happened, just never recorded as the
+  resolution. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md)
+  for the full re-verification against current HEAD.
+
 ## Triaged out on 2026-07-20
 
 - **Both proposal sets (14 documents) → [`../7_Replaced/`](../7_Replaced/)**, de-numbered and renamed
@@ -71,7 +80,5 @@ were themselves reference material, not undecided captures — moved the same da
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
-| [harness-engineering-comparison-claude.md](harness-engineering-comparison-claude.md) | — | — | — |
-| [harness-engineering-comparison-codex.md](harness-engineering-comparison-codex.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
 <!-- docs-index:end -->
