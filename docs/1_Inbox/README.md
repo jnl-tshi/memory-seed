@@ -1,8 +1,11 @@
 # Inbox
 
-Status: **2 documents awaiting or exempt from triage (2026-08-21)**. The two harness-engineering
+Status: **6 documents awaiting or exempt from triage (2026-08-21)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
-[`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
+[`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
+proposals dated 2026-08-20 were found sitting in the shared checkout on 2026-08-21, captured, and
+assessed — see [`INBOX-ASSESSMENT-2026-08-20-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md).
+None of the four is promoted; the assessment recommends against building any of them as submitted.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -22,6 +25,14 @@ untriaged captures.
   2026-08-21 assessment re-verified its claims against current HEAD and found no material drift, but its
   §7 recommended decision sequence has not been confirmed as JNL's actual sequence. See
   [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
+- **Four proposals dated 2026-08-20** — `active-truth-execution-control-proposal.md`,
+  `memory-seed-first-principles-proposal.md`, `memory-seed-governed-interactive-retrieval-proposal.md`,
+  `semantic-compression-benchmark-proposal.md`. Found untracked in the shared root checkout on
+  2026-08-21, captured verbatim, and assessed the same day. None cited this repository's actual code or
+  prior triage decisions; the assessment found substantial overlap with already-shipped capability in
+  the two largest documents. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md)
+  for the full crosswalk and per-document recommendation. Not triaged (moved or retired) — assessed only.
 
 The warranty-claims ML project's file index that arrived here by mistake was assessed and moved to
 [`../4_Reference/warranty-file-structure-index.md`](../4_Reference/warranty-file-structure-index.md) on
@@ -79,6 +90,10 @@ were themselves reference material, not undecided captures — moved the same da
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
+| [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
+| [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
+| [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
 <!-- docs-index:end -->

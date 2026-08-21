@@ -37,6 +37,7 @@ Current Memory Trace provenance:
 | [fffuel-svg-css-generators.md](fffuel-svg-css-generators.md) | — | — | — |
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |
 | [INBOX-ASSESSMENT-2026-08-13-DROP.md](INBOX-ASSESSMENT-2026-08-13-DROP.md) | — | — | inbox-assessed |
+| [INBOX-ASSESSMENT-2026-08-20-DROP.md](INBOX-ASSESSMENT-2026-08-20-DROP.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT.md](INBOX-ASSESSMENT.md) | — | — | inbox-assessed |
 | [INBOX-CAPABILITY-CROSSWALK.md](INBOX-CAPABILITY-CROSSWALK.md) | — | — | inbox-crosswalk |
 | [information-theoretic-evolution-disposition.md](information-theoretic-evolution-disposition.md) | — | — | disposition |

@@ -107,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 2 · 2_Todo 52 · 3_Spec 9 · 4_Reference 16 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 6 · 2_Todo 52 · 3_Spec 9 · 4_Reference 17 · 5_Completed 66 · 6_Rejected 0 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
