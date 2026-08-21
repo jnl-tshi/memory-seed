@@ -1046,11 +1046,14 @@ folder) and was assessed but deliberately not promoted — see
   `docs_check.py` allowlist + its test) was updated; `docs index`/`docs check`/`links check` all clean,
   full suite unaffected.
 
-### 2026-08-13 drop — four live documents, UNTRIAGED (recorded 2026-08-14)
+### 2026-08-13 drop — partially triaged 2026-08-21
 
-`1_Inbox/` is no longer clear. Four documents arrived on 2026-08-13 and **no triage pass has run**;
-nothing below is accepted work, prioritised, or authorised to build. They are listed so the next triage
-starts from what is there rather than rediscovering it.
+`1_Inbox/` is no longer clear. Four documents arrived on 2026-08-13; a review pass on 2026-08-21
+([`4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md))
+re-verified the synthesis report against current HEAD and retired both comparison lines to `7_Replaced/`.
+**The opportunity register itself (O1–O10) remains untriaged** — nothing below is accepted work,
+prioritised, or authorised to build. They are listed so the next triage starts from what is there rather
+than rediscovering it.
 
 - **Entry point: [`memory-seed-harness-gap-opportunity-report.md`](../1_Inbox/memory-seed-harness-gap-opportunity-report.md)**
   (`mse_ask8e72zq76fdm9f`) — a synthesis of the two comparison lines below into one register of ten
@@ -1067,12 +1070,13 @@ starts from what is there rather than rediscovering it.
   gates for authoritative memory writes, automatic promotion of generated content, unbounded reviewer
   loops, autonomous control-plane self-modification, and any framing of Memory Seed as
   recursive-self-improvement safety).
-- **[Claude line](../1_Inbox/harness-engineering-comparison-claude.md)** and
-  **[Codex line](../1_Inbox/harness-engineering-comparison-codex.md)** — the same OpenAI
-  harness-engineering comparison worked as two deliberately parallel, unmerged evaluations, each later
-  extended with Anthropic's recursive-self-improvement report. Neither supersedes the other; the pair is
-  left unresolved on purpose, and **that outstanding triage decision is why both are still in Inbox**.
-  Both retain their `v1.8` Constitution pin by design — they record what they were compared against.
+- **[Claude line](../7_Replaced/harness-engineering-comparison-claude.md)** and
+  **[Codex line](../7_Replaced/harness-engineering-comparison-codex.md)** — retired to `7_Replaced/` on
+  2026-08-21, pointing back at the synthesis report above. The pair had been left deliberately
+  unmerged; the 2026-08-21 review found the synthesis already performs the fold, so the "pick one or
+  merge them" decision was resolved by recording that as the disposition rather than by further
+  analysis. Both retain their `v1.8` Constitution pin by design — they record what they were compared
+  against.
 - **[`agent-interaction-storylines-review.md`](../1_Inbox/agent-interaction-storylines-review.md)** — a
   *living* document rather than a capture (refreshed 2026-08-13): every named agent↔Memory Seed
   storyline, its tool surface, a surface-parity matrix, and **R1–R13** redundancies with streamlining

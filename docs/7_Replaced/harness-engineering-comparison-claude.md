@@ -1,7 +1,23 @@
+---
+title: "Harness engineering (OpenAI) vs. Memory Seed — Claude line"
+status: "superseded"
+replaced_by: "../1_Inbox/memory-seed-harness-gap-opportunity-report.md"
+replaced_on: "2026-08-21"
+---
+
 # Harness engineering (OpenAI) vs. Memory Seed — Claude line
 
-Status: Unassessed external capture (2026-08-13). No decision is implied by its presence here; §5 is a
-candidate list, not an accepted plan.
+**Status:** Superseded 2026-08-21
+**Superseded by:** [`memory-seed-harness-gap-opportunity-report.md`](../1_Inbox/memory-seed-harness-gap-opportunity-report.md),
+which folds this line's unique contributions (the bottleneck/product reading, the Amdahl framing of
+review cost, the rejected/deferred-rationale opportunity) together with the Codex line's into one
+opportunity register. Retained for the shared-ancestry and departure-marking detail the synthesis does
+not reproduce line-by-line. See
+[`4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md)
+for the retirement rationale.
+
+Original status at capture (2026-08-13): Unassessed external capture. No decision was implied by its
+presence in Inbox; its former §5 was a candidate list, not an accepted plan.
 
 **Authorship.** This is the **Claude** line of the comparison, kept parallel to the
 [Codex line](harness-engineering-comparison-codex.md) so the two evaluations can be compared rather

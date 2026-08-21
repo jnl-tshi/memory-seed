@@ -1,8 +1,24 @@
+---
+title: "Harness engineering (OpenAI) vs. Memory Seed — Codex line"
+status: "superseded"
+replaced_by: "../1_Inbox/memory-seed-harness-gap-opportunity-report.md"
+replaced_on: "2026-08-21"
+---
+
 # Harness engineering (OpenAI) vs. Memory Seed — Codex line
 
-Status: Paired assessment in progress (2026-08-13). This Codex line has been evaluated against current
-repository capabilities, but the pair remains deliberately unresolved: neither line supersedes the
-other and no candidate is accepted work. That outstanding triage decision is why both remain in Inbox.
+**Status:** Superseded 2026-08-21
+**Superseded by:** [`memory-seed-harness-gap-opportunity-report.md`](../1_Inbox/memory-seed-harness-gap-opportunity-report.md),
+which folds this line's unique contributions (the owner-aware disposition, the recorded-vs-measured
+evolution loop framing, its §7 review of the Claude line) together with the Claude line's into one
+opportunity register. Retained for the shared-ancestry and disposition detail the synthesis does not
+reproduce line-by-line. See
+[`4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md)
+for the retirement rationale.
+
+Original status at capture (2026-08-13): Paired assessment in progress. This Codex line had been
+evaluated against current repository capabilities, but the pair was deliberately left unresolved —
+neither line superseded the other and no candidate was accepted work.
 
 **Authorship.** This is the **Codex-revised** line of the comparison, retained for side-by-side reading.
 Claude drafted the original (`mse_j3ermf8frke6j6rn`); a Codex review then corrected the chronology and

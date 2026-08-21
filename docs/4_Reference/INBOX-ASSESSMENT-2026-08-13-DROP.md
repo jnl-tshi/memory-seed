@@ -2,22 +2,27 @@
 title: Inbox assessment — 2026-08-13 harness-comparison drop
 status: inbox-assessed
 date: 2026-08-21
-promotion: none — findings and recommended dispositions only
+promotion: comparison lines retired 2026-08-21; opportunity register (O1-O10) still undispositioned
 ---
 
 # Inbox assessment: the 2026-08-13 drop
 
 This assesses the four documents that arrived in `docs/1_Inbox/` on 2026-08-13 and were recorded as
 untriaged in [`0_NEXT_STEPS.md`](../2_Todo/0_NEXT_STEPS.md) ("2026-08-13 drop" section) on 2026-08-14.
-No item is promoted, retired, or moved by this document. It re-baselines the synthesis report's claims
-against the current tree (67 commits ahead of the report's pinned snapshot) and recommends dispositions
-for the next triage pass to apply or reject.
+It re-baselines the synthesis report's claims against the current tree (67 commits ahead of the report's
+pinned snapshot) and recommends dispositions for the next triage pass to apply or reject.
+
+> **2026-08-21 update:** JNL confirmed the retirement recommendation below. The two comparison lines
+> have been moved to `7_Replaced/`, pointing back at the synthesis report, which remains in `1_Inbox/`
+> (its own O1–O10 register is still undispositioned — that promotion was conditional on both the O1 note
+> below and JNL confirming the §7 sequence, and only the former is done). The disposition table's rows
+> for the two comparison lines are historical — read them as "recommended, now applied."
 
 ## Documents in scope
 
 1. [`memory-seed-harness-gap-opportunity-report.md`](../1_Inbox/memory-seed-harness-gap-opportunity-report.md) — synthesis, O1–O10 opportunity register
-2. [`harness-engineering-comparison-claude.md`](../1_Inbox/harness-engineering-comparison-claude.md) — Claude line
-3. [`harness-engineering-comparison-codex.md`](../1_Inbox/harness-engineering-comparison-codex.md) — Codex line
+2. [`harness-engineering-comparison-claude.md`](../7_Replaced/harness-engineering-comparison-claude.md) — Claude line (retired 2026-08-21, see update note above)
+3. [`harness-engineering-comparison-codex.md`](../7_Replaced/harness-engineering-comparison-codex.md) — Codex line (retired 2026-08-21, see update note above)
 4. [`agent-interaction-storylines-review.md`](../1_Inbox/agent-interaction-storylines-review.md) — living document, exempt from triage (JNL, on record)
 
 ## Headline finding: the outstanding decision is narrower than the README states
@@ -94,8 +99,8 @@ this review. This is a pointer to where O1's evidence is accumulating, not a ver
 | Document | Recommended disposition | Rationale |
 |---|---|---|
 | `memory-seed-harness-gap-opportunity-report.md` | Promote to `4_Reference/` as the surviving synthesis, once (a) the O1 note above is added and (b) JNL confirms the §7 recommended decision sequence against current owner states (all four still open per the table above, so the sequence is still actionable as written). | Already functions as the fold the README says is outstanding; nothing in re-verification invalidates its register. |
-| `harness-engineering-comparison-claude.md` | Retire to `7_Replaced/`, de-numbered, pointing at the synthesis — once the synthesis is promoted. | Its unique contributions (bottleneck/product reading, Amdahl framing) are already folded into synthesis §2. Nothing left un-synthesized that a reader needs the full line for. |
-| `harness-engineering-comparison-codex.md` | Retire to `7_Replaced/`, de-numbered, pointing at the synthesis — once the synthesis is promoted. | Same: its unique contributions (owner-aware disposition, empirical-loop framing) are already folded into synthesis §2. |
+| `harness-engineering-comparison-claude.md` | **Applied 2026-08-21.** Retired to `7_Replaced/`, pointing at the synthesis (still in `1_Inbox/`, not yet promoted). | Its unique contributions (bottleneck/product reading, Amdahl framing) are already folded into synthesis §2. Nothing left un-synthesized that a reader needs the full line for. |
+| `harness-engineering-comparison-codex.md` | **Applied 2026-08-21.** Retired to `7_Replaced/`, pointing at the synthesis (still in `1_Inbox/`, not yet promoted). | Same: its unique contributions (owner-aware disposition, empirical-loop framing) are already folded into synthesis §2. |
 | `agent-interaction-storylines-review.md` | No action — remains in `1_Inbox/` by explicit JNL exemption on record. Not re-litigated here. | Living document, not an untriaged capture; R1–R13 tracked separately in `2_Todo/storyline-gap-tranche-implementation-plan.md`. |
 | `1_Inbox/README.md` | Correct the stale "3 documents" count and name the fourth document in prose. | Factual correction, not a triage call — safe to make independent of the disposition above. |
 
