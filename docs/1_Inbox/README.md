@@ -25,6 +25,11 @@ untriaged captures.
   2026-08-21 assessment re-verified its claims against current HEAD and found no material drift, but its
   §7 recommended decision sequence has not been confirmed as JNL's actual sequence. See
   [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
+- [`memory-seed-evidence-first-governed-retrieval-plan.md`](memory-seed-evidence-first-governed-retrieval-plan.md)
+  — promotion-ready synthesis of the four 2026-08-20 proposals and the Claude/Codex reviews. It proposes
+  one evidence programme: instrument governed retrieval, test the zero-generation D/R compression
+  baseline, then admit only execution-assurance gaps reproduced by negative controls. JNL explicitly
+  asked that it remain in the Inbox pending review; it is not approved work yet.
 - **Four proposals dated 2026-08-20** — `active-truth-execution-control-proposal.md`,
   `memory-seed-first-principles-proposal.md`, `memory-seed-governed-interactive-retrieval-proposal.md`,
   `semantic-compression-benchmark-proposal.md`. Found untracked in the shared root checkout on
@@ -92,6 +97,7 @@ were themselves reference material, not undecided captures — moved the same da
 |---|---|---|---|
 | [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this synthesis and decides whether to promote it unchanged to docs/2_Todo. |
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
