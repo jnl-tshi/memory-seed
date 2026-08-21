@@ -1,6 +1,7 @@
 # Inbox
 
-Status: **3 documents awaiting or exempt from triage (2026-08-13)**.
+Status: **4 documents awaiting or exempt from triage (2026-08-13; count corrected 2026-08-21 — see
+[`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md))**.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
