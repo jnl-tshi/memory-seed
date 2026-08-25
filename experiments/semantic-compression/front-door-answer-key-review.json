@@ -1,6 +1,6 @@
 {
   "schema": "front-door-answer-key-review.v1",
-  "oracle_sha256": "sha256:f5567e33a2ac839bab5ef797a6e3fc7ba43b777df7a73569466f0d71d46757e5",
+  "oracle_sha256": "sha256:5888f16cace1791e811a348c1abddff4d9f7633337a6d112d5f10583df981f64",
   "reviewer_model": "gpt-5.6",
   "input_access": "canonical-source-query-and-oracle-spans-only",
   "ranking_results_seen": false,
