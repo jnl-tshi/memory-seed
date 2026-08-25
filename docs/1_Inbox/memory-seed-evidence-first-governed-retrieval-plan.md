@@ -2,7 +2,7 @@
 title: Evidence-first governed retrieval and execution assurance plan
 status: inbox
 priority: P1
-next_action: JNL reviews this synthesis and decides whether to promote it unchanged to docs/2_Todo.
+next_action: JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo.
 blocked_by: []
 sources:
   - active-truth-execution-control-proposal.md
@@ -14,6 +14,7 @@ sources:
   - ../4_Reference/inbox-2026-08-20-drop-review-codex.md
   - ../2_Todo/declarative-retrieval-specification-proposal.md
   - ../4_Reference/information-theoretic-evolution-disposition.md
+  - ../../experiments/semantic-compression/recommendation.md
 spec_binding: null
 ---
 
@@ -30,7 +31,7 @@ inside the existing context-derivation and quality-measurement programme.
 
 Approve one bounded evidence programme, not a new top-level architecture:
 
-> Measure whether inspectable task-time retrieval, zero-generation semantic compression, and three
+> Measure whether inspectable task-time retrieval, disciplined natural authoring, and three
 > execution-assurance controls prevent real errors. Extend an existing owner only when a preregistered
 > negative control demonstrates a gap.
 
@@ -46,7 +47,7 @@ The four source documents are one thesis with four roles:
 |---|---|---|
 | First-principles product definition | Decision memory is the core; enrichment must prove incremental value. | Governing product lens only; no new canonical-object model. |
 | Governed interactive retrieval | Reproducible bootstrap context and inspectable effective context are different things. | Workstream 1, built as experiment instrumentation over existing Retrieval Specification output. |
-| Semantic compression benchmark | Derived representations must beat raw canonical prose without changing meaning. | Workstream 2, reduced to a zero-generation D/R baseline and one task family first. |
+| Semantic compression benchmark | Derived representations must beat raw canonical prose without changing meaning. | Workstream 2 incorporates the completed extractive/selector/normalization evidence and leaves only a separately approved natural-authoring study open. |
 | Active truth and execution control | Correct retrieval does not prove correct action; postflight, conflict, and source-trust failures need tests. | Workstream 3, three independent negative controls rather than one P0 control plane. |
 
 The two agent reviews agree on this direction. Claude's review supplies the sharpest prohibitions
@@ -66,6 +67,11 @@ This plan does not replace or weaken any existing owner:
 - `experiments/context-derivation/` owns retrieval-packet experiments. Its current measured result is the
   baseline: complete-query Recall@5 is 47/60 (78.3%), so enrichment cannot recover decisions that ranking
   never supplied.
+- `experiments/semantic-compression/` owns the completed compression evidence package. Its Stage 1,
+  lean-DRAFT, front-door, and identifier-normalization diagnostics reject the tested automatic compact
+  representations and retrieval repair as production improvements; its current disposition is
+  **INVESTIGATE FURTHER**, bounded to a separately designed natural-authoring comprehension and delayed-
+  recall study.
 - [`memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md) owns quality
   graduation and target-setting. This plan reports component metrics and does not create a second quality
   framework.
@@ -80,8 +86,9 @@ This plan does not replace or weaken any existing owner:
 - A fixture-only retrieval trace that distinguishes deterministic bootstrap evidence from consequential
   evidence discovered later in a task.
 - A minimal checkpoint experiment comparing static, interactive, and governed-interactive retrieval.
-- A semantic-compression pilot using already-authored decision/rationale text before any generated meaning
-  schema.
+- Reconciliation of the completed semantic-compression evidence and, only with separate approval, a
+  natural-authoring study that preserves decision, reason, adopted boundary, rejected alternative, and
+  exact identifiers.
 - One falsifying test for each claimed execution-assurance gap: postflight compliance, incompatible
   decision writes, and untrusted-source authority leakage.
 - Evidence-backed BUILD / EXTEND EXISTING OWNER / DO NOT BUILD decisions for each surviving candidate.
@@ -97,6 +104,8 @@ This plan does not replace or weaken any existing owner:
 - No confidence threshold as authority and no designated-agent approval for project decisions.
 - No hidden-reasoning capture. “Evidence used” means an explicit canonical citation or a mechanically
   copied fact in the output, never an agent's self-report about its internal reasoning.
+- No rerun of the completed extractive, lean-selector, front-door, or identifier-normalization diagnostics
+  unless a new question and sealed evaluation justify it.
 
 ## Workstream 0 — Freeze the owner and baseline matrix
 
@@ -163,32 +172,36 @@ Acceptance:
 - No arm weakens current authority, permission, or fail-closed behaviour.
 - Findings extend `experiments/context-derivation/`; no parallel benchmark or production contract is added.
 
-## Workstream 2 — Zero-generation semantic-compression pilot
+## Workstream 2 — Reconcile completed compression evidence; gate natural authoring
 
-Test the cheapest available representation before generating new semantic fields:
+Status: **INVESTIGATE FURTHER — the automatic-compression candidates are closed.** The complete
+reproducible evidence package now lives in `experiments/semantic-compression/`; do not repeat it as the
+previous version of this synthesis proposed.
 
-| Arm | Representation |
-|---|---|
-| A | Raw canonical decision block |
-| B | Existing authored `D:` text |
-| C | Existing authored `D:` + `R:` text |
+| Measured stage | Result | Disposition |
+|---|---|---|
+| Stage 1 extractive representations | Raw retrieval MRR was `0.582`; the best compact arm reached `0.502`. The relationship task was underpowered. | No production meaning sidecar; relationship evidence remains inconclusive. |
+| Lean-DRAFT selector | Lean semantic MRR was `0.403` versus raw `0.520`; adjudicated critical errors affected 50% of lean cards versus 0% raw. | Reject canonical shortening and the measured selector. |
+| Verbatim D/R/A front door | It retained 97.8% of answer spans, but median first-view context was 86.2% of raw against the frozen 80% maximum. | Reject the query-evidence front door; it did not earn enough context reduction. |
+| Held-out identifier normalization | The treatment changed 12–18 full rankings and 31 target scores, but changed zero target ranks; identifier MRR was already `1.000`. | Do not ship the normalization repair as a retrieval improvement on this evidence. |
 
-Start with 20–30 stratified decisions and one task family, preferably retrieval or comprehension. Include
-short/long, explicit/implicit rationale, scoped, superseded, and context-dependent decisions. Freeze the
-sample, questions, references, model/runtime, repetitions, and adjudication rule before scored execution.
+The current actionable boundary is therefore:
 
-Primary question: at a fixed context budget, does an existing authored representation preserve critical
-decision recall or comprehension better than raw prose?
+- Keep complete DRAFT prose canonical, rankable, and immediately available.
+- Do not ship the tested compact selector, query-evidence front door, semantic sidecar, or lexical
+  normalization repair as a performance improvement.
+- Treat shorter *natural authoring* as a different hypothesis from automatic compression. It may proceed
+  only through a separately approved study using independently authored paired records, human readers,
+  comprehension tasks, and delayed recall.
+- Require every concise authored arm to retain the decision, reason, adopted boundary, rejected
+  alternative, and exact identifiers. Unsupported additions, changed modality/scope/causality, or omitted
+  critical constraints are fidelity failures.
+- Report task performance and context cost separately. A null result is successful: if the concise arm
+  does not pass fidelity or does not materially improve performance per context, close it as **DO NOT
+  BUILD**.
 
-Acceptance:
-
-- Report accuracy/recall and token cost separately; no composite score may hide a component regression.
-- Run at least three repetitions per scored cell or justify a deterministic alternative.
-- Treat unsupported additions, changed modality, changed scope, changed causality, or omission of a
-  decision-critical constraint as fidelity failures.
-- A null result ends the work successfully. A generated `core`/`because`/`constraint` arm is allowed only
-  if B/C reveal a measured gap and the experiment design is amended before the new arm runs.
-- No canonical entry change, production sidecar, ontology, or migration is created.
+This workstream creates no canonical entry change, automatic rewrite, production preview, sidecar,
+ontology, or migration. Promotion of this plan does not by itself authorize the remaining study.
 
 ## Workstream 3 — Execution-assurance gap probes
 
@@ -240,6 +253,8 @@ The programme is complete when every retained claim has a disposition and no res
 
 - Delivered Retrieval Specification M0/M1 and its deterministic resolution trace/fingerprint.
 - Existing context-derivation fixtures and mechanical scoring.
+- Completed `experiments/semantic-compression/` evidence, recommendation, frozen artifacts, and focused
+  tests.
 - Current quality-v0 usefulness gate and ranking A/B discipline.
 - Accepted Markdown, session-decision/ADR, derived-precedence, and control-file authority decisions.
 - Explicit approval before provider calls, model downloads, or scored runs that incur cost.
@@ -251,7 +266,7 @@ The programme is complete when every retained claim has a disposition and no res
 | The four proposals and two reviews are correlated evidence. | Treat them as one thesis; require repository evidence and negative controls. |
 | Trace volume becomes a proxy for correctness. | Score prevented errors and evidence coverage; trace presence alone earns nothing. |
 | “Materially used” becomes unverifiable self-report. | Count explicit canonical citations/copied facts only. |
-| Compression becomes a knowledge-representation project. | Start with authored D/R; null result stops; no generated arm without amendment. |
+| Compression becomes a knowledge-representation project. | The automatic arms are closed; any follow-up is a separately approved natural-authoring study with a hard fidelity gate and null-result stop. |
 | Governance adds ceremony to low-risk work. | Measure each checkpoint separately; unhelpful checkpoints do not graduate. |
 | Source-trust testing crosses a security boundary. | Use synthetic fixtures only and require a separate security review before production design. |
 
@@ -261,7 +276,8 @@ This plan is complete when:
 
 - all retained claims are mapped to current owners and measured failure modes;
 - the retrieval pilot reports replicated benefit/cost or a clear stop decision;
-- the compression pilot reports fidelity and task performance, including a valid null outcome;
+- the completed compression evidence remains the baseline and any separately approved natural-authoring
+  study resolves to BUILD CANDIDATE, DO NOT BUILD, or INVESTIGATE FURTHER;
 - all three execution-assurance probes resolve to DO NOT BUILD, EXTEND EXISTING OWNER, BUILD CANDIDATE,
   or INVESTIGATE FURTHER;
 - no experiment writes canonical state or silently changes a production retrieval/authority contract;
@@ -285,4 +301,5 @@ When JNL approves promotion:
 
 Write the Workstream 0 owner/baseline matrix and a one-page Workstream 1 preregistration using the existing
 context-derivation fixtures. Do not write production code, launch a scored provider run, or design a new
-schema during that first step.
+schema during that first step. Do not rerun Workstream 2's completed automatic-compression diagnostics;
+the remaining natural-authoring study requires its own explicit approval and sealed protocol.
