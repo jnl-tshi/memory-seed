@@ -1,0 +1,830 @@
+{
+    "schema":  "front-door-answer-key.v1",
+    "authoring":  {
+                      "models":  [
+                                     "gpt-5.6",
+                                     "gpt-5.6-sol"
+                                 ],
+                      "passes":  3,
+                      "input_access":  "canonical-source-and-query-only",
+                      "rankings_seen":  false,
+                      "display_candidates_seen":  false,
+                      "parts":  [
+                                    "part-0.json",
+                                    "part-1.json",
+                                    "part-2.json"
+                                ]
+                  },
+    "answers":  [
+                    {
+                        "packet_id":  "p_bbc0efbe1634",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  858,
+                                          "end_char":  1073,
+                                          "text":  "The PyPI environment gate is the deliberate human checkpoint for the irreversible push; the user\u0027s \"publish 2.10\" is the explicit authorization to approve it, and I only approved after the build/test job went green."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_bbc0efbe1634",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  858,
+                                          "end_char":  1073,
+                                          "text":  "The PyPI environment gate is the deliberate human checkpoint for the irreversible push; the user\u0027s \"publish 2.10\" is the explicit authorization to approve it, and I only approved after the build/test job went green."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ec7593a10fe6",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  291,
+                                          "text":  "- D: Do not build `link backfill`. Record it in the plan as an open user decision with three options:\n  reject it in favour of the shipped evolution-edges seeding pass, amend Invariant #2 for a\n  metadata-only carve-out, or record a reading that YAML curation was never \"rewriting the past\"."
+                                      },
+                                      {
+                                          "start_char":  456,
+                                          "end_char":  715,
+                                          "text":  "  - Backfill mutates existing entries\u0027 YAML, which collides with Invariant #2 (\"never rewrite or\n    delete\"). Constitution §11: a proposal conflicting with a live invariant \"is rejected or must\n    first amend the invariant - it cannot silently override it\"."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ec7593a10fe6",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  297,
+                                          "end_char":  455,
+                                          "text":  "  - The plan was approved 2026-07-05; the Constitution was ratified 2026-07-14. The sign-off predates\n    the invariant and cannot authorise it retroactively."
+                                      },
+                                      {
+                                          "start_char":  456,
+                                          "end_char":  715,
+                                          "text":  "  - Backfill mutates existing entries\u0027 YAML, which collides with Invariant #2 (\"never rewrite or\n    delete\"). Constitution §11: a proposal conflicting with a live invariant \"is rejected or must\n    first amend the invariant - it cannot silently override it\"."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_eee13dc0f447",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  271,
+                                          "text":  "- D: Record two candidate fixes ahead of the band in priority: raise the semantic blend weight\n  (`semantic_component = cosine * 3.0`, `semantic_cache.py:927`), and re-examine the recency\n  multiplier. Neither is applied in this branch - both need their own held-out fit."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_eee13dc0f447",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  401,
+                                          "end_char":  659,
+                                          "text":  "The reason is arithmetic: cosine is bounded by 1, so a perfect\n  semantic match contributes 3.0 against one tag match\u0027s 12.0, and the measured semantic share of\n  `match_score` is 21.6%. It cannot reorder anything separated by more than three lexical points."
+                                      },
+                                      {
+                                          "start_char":  906,
+                                          "end_char":  1244,
+                                          "text":  "Separately, chasing a 73-versus-63 discrepancy\n  between two of my own harnesses isolated the recency multiplier: it removes 10 of 120 correct\n  answers from the top 8. In a store whose purpose is retrieving old decisions, down-weighting age\n  deserves an explicit argument, and `lambda_days=0.01` has never been validated against recall."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_4bb6268d7869",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  268,
+                                          "text":  "- D: Record the Codex arm in PREREGISTRATION.md as a dated append with an explicit no-pooling rule,\n  add a `--brief` probe override that `collect.py` excludes from every scored table, and fingerprint\n  the parent repo before and after each run into `parent_isolated`."
+                                      },
+                                      {
+                                          "start_char":  427,
+                                          "end_char":  746,
+                                          "text":  "Two independent facts make the arms\n  non-comparable: a different tool surface and system prompt, and a materially thinner transcript -\n  Codex `--json` emits `mcp_tool_call` items and the final message but no reasoning items, only a\n  token count, so faithfulness can only be judged there against observable behaviour."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_4bb6268d7869",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  747,
+                                          "end_char":  838,
+                                          "text":  "Amending by\n  append rather than edit is the same append-only discipline the product sells."
+                                      },
+                                      {
+                                          "start_char":  959,
+                                          "end_char":  1102,
+                                          "text":  "- A: Editing the pre-registration in place was declined as a silent rewrite of a document whose\n  whole value is being fixed before the result."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_0e328d2b0dc8",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  132,
+                                          "end_char":  325,
+                                          "text":  "ADRs act as a high-signal design-thread lens: they identify the current governing decision and direct lineage, while the link sidecar remains the sole owner of `evolves` and `replaces` meaning."
+                                      },
+                                      {
+                                          "start_char":  522,
+                                          "end_char":  694,
+                                          "text":  "- A: Treat ADR lineage as a duplicate lifecycle ledger - rejected because it would give the same relationship two authoritative homes and violate Constitution Invariant #6."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_0e328d2b0dc8",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  249,
+                                          "end_char":  325,
+                                          "text":  "the link sidecar remains the sole owner of `evolves` and `replaces` meaning."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ebe235e56dad",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  194,
+                                          "text":  "- D: `graph`, `trail`, `inspector`, `topbar`, `navigation`, `settings`, `workspace-bar` — each named\n  after a region that actually exists in `App.tsx`. `diagram-view` (3) stays below the floor."
+                                      },
+                                      {
+                                          "start_char":  200,
+                                          "end_char":  330,
+                                          "text":  "I had been proposing pane children from memory and getting the grain wrong. Reading the component\n  tree fixed two errors at once."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ebe235e56dad",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  331,
+                                          "end_char":  595,
+                                          "text":  "**`navigation` replaces `context`**: what I had proposed as a child was\n  a SECTION inside `\u003caside class=\"navigation-pane\"\u003e`, alongside the topics filter and project stats — the\n  pane is the right unit, and at 14 it clears the floor where the section\u0027s 7 did not."
+                                      },
+                                      {
+                                          "start_char":  596,
+                                          "end_char":  780,
+                                          "text":  "And **`topbar` and\n  `workspace-bar` are panes I never proposed at all**, both clearing the floor, covering the find bar,\n  worktree picker, view switcher, graph scope and edge filters"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_d3ae7134ace3",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  377,
+                                          "end_char":  581,
+                                          "text":  "JNL\u0027s question - \"why can\u0027t the adr reference the constitution location directly?\" - was the\n  right one; my sidecar design added a fourth file family to solve a problem the event ledger\n  already solves."
+                                      },
+                                      {
+                                          "start_char":  1200,
+                                          "end_char":  1464,
+                                          "text":  "The separate bindings sidecar (my original design) was declined by JNL and was the worse\n  shape. Putting bindings in frontmatter was declined - frontmatter is stable identity per the\n  contract, and bindings evolve with revisions, which is what the ledger is for."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_d3ae7134ace3",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  269,
+                                          "text":  "- D: `AdrEvent.constitution_refs: tuple[ConstitutionRef, ...]` - `{ref, role}` pairs, role\n  `governing|supporting`, refs of the form `constitution:v1#slug` resolved at validation time\n  against `\u003c!-- constitution-ref: ... --\u003e` anchor markers in `docs/CONSTITUTION.md`."
+                                      },
+                                      {
+                                          "start_char":  582,
+                                          "end_char":  906,
+                                          "text":  "The schema is ours: an optional field rendered omit-empty leaves every\n  pre-existing record byte-identical, so no schema_version bump, no migration, and the codex\n  fixtures\u0027 sha256 pins hold. Validation refuses malformed refs, unknown roles, duplicates, and -\n  the working half - refs that do not resolve to a real anchor"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_57de9c9f635b",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  285,
+                                          "text":  "- D: `pair_affinity.py` builds an area-pair table by lift (n\u003e=3, lift\u003e=2.0, leave-one-out) and\n  `topic_candidates.py` uses it to surface extra candidates, each labelled `[pair-expanded]` with\n  its lift and n. The two measurements forbidding any other use are in the module docstring."
+                                      },
+                                      {
+                                          "start_char":  344,
+                                          "end_char":  672,
+                                          "text":  "As a GATE the table scored the known-bad\n  hop highest of all (lift 11.30) - from n=1, because that very edge was in the data it learned\n  from, which is why leave-one-out and the count floor are load-bearing rather than tidy. As a\n  RANKER every topic-derived scorer placed JNL\u0027s approved picks at chance (mean rank 3.00 of 5)."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_57de9c9f635b",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  285,
+                                          "text":  "- D: `pair_affinity.py` builds an area-pair table by lift (n\u003e=3, lift\u003e=2.0, leave-one-out) and\n  `topic_candidates.py` uses it to surface extra candidates, each labelled `[pair-expanded]` with\n  its lift and n. The two measurements forbidding any other use are in the module docstring."
+                                      },
+                                      {
+                                          "start_char":  1453,
+                                          "end_char":  1634,
+                                          "text":  "Reachability grepped: the table is\n  imported only by its own report and the recall report, never by `lineage_map.py` (the review path)\n  or `reconcile_lineage.py` (the write path)."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_51a06c2c5ff0",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  246,
+                                          "text":  "- D: Accept and integrate deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the bounded successor boost, configurable integration mode, and inert lifecycle-link scaffolding steps 1-3."
+                                      },
+                                      {
+                                          "start_char":  415,
+                                          "end_char":  693,
+                                          "text":  "- A: Provider-backed AI summarisation was not bundled into Phase 1; it remains a disabled-by-default Phase 2 because generated explanations are non-authoritative. Lifecycle-link commit nudging and an MCP write tool remain optional steps 4-5 rather than being implied as shipped."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_51a06c2c5ff0",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  246,
+                                          "text":  "- D: Accept and integrate deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the bounded successor boost, configurable integration mode, and inert lifecycle-link scaffolding steps 1-3."
+                                      },
+                                      {
+                                          "start_char":  247,
+                                          "end_char":  414,
+                                          "text":  "- R: Each feature preserved Markdown authority and derived/read-only boundaries, passed its focused worker checks, then passed review on the combined integration head."
+                                      },
+                                      {
+                                          "start_char":  420,
+                                          "end_char":  577,
+                                          "text":  "Provider-backed AI summarisation was not bundled into Phase 1; it remains a disabled-by-default Phase 2 because generated explanations are non-authoritative."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_5f60d9d5355d",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  332,
+                                          "text":  "- D: `render_adr` renders the title through `_yaml_scalar()`, which quotes a value that contains\n  `\": \"` or `\" #\"`, ends in a colon, opens with a YAML indicator, or carries edge whitespace. The\n  five affected files were repaired by re-rendering, with the repair refusing to write if the diff\n  touched anything but the title line."
+                                      },
+                                      {
+                                          "start_char":  553,
+                                          "end_char":  734,
+                                          "text":  "Quoting conditionally rather than always is what keeps every record written\n  before this byte-identical, which matters because three ADRs are sha256-pinned by the codex\n  fixtures."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_5f60d9d5355d",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  0,
+                                          "end_char":  190,
+                                          "text":  "- D: `render_adr` renders the title through `_yaml_scalar()`, which quotes a value that contains\n  `\": \"` or `\" #\"`, ends in a colon, opens with a YAML indicator, or carries edge whitespace."
+                                      },
+                                      {
+                                          "start_char":  905,
+                                          "end_char":  1065,
+                                          "text":  "- A: Quote every scalar unconditionally. Rejected - it rewrites 40 files including the three pinned\n  ones, turning a five-file repair into frozen-source drift."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_16e5a018ae79",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  141,
+                                          "end_char":  255,
+                                          "text":  "The Explorer introduces a web/UI dependency surface that should not change the default agent/CLI package footprint"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_16e5a018ae79",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  135,
+                                          "text":  "Pillar B is now specified as a separate `memory-seed-explorer` companion install, not a required dependency of core `memory-seed`."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_e4cc72016ca3",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  109,
+                                          "end_char":  275,
+                                          "text":  "every `- skill: \u003cname\u003e` in the seed trigger registry has both a file under\n  `memory_seed/seed/.memory-seed/skills/` and a `SeedFile` destination in `core.SEED_FILES`"
+                                      },
+                                      {
+                                          "start_char":  281,
+                                          "end_char":  413,
+                                          "text":  "every\n  `.memory-seed/skills/*.md` destination in `SEED_FILES` (excluding `index.md`, which is the registry\n  itself) is registered."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_e4cc72016ca3",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  109,
+                                          "end_char":  275,
+                                          "text":  "every `- skill: \u003cname\u003e` in the seed trigger registry has both a file under\n  `memory_seed/seed/.memory-seed/skills/` and a `SeedFile` destination in `core.SEED_FILES`"
+                                      },
+                                      {
+                                          "start_char":  281,
+                                          "end_char":  413,
+                                          "text":  "every\n  `.memory-seed/skills/*.md` destination in `SEED_FILES` (excluding `index.md`, which is the registry\n  itself) is registered."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_62c16caee147",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  418,
+                                          "end_char":  551,
+                                          "text":  "The scrub was the report\u0027s own flagged to-do (also flagged in the audit); the decision is a\n  product call the goal forbids guessing."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_62c16caee147",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  230,
+                                          "end_char":  322,
+                                          "text":  "\"BLOCKED: needs a user decision (Pillar B\n  distribution)\" block listing the decision inputs"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a90c4a73bd37",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  172,
+                                          "text":  "`calibrate.py::served_chars` sums `ranked_to_dict(r)[\"excerpt\"]` - the actual served field -\n  instead of computing `min(len(chunk.text), DECISION_TEXT_LIMIT)` itself."
+                                      },
+                                      {
+                                          "start_char":  265,
+                                          "end_char":  350,
+                                          "text":  "The local copy was correct when written and silently wrong by the time anyone looked."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a90c4a73bd37",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  172,
+                                          "text":  "`calibrate.py::served_chars` sums `ranked_to_dict(r)[\"excerpt\"]` - the actual served field -\n  instead of computing `min(len(chunk.text), DECISION_TEXT_LIMIT)` itself."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_c8afbf600ec6",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  139,
+                                          "text":  "The flag reads as authorization; its help text and the block message name it as the user\u0027s\n  go-ahead that agents must not self-supply"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_c8afbf600ec6",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  485,
+                                          "end_char":  688,
+                                          "text":  "The doc note is load-bearing: without it, an agent reading the integration\n  guidance would not know it is barred from the flag, and the gate would be undermined by the one surface\n  meant to respect it."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_b4ee54534eeb",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  54,
+                                          "end_char":  221,
+                                          "text":  "The word **\"subsystem\"** is retired as the label\n  for the first axis, which becomes **area** (\"what are you working on\") against **activity** (\"what\n  kind of work\")."
+                                      },
+                                      {
+                                          "start_char":  318,
+                                          "end_char":  394,
+                                          "text":  "the two-axis *structure* is universal, the slugs filling it are per-profile."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_b4ee54534eeb",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  1262,
+                                          "end_char":  1334,
+                                          "text":  "The container is already neutral; only the axis label\n  fails to travel."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_63c257ade8f7",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  233,
+                                          "end_char":  295,
+                                          "text":  "A decision earns a diagram when it is **attached to an\n  ADR**"
+                                      },
+                                      {
+                                          "start_char":  775,
+                                          "end_char":  994,
+                                          "text":  "Attachment to an ADR is already a deliberate, recorded, human-gated act meaning \"this governs a\n  standing concern\", so it predicts worth-drawing better than an in-the-moment judgement AND is\n  mechanically determinable"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_63c257ade8f7",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  297,
+                                          "end_char":  405,
+                                          "text":  "the obligation is to ANSWER (a diagram, or `diagram_status: not_applicable` with a reason),\n  never to draw."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_7eb87a9576ae",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  17,
+                                          "end_char":  155,
+                                          "text":  "write-time capture through the deciding agent works but is not free: it needs a\n  routing instruction present, not merely a tool installed"
+                                      },
+                                      {
+                                          "start_char":  167,
+                                          "end_char":  290,
+                                          "text":  "whether the rest of the\n  control plane buys the further climb from 0.77 to 0.91 is directionally supported but unresolved."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_7eb87a9576ae",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  461,
+                                          "end_char":  629,
+                                          "text":  "the tool alone genuinely\n  does nothing - but the required enforcement turned out to be a single line naming the store, not\n  the full rules contract or the hook stack."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ad1f05fa9df6",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  335,
+                                          "end_char":  432,
+                                          "text":  "Trail as the primary chronological evidence\n  surface, graph as the secondary exploration surface"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_ad1f05fa9df6",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  54,
+                                          "end_char":  147,
+                                          "text":  "becomes the default view for visitors with\n  no stored preference (`storedView() || \"trail\"`)"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_c6b0ed8600c2",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  164,
+                                          "end_char":  217,
+                                          "text":  "option (a), propose-and-wait, never\n  auto-deactivate"
+                                      },
+                                      {
+                                          "start_char":  447,
+                                          "end_char":  900,
+                                          "text":  "detect an active persona with\n  no recorded `agent_name` use across a conservative window (30 days or 20 entries, whichever is\n  longer), skip any persona activated inside the window (grace period), treat `agent_name: null` as\n  neither use nor non-use (the proposal\u0027s own lossy-signal caution - bias toward keeping), and propose\n  the `status: inactive` flip in `.agents/_registry.yaml` rather than ever auto-applying it or deleting\n  the persona file."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_c6b0ed8600c2",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  646,
+                                          "end_char":  763,
+                                          "text":  "treat `agent_name: null` as\n  neither use nor non-use (the proposal\u0027s own lossy-signal caution - bias toward keeping)"
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_9672305338e6",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  615,
+                                          "end_char":  889,
+                                          "text":  "That is a real\n  suspicion and not a verified defect, and changing a write path on a suspicion would trade a known\n  quantity for an unknown one. Recording it in the allowlist keeps it visible to whoever next opens\n  that file instead of relying on someone rediscovering it."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_9672305338e6",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  1006,
+                                          "end_char":  1164,
+                                          "text":  "an allowlist entry that says only \"legacy\" would reproduce the problem the file\n  exists to prevent, which is why the test asserts each reason is substantive."
+                                      },
+                                      {
+                                          "start_char":  1221,
+                                          "end_char":  1354,
+                                          "text":  "The allowlist counts are asserted exactly, so a new bypass in an already-listed module fails\n  just as loudly as one in a new module."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_2c4285778b86",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  574,
+                                          "end_char":  731,
+                                          "text":  "Trace is a distinct product line on top of the `memory-seed` engine; a distinct top-level name\n  is the whole point of moving off \"Trail\" onto its own brand."
+                                      },
+                                      {
+                                          "start_char":  1090,
+                                          "end_char":  1279,
+                                          "text":  "the command drops the `memory-seed-` prefix so it\n  won\u0027t appear under `memory-seed`+Tab discovery - the intended cost of a standalone brand, mitigated\n  by core-package docs cross-linking."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_2c4285778b86",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  523,
+                                          "text":  "Set `memory-trace` as the canonical package and command name for the Memory Trace companion\n  distribution everywhere it was previously written as `memory-seed-trace` (target/tentative):\n  the Trace product plan (Part 1 decision, acceptance criterion, resolved open question),\n  the distribution plan (Phase 2 target + retrieval-API surface + Phase 2 acceptance criterion),\n  `3.0-plan.md` (package split list, B1 API section + command example, sequencing item 3),\n  `NEXT_STEPS.md`, and `docs/functionality-audit.md`."
+                                      },
+                                      {
+                                          "start_char":  849,
+                                          "end_char":  1060,
+                                          "text":  "Kept `memory-seed-trace` referenced in the Trace plan only as (a) the historical availability\n  table, (b) explicit \"not this name\" statements, and (c) an optional defensive alias if a redirect\n  is ever wanted."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_21a9e82afcd6",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  90,
+                                          "end_char":  301,
+                                          "text":  "`2.12.0` is already tagged/published, and the current work adds material package and control-plane behavior: Memory Lense, related-entry graph commands, collaboration/lazy-loading skills, and package-data fixes."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_21a9e82afcd6",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  90,
+                                          "end_char":  301,
+                                          "text":  "`2.12.0` is already tagged/published, and the current work adds material package and control-plane behavior: Memory Lense, related-entry graph commands, collaboration/lazy-loading skills, and package-data fixes."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_09e61a470db0",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  80,
+                                          "text":  "`_humanise_topic` uppercases known acronyms instead of `str.title()` alone."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_09e61a470db0",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  86,
+                                          "end_char":  331,
+                                          "text":  "The legend prints these labels verbatim, and `str.title()` rendered `mcp-tools` as \"Mcp Tools\"\n  and `ui-design` as \"Ui Design\". Only visible once something displayed them - the colours had been\n  shipping the same labels through the API unread."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a1938e3e9cc5",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  134,
+                                          "text":  "Add `memory-seed lense` as an optional local FastAPI/Uvicorn UI backed by a rebuildable SQLite cache outside the repo by default."
+                                      },
+                                      {
+                                          "start_char":  140,
+                                          "end_char":  287,
+                                          "text":  "Markdown session files remain the source of truth while the browser receives paged API views rather than a full static `window.MEMORY_DATA` corpus."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a1938e3e9cc5",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  140,
+                                          "end_char":  287,
+                                          "text":  "Markdown session files remain the source of truth while the browser receives paged API views rather than a full static `window.MEMORY_DATA` corpus."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_73355eef4466",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  1282,
+                                          "end_char":  1752,
+                                          "text":  "Rather than transcribe the bodies, the successors were confirmed independently: all seven were retired\n  in one commit (`0fc64cba`), whose entry `mse_ddba1ztxqhasfbwf` names the destinations in its own D2/D3\n  — \"fold Evidence Envelope, Capability Status, and seeded docs lifecycle into their existing owners\" and\n  \"combine worktree GC and naming/lifecycle policy... and its two superseded source proposals\". That\n  raises the evidence above each document\u0027s self-claim."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_73355eef4466",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  1776,
+                                          "end_char":  2051,
+                                          "text":  "`memory-seed-semantic-workflow-exploration-index.md` points at the **entry id**,\n  not a path: it split four ways, so no single successor exists, and the schema reserves entry ids for\n  exactly the case where a decision retired a document rather than a document replacing it."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_cfcf5f0acbd2",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  496,
+                                          "end_char":  638,
+                                          "text":  "500/1k/10k datasets are generated on demand - the\n  generator IS the committed fixture; megabytes of synthetic markdown would be review noise."
+                                      },
+                                      {
+                                          "start_char":  644,
+                                          "end_char":  805,
+                                          "text":  "Roadmap Phase 0 requires \"500, 1,000 and 10,000-entry synthetic datasets\" before any\n  migration work; determinism makes future parity measurements reproducible."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_cfcf5f0acbd2",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  157,
+                                          "end_char":  495,
+                                          "text":  "Same (count, seed) -\u003e\n  byte-identical .memory-seed/sessions tree (month-grouped, real schema); shape exercises the\n  Trail\u0027s full grammar - main line, up to 3 parallel feature branches with bounded lifetimes\n  (forks/merges/daisy-chains emerge), related/supersedes/evolves edges (forward-only),\n  topics, varied prose for search ranking."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_8ca844cc8f27",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  71,
+                                          "end_char":  292,
+                                          "text":  "Rows are now\n  overview-first: search cards show date + title only (score appears only under a query; excerpt,\n  topics, agent, matched-section chips moved to the reader), timeline items collapsed to one\n  time+title line"
+                                      },
+                                      {
+                                          "start_char":  1012,
+                                          "end_char":  1236,
+                                          "text":  "The dense-UI research brief\u0027s top levers (overview-first, data-ink, Hick\u0027s law, facet\n  hygiene, muted-by-default) applied per the user\u0027s \"too crowded - simplify\" direction and\n  explicit approval of the recommended options."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_8ca844cc8f27",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  298,
+                                          "end_char":  430,
+                                          "text":  "the redundant timestamp prefix is stripped from all list titles via\n  `stripTitleStamp()` (the date/time column already carries it)."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a4bc1a026ce8",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  190,
+                                          "end_char":  325,
+                                          "text":  "This proves package delivery and comparable interaction without prematurely routing the shipped Graph tab through a candidate renderer."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_a4bc1a026ce8",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  5,
+                                          "end_char":  184,
+                                          "text":  "Serve a bundled vis-network/Cytoscape.js comparison at `/benchmarks/renderer`, with both adapters consuming the bounded renderer-neutral fixture and no external resource requests."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_158218d4bf77",
+                        "kind":  "semantic",
+                        "spans":  [
+                                      {
+                                          "start_char":  84,
+                                          "end_char":  451,
+                                          "text":  "`sessions/links/YYYY-MM/YYYY-MM-DD.md` sidecars are part of the effective graph contract, so MCP tools should not remain YAML-only while Trace and `links check` see union(YAML, sidecar). The shared merge point belongs in `memory_seed.retrieval`, which already depends on `semantic_cache`; putting it there avoids a reverse import from `semantic_cache` into retrieval."
+                                      }
+                                  ]
+                    },
+                    {
+                        "packet_id":  "p_158218d4bf77",
+                        "kind":  "anchor",
+                        "spans":  [
+                                      {
+                                          "start_char":  84,
+                                          "end_char":  451,
+                                          "text":  "`sessions/links/YYYY-MM/YYYY-MM-DD.md` sidecars are part of the effective graph contract, so MCP tools should not remain YAML-only while Trace and `links check` see union(YAML, sidecar). The shared merge point belongs in `memory_seed.retrieval`, which already depends on `semantic_cache`; putting it there avoids a reverse import from `semantic_cache` into retrieval."
+                                      }
+                                  ]
+                    }
+                ]
+}

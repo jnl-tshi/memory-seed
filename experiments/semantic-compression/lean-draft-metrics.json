@@ -1,0 +1,305 @@
+{
+  "corpus": {
+    "archive_sha256": "sha256:01c744c088f6a08d6efa8921db03e31504414e9c28648e7fa8d6d32f54ab3b48",
+    "corpus_fingerprint": "sha256:ab68ed673415ccf53cc9674476a6f0b49ec2f0cb782cfbc8a26d156d2a64ae00",
+    "decision_count": 1288,
+    "source_revision": "54de83ca7f3e279f1199b721e6aa1bec825e04ac"
+  },
+  "freeze_record": {
+    "corpus": "source revision and corpus fingerprint checked before scoring",
+    "query_artifact": "hash-pinned before first ranking run",
+    "selector": "post-first-run reproducibility lock; not a pre-outcome preregistration"
+  },
+  "limitations": [
+    "derived extractive decision blocks, not naturally authored drafts",
+    "query subset requires rationale plus a compact exact identifier",
+    "arm labels were hidden, but canonical source plus all four candidate forms made raw recognizable",
+    "all fidelity ratings came from the same model family; they are a structured audit, not independent human-reader evidence",
+    "the selector was not independently hash-pinned before the first scored run",
+    "no human comprehension or delayed-recall result exists",
+    "entry Summary/YAML/title overhead is outside the measured representation body"
+  ],
+  "paired_effects": {
+    "lean_vs_raw_semantic_mrr": {
+      "bootstrap_95_ci": [
+        -0.26685674688409616,
+        0.024409055115576853
+      ],
+      "bootstrap_samples": 10000,
+      "control": "raw",
+      "decision_count": 30,
+      "difference": -0.11783689178897222,
+      "kind": "semantic",
+      "metric": "mrr",
+      "seed": 20260810,
+      "treatment": "lean_front_door"
+    },
+    "lean_vs_raw_semantic_recall_at_5": {
+      "bootstrap_95_ci": [
+        -0.2,
+        0.13333333333333333
+      ],
+      "bootstrap_samples": 10000,
+      "control": "raw",
+      "decision_count": 30,
+      "difference": -0.03333333333333333,
+      "kind": "semantic",
+      "metric": "recall_at_5",
+      "seed": 20260810,
+      "treatment": "lean_front_door"
+    },
+    "supplemental_anchors_identifier_mrr": {
+      "bootstrap_95_ci": [
+        -0.017774233563707244,
+        0.161979068689595
+      ],
+      "bootstrap_samples": 10000,
+      "control": "lean_no_supplemental_anchors",
+      "decision_count": 30,
+      "difference": 0.06899927070979703,
+      "kind": "anchor",
+      "metric": "mrr",
+      "seed": 20260810,
+      "treatment": "lean_front_door"
+    },
+    "supplemental_anchors_identifier_recall_at_5": {
+      "bootstrap_95_ci": [
+        -0.1,
+        0.16666666666666666
+      ],
+      "bootstrap_samples": 10000,
+      "control": "lean_no_supplemental_anchors",
+      "decision_count": 30,
+      "difference": 0.03333333333333333,
+      "kind": "anchor",
+      "metric": "recall_at_5",
+      "seed": 20260810,
+      "treatment": "lean_front_door"
+    }
+  },
+  "query_count": 60,
+  "query_sha256": "sha256:18ee379659abc407435071eb465565e4dd0b661364b089a1ed56ea8c6a34bcbd",
+  "query_target_count": 30,
+  "query_validation": {
+    "anchor_query_count": 30,
+    "identifier_queries_without_source_anchor": 0,
+    "phrase_or_metadata_leaks": 0,
+    "query_count": 60,
+    "semantic_queries_with_exact_anchor": 0,
+    "semantic_query_count": 30
+  },
+  "readability": {
+    "agreement": {
+      "critical_disagreement_count": 4,
+      "critical_disagreements_adjudicated": 4,
+      "critical_pair_agreement": [
+        {
+          "card_count": 60,
+          "cohen_kappa": 0.8571428571428572,
+          "raw_agreement": 0.9333333333333333,
+          "reviewers": [
+            "A0",
+            "B0"
+          ]
+        },
+        {
+          "card_count": 60,
+          "cohen_kappa": 1.0,
+          "raw_agreement": 1.0,
+          "reviewers": [
+            "A1",
+            "B1"
+          ]
+        }
+      ],
+      "critical_raw_agreement": 0.9666666666666667,
+      "ratings_per_card": 2,
+      "reviewer_process_count": 4
+    },
+    "decision_only": {
+      "adjudicated_critical_card_rate": 0.7,
+      "any_critical_card_rate": 0.7,
+      "boundary_completeness": 0.2833333333333333,
+      "card_count": 30,
+      "critical_rating_rate": 0.6666666666666666,
+      "decision_completeness": 0.4166666666666667,
+      "mean_clarity": 4.183333333333334,
+      "mean_findability": 3.716666666666667,
+      "rating_count": 60,
+      "rationale_completeness": 0.0
+    },
+    "lean_front_door": {
+      "adjudicated_critical_card_rate": 0.5,
+      "any_critical_card_rate": 0.5,
+      "boundary_completeness": 0.5166666666666667,
+      "card_count": 30,
+      "critical_rating_rate": 0.48333333333333334,
+      "decision_completeness": 0.6333333333333333,
+      "mean_clarity": 3.7333333333333334,
+      "mean_findability": 3.95,
+      "rating_count": 60,
+      "rationale_completeness": 0.5333333333333333
+    },
+    "lean_no_supplemental_anchors": {
+      "adjudicated_critical_card_rate": 0.5,
+      "any_critical_card_rate": 0.5,
+      "boundary_completeness": 0.5166666666666667,
+      "card_count": 30,
+      "critical_rating_rate": 0.48333333333333334,
+      "decision_completeness": 0.6333333333333333,
+      "mean_clarity": 3.783333333333333,
+      "mean_findability": 4.083333333333333,
+      "rating_count": 60,
+      "rationale_completeness": 0.5333333333333333
+    },
+    "raw": {
+      "adjudicated_critical_card_rate": 0.0,
+      "any_critical_card_rate": 0.0,
+      "boundary_completeness": 1.0,
+      "card_count": 30,
+      "critical_rating_rate": 0.0,
+      "decision_completeness": 1.0,
+      "mean_clarity": 3.4,
+      "mean_findability": 5.0,
+      "rating_count": 60,
+      "rationale_completeness": 1.0
+    }
+  },
+  "readability_adjudication_sha256": "sha256:b2672745422a25305a5fab8f85195e9a246927a8365be922e47b98180575801f",
+  "readability_artifacts": {
+    "A0.json": "sha256:c63e97de5ea56fd5adf4f4addbee94a1f2d7481d37c0d405109d0f6c150aaf1b",
+    "A1.json": "sha256:0456531e558f566d5b691f3e45e91989f73626cfbed7fc3505bba00494e90094",
+    "B0.json": "sha256:49ac0bb82e090d70df8452ef7baebafd0e89187f676092eb43b84bb673525a24",
+    "B1.json": "sha256:00283ecb78a4781f57a3dce333a9ed3ba5f85e360737f5323052ae12fd0ffc90"
+  },
+  "retrieval": {
+    "decision_only": {
+      "all": {
+        "mrr": 0.3654063249951641,
+        "query_count": 60,
+        "recall_at_1": 0.2833333333333333,
+        "recall_at_3": 0.36666666666666664,
+        "recall_at_5": 0.4
+      },
+      "anchor": {
+        "mrr": 0.6203535681660681,
+        "query_count": 30,
+        "recall_at_1": 0.5333333333333333,
+        "recall_at_3": 0.6666666666666666,
+        "recall_at_5": 0.6666666666666666
+      },
+      "semantic": {
+        "mrr": 0.1104590818242601,
+        "query_count": 30,
+        "recall_at_1": 0.03333333333333333,
+        "recall_at_3": 0.06666666666666667,
+        "recall_at_5": 0.13333333333333333
+      }
+    },
+    "lean_front_door": {
+      "all": {
+        "mrr": 0.5833718239553481,
+        "query_count": 60,
+        "recall_at_1": 0.4666666666666667,
+        "recall_at_3": 0.6333333333333333,
+        "recall_at_5": 0.7
+      },
+      "anchor": {
+        "mrr": 0.7641475483580747,
+        "query_count": 30,
+        "recall_at_1": 0.6666666666666666,
+        "recall_at_3": 0.8333333333333334,
+        "recall_at_5": 0.8333333333333334
+      },
+      "semantic": {
+        "mrr": 0.4025960995526214,
+        "query_count": 30,
+        "recall_at_1": 0.26666666666666666,
+        "recall_at_3": 0.43333333333333335,
+        "recall_at_5": 0.5666666666666667
+      }
+    },
+    "lean_no_supplemental_anchors": {
+      "all": {
+        "mrr": 0.5496733470951065,
+        "query_count": 60,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.65,
+        "recall_at_5": 0.6833333333333333
+      },
+      "anchor": {
+        "mrr": 0.6951482776482777,
+        "query_count": 30,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7666666666666667,
+        "recall_at_5": 0.8
+      },
+      "semantic": {
+        "mrr": 0.4041984165419352,
+        "query_count": 30,
+        "recall_at_1": 0.26666666666666666,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.5666666666666667
+      }
+    },
+    "raw": {
+      "all": {
+        "mrr": 0.6693368660411673,
+        "query_count": 60,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7,
+        "recall_at_5": 0.7333333333333333
+      },
+      "anchor": {
+        "mrr": 0.8182407407407408,
+        "query_count": 30,
+        "recall_at_1": 0.7666666666666667,
+        "recall_at_3": 0.8666666666666667,
+        "recall_at_5": 0.8666666666666667
+      },
+      "semantic": {
+        "mrr": 0.5204329913415935,
+        "query_count": 30,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.6
+      }
+    }
+  },
+  "sample_count": 100,
+  "schema": "lean-draft-feasibility-pilot.v1",
+  "selection_fingerprint": "sha256:cc25b1744931bb75f7c17ce563c5e965795baa6b2188edef091c1209c00c710a",
+  "selector_sha256": "sha256:a1b5cea07d493ad793e3a6610b337c8ad8b545e1509c6b07d2f6bbc7a7550dad",
+  "status": "measured-feasibility-pilot",
+  "structure": {
+    "decision_only": {
+      "mean_repeated_content_token_fraction": 0.031728996892172144,
+      "mean_token_proxy": 46.71,
+      "mean_words_per_sentence": 23.03846153846154,
+      "median_token_proxy": 44,
+      "relative_context": 0.13292544109277177
+    },
+    "lean_front_door": {
+      "mean_repeated_content_token_fraction": 0.09364364614197392,
+      "mean_token_proxy": 155.03,
+      "mean_words_per_sentence": 20.4798927613941,
+      "median_token_proxy": 153,
+      "relative_context": 0.4411781445645988,
+      "source_exact_anchor_coverage": 0.8693759071117562
+    },
+    "lean_no_supplemental_anchors": {
+      "mean_repeated_content_token_fraction": 0.0989861894291397,
+      "mean_token_proxy": 131.7,
+      "mean_words_per_sentence": 25.397923875432525,
+      "median_token_proxy": 122,
+      "relative_context": 0.3747865680136596
+    },
+    "raw": {
+      "mean_repeated_content_token_fraction": 0.16046484855905407,
+      "mean_token_proxy": 351.4,
+      "mean_words_per_sentence": 10.244481236203091,
+      "median_token_proxy": 332,
+      "relative_context": 1.0
+    }
+  }
+}

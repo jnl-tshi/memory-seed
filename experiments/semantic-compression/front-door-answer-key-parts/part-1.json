@@ -1,0 +1,130 @@
+{
+  "schema": "front-door-answer-key-part.v1",
+  "author_model": "gpt-5.6",
+  "input_access": "canonical-source-and-query-only",
+  "rankings_seen": false,
+  "display_candidates_seen": false,
+  "answers": [
+    {
+      "packet_id": "p_16e5a018ae79",
+      "kind": "semantic",
+      "spans": [{"start_char": 141, "end_char": 255, "text": "The Explorer introduces a web/UI dependency surface that should not change the default agent/CLI package footprint"}]
+    },
+    {
+      "packet_id": "p_16e5a018ae79",
+      "kind": "anchor",
+      "spans": [{"start_char": 5, "end_char": 135, "text": "Pillar B is now specified as a separate `memory-seed-explorer` companion install, not a required dependency of core `memory-seed`."}]
+    },
+    {
+      "packet_id": "p_e4cc72016ca3",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 109, "end_char": 275, "text": "every `- skill: <name>` in the seed trigger registry has both a file under\n  `memory_seed/seed/.memory-seed/skills/` and a `SeedFile` destination in `core.SEED_FILES`"},
+        {"start_char": 281, "end_char": 413, "text": "every\n  `.memory-seed/skills/*.md` destination in `SEED_FILES` (excluding `index.md`, which is the registry\n  itself) is registered."}
+      ]
+    },
+    {
+      "packet_id": "p_e4cc72016ca3",
+      "kind": "anchor",
+      "spans": [
+        {"start_char": 109, "end_char": 275, "text": "every `- skill: <name>` in the seed trigger registry has both a file under\n  `memory_seed/seed/.memory-seed/skills/` and a `SeedFile` destination in `core.SEED_FILES`"},
+        {"start_char": 281, "end_char": 413, "text": "every\n  `.memory-seed/skills/*.md` destination in `SEED_FILES` (excluding `index.md`, which is the registry\n  itself) is registered."}
+      ]
+    },
+    {
+      "packet_id": "p_62c16caee147",
+      "kind": "semantic",
+      "spans": [{"start_char": 418, "end_char": 551, "text": "The scrub was the report's own flagged to-do (also flagged in the audit); the decision is a\n  product call the goal forbids guessing."}]
+    },
+    {
+      "packet_id": "p_62c16caee147",
+      "kind": "anchor",
+      "spans": [{"start_char": 230, "end_char": 322, "text": "\"BLOCKED: needs a user decision (Pillar B\n  distribution)\" block listing the decision inputs"}]
+    },
+    {
+      "packet_id": "p_a90c4a73bd37",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 5, "end_char": 172, "text": "`calibrate.py::served_chars` sums `ranked_to_dict(r)[\"excerpt\"]` - the actual served field -\n  instead of computing `min(len(chunk.text), DECISION_TEXT_LIMIT)` itself."},
+        {"start_char": 265, "end_char": 350, "text": "The local copy was correct when written and silently wrong by the time anyone looked."}
+      ]
+    },
+    {
+      "packet_id": "p_a90c4a73bd37",
+      "kind": "anchor",
+      "spans": [{"start_char": 5, "end_char": 172, "text": "`calibrate.py::served_chars` sums `ranked_to_dict(r)[\"excerpt\"]` - the actual served field -\n  instead of computing `min(len(chunk.text), DECISION_TEXT_LIMIT)` itself."}]
+    },
+    {
+      "packet_id": "p_c8afbf600ec6",
+      "kind": "semantic",
+      "spans": [{"start_char": 5, "end_char": 139, "text": "The flag reads as authorization; its help text and the block message name it as the user's\n  go-ahead that agents must not self-supply"}]
+    },
+    {
+      "packet_id": "p_c8afbf600ec6",
+      "kind": "anchor",
+      "spans": [{"start_char": 485, "end_char": 688, "text": "The doc note is load-bearing: without it, an agent reading the integration\n  guidance would not know it is barred from the flag, and the gate would be undermined by the one surface\n  meant to respect it."}]
+    },
+    {
+      "packet_id": "p_b4ee54534eeb",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 54, "end_char": 221, "text": "The word **\"subsystem\"** is retired as the label\n  for the first axis, which becomes **area** (\"what are you working on\") against **activity** (\"what\n  kind of work\")."},
+        {"start_char": 318, "end_char": 394, "text": "the two-axis *structure* is universal, the slugs filling it are per-profile."}
+      ]
+    },
+    {
+      "packet_id": "p_b4ee54534eeb",
+      "kind": "anchor",
+      "spans": [{"start_char": 1262, "end_char": 1334, "text": "The container is already neutral; only the axis label\n  fails to travel."}]
+    },
+    {
+      "packet_id": "p_63c257ade8f7",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 233, "end_char": 295, "text": "A decision earns a diagram when it is **attached to an\n  ADR**"},
+        {"start_char": 775, "end_char": 994, "text": "Attachment to an ADR is already a deliberate, recorded, human-gated act meaning \"this governs a\n  standing concern\", so it predicts worth-drawing better than an in-the-moment judgement AND is\n  mechanically determinable"}
+      ]
+    },
+    {
+      "packet_id": "p_63c257ade8f7",
+      "kind": "anchor",
+      "spans": [{"start_char": 297, "end_char": 405, "text": "the obligation is to ANSWER (a diagram, or `diagram_status: not_applicable` with a reason),\n  never to draw."}]
+    },
+    {
+      "packet_id": "p_7eb87a9576ae",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 17, "end_char": 155, "text": "write-time capture through the deciding agent works but is not free: it needs a\n  routing instruction present, not merely a tool installed"},
+        {"start_char": 167, "end_char": 290, "text": "whether the rest of the\n  control plane buys the further climb from 0.77 to 0.91 is directionally supported but unresolved."}
+      ]
+    },
+    {
+      "packet_id": "p_7eb87a9576ae",
+      "kind": "anchor",
+      "spans": [{"start_char": 461, "end_char": 629, "text": "the tool alone genuinely\n  does nothing - but the required enforcement turned out to be a single line naming the store, not\n  the full rules contract or the hook stack."}]
+    },
+    {
+      "packet_id": "p_ad1f05fa9df6",
+      "kind": "semantic",
+      "spans": [{"start_char": 335, "end_char": 432, "text": "Trail as the primary chronological evidence\n  surface, graph as the secondary exploration surface"}]
+    },
+    {
+      "packet_id": "p_ad1f05fa9df6",
+      "kind": "anchor",
+      "spans": [{"start_char": 54, "end_char": 147, "text": "becomes the default view for visitors with\n  no stored preference (`storedView() || \"trail\"`)"}]
+    },
+    {
+      "packet_id": "p_c6b0ed8600c2",
+      "kind": "semantic",
+      "spans": [
+        {"start_char": 164, "end_char": 217, "text": "option (a), propose-and-wait, never\n  auto-deactivate"},
+        {"start_char": 447, "end_char": 900, "text": "detect an active persona with\n  no recorded `agent_name` use across a conservative window (30 days or 20 entries, whichever is\n  longer), skip any persona activated inside the window (grace period), treat `agent_name: null` as\n  neither use nor non-use (the proposal's own lossy-signal caution - bias toward keeping), and propose\n  the `status: inactive` flip in `.agents/_registry.yaml` rather than ever auto-applying it or deleting\n  the persona file."}
+      ]
+    },
+    {
+      "packet_id": "p_c6b0ed8600c2",
+      "kind": "anchor",
+      "spans": [{"start_char": 646, "end_char": 763, "text": "treat `agent_name: null` as\n  neither use nor non-use (the proposal's own lossy-signal caution - bias toward keeping)"}]
+    }
+  ]
+}
