@@ -195,8 +195,8 @@
     "rejected_count": 0,
     "review_count": 60
   },
-  "oracle_review_sha256": "sha256:b4069c73b88677c1eed0911bfd6c8751d80a7fe3830ae2289a2686bfa3fac561",
-  "oracle_sha256": "sha256:f5567e33a2ac839bab5ef797a6e3fc7ba43b777df7a73569466f0d71d46757e5",
+  "oracle_review_sha256": "sha256:dd1e5908d92727e298dc8ce0cc11994aac5c81b627d80f58e76df3b93a664adc",
+  "oracle_sha256": "sha256:5888f16cace1791e811a348c1abddff4d9f7633337a6d112d5f10583df981f64",
   "paired_effects": {
     "authored_exact_terms_vs_body_only_anchor_mrr": {
       "bootstrap_95_ci": [
