@@ -97,7 +97,7 @@ were themselves reference material, not undecided captures — moved the same da
 |---|---|---|---|
 | [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
-| [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this synthesis and decides whether to promote it unchanged to docs/2_Todo. |
+| [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo. |
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
