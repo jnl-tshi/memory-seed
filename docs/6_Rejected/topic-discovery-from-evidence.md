@@ -1,6 +1,7 @@
 ---
-priority: P2
-next_action: JNL to accept or reject the model. Nothing is built. The DAG claim (S4) was MEASURED against the 2013 existing attributions and found unsupported on this corpus - 0 areas have a second plausible parent - so the schema stays single-parent and build order drops to 4 steps.
+priority: "n/a"
+status: "rejected 2026-08-26 (JNL) - wrong mechanism for topic discovery, not a DAG/validity problem"
+next_action: "none - see closing note. The write-time, per-agent proposal direction JNL named instead is captured in docs/2_Todo/0_NEXT_STEPS.md."
 ---
 
 # Topic discovery: swarm output as evidence, not as a vocabulary
@@ -173,3 +174,21 @@ proposal tables. They answer different questions and the campaigns measured that
 All remaining steps are additive and touch nothing that exists. Revisit multi-parent only if a real
 discovery run over free-text concepts produces candidates with two plausible parents — which is the one
 condition this measurement could not test.
+
+## Closing note — REJECTED 2026-08-26 (JNL)
+
+Rejected on the mechanism, not on the DAG/validity findings above (those measurements stand and
+would carry over to whatever replaces this). JNL: while this shouldn't be done using a swarm,
+proposed topics should be available **at write time** so that agents can propose better topics and
+grow the tree if needed, as they write — not as a separate batch discovery sweep over the existing
+corpus. The proposals can then be reviewed later, perhaps by a swarm if appropriate, but the
+discovery moment itself is per-entry and incremental, not a cold-start batch pass.
+
+This is a different shape from what this doc built: candidate emission here is a retrospective
+sweep over ~12-entry batches across the whole corpus, aggregated into statistics before any
+proposal exists. JNL's direction has an agent proposing a candidate topic in the moment it writes
+an entry, with review deferred rather than discovery deferred. Filed as a fresh direction in
+`docs/2_Todo/0_NEXT_STEPS.md` rather than reworked here, since it is closer in shape to
+`vocabulary-proposal-mode-proposal.md` (proposals that don't write, reviewed later) than to this
+document's batch-evidence model — but it is write-time and per-agent rather than
+measurement-triggered and swarm-run, so it is not simply that proposal either.

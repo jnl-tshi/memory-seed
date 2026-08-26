@@ -595,6 +595,29 @@ before its next step. (Market/account items live under "Parked" below.)
     to `6_Rejected/` as the record of *why not* — it still captures the two gaps the abandoned
     `claude/refactor/topics-yaml-v3` branch raised (no label derivation in the shipped v3 reader; no
     shipped `topics_equivalent` write-gate) in case a genuine second-project need ever surfaces.
+11. ~~**Topic discovery: swarm output as evidence.**~~ **REJECTED 2026-08-26** (JNL) — wrong
+    mechanism, not wrong findings: the DAG/validity measurements in
+    [`topic-discovery-from-evidence.md`](../6_Rejected/topic-discovery-from-evidence.md) (now in
+    `6_Rejected/`) stand, but a retrospective swarm sweep over the whole corpus is not how topic
+    discovery should work. **New direction named instead, not yet scoped as a proposal:** topics
+    should be proposable **at write time** — any writing agent can propose a candidate topic and
+    grow the tree as it writes an entry, rather than discovery happening as a separate batch pass.
+    Review of those proposals can be deferred (perhaps to a swarm), but the discovery moment itself
+    is per-entry and incremental. Closer in shape to
+    [`vocabulary-proposal-mode-proposal.md`](vocabulary-proposal-mode-proposal.md) (proposals that
+    don't write, reviewed later) than to the rejected doc's batch-evidence model, but write-time and
+    per-agent rather than measurement-triggered and swarm-run — so it is not simply that proposal
+    either. **Needs its own scoping proposal before anything is built.**
+12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
+    2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
+    than signed off as-is. Row-by-row outcome pending.
+13. **Memory-index dry-run → Verging Labs v0.2 submission.** JNL ruled 2026-08-26: run the
+    independent replication on a second seeded corpus first (the doc's own "cheapest strengthening
+    move before submission"), and only submit if time allows before the early-September deadline.
+    See [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md). **Time-sensitive** — the
+    replication is a ~$25, ~1-day-wall-clock run (10 seeding + 25 quiz sessions) using the existing
+    `experiments/memory-index-dryrun/` harness with a fresh seed/fact set; not yet kicked off pending
+    a final go on spending that budget now.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 
