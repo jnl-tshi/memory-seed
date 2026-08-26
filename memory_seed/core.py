@@ -8432,6 +8432,10 @@ SEED_FILES = [
         ".memory-seed/skills/end_of_turn.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "adr_sweep.md",
+        ".memory-seed/skills/adr_sweep.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_hygiene.md",
         ".memory-seed/skills/memory_hygiene.md",
     ),
@@ -8734,6 +8738,7 @@ CORE_SKILL_NAMES = (
     "history_retrieval.md",
     "orientation.md",
     "end_of_turn.md",
+    "adr_sweep.md",
     "memory_hygiene.md",
     "risk_signaling.md",
     "memory_doctor.md",
@@ -8796,6 +8801,7 @@ OPTIONAL_SKILL_NAMES = tuple(
 )
 
 SKILL_DESCRIPTIONS = {
+    "adr_sweep.md": "Review ADR coverage and freshness with evidence-backed advisory recommendations.",
     "agent_collaboration.md": "Coordinate branch, worktree, and multi-agent handoff workflows.",
     "code_search.md": "Use precise repository search and symbol lookup before broad reads.",
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",

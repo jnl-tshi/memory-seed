@@ -122,6 +122,18 @@ skills:
     do_not_load_when:
       - ordinary mid-task work before closeout
 
+  - skill: adr_sweep.md
+    required: true
+    load_when:
+      - running an ADR sweep, audit, or corpus-wide ADR review
+      - reviewing ADR attachment candidates, ADR review queue items, or ADR sweep candidates from ESR
+      - finding decision chains or pairs that do not yet have an ADR
+      - reviewing grown decision chains for ADR membership or concern splitting
+      - preparing batch ADR promotion, revision, reviewed-no-change, or deferral recommendations
+    do_not_load_when:
+      - reading or showing one known ADR with no corpus-wide review
+      - recording the current turn's decision and its content-bound ADR review (use session_logging.md)
+
   - skill: memory_hygiene.md
     required: true
     load_when:

@@ -15,6 +15,8 @@ Sections:
 - seed_twins: live skill vs ``memory_seed/seed`` twin drift - only meaningful
   in the control-plane development repo itself, where the twins ship from;
   ordinary projects adapt their live skills freely and are never flagged.
+- adr_sweep_candidates: same-area decision-lineage chains with missing ADR
+  coverage, each carrying an advisory recommendation for human review
 """
 
 from __future__ import annotations
@@ -136,6 +138,11 @@ class EsrReport:
     # agreed `refines` successor - the concern's current form moved, the ADR
     # did not. Flag only; a head moves by authored revision and nothing else.
     adr_head_reviews: list[str] = field(default_factory=list)
+    # Inverse ADR coverage: same-area lineage chains that no ADR claims, weak
+    # two-decision pairs, and claimed chains that grew beyond their recorded
+    # membership. Every item carries an advisory recommendation; this report
+    # never creates an ADR, attaches a member, or moves an authoritative head.
+    adr_sweep_candidates: list[dict[str, Any]] = field(default_factory=list)
     corpus_cache: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -198,6 +205,7 @@ class EsrReport:
             },
             "adr_attachment_candidates": self.adr_attachment_candidates,
             "adr_head_reviews": self.adr_head_reviews,
+            "adr_sweep_candidates": self.adr_sweep_candidates,
             "corpus_cache": self.corpus_cache,
         }
 
@@ -322,6 +330,197 @@ def _decision_ref_parts(ref: str | None) -> tuple[str, str | None] | None:
 def _render_decision_key(key: tuple[str, str]) -> str:
     entry_id, ordinal = key
     return f"{entry_id}:{ordinal}" if ordinal else entry_id
+
+
+def _adr_sweep_candidates(
+    cwd: Path, *, snapshot: CorpusSnapshot | None = None,
+) -> list[dict[str, Any]]:
+    """Find decision-lineage concerns whose ADR coverage needs review.
+
+    This is the supported form of the inverse-coverage experiment first run in
+    ``experiments/adr-campaign/lineage_chains.py``. It deliberately asks the
+    opposite question from ``_adr_attachment_candidates``: not "which decision
+    belongs to this empty ADR?", but "which same-area decision chain has no ADR?"
+
+    Mechanical discovery stays separate from judgment. Three-or-more-member
+    unclaimed chains receive a review-for-promotion recommendation; two-member
+    pairs receive a weaker architectural-review recommendation; claimed chains
+    with unnamed members receive an attach-or-split review. Recommendations are
+    derived advice, never mutations or authority.
+    """
+    try:
+        import collections
+
+        from .adr import adr_membership, current_proposal, iter_adrs
+        from .retrieval import augment_chunks_with_link_sidecars, entry_topic_sidecars
+        from .semantic_cache import build_refines_spine, extract_memory_chunks
+
+        chunks = (
+            snapshot.chunks("entry", "augmented") if snapshot is not None
+            else augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="entry"), cwd
+            )
+        )
+        if not chunks:
+            return []
+        spine = build_refines_spine(chunks)
+
+        def canonical_ref(ref: str) -> str | None:
+            entry_id, _, ordinal = ref.strip().partition(":")
+            if not entry_id:
+                return None
+            key = spine.key(entry_id, ordinal or None)
+            # A bare ref on a multi-decision entry is ambiguous. The experiment
+            # dropped it rather than guessing; the standing check does too.
+            return _render_decision_key(key) if key[1] else None
+
+        area: dict[str, set[str]] = collections.defaultdict(set)
+        for entry_id, record in entry_topic_sidecars(cwd).items():
+            for ordinal, slug in record.get("decision_area", ()):
+                if ordinal:
+                    area[f"{entry_id}:{ordinal}"].add(slug)
+        if not area:
+            return []
+
+        claims: dict[str, set[str]] = collections.defaultdict(set)
+        for record in iter_adrs(cwd):
+            refs = set(adr_membership(record))
+            for event in record.events:
+                refs.update(event.supporting_decisions or ())
+            proposal = current_proposal(record)
+            if proposal:
+                refs.update(proposal.supporting_decisions or ())
+            for raw_ref in refs:
+                ref = canonical_ref(raw_ref)
+                if ref:
+                    claims[ref].add(record.adr_id)
+
+        same_area_edges: set[tuple[str, str]] = set()
+        for chunk in chunks:
+            if not chunk.entry_id:
+                continue
+            for edge in chunk.decision_edges:
+                kind, source_ordinal, target_entry = edge[0], edge[1], edge[2]
+                if kind not in {"evolves", "replaces"}:
+                    continue
+                target_ordinal = edge[3] if len(edge) > 3 else ""
+                newer = canonical_ref(
+                    f"{chunk.entry_id}:{source_ordinal}" if source_ordinal else chunk.entry_id
+                )
+                older = canonical_ref(
+                    f"{target_entry}:{target_ordinal}" if target_ordinal else target_entry
+                )
+                if not newer or not older or not (area.get(newer, set()) & area.get(older, set())):
+                    continue
+                same_area_edges.add((older, newer))
+        if not same_area_edges:
+            return []
+
+        parent: dict[str, str] = {}
+
+        def find(node: str) -> str:
+            parent.setdefault(node, node)
+            while parent[node] != node:
+                parent[node] = parent[parent[node]]
+                node = parent[node]
+            return node
+
+        for older, newer in same_area_edges:
+            older_root, newer_root = find(older), find(newer)
+            if older_root != newer_root:
+                parent[newer_root] = older_root
+        groups: dict[str, list[str]] = collections.defaultdict(list)
+        for node in list(parent):
+            groups[find(node)].append(node)
+
+        metadata = {
+            chunk.entry_id: str(chunk.entry_datetime or chunk.session_date or "")
+            for chunk in chunks
+            if chunk.entry_id
+        }
+
+        def member_sort(ref: str) -> tuple[str, str]:
+            return metadata.get(ref.split(":", 1)[0], ""), ref
+
+        candidates: list[dict[str, Any]] = []
+        for component in groups.values():
+            if len(component) < 2:
+                continue
+            members = sorted(component, key=member_sort)
+            owners = sorted({adr for ref in members for adr in claims.get(ref, set())})
+            unnamed = [ref for ref in members if not claims.get(ref)]
+            area_counts = collections.Counter(slug for ref in members for slug in area.get(ref, set()))
+            areas = [slug for slug, _count in area_counts.most_common()]
+            primary_area = areas[0] if areas else "unknown"
+            component_set = set(members)
+            component_edges = {
+                (older, newer)
+                for older, newer in same_area_edges
+                if older in component_set and newer in component_set
+            }
+            roots = component_set - {newer for _older, newer in component_edges}
+            heads = component_set - {older for older, _newer in component_edges}
+            root = min(roots or component_set, key=member_sort)
+            head = max(heads or component_set, key=member_sort)
+
+            if owners and unnamed:
+                kind = "grown-chain"
+                recommendation = {
+                    "action": "review-membership-or-split",
+                    "target": head,
+                    "rationale": (
+                        f"{len(unnamed)} of {len(members)} same-area lineage members are not "
+                        "claimed; decide whether they extend the existing concern or form a new ADR."
+                    ),
+                    "advisory": True,
+                }
+            elif owners:
+                continue
+            elif len(members) >= 3:
+                kind = "unclaimed-chain"
+                recommendation = {
+                    "action": "review-for-adr-promotion",
+                    "target": head,
+                    "rationale": (
+                        f"{len(members)} lineage-linked decisions share area {primary_area} and no "
+                        "ADR claims any member."
+                    ),
+                    "advisory": True,
+                }
+            else:
+                kind = "unclaimed-pair"
+                recommendation = {
+                    "action": "architectural-review-before-promotion",
+                    "target": head,
+                    "rationale": (
+                        f"Two lineage-linked decisions share area {primary_area}, but a pair alone "
+                        "is weak evidence for founding an ADR."
+                    ),
+                    "advisory": True,
+                }
+
+            candidates.append({
+                "kind": kind,
+                "area": primary_area,
+                "areas": areas,
+                "root": root,
+                "head": head,
+                "length": len(members),
+                "members": members,
+                "claimed_by": owners,
+                "unclaimed_members": unnamed,
+                "recommendation": recommendation,
+            })
+
+        kind_order = {"unclaimed-chain": 0, "grown-chain": 1, "unclaimed-pair": 2}
+        return sorted(
+            candidates,
+            key=lambda item: (
+                kind_order[item["kind"]], -item["length"], item["area"], item["root"]
+            ),
+        )
+    except Exception:  # noqa: BLE001 - advisory ESR section must fail open
+        return []
 
 
 def _adr_head_reviews(cwd: Path, *, snapshot: CorpusSnapshot | None = None) -> list[str]:
@@ -886,6 +1085,9 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         Path(cwd).resolve(), runtime.memory_dir, snapshot=snapshot,
     )
     report.adr_head_reviews = _adr_head_reviews(Path(cwd).resolve(), snapshot=snapshot)
+    report.adr_sweep_candidates = _adr_sweep_candidates(
+        Path(cwd).resolve(), snapshot=snapshot,
+    )
     return report
 
 
@@ -1094,6 +1296,35 @@ def format_esr_report(report: EsrReport) -> str:
         )
         lines.extend(report.adr_head_reviews)
         lines.append("")
+
+    lines.append("## ADR sweep candidates")
+    lines.append(
+        "Inverse coverage over same-area decision lineage. Discovery and recommendations are "
+        "derived and advisory; nothing here creates an ADR, attaches a member, or moves a head."
+    )
+    if not report.adr_sweep_candidates:
+        lines.append("None — no unclaimed pair/chain or grown-chain coverage gap was found.")
+    else:
+        labels = {
+            "unclaimed-chain": "UNCLAIMED CHAIN",
+            "grown-chain": "GROWN CHAIN",
+            "unclaimed-pair": "UNCLAIMED PAIR",
+        }
+        for item in report.adr_sweep_candidates:
+            recommendation = item["recommendation"]
+            lines.append(
+                f"- {labels[item['kind']]} — {item['area']} — {item['length']} decisions — "
+                f"{item['root']} -> {item['head']}"
+            )
+            lines.append(
+                f"  Recommendation: {recommendation['action']} at {recommendation['target']} "
+                f"(advisory)."
+            )
+            lines.append(f"  Basis: {recommendation['rationale']}")
+            if item["claimed_by"]:
+                lines.append(f"  Claimed by: {', '.join(item['claimed_by'])}")
+            lines.append(f"  Members: {', '.join(item['members'])}")
+    lines.append("")
 
     lines.append("## Skill governance")
     if report.skills_with_dangling_governing_adr:
