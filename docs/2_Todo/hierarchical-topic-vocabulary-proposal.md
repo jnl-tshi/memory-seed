@@ -1,6 +1,6 @@
 ---
-priority: P2
-next_action: JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + read-time ancestor derivation, (2) reclassify the aliases that are really children, (3) point community colour at the parent level and grouping at the child level, (4) only then any topic sweep. Blocks and supersedes the flat splits recommended in topic-vocabulary-concentration-review.md.
+priority: P3
+next_action: "ACCEPTED 2026-07-26/27 (JNL, settled inline below) - not a JNL gate any more. Build order steps 1, 2, 4, and one neutral starter under step 6 are shipped. The one still-open piece: a per-project-type starter vocabulary (a `--project-type` at `init`, or named starter sets) needs its own JNL call on the axis - see the step-6 correction below. Superseded serialization-wise (not decision-wise) by the schema_version 3 zone/nesting work."
 ---
 
 # Hierarchical topic vocabulary: parent subsystems, child subsystems

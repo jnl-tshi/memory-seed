@@ -1,6 +1,6 @@
 ---
-priority: P2
-next_action: JNL to accept or reject. If accepted, build after step 5 and before step 7 - the sweep needs somewhere to put a suggestion it cannot legally write. Depends on nothing already unbuilt.
+priority: P3
+next_action: "SHIPPED 2026-07-27 (day after JNL raised it) - not a JNL gate any more. scripts/propose_topic_children.py (gather + score) is built, committed, and has run at least twice on memory-trace, producing docs/2_Todo/memory-trace-children-proposal.md. No follow-up action."
 ---
 
 # Swarm proposal mode: how the vocabulary grows as the project does
