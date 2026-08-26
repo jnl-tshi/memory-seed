@@ -32,7 +32,6 @@
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
 | [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
 | [superpowers-collaboration-integration-proposal.md](superpowers-collaboration-integration-proposal.md) | P2 | — | Complete Phase 0 routing checks, then use the adapter on the first suitable approved multi-task… |
-| [topic-discovery-from-evidence.md](topic-discovery-from-evidence.md) | P2 | — | JNL to accept or reject the model. Nothing is built. The DAG claim (S4) was MEASURED against th… |
 | [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
 | [write-time-sidecar-consolidation-proposal.md](write-time-sidecar-consolidation-proposal.md) | P2 | — | M1 topics-and-links transaction is in progress on `codex/feature/decision-sidecar-transaction`;… |
 | [branch-field-provenance.md](branch-field-provenance.md) | P3 | [] | None. Decided (JNL, 2026-07-26): A now, D as the standing convention; both are documented. The … |
