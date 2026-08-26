@@ -420,7 +420,7 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
         self.assertIn("adr transition", text)
         self.assertIn('"no-change"', text)
 
-    def test_to_dict_carries_both_adr_queues_as_lists(self):
+    def test_to_dict_carries_all_adr_sweep_outputs_as_lists(self):
         self._refines(self.MID, self.HEAD)
         self._refines(self.TERMINUS, self.MID)
         self._accepted_adr("adr_moved", self.HEAD)
@@ -430,8 +430,10 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
 
         self.assertIn("adr_attachment_candidates", payload)
         self.assertIn("adr_head_reviews", payload)
+        self.assertIn("adr_sweep_candidates", payload)
         self.assertIsInstance(payload["adr_attachment_candidates"], list)
         self.assertIsInstance(payload["adr_head_reviews"], list)
+        self.assertIsInstance(payload["adr_sweep_candidates"], list)
         # This scenario populates the review queue - prove the populated
         # value, not just an empty list, reaches to_dict().
         self.assertEqual(payload["adr_head_reviews"], report.adr_head_reviews)
@@ -508,6 +510,145 @@ class AdrHeadReviewQueueTests(unittest.TestCase):
         self.assertIn("## Topics", text)
 
 
+class AdrSweepCandidateTests(unittest.TestCase):
+    """ESR performs inverse ADR coverage and attaches advice to every item."""
+
+    OLD = "mse_" + "a" * 16
+    MID = "mse_" + "b" * 16
+    NEW = "mse_" + "c" * 16
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mseed-esr-adr-sweep-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        self.sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        self.sessions.mkdir(parents=True, exist_ok=True)
+        for index, entry_id in enumerate((self.OLD, self.MID, self.NEW)):
+            self._entry(entry_id, f"2026-06-01 0{index}:00")
+
+    def _entry(self, entry_id, timestamp):
+        path = self.sessions / "2026-06-01.md"
+        block = (
+            f"## {timestamp} - entry {entry_id[-4:]}\n\n```yaml\nentry_id: {entry_id}\n"
+            "user_initials: JNL\nagent_type: codex\n```\n\n"
+            "### Decision\n\n- D: Something.\n- R: Because.\n\n"
+        )
+        path.write_text(
+            (path.read_text(encoding="utf-8") if path.exists() else "") + block,
+            encoding="utf-8",
+        )
+
+    def _refines(self, source, target, minute):
+        directory = self.sessions / "links"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "2026-06-01.md"
+        block = (
+            f"## 2026-06-01 12:{minute:02d} - typed edge {source[-4:]}\n\n```yaml\n"
+            f"entry_id: {source}\nsource: derived\nevolves:\n  - {target} (refines)\n```\n\n"
+        )
+        path.write_text(
+            (path.read_text(encoding="utf-8") if path.exists() else "") + block,
+            encoding="utf-8",
+        )
+
+    def _area(self, *entry_ids):
+        directory = self.sessions / "topics"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "2026-06-01.md"
+        blocks = []
+        for minute, entry_id in enumerate(entry_ids):
+            blocks.append(
+                f"## 2026-06-01 13:{minute:02d} - area {entry_id[-4:]}\n\n```yaml\n"
+                f"entry_id: {entry_id}\nsource: derived\ntopics:\n  area:\n"
+                "    - seed-core:d1\n  activity:\n    - feature-build:d1\n```\n"
+            )
+        path.write_text("\n".join(blocks) + "\n", encoding="utf-8")
+
+    def _claim_old(self):
+        from memory_seed.adr import promote_decision
+
+        result = promote_decision(
+            self.cwd,
+            adr_id="adr_existing_concern",
+            source_entry_id=self.OLD,
+            source_decision="d1",
+            title="Existing concern",
+            topics=(),
+            user_initials="JNL",
+            agent_type="codex",
+            source="write-time",
+            timestamp="2026-06-01T14:00:00",
+        )
+        self.assertTrue(result.ok, result.issues)
+
+    def test_unclaimed_chain_is_a_potential_adr_with_attached_recommendation(self):
+        self._refines(self.MID, self.OLD, 0)
+        self._refines(self.NEW, self.MID, 1)
+        self._area(self.OLD, self.MID, self.NEW)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(len(report.adr_sweep_candidates), 1)
+        candidate = report.adr_sweep_candidates[0]
+        self.assertEqual(candidate["kind"], "unclaimed-chain")
+        self.assertEqual(candidate["head"], f"{self.NEW}:d1")
+        self.assertEqual(candidate["recommendation"]["action"], "review-for-adr-promotion")
+        self.assertTrue(candidate["recommendation"]["advisory"])
+        text = format_esr_report(report)
+        self.assertIn("## ADR sweep candidates", text)
+        self.assertIn("Recommendation: review-for-adr-promotion", text)
+
+    def test_claimed_chain_growth_gets_attach_or_split_recommendation(self):
+        self._refines(self.MID, self.OLD, 0)
+        self._refines(self.NEW, self.MID, 1)
+        self._area(self.OLD, self.MID, self.NEW)
+        self._claim_old()
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(len(report.adr_sweep_candidates), 1)
+        candidate = report.adr_sweep_candidates[0]
+        self.assertEqual(candidate["kind"], "grown-chain")
+        self.assertEqual(candidate["claimed_by"], ["adr_existing_concern"])
+        self.assertEqual(
+            candidate["recommendation"]["action"], "review-membership-or-split"
+        )
+
+    def test_unclaimed_pair_is_exposed_with_weaker_recommendation(self):
+        self._refines(self.MID, self.OLD, 0)
+        self._area(self.OLD, self.MID)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(len(report.adr_sweep_candidates), 1)
+        candidate = report.adr_sweep_candidates[0]
+        self.assertEqual(candidate["kind"], "unclaimed-pair")
+        self.assertEqual(
+            candidate["recommendation"]["action"],
+            "architectural-review-before-promotion",
+        )
+
+    def test_candidate_discovery_fails_open(self):
+        self._refines(self.MID, self.OLD, 0)
+        self._area(self.OLD, self.MID)
+        import inspect
+
+        from memory_seed.semantic_cache import build_refines_spine as real_spine
+
+        def raise_for_sweep_only(*args, **kwargs):
+            if any(frame.function == "_adr_sweep_candidates" for frame in inspect.stack()):
+                raise RuntimeError("spine unavailable")
+            return real_spine(*args, **kwargs)
+
+        with patch(
+            "memory_seed.semantic_cache.build_refines_spine",
+            side_effect=raise_for_sweep_only,
+        ):
+            report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(report.adr_sweep_candidates, [])
+        self.assertIn("None — no unclaimed pair/chain", format_esr_report(report))
+
+
 _MISSING = object()
 
 
@@ -563,6 +704,7 @@ class ToDictCompletenessTests(unittest.TestCase):
         "skills_with_dangling_governing_adr": ("diagrams", "skills_with_dangling_governing_adr"),
         "adr_attachment_candidates": ("adr_attachment_candidates",),
         "adr_head_reviews": ("adr_head_reviews",),
+        "adr_sweep_candidates": ("adr_sweep_candidates",),
         "corpus_cache": ("corpus_cache",),
     }
 
@@ -638,6 +780,10 @@ class ToDictCompletenessTests(unittest.TestCase):
             skills_with_dangling_governing_adr=["skill-b"],
             adr_attachment_candidates=["ADR adr_a: candidate ..."],
             adr_head_reviews=["ADR adr_b: head ..."],
+            adr_sweep_candidates=[{
+                "kind": "unclaimed-chain",
+                "recommendation": {"action": "review-for-adr-promotion"},
+            }],
             corpus_cache={"health": "current"},
         )
 

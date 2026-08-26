@@ -308,6 +308,15 @@ class SessionSchemaTests(unittest.TestCase):
                 "Trigger Registry Discipline",
                 "Seed / Live Parity",
             ),
+            "adr_sweep.md": (
+                "ADR Sweep Skill",
+                "Recommendation Contract",
+                "Level 1 — single orchestrator",
+                "Level 2 — bounded read-only fan-out",
+                "review-for-adr-promotion",
+                "architectural-review-before-promotion",
+                "review-membership-or-split",
+            ),
             # Anchored on the claims that carry the skill rather than on the
             # measured corpus counts, which the skill itself tells the reader to
             # re-measure before every campaign. What must not silently vanish:

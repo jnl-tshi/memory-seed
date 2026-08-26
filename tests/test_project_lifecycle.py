@@ -634,6 +634,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/hooks/session-start-context.py",
                 ".memory-seed/project-bootstrap.md",
                 ".memory-seed/sessions/.gitkeep",
+                ".memory-seed/skills/adr_sweep.md",
                 ".memory-seed/skills/agent_collaboration.md",
                 ".memory-seed/skills/code_search.md",
                 ".memory-seed/skills/compact_mermaid_diagrams.md",

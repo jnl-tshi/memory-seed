@@ -131,6 +131,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/session_logging.md`
 - `.memory-seed/skills/compact_mermaid_diagrams.md`
 - `.memory-seed/skills/end_of_turn.md`
+- `.memory-seed/skills/adr_sweep.md`
 - `.memory-seed/skills/link_swarm.md`
 - `.memory-seed/skills/topic_swarm.md`
 - `.memory-seed/skills/memory_hygiene.md`
@@ -221,6 +222,9 @@ and configured surfaces that a folder tree cannot explain by itself.
   sidecars. Under the live ADR contract, session decisions own detailed rationale/evidence while one living
   concern ADR owns its curated Decision/Why/Evolution synopsis, lineage membership, and accepted head;
   current status, registries, indexes, databases, API responses, and Trace views are derived.
+- ADR inverse coverage is a standing ESR check: same-area decision-lineage chains with no ADR, weak
+  unclaimed pairs, and claimed chains that have grown are exposed with advisory recommendations. The
+  `adr_sweep` skill owns adjudication; discovery never creates an ADR or moves a head.
 - `memory-seed update` archives replaced reusable control-plane files under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` before refreshing them.
 - MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.
 - Claude Code reads project-scope MCP servers from a project-root `.mcp.json`, NOT from `.claude/settings.json > mcpServers` (silently ignored). Versions 2.2.0–2.3.0 mis-wrote it to settings.json; `update` now writes `.mcp.json` and strips the dead block (ours-only).
