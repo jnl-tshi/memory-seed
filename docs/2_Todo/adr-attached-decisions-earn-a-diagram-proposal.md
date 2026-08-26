@@ -6,7 +6,7 @@ tags:
   - documentation
   - control-plane
 priority: P2
-next_action: JNL to accept or reject; nothing is built, and the ADR-level mechanism it builds on already shipped
+next_action: "ACCEPTED 2026-08-07 (JNL) - not a JNL gate any more. Blocked on the ADR backlog draining (open question 4: 36/38 ADRs unanswered) plus open questions 1-2 (attach- vs write-time; head-only vs every grounded decision) before implementation starts."
 ---
 
 # Only ADR-Attached Decisions Earn a Diagram
