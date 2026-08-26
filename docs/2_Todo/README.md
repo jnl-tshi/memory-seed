@@ -42,7 +42,6 @@
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |
 | [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
 | [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
-| [topics-schema-v3-writer-migration-proposal.md](topics-schema-v3-writer-migration-proposal.md) | P3 | — | JNL rules build-now vs park (see Open decision); if parked, revisit only on a real second-proje… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
 | [evolution-type-refines-builds-on-proposal.md](evolution-type-refines-builds-on-proposal.md) | — | — | — |
 | [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |

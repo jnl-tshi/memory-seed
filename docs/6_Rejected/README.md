@@ -11,5 +11,7 @@ session, was `git rm`'d before this lane existed — it is recoverable from git 
 see Phase 2.)
 
 <!-- docs-index:begin -->
-_(no documents in this lane)_
+| Document | Priority | Blocked by | Next action / pointer |
+|---|---|---|---|
+| [topics-schema-v3-writer-migration-proposal.md](topics-schema-v3-writer-migration-proposal.md) | n/a | — | none - revisit only if a real second-project signal appears (see closing note) |
 <!-- docs-index:end -->
