@@ -3,9 +3,9 @@ tags:
   - proposal
   - topics
   - memory-seed
-status: "scoped, recommend parked"
-priority: "P3"
-next_action: "JNL rules build-now vs park (see Open decision); if parked, revisit only on a real second-project signal."
+status: "rejected 2026-08-26 (JNL) - no observed second-project need"
+priority: "n/a"
+next_action: "none - revisit only if a real second-project signal appears (see closing note)"
 ---
 
 # `topics.yaml` schema v3 writer / migration — scope and gap check
@@ -119,3 +119,11 @@ reporting hand-migration pain, or this project's own vocabulary work resuming un
 `hierarchical-topic-vocabulary-proposal.md`'s still-open steps 2–7) rather than building it
 speculatively. Recorded here so the scope exists and the two identified gaps (label derivation,
 `topics_equivalent`) are captured before the branch that raised them is deleted.
+
+## Closing note — REJECTED 2026-08-26 (JNL)
+
+Ruled directly rather than parked: no migration tool is needed, because no other project
+currently deploys `memory-seed` and needs the v1/v2 → v3 conversion, so building it has no
+observed benefit. Moved to `6_Rejected/` as the record of *why not*. The scope and the two
+gaps above (no label derivation in the shipped v3 reader, no shipped `topics_equivalent`
+write-gate) remain accurate if a genuine second-project need ever surfaces later.
