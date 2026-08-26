@@ -588,6 +588,15 @@ before its next step. (Market/account items live under "Parked" below.)
    safety-equivalence, and startup context has since changed underneath it (Track C item 4), so the
    preregistration wants a re-read before approval. *Recommendation:* rule either way rather than carrying
    it — a reject is a real outcome here.
+10. **`topics.yaml` schema v3 writer/migration — build now or park?** Scoped 2026-08-26 at
+    [`topics-schema-v3-writer-migration-proposal.md`](topics-schema-v3-writer-migration-proposal.md)
+    after reviewing the abandoned `claude/refactor/topics-yaml-v3` branch: the v3 **reader** shipped
+    2026-08-18 (`02b409cd`) and this project's own `topics.yaml` is already hand-migrated to v3, but no
+    programmatic writer/migration exists for v1/v2 → v3, and never has. Two gaps the dead branch raised
+    are captured in the proposal (label derivation is absent from the shipped reader; the branch's
+    `topics_equivalent` write-gate has no shipped equivalent). *Recommendation:* park it — the only
+    project that has ever needed this conversion already did it by hand, and the real audience (other
+    `memory-seed` deployments still on v1/v2) is unobserved from here. Build it if that changes.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 
