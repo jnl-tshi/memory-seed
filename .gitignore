@@ -65,6 +65,10 @@ experiments/agent-capture/runs-*/
 # workspaces, answers, and verdicts are disposable readouts.
 experiments/memory-index-dryrun/runs/
 
+# Memory-index dry-run, independent-replication corpus (open decision #13): same convention -
+# tracked definition is dryrun.py + facts.json, runs/ is disposable.
+experiments/memory-index-dryrun-corpus2/runs/
+
 # ADR context-derivation experiment: all generated fixtures and scored output.
 experiments/context-derivation/fixtures/
 experiments/context-derivation/generated/

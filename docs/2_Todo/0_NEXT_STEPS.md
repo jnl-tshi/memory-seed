@@ -611,13 +611,15 @@ before its next step. (Market/account items live under "Parked" below.)
 12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
     2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
     than signed off as-is. Row-by-row outcome pending.
-13. **Memory-index dry-run → Verging Labs v0.2 submission.** JNL ruled 2026-08-26: run the
-    independent replication on a second seeded corpus first (the doc's own "cheapest strengthening
-    move before submission"), and only submit if time allows before the early-September deadline.
-    See [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md). **Time-sensitive** — the
-    replication is a ~$25, ~1-day-wall-clock run (10 seeding + 25 quiz sessions) using the existing
-    `experiments/memory-index-dryrun/` harness with a fresh seed/fact set; not yet kicked off pending
-    a final go on spending that budget now.
+13. **Memory-index dry-run → Verging Labs v0.2 submission — replication done, awaiting your
+    submission call.** Independent replication ran 2026-08-27 on a second, unrelated fixture
+    (`durstr`, not `strutil`) — see "Run 6" in
+    [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md). **80.6, kill condition CLEAR,
+    zero fabrications** — replicates. But it also reproduced (worse) a real capture-loss limitation:
+    only 4 of 10 seeding sessions logged any memory at all, and a stale `index.md` gave one
+    confidently wrong answer rather than an abstention. **Still time-sensitive** — early-September
+    deadline. *Recommendation:* the kill condition doesn't block submission, but read the capture-loss
+    finding before deciding whether to submit as-is or fix that first.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 
