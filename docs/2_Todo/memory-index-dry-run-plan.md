@@ -2,9 +2,9 @@
 title: "Memory Index Dry-Run Plan"
 date: "2026-08-05"
 project: "memory-seed"
-status: "RUN 3x 2026-08-05 - 71.0 -> 74.2 -> 96.8 after the retrieval and capture fixes; kill condition CLEAR"
+status: "Independent replication run 2026-08-27: 80.6 on a second corpus (durstr), kill condition CLEAR. Capture loss reproduced WORSE than the original (4/10 seeding sessions logged an entry, vs the original's 7/10->10/10). JNL decides on submission with this now in hand."
 priority: "P1"
-next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September). Independent replication of the 96.8 on a second seeded corpus would strengthen it first."
+next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September), reading the capture-loss finding below first - it is a real, reproduced limitation, not a fixture artifact, though the kill condition does not block submission on it."
 related:
   - "business/research/field-evidence-log.md"
   - "business/market/competitor-landscape.md"
@@ -278,6 +278,69 @@ attempted here — the distribution above is the evidence a future attempt shoul
 **Lifecycle top-1 stability** was measured over only 4 derivable supersession lineages (entry 3/4
 head@1, decision 2/4) — too few to distinguish the granularities, and reported only so the number
 is not silently omitted.
+
+## Run 6 (2026-08-27) — independent replication corpus
+
+JNL's call on open decision #13: run the independent replication before deciding on submission.
+Everything above (runs 1–5) shares one fixture (`strutil`) and one narrative. This run uses a
+second, unrelated toy project (`durstr` — duration parsing/formatting, not strings) with its own
+maintainer roster, facts, and 31 questions built to the same category shape (6/6/3/4/4/8), so no
+`strutil`-specific quirk can explain the result either way. Harness:
+`experiments/memory-index-dryrun-corpus2/` (tracked: `dryrun.py`, `facts.json`; fixture at
+`experiments/agent-capture/templates/claude-L3-durstr/`, gitignored like all fixture templates).
+Same conditions as run 3 (no enforcement, no blanking) for direct comparability with the headline
+96.8.
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 5 | 0 | 1 | 0 | 0 |
+| updated_facts | 6 | 5 | 0 | 0 | 1 | 0 |
+| thread_growth | 3 | 3 | 0 | 0 | 0 | 0 |
+| synthesis | 4 | 1 | 0 | 3 | 0 | 0 |
+| long_term_retention | 4 | 3 | 0 | 1 | 0 | 0 |
+| false_memory | 8 | 8 | 0 | 0 | 0 | 0 |
+
+**Blended 25/31 = 80.6. Kill condition CLEAR** (above Zep, 75.1), and **zero fabrications** again —
+the honesty posture replicates. But 80.6 is well below run 3's 96.8, and the six misses trace to
+one cause with two distinct failure shapes, both confirmed against the seeded workspace directly
+rather than inferred from the quiz transcript alone:
+
+**1. Total capture loss (four misses: Q3, Q16, Q18, Q21).** The seeding briefs correctly drove real
+file edits every time — `README.md` gained the exact performance baseline and docs-hosting line,
+`RELEASE.md` gained the exact checklist/cadence/gate text — checked directly in the workspace after
+seeding. But of 10 seeding sessions, only **4 produced any session-memory entry at all** (S1, S5,
+S8, S9 — 5 entries total), a worse capture rate than run 1's original 7/10 and much worse than run
+3's capture-routing fix (10/10). The performance baseline, the docs-hosting decision, and who
+reported the `format_duration` bug (and pushed its fix) were never written to memory in any form —
+not a session entry, not `index.md` — despite being correctly applied to the actual project files.
+The agent is not fabricating: `not_addressed`/`incorrect` here means "answered from what memory
+actually holds", and memory holds less than the files do.
+
+**2. A stale `index.md` gave a confidently WRONG answer, not an abstention (Q7, outdated).** Run
+3's session (`mse_rrv13mdsnrm8e2n0`, 2026-08-06) established that the original corpus's headline
+score is carried by `index.md`'s Active State section, not by ranked retrieval. This replication
+shows the failure mode on the other side of that finding: Active State here **was** populated early
+(roster, the original 60-minute CI budget already revised to 35, benchmark ownership) but recorded
+the release cadence as its *original* value ("quarterly, cut on the 15th") and was never refreshed
+after the cadence changed to monthly/last-Friday in week 4 (S7). The quiz answered from that stale
+section and got marked `outdated` — a fact that changed twice in the seeded history but was
+captured durably only once, early, and never updated.
+
+**Reading.** Both failure shapes are capture-side, not retrieval-side, and both reproduce (worse)
+on a fixture and narrative that share nothing with the original corpus — that is exactly the kind
+of independent confirmation the plan asked for, and it says the capture gap is a property of the
+shipped instruction surface, not an artifact of the `strutil` fixture. The instrument itself
+(quiz, blind judge, zero-fabrication posture) held up identically on unfamiliar content:
+`thread_growth` and `false_memory` again went perfect, and `synthesis`'s 1/4 is explained
+entirely by the same two capture-loss facts (Q16, Q18) it depends on, not a synthesis-specific
+weakness.
+
+**Caveats that still stand:** own judge chain (Codex), n=31, one run per arm, timeline-compressed
+retention, and the fixture/narrative — however independent of `strutil` — was still designed by the
+same agent running the measurement. A Windows file-lock crash during quiz cleanup
+(`rmtree_force` on a temp copy directory, matching the project's known `git worktree remove`/OneDrive
+lock pattern) interrupted the run after all 8 quiz batches had already written their answers; no
+data was lost, but it is why the run needed a manual cleanup step to reach `judge`/`score`.
 
 ## Contamination guard
 

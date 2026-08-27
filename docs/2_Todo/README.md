@@ -7,7 +7,7 @@
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [excerpt-fallback-defect.md](excerpt-fallback-defect.md) | P1 | — | None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the f… |
 | [independent-validation-brief.md](independent-validation-brief.md) | P1 | — | Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own… |
-| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL decides whether to submit to Verging Labs v0.2 (early September). Independent replication o… |
+| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL decides whether to submit to Verging Labs v0.2 (early September), reading the capture-loss … |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
 | [memory-seed-semantic-record-and-signal-foundation-plan.md](memory-seed-semantic-record-and-signal-foundation-plan.md) | P1 | — | Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality g… |
