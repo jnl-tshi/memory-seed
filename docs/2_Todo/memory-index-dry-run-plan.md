@@ -342,6 +342,23 @@ same agent running the measurement. A Windows file-lock crash during quiz cleanu
 lock pattern) interrupted the run after all 8 quiz batches had already written their answers; no
 data was lost, but it is why the run needed a manual cleanup step to reach `judge`/`score`.
 
+**Root cause and fix, 2026-08-29.** Traced the capture-loss failure mode to a specific, mechanical
+gap rather than leaving it as a general finding: `.memory-seed/hooks/session-log-check.py`'s only
+trigger was a 15-minute staleness clock, and the entire 10-session seeding run spanned 13 minutes
+total — the clock could not have fired even once, regardless of whether every check ran correctly.
+Six of the ten sessions edited real files (`README.md`, `RELEASE.md`, a test assertion) without
+logging, every time the day's task terminated in a doc/prose edit rather than a functional code
+change — the agent treated writing the fact into a project file as "the record," never falling back
+to `session_logging.md`'s existing "Small work entry" template for a turn with no real decision.
+Fixed by adding a content-based git-diff trigger to the same hook, independent of elapsed time:
+a SHA-256 fingerprint of everything `git status` considers dirty, excluding
+`.memory-seed/sessions/**` (so writing the entry can never re-trigger itself) and the hook's own
+state files, compared against a baseline captured right after the last logged entry — not
+session start, so an already-logged-but-still-uncommitted diff never re-fires, and re-editing an
+already-covered file (content, not just path, so this is caught) does. See
+`.memory-seed/hooks/session-log-check.py` (and its seed twin) and
+`tests/test_session_log_ordering_hook.py`'s six new git-diff tests.
+
 ## Contamination guard
 
 Dry-run materials stay out of the published store paths (`experiments/memory-index-dryrun/`,

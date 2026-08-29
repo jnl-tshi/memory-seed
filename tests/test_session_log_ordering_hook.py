@@ -257,4 +257,104 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         out = self._run(cwd)
 
         self.assertIn("SESSION LOG REMINDER", out)
+
+    # -- git-diff trigger: closes the blind spot the 2026-08-27 independent-replication run
+    # measured directly - a fast automated run can edit real files and exit well inside the
+    # 15-minute staleness window, so time alone cannot catch it. --
+
+    def make_git_project(self):
+        import subprocess
+
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q"], cwd=cwd, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"],
+            cwd=cwd,
+            check=True,
+        )
+        return cwd
+
+    def _write_fresh_entry(self, cwd, title="entry"):
+        import datetime
+
+        now = datetime.datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        self._flat_target(cwd, today).write_text(
+            f"## {today} {now.strftime('%H:%M')} - {title}\n\ntext\n",
+            encoding="utf-8",
+        )
+
+    def test_git_diff_trigger_fires_on_new_file_even_with_a_fresh_entry(self):
+        cwd = self.make_git_project()
+        self._write_fresh_entry(cwd)
+        self._run(cwd)  # establish baseline: nothing dirty yet at this entry
+
+        (cwd / "RELEASE.md").write_text("checklist\n", encoding="utf-8")
+
+        out = self._run(cwd)
+
+        self.assertIn("SESSION LOG REMINDER", out)
+        self.assertIn("detected from git", out)
+
+    def test_git_diff_trigger_silent_when_dirty_file_predates_the_entry(self):
+        cwd = self.make_git_project()
+        (cwd / "README.md").write_text("hello\n", encoding="utf-8")
+        self._write_fresh_entry(cwd)
+
+        out = self._run(cwd)
+
+        self.assertEqual(out.strip(), "")
+
+    def test_git_diff_trigger_does_not_re_fire_on_the_same_uncommitted_diff(self):
+        cwd = self.make_git_project()
+        self._write_fresh_entry(cwd)
+        (cwd / "RELEASE.md").write_text("checklist\n", encoding="utf-8")
+        self._run(cwd)  # first firing; also records the entry that follows below
+
+        self._write_fresh_entry(cwd, title="logged it")
+        out = self._run(cwd)
+
+        self.assertEqual(out.strip(), "")
+
+        # RELEASE.md is still uncommitted and still on disk - re-checking again with no further
+        # edits must stay silent, not accumulate.
+        out_again = self._run(cwd)
+        self.assertEqual(out_again.strip(), "")
+
+    def test_git_diff_trigger_refires_when_an_already_covered_file_is_edited_further(self):
+        cwd = self.make_git_project()
+        self._write_fresh_entry(cwd)
+        (cwd / "RELEASE.md").write_text("checklist\n", encoding="utf-8")
+        self._run(cwd)
+        self._write_fresh_entry(cwd, title="logged it")
+        self._run(cwd)  # now clean, baseline covers RELEASE.md's current content
+
+        with open(cwd / "RELEASE.md", "a", encoding="utf-8") as handle:
+            handle.write("extra line\n")
+
+        out = self._run(cwd)
+
+        self.assertIn("SESSION LOG REMINDER", out)
+        self.assertIn("detected from git", out)
+
+    def test_git_diff_trigger_ignores_edits_to_the_session_log_itself(self):
+        cwd = self.make_git_project()
+        self._write_fresh_entry(cwd)
+        self._run(cwd)  # baseline
+
+        # Only the session log changed (as writing an entry always does) - must not self-trigger.
+        self._write_fresh_entry(cwd, title="a later note")
+        out = self._run(cwd)
+
+        self.assertEqual(out.strip(), "")
+
+    def test_git_diff_check_fails_open_outside_a_git_repository(self):
+        cwd = self.make_project()  # plain tempdir, no git init
+        self._write_fresh_entry(cwd)
+        self._run(cwd)  # baseline attempt
+
+        (cwd / "RELEASE.md").write_text("checklist\n", encoding="utf-8")
+        out = self._run(cwd)
+
+        self.assertEqual(out.strip(), "")
         self.assertNotIn("repeated", out)
