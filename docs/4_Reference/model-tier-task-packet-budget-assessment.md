@@ -163,4 +163,3 @@ above is the accepted provisional routing baseline.
 - [Anthropic Sonnet 5 tokenizer note](https://platform.claude.com/docs/en/models/sonnet-5/whats-new-sonnet-5)
 - [Not All Needles Are Found](https://arxiv.org/html/2601.02023)
 - [OpenAI MRCR dataset and scoring description](https://huggingface.co/datasets/openai/mrcr)
-
