@@ -219,8 +219,11 @@ future fetches when reserving worker headroom; do not count orchestrator-only se
 are passed to the worker.
 
 Workers may use the same read tools for a task-scoped gap. They record the missing question, sources
-consulted, and token cost in their handoff. Return `NEEDS_CONTEXT` only when the gap exceeds the budget,
-objective, or authority — not merely because additional context might be useful.
+consulted, and token cost in their handoff. For every supplemental fetch, debit its actual token cost —
+including the fetched evidence content — from the worker's all-inclusive total context budget. The resolver
+`token_estimate` remains only the evidence-content component; it does not replace that all-inclusive debit.
+Return `NEEDS_CONTEXT` only when the gap exceeds the budget, objective, or authority — not merely because
+additional context might be useful.
 
 #### Memory update policy
 
