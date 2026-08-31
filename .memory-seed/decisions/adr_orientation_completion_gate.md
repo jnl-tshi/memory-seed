@@ -18,9 +18,9 @@ source: write-time
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `mse_936gt0xp5hqjv55y:d1`
 
 ### Decision
 
@@ -64,3 +64,27 @@ Transcript evidence from a targeted diagnostic replay showed two distinct failur
 #### Impact
 
 Builds on the git-diff trigger (adr_session_log_trigger_enforcement) and its wording revisions, which addressed sessions that DID read the rules but reasoned around them. This ADR addresses a distinct, earlier-stage failure: sessions that never reach the rules at all.
+
+### revision-accepted - 2026-08-31T23:54:28Z
+
+```json
+{
+  "decision_ref": "mse_936gt0xp5hqjv55y:d1",
+  "event_id": "adre_84082982eaa5cec73cdd",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_4793ykbj05kxeht3"
+}
+```
+
+#### Decision
+
+Accept mse_936gt0xp5hqjv55y:d1.
+
+#### Reason
+
+JNL reviewed and approved directly, ahead of a validation run.
+
+#### Impact
+
+mse_936gt0xp5hqjv55y:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
