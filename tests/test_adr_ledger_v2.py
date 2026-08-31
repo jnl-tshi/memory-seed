@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from memory_seed._adr_ledger_v2_migration import convert_record
-from memory_seed.adr import _v2_body_issues, parse_adr, parse_adr_text, render_adr, validate_adr
+from memory_seed.adr import _v2_body_issues, parse_adr, parse_adr_text, reconcile_adr_records, render_adr, validate_adr
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,3 +48,16 @@ def test_v1_reader_remains_available_without_normalizing_history():
     parsed = parse_adr(source)
     assert parsed.schema_version == 1
     assert render_adr(parsed) == source.read_text(encoding="utf-8")
+
+
+def test_reconciler_accepts_only_the_exact_one_time_v1_to_v2_projection():
+    legacy = parse_adr(PREIMAGE)
+    migrated = convert_record(legacy)
+    merged, issues = reconcile_adr_records(legacy, migrated)
+    assert issues == []
+    assert merged is migrated
+
+    altered = replace(migrated.events[0], impact="An invented outcome.")
+    merged, issues = reconcile_adr_records(legacy, replace(migrated, events=[altered, *migrated.events[1:]]))
+    assert merged is None
+    assert any("diverges" in issue for issue in issues)
