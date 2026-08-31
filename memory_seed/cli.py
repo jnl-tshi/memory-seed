@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 import sys
+import tempfile
 from datetime import date, datetime
 from pathlib import Path
 
@@ -56,6 +58,41 @@ from .text_files import (
     scan_text_encoding,
     write_text_file,
 )
+
+
+def _read_json_object(path_text: str, *, label: str) -> dict:
+    """Read one UTF-8 JSON object, including the conventional stdin marker."""
+    raw = sys.stdin.read() if path_text == "-" else Path(path_text).read_text(encoding="utf-8")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    return value
+
+
+def _atomic_export_json(path_text: str, payload: str, *, overwrite: bool) -> None:
+    """Write an explicitly requested export without exposing a partial file."""
+    target = Path(path_text)
+    if target.exists() and not overwrite:
+        raise FileExistsError(f"output already exists: {target}; pass --overwrite to replace it")
+    if not target.parent.is_dir():
+        raise FileNotFoundError(f"output directory does not exist: {target.parent}")
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", newline="", dir=target.parent,
+            prefix=f".{target.name}.", suffix=".tmp", delete=False,
+        ) as temporary:
+            temporary.write(payload)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_name = temporary.name
+        if target.exists() and not overwrite:
+            raise FileExistsError(f"output already exists: {target}; pass --overwrite to replace it")
+        os.replace(temporary_name, target)
+        temporary_name = None
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
 
 
 def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
@@ -867,14 +904,71 @@ def main(argv: list[str] | None = None) -> int:
     )
     retrieval_spec_preview.add_argument(
         "--spec-file",
-        required=True,
         help="UTF-8 JSON file containing the inline spec; use - for stdin",
+    )
+    retrieval_spec_preview.add_argument(
+        "--profile",
+        help="exact project-local retrieval profile ID (requires --profile-version)",
+    )
+    retrieval_spec_preview.add_argument(
+        "--profile-version",
+        type=int,
+        help="exact project-local retrieval profile version (requires --profile)",
+    )
+    retrieval_spec_preview.add_argument(
+        "--overrides-file",
+        help="optional UTF-8 JSON object of profile overrides; use - for stdin",
     )
     retrieval_spec_preview.add_argument(
         "--cwd",
         default=".",
         help="project path used for nearest-runtime discovery (default: current directory)",
     )
+
+    task_packet_parser = subparsers.add_parser(
+        "task-packet",
+        help="preview or compile one deterministic Task Packet",
+    )
+    task_packet_sub = task_packet_parser.add_subparsers(
+        dest="task_packet_command", required=True,
+    )
+    for task_packet_command in ("preview", "compile"):
+        task_packet_operation = task_packet_sub.add_parser(
+            task_packet_command,
+            help=(
+                "validate, measure, resolve, and print the complete deterministic packet"
+                if task_packet_command == "preview"
+                else "compile and print the complete deterministic packet"
+            ),
+        )
+        task_packet_operation.add_argument(
+            "--dispatch-file", required=True,
+            help="UTF-8 JSON Task Dispatch object; use - for stdin",
+        )
+        task_packet_operation.add_argument(
+            "--binding-file", required=True,
+            help="UTF-8 JSON measured runtime binding object",
+        )
+        task_packet_operation.add_argument(
+            "--cwd", default=".",
+            help="project path used for runtime discovery (default: current directory)",
+        )
+        task_packet_operation.add_argument(
+            "--environment-file",
+            help="optional UTF-8 JSON environment object",
+        )
+        task_packet_operation.add_argument(
+            "--pricing-file",
+            help="optional UTF-8 JSON pricing object",
+        )
+        if task_packet_command == "compile":
+            task_packet_operation.add_argument(
+                "--output", help="explicit file export path; stdout is the default",
+            )
+            task_packet_operation.add_argument(
+                "--overwrite", action="store_true",
+                help="allow --output to replace an existing file",
+            )
 
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
@@ -918,27 +1012,39 @@ def main(argv: list[str] | None = None) -> int:
         from .retrieval import (
             RetrievalSpecResolutionError,
             canonical_retrieval_json,
-            preview_retrieval_spec,
         )
+        from .retrieval_adapters import RetrievalInputValidationError, preview_retrieval_input
+        from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
         try:
-            raw = (
-                sys.stdin.read()
-                if args.spec_file == "-"
-                else Path(args.spec_file).read_text(encoding="utf-8")
+            spec = _read_json_object(args.spec_file, label="spec") if args.spec_file else None
+            overrides = (
+                _read_json_object(args.overrides_file, label="overrides")
+                if args.overrides_file else None
             )
-            spec = json.loads(raw)
-            if not isinstance(spec, dict):
-                raise ValueError("spec must be an inline JSON object")
             payload = {
                 "ok": True,
-                "preview": preview_retrieval_spec(spec, args.cwd),
+                "preview": preview_retrieval_input(
+                    spec=spec,
+                    profile=args.profile,
+                    profile_version=args.profile_version,
+                    overrides=overrides,
+                    cwd=args.cwd,
+                ),
             }
             sys.stdout.write(canonical_retrieval_json(payload))
             return 0
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-            if isinstance(exc, RetrievalSpecValidationError):
+            if isinstance(exc, RetrievalProfileValidationError):
+                error = {
+                    "code": "invalid_profile",
+                    "message": str(exc),
+                    "stage": "profile_expansion",
+                    "completed_stages": [],
+                    "details": {},
+                }
+            elif isinstance(exc, (RetrievalInputValidationError, RetrievalSpecValidationError)):
                 error = {
                     "code": "invalid_spec",
                     "message": str(exc),
@@ -961,6 +1067,53 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "task-packet":
+        from .retrieval import RetrievalSpecResolutionError, canonical_retrieval_json
+        from .retrieval_profiles import RetrievalProfileValidationError
+        from .task_packet import TaskPacketValidationError, canonical_task_packet_json, compile_task_packet
+
+        try:
+            dispatch = _read_json_object(args.dispatch_file, label="dispatch")
+            binding = _read_json_object(args.binding_file, label="binding")
+            environment = (
+                _read_json_object(args.environment_file, label="environment")
+                if args.environment_file else None
+            )
+            pricing = (
+                _read_json_object(args.pricing_file, label="pricing")
+                if args.pricing_file else None
+            )
+            packet = compile_task_packet(
+                dispatch, binding, args.cwd, environment=environment, pricing=pricing
+            )
+            rendered = canonical_task_packet_json(packet)
+            if getattr(args, "output", None):
+                _atomic_export_json(args.output, rendered, overwrite=args.overwrite)
+            else:
+                sys.stdout.write(rendered)
+            return 0
+        except TaskPacketValidationError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+            return 1
+        except RetrievalSpecResolutionError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+            return 1
+        except RetrievalProfileValidationError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                "code": "invalid_profile", "message": str(exc),
+                "stage": "profile_expansion", "details": {},
+            }}))
+            return 1
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            error = {
+                "code": "invalid_input",
+                "message": str(exc),
+                "stage": "input",
+                "details": {},
+            }
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": error}))
+            return 2
 
     if args.command == "user":
         target = Path(".").resolve()

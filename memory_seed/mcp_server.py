@@ -34,10 +34,13 @@ from .retrieval import (
     get_chunk,
     audit_link_gaps,
     link_audit_payload,
-    preview_retrieval_spec,
     ranked_to_dict,
-    resolve_retrieval_spec,
     search_memory,
+)
+from .retrieval_adapters import (
+    RetrievalInputValidationError,
+    preview_retrieval_input,
+    resolve_retrieval_input_pack,
 )
 from .semantic_cache import (
     build_related_entry_graph,
@@ -191,33 +194,63 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "memory_retrieval_spec_preview",
         "description": (
-            "Validate and plan one inline Retrieval Specification against canonical local Markdown. "
-            "Read-only; creates no Evidence Pack and supports no profile or named-spec lookup."
+            "Validate and plan one inline Retrieval Specification or exact local profile against canonical "
+            "Markdown. Read-only; creates no Evidence Pack."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "spec": {"type": "object"},
+                "profile": {"type": "string"},
+                "profile_version": {"type": "integer"},
+                "overrides": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
             },
-            "required": ["spec"],
             "additionalProperties": False,
         },
     },
     {
         "name": "memory_retrieval_spec_resolve",
         "description": (
-            "Resolve one inline Retrieval Specification into an ephemeral Evidence Pack returned inline. "
-            "Read-only; no cache, registry, provider, profile, or Trace dependency."
+            "Resolve one inline Retrieval Specification or exact local profile into an ephemeral Evidence "
+            "Pack returned inline. Read-only; no cache, registry, provider, or Trace dependency."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "spec": {"type": "object"},
+                "profile": {"type": "string"},
+                "profile_version": {"type": "integer"},
+                "overrides": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
             },
-            "required": ["spec"],
             "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_preview",
+        "description": "Validate, measure, resolve, and return one complete deterministic Task Packet inline. Read-only; it does not export, dispatch workers, or create worktrees.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dispatch": {"type": "object"}, "binding": {"type": "object"},
+                "environment": {"type": "object"}, "pricing": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["dispatch", "binding"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_compile",
+        "description": "Compile and return one complete deterministic Task Packet inline. Read-only; MCP never exports a file or dispatches workers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dispatch": {"type": "object"}, "binding": {"type": "object"},
+                "environment": {"type": "object"}, "pricing": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["dispatch", "binding"], "additionalProperties": False,
         },
     },
     {
@@ -734,6 +767,7 @@ def call_tool(
         "memory_retrieval_spec_preview",
         "memory_retrieval_spec_resolve",
     }:
+        from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
         if not isinstance(args, dict):
@@ -747,7 +781,9 @@ def call_tool(
                     "details": {},
                 },
             }
-        unsupported = sorted(set(args) - {"spec", "cwd"})
+        unsupported = sorted(
+            set(args) - {"spec", "profile", "profile_version", "overrides", "cwd"}
+        )
         if unsupported:
             return {
                 "ok": False,
@@ -759,29 +795,25 @@ def call_tool(
                     "details": {"unsupported_arguments": unsupported},
                 },
             }
-        spec = args.get("spec")
-        if not isinstance(spec, dict):
-            return {
-                "ok": False,
-                "error": {
-                    "code": "invalid_spec",
-                    "message": "spec must be an inline JSON object",
-                    "stage": "validation",
-                    "completed_stages": [],
-                    "details": {},
-                },
-            }
         try:
             if name == "memory_retrieval_spec_preview":
                 return {
                     "ok": True,
-                    "preview": preview_retrieval_spec(spec, args.get("cwd", ".")),
+                    "preview": preview_retrieval_input(
+                        spec=args.get("spec"), profile=args.get("profile"),
+                        profile_version=args.get("profile_version"),
+                        overrides=args.get("overrides"), cwd=args.get("cwd", "."),
+                    ),
                 }
             return {
                 "ok": True,
-                "pack": resolve_retrieval_spec(spec, args.get("cwd", ".")),
+                "pack": resolve_retrieval_input_pack(
+                    spec=args.get("spec"), profile=args.get("profile"),
+                    profile_version=args.get("profile_version"),
+                    overrides=args.get("overrides"), cwd=args.get("cwd", "."),
+                ),
             }
-        except RetrievalSpecValidationError as exc:
+        except (RetrievalInputValidationError, RetrievalSpecValidationError) as exc:
             return {
                 "ok": False,
                 "error": {
@@ -792,8 +824,41 @@ def call_tool(
                     "details": {},
                 },
             }
+        except RetrievalProfileValidationError as exc:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_profile",
+                    "message": str(exc),
+                    "stage": "profile_expansion",
+                    "completed_stages": [],
+                    "details": {},
+                },
+            }
         except RetrievalSpecResolutionError as exc:
             return {"ok": False, "error": exc.to_dict()}
+
+    if name in {"memory_task_packet_preview", "memory_task_packet_compile"}:
+        from .task_packet import TaskPacketValidationError, compile_task_packet
+        from .retrieval_profiles import RetrievalProfileValidationError
+
+        if not isinstance(args, dict):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "tool arguments must be a JSON object", "stage": "validation", "completed_stages": [], "details": {}}}
+        unsupported = sorted(set(args) - {"dispatch", "binding", "environment", "pricing", "cwd"})
+        if unsupported:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported task packet tool argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
+        dispatch, binding = args.get("dispatch"), args.get("binding")
+        if not isinstance(dispatch, dict) or not isinstance(binding, dict):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "dispatch and binding must be JSON objects", "stage": "validation", "completed_stages": [], "details": {}}}
+        try:
+            packet = compile_task_packet(dispatch, binding, args.get("cwd", "."), environment=args.get("environment"), pricing=args.get("pricing"))
+            return {"ok": True, "preview" if name.endswith("_preview") else "packet": packet}
+        except TaskPacketValidationError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except RetrievalSpecResolutionError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except RetrievalProfileValidationError as exc:
+            return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
 
     if name == "memory_search":
         query = _required_str(args, "query")
@@ -1484,6 +1549,8 @@ def handle_jsonrpc_message(
                 in {
                     "memory_retrieval_spec_preview",
                     "memory_retrieval_spec_resolve",
+                    "memory_task_packet_preview",
+                    "memory_task_packet_compile",
                 }
                 else json.dumps(
                     tool_result,
