@@ -55,8 +55,9 @@ Load this skill when the task involves any of:
 
 ## Worker Context Contract
 
-A worker loads its **Task Packet + at most one domain persona + objective-triggered skills**. Nothing
-else.
+A worker starts as a **clean session** and loads its **Task Packet + at most one domain persona +
+objective-triggered skills**. Nothing else. It does not inherit the primary agent's conversation or broad
+primary-agent orientation.
 
 `agent-rules.md` "Operating Mode Start" is written for the **primary** agent, which has to establish
 current project state for itself. A worker does not: the orchestrator already holds that state and
@@ -151,6 +152,92 @@ review_loop:
 ```
 
 Keep packets narrow. Do not hand a worker the whole repository history when a path list, current plan, and a few relevant files are enough. Use capability tiers, never vendor or model names — providers change; roles and capability requirements are durable.
+
+### Clean-session, high-signal packet convention
+
+The following fields are **documentation-only interoperability conventions**, not validated public API
+fields or a Task Packet schema. They make a packet reproducible across agent clients without changing the
+shipped retrieval API:
+
+```yaml
+context_load: packet
+project_context:
+  frame: "<100–250 source-grounded tokens describing this project and task>"
+  project_type_and_purpose: "<what this project is for>"
+  relevant_subsystem: "<the surface this task touches>"
+  task_fit: "<why this objective belongs in that surface>"
+  downstream_use: "<who or what consumes the result>"
+  non_goals:
+    - "<explicitly excluded work>"
+retrieval:
+  inline: "<the resolved inline Retrieval Specification or its source-grounded input>"
+evidence_pack:
+  corpus_revision: "<revision resolved against>"
+  fingerprint: "<resolved-pack fingerprint>"
+  manifest: "<ordered refs, selection reasons, and omissions>"
+materialized_evidence:
+  - source: "<canonical path or ref>"
+    lines: "<inclusive line range>"
+    selection_reason: "<why this evidence is needed>"
+    content: "<task-relevant current view, slice, clause, or excerpt>"
+context_budget:
+  total_prepared_tokens: "<all-inclusive cap>"
+  reserved_supplemental_retrieval_tokens: "<headroom>"
+  reserved_synthesis_tokens: "<headroom>"
+memory_update_policy: orchestrator
+```
+
+Use `context_load: packet` for this procedure. Give the worker a source-grounded **100–250-token project
+frame** rather than a broad startup dump. It must state the project type and purpose, relevant subsystem,
+why the task fits there, downstream use, and non-goals. The worker has the same applicable read and
+retrieval tool availability as the orchestrator for task-scoped work; tool availability never grants
+additional write, merge, integration, or other authority.
+
+#### Orchestrator evidence flow
+
+Before dispatch, the orchestrator:
+
+1. Identifies the current files and memory concerns that affect the objective.
+2. Lists and selects the relevant accepted or proposed ADR heads; proposed material remains evidence, not
+   governing authority.
+3. Resolves an inline Retrieval Specification for the task.
+4. Materializes only task-relevant evidence: ADR current views and decision slices, applicable
+   policy/Constitution clauses, and implementation excerpts.
+5. Preserves each source, inclusive line range, selection reason, corpus revision, and applicable
+   fingerprint in the manifest/materialized evidence.
+
+The worker can then inspect the cited Markdown directly instead of re-deriving a whole-project retrieval
+plan. Avoid excerpt/full-source duplication: materialize the smallest useful view and cite the canonical
+source for anything else.
+
+#### Budget and supplemental retrieval
+
+`token_estimate` from the resolver is evidence content only. The packet's all-inclusive prepared-context
+budget must add instructions, Evidence Pack manifest, materialized memory evidence, implementation
+evidence, tool/schema overhead, and reserved supplemental-retrieval and synthesis headroom. Count expected
+future fetches when reserving worker headroom; do not count orchestrator-only searches unless their results
+are passed to the worker.
+
+Workers may use the same read tools for a task-scoped gap. They record the missing question, sources
+consulted, and token cost in their handoff. For every supplemental fetch, debit its actual token cost —
+including the fetched evidence content — from the worker's all-inclusive total context budget. The resolver
+`token_estimate` remains only the evidence-content component; it does not replace that all-inclusive debit.
+Return `NEEDS_CONTEXT` only when the gap exceeds the budget, objective, or authority — not merely because
+additional context might be useful.
+
+#### Memory update policy
+
+`memory_update_policy: orchestrator` is the default: the orchestrator owns durable session logging and
+integrates worker evidence. `worker_checkpoint` is allowed only for consequential work with multiple
+checkpoints where delaying a first-hand rationale risks losing it. A checkpoint worker receives scoped
+session-logging instructions and guarded branch-local append mechanics, **not** full `agent-rules.md`.
+Duration alone never changes context, authority, or memory ownership; `context_load: full` is reserved for
+project-wide reconciliation or deliberate promotion to an orchestrator role.
+
+Under `worker_checkpoint`, the worker may write only its first-hand decisions, evidence, tests, risks, and
+explicitly delegated files. Prior entries, policy, index, ADRs, and other shared control-plane files remain
+forbidden unless separately assigned. The orchestrator reviews and integrates branch-local memory through
+the normal guarded process.
 
 ## Optional Superpowers Delegation
 
