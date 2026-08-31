@@ -97,7 +97,9 @@ def emit(text):
 
 
 parts = [
-    "STARTUP ORIENTATION - complete this before substantive project work.",
+    "STARTUP ORIENTATION - mandatory, complete before any task action, however small the task "
+    "looks. Reading `AGENTS.md` is the routing step, not the destination - follow where it "
+    "routes rather than stopping once it is open.",
     "",
     "1. Locate the nearest applicable `AGENTS.md`, read it first, and follow its routing.",
     "2. Load `.memory-seed/skills/orientation.md` and apply the measured session-context route below.",
