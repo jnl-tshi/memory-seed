@@ -10,6 +10,11 @@ spec_binding: null
 
 # Retrieval Specification M0-M1 Implementation Plan
 
+> Historical implementation plan: M0/M1 originally shipped the ephemeral Evidence Pack v1 `ref` shape.
+> The current resolver emits Evidence Pack v2: one `id` field, typed ADR/decision kinds, canonical `source`
+> paths, and per-item `content_digest` values. Consumers should re-resolve the inline specification rather
+> than treating a historical v1 pack as a stored artifact.
+
 This is the executable critical path for the active [Declarative Retrieval Specification
 proposal](declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
 

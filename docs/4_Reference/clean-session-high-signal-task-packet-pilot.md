@@ -15,10 +15,18 @@ only what that evidence establishes. The accepted curated pilot is recorded by
 [`mse_r0z6p0gfxap0ps23`](../../.memory-seed/sessions/2026-08/2026-08-31.md).
 
 The shipped M1 surface is an inline `memory-seed/retrieval-spec` v1 request and
-an ephemeral Evidence Pack result. `context_load`, packet fields, materialized
+an ephemeral Evidence Pack result. The Retrieval Specification remains v1, while
+the current resolver emits Evidence Pack v2. `context_load`, packet fields, materialized
 evidence, budget ledgers, and `memory_update_policy` are operating conventions,
 not schema-enforced API fields. The worker has no implied write, shell, merge,
 or broad durable-memory authority.
+
+Evidence Pack v2 uses `id` consistently: ADR evidence carries its frontmatter
+`adr_id`, session decision evidence carries its canonical decision ID, `kind`
+distinguishes `adr` from `decision`, and `source` remains the canonical Markdown
+path. `content_digest` verifies the selected content; it is not another identity.
+The v1 fingerprints and counts later in this document are retained as historical
+pilot evidence and must not be sent as a current pack without re-resolution.
 
 ## Worker launch contract
 
@@ -30,7 +38,12 @@ memory_update_policy: orchestrator
 working_revision: <rerun corpus revision>
 evidence_pack: <manifest or returned inline result>
 materialized_evidence:
-  - <bounded source-linked slice>
+  - id: <matching manifest evidence ID>
+    kind: <matching evidence kind>
+    source: <canonical Markdown path>
+    lines: <inclusive source range>
+    content_digest: <matching manifest digest>
+    content: <bounded source-linked slice>
 context_budget: <ledger path or inline ledger>
 ```
 
@@ -193,7 +206,7 @@ headroom. If an orchestrator materializes this rerun's 19,335 selected evidence
 estimate, the conservative all-inclusive planning projection is 42,035 tokens
 (19,335 + 22,700), 5,965 below the 48K soft cap and below the 64K shard threshold.
 This is a planning calculation, not a measured model-context total; the 2,500
-manifest/materialized-reference line in the original 25,200 packet plan must be
+manifest/materialized-evidence line in the original 25,200 packet plan must be
 replaced, not added, when using the resolved estimate.
 
 This checkpoint made two required resolver calls—preview and resolve—but made no

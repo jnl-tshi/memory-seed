@@ -361,10 +361,10 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     return payload
 
 
-RETRIEVAL_RESOLVER_VERSION = 1
+RETRIEVAL_RESOLVER_VERSION = 2
 RETRIEVAL_PREVIEW_SCHEMA = "memory-seed/retrieval-spec-preview"
 EVIDENCE_PACK_SCHEMA = "memory-seed/evidence-pack"
-EVIDENCE_PACK_VERSION = 1
+EVIDENCE_PACK_VERSION = 2
 DEFAULT_RETRIEVAL_TIMEOUT_MS = 5_000
 _RETRIEVAL_REQUIRED_CLAUSES = (
     "required.constitution",
@@ -407,7 +407,7 @@ class RetrievalSpecResolutionError(RuntimeError):
 
 @dataclass
 class _RetrievalCandidate:
-    ref: str
+    evidence_id: str
     kind: str
     source: str
     line_range: tuple[int, int]
@@ -422,6 +422,10 @@ class _RetrievalCandidate:
     def token_estimate(self) -> int:
         # Fixed local proxy. It is deliberately provider/tokenizer independent.
         return max(1, (len(self.text.encode("utf-8")) + 3) // 4)
+
+    @property
+    def content_digest(self) -> str:
+        return "sha256:" + hashlib.sha256(self.text.encode("utf-8")).hexdigest()
 
 
 def canonical_retrieval_json(payload: Mapping[str, Any]) -> str:
@@ -508,16 +512,16 @@ def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
     distance = -1 if candidate.graph_distance is None else candidate.graph_distance
     # ISO dates sort lexically; invert their integer representation for newest first.
     recency = -int(candidate.session_date.replace("-", "")) if candidate.session_date else 0
-    return (0 if required else 1, distance, recency, candidate.ref)
+    return (0 if required else 1, distance, recency, candidate.evidence_id)
 
 
 def _merge_candidate(
     candidates: dict[str, _RetrievalCandidate],
     candidate: _RetrievalCandidate,
 ) -> None:
-    existing = candidates.get(candidate.ref)
+    existing = candidates.get(candidate.evidence_id)
     if existing is None:
-        candidates[candidate.ref] = candidate
+        candidates[candidate.evidence_id] = candidate
         return
     existing.selected_by.update(candidate.selected_by)
     existing.reasons.update(candidate.reasons)
@@ -549,7 +553,7 @@ def _decision_candidates(
             path_lines = tuple(source.read_text(encoding="utf-8").splitlines())
         except (OSError, UnicodeDecodeError) as exc:
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "canonical session Markdown is unreadable",
                 stage="related_decisions",
                 details={"source": chunk.source_path},
@@ -590,17 +594,17 @@ def _decision_candidates(
         span = spans.get(decision.ordinal)
         if span is None:
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "canonical decision line range could not be resolved",
                 stage="related_decisions",
                 details={
-                    "ref": f"{chunk.entry_id}:{decision.ordinal}",
+                    "id": f"{chunk.entry_id}:{decision.ordinal}",
                     "source": chunk.source_path,
                 },
             )
         candidates.append(
             _RetrievalCandidate(
-                ref=(
+                evidence_id=(
                     f"{chunk.entry_id}:{decision.ordinal}"
                     if multiple
                     else str(chunk.entry_id)
@@ -630,7 +634,7 @@ def _entry_candidate(
     graph_distance: int,
 ) -> _RetrievalCandidate:
     return _RetrievalCandidate(
-        ref=str(chunk.entry_id or chunk.chunk_id),
+        evidence_id=str(chunk.entry_id or chunk.chunk_id),
         kind="session",
         source=chunk.source_path,
         line_range=(chunk.start_line, chunk.end_line),
@@ -730,7 +734,7 @@ def _build_retrieval_plan(
     _merge_candidate(
         candidates,
         _RetrievalCandidate(
-            ref=constitution_source,
+            evidence_id=constitution_source,
             kind="constitution",
             source=constitution_source,
             line_range=(1, max(1, len(constitution_text.splitlines()))),
@@ -869,7 +873,7 @@ def _build_retrieval_plan(
                 matched = True
         if target.is_file() and target.suffix.lower() == ".md":
             try:
-                text = target.read_text(encoding="utf-8")
+                source_text = target.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 raise RetrievalSpecResolutionError(
                     "forbidden_path",
@@ -878,12 +882,33 @@ def _build_retrieval_plan(
                     completed_stages=completed,
                     details={"path": requested},
                 ) from exc
-            text = "\n".join(text.splitlines())
+            text = "\n".join(source_text.splitlines())
             source = target.relative_to(root).as_posix()
+            evidence_id = source
+            evidence_kind = "markdown"
+            try:
+                target.relative_to(runtime.memory_dir / "decisions")
+            except ValueError:
+                pass
+            else:
+                from .adr import parse_adr_text
+
+                try:
+                    adr = parse_adr_text(source_text, path=target)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise RetrievalSpecResolutionError(
+                        "invalid_adr",
+                        "declared ADR path does not contain a valid Memory Seed ADR",
+                        stage="path_filters",
+                        completed_stages=completed,
+                        details={"path": requested},
+                    ) from exc
+                evidence_id = adr.adr_id
+                evidence_kind = "adr"
             direct_markdown.append(
                 _RetrievalCandidate(
-                    ref=source,
-                    kind="markdown",
+                    evidence_id=evidence_id,
+                    kind=evidence_kind,
                     source=source,
                     line_range=(1, max(1, len(text.splitlines()))),
                     chunk_id=None,
@@ -1065,7 +1090,7 @@ def _build_retrieval_plan(
             _merge_candidate(candidates, candidate)
             if state in root_state_reasons:
                 root_decision_refs_by_entry.setdefault(entry_id, []).append(
-                    candidate.ref
+                    candidate.evidence_id
                 )
             related_count += 1
 
@@ -1283,7 +1308,7 @@ def _evidence_record(
         }
     )
     return {
-        "ref": candidate.ref,
+        "id": candidate.evidence_id,
         "kind": candidate.kind,
         "source": candidate.source,
         "line_range": list(candidate.line_range),
@@ -1293,6 +1318,7 @@ def _evidence_record(
         "selected_by": sorted(candidate.selected_by),
         "reasons": sorted(candidate.reasons),
         "token_estimate": candidate.token_estimate,
+        "content_digest": candidate.content_digest,
         "fetch": fetch,
         "excerpt": (
             (
@@ -1308,6 +1334,44 @@ def _evidence_record(
     }
 
 
+def _source_slice(path: Path, line_range: Any) -> str:
+    if (
+        not isinstance(line_range, Sequence)
+        or isinstance(line_range, (str, bytes))
+        or len(line_range) != 2
+        or not all(isinstance(value, int) for value in line_range)
+        or line_range[0] < 1
+        or line_range[1] < line_range[0]
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "evidence line_range must contain two ascending positive integers",
+            stage="pack_validation",
+        )
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "canonical evidence source is unreadable",
+            stage="pack_validation",
+        ) from exc
+    start, end = line_range
+    if lines and end > len(lines):
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "evidence line_range extends beyond its canonical source",
+            stage="pack_validation",
+        )
+    if not lines and (start, end) != (1, 1):
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "empty evidence source must use line_range [1, 1]",
+            stage="pack_validation",
+        )
+    return "\n".join(lines[start - 1 : end])
+
+
 def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
     identity = {
         "pack_schema": pack["pack_schema"],
@@ -1319,13 +1383,14 @@ def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
             {
                 key: item[key]
                 for key in (
-                    "ref",
+                    "id",
                     "kind",
                     "source",
                     "line_range",
                     "chunk_id",
                     "graph_distance",
                     "selected_by",
+                    "content_digest",
                 )
             }
             for item in pack["evidence"]
@@ -1492,9 +1557,11 @@ def validate_evidence_pack(
     from .core import resolve_runtime
     from .retrieval_spec import retrieval_spec_fingerprint
 
-    if pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA or pack.get(
-        "pack_version"
-    ) != EVIDENCE_PACK_VERSION:
+    if (
+        pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA
+        or pack.get("pack_version") != EVIDENCE_PACK_VERSION
+        or pack.get("resolver_version") != RETRIEVAL_RESOLVER_VERSION
+    ):
         raise RetrievalSpecResolutionError(
             "invalid_pack",
             "unsupported Evidence Pack identity",
@@ -1526,45 +1593,178 @@ def validate_evidence_pack(
                 "current_revision": current_revision,
             },
         )
-    if pack.get("fingerprint") != _evidence_pack_fingerprint(pack):
+    evidence = pack.get("evidence")
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, Mapping) for item in evidence
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "evidence must be a list of records",
+            stage="pack_validation",
+        )
+    try:
+        expected_fingerprint = _evidence_pack_fingerprint(pack)
+    except (KeyError, TypeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "evidence records are missing required identity fields",
+            stage="pack_validation",
+        ) from exc
+    if pack.get("fingerprint") != expected_fingerprint:
         raise RetrievalSpecResolutionError(
             "fingerprint_mismatch",
-            "Evidence Pack fingerprint does not match its canonical references",
+            "Evidence Pack fingerprint does not match its canonical evidence identities",
             stage="pack_validation",
         )
     root = Path(resolve_runtime(cwd).workspace_root).resolve()
-    for item in pack.get("evidence", []):
+    session_chunks: list[MemoryChunk] | None = None
+    source_lines: dict[str, tuple[str, ...]] = {}
+    for item in evidence:
+        evidence_id = item.get("id")
+        kind = item.get("kind")
+        if not isinstance(evidence_id, str) or not evidence_id:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "evidence id is missing",
+                stage="pack_validation",
+            )
+        if kind not in {"adr", "constitution", "decision", "markdown", "session"}:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "evidence kind is unsupported",
+                stage="pack_validation",
+                details={"id": evidence_id, "kind": kind},
+            )
         source = item.get("source")
         if not isinstance(source, str):
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "evidence source is missing",
                 stage="pack_validation",
             )
         path = _runtime_scoped_path(root, source)
         if not path.is_file():
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 f"canonical Markdown source is absent: {source}",
                 stage="pack_validation",
-                details={"ref": item.get("ref")},
+                details={"id": evidence_id},
             )
+        source_text = _source_slice(path, item.get("line_range", ()))
+        decisions_dir = (resolve_runtime(cwd).memory_dir / "decisions").resolve()
+        try:
+            path.relative_to(decisions_dir)
+        except ValueError:
+            if kind == "adr":
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "ADR evidence source is outside the canonical decisions directory",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+        else:
+            from .adr import parse_adr
+
+            try:
+                adr = parse_adr(path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                raise RetrievalSpecResolutionError(
+                    "invalid_adr",
+                    "ADR evidence source is not a valid Memory Seed ADR",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                ) from exc
+            if kind != "adr" or evidence_id != adr.adr_id:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "ADR evidence kind and id must match the source frontmatter",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "adr_id": adr.adr_id},
+                )
         chunk_id = item.get("chunk_id")
+        if kind in {"constitution", "markdown"} and evidence_id != source:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "non-semantic Markdown evidence id must match its canonical source",
+                stage="pack_validation",
+                details={"id": evidence_id, "source": source},
+            )
+        if kind == "decision":
+            if chunk_id is not None:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "decision evidence must use its exact source slice",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if session_chunks is None:
+                session_chunks = extract_memory_chunks(root, granularity="entry")
+            line_range = tuple(item.get("line_range", ()))
+            expected_ids = {
+                candidate.evidence_id
+                for chunk in session_chunks
+                if chunk.source_path == source
+                and chunk.start_line <= line_range[0]
+                and chunk.end_line >= line_range[1]
+                for candidate in _decision_candidates(
+                    chunk,
+                    root=root,
+                    source_lines=source_lines,
+                    selected_by=set(),
+                    reasons=set(),
+                    graph_distance=0,
+                )
+                if candidate.line_range == line_range
+            }
+            if evidence_id not in expected_ids:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "decision evidence id must match its canonical source slice",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "source": source},
+                )
         if chunk_id:
             try:
-                get_chunk(str(chunk_id), root)
+                chunk = get_chunk(str(chunk_id), root)
             except ValueError as exc:
                 raise RetrievalSpecResolutionError(
-                    "unfetchable_ref",
+                    "unfetchable_evidence",
                     f"chunk is absent: {chunk_id}",
                     stage="pack_validation",
-                    details={"ref": item.get("ref")},
+                    details={"id": evidence_id},
                 ) from exc
+            source_text = str(chunk.get("text", ""))
+            if kind == "session" and evidence_id != str(
+                chunk.get("entry_id") or chunk_id
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "session evidence id must match its canonical chunk",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "chunk_id": chunk_id},
+                )
+        elif kind == "session":
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "session evidence must include its canonical chunk id",
+                stage="pack_validation",
+                details={"id": evidence_id},
+            )
+        expected_digest = "sha256:" + hashlib.sha256(
+            source_text.encode("utf-8")
+        ).hexdigest()
+        if item.get("content_digest") != expected_digest:
+            raise RetrievalSpecResolutionError(
+                "content_digest_mismatch",
+                "evidence content does not match its digest",
+                stage="pack_validation",
+                details={"id": evidence_id},
+            )
     return {
         "valid": True,
         "corpus_revision": current_revision,
         "fingerprint": pack["fingerprint"],
-        "ref_count": len(pack.get("evidence", [])),
+        "evidence_count": len(evidence),
     }
 
 

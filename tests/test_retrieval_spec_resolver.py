@@ -12,6 +12,7 @@ from memory_seed.cli import main as cli_main
 from memory_seed.mcp_server import TOOLS, call_tool, handle_jsonrpc_message
 from memory_seed.retrieval import (
     RetrievalSpecResolutionError,
+    _evidence_pack_fingerprint,
     canonical_retrieval_json,
     preview_retrieval_spec,
     resolve_retrieval_spec,
@@ -159,6 +160,29 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_adr(self, root, adr_id="adr_retrieval_contract"):
+        path = root / ".memory-seed" / "decisions" / f"{adr_id}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "---\n"
+            "format: memory-seed-adr/2\n"
+            "schema_version: 2\n"
+            f"adr_id: {adr_id}\n"
+            'title: "Retrieval contract"\n'
+            "topics:\n"
+            "  - retrieval\n"
+            "created_at: 2026-07-01T09:00:00Z\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "source: write-time\n"
+            "---\n\n"
+            "# Retrieval contract\n\n"
+            "## Current view\n\n"
+            "Status: **Accepted**\n",
+            encoding="utf-8",
+        )
+        return path
+
     def write_topic_sidecar(self, root):
         path = (
             root
@@ -286,14 +310,14 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         self.assertEqual(pack["pack_version"], EXPECTED_PACK["pack_version"])
         self.assertEqual(pack["resolver_version"], EXPECTED_PACK["resolver_version"])
         self.assertEqual(
-            [item["ref"] for item in pack["evidence"]],
-            EXPECTED_PACK["ordered_refs"],
+            [item["id"] for item in pack["evidence"]],
+            EXPECTED_PACK["ordered_ids"],
         )
         self.assertLessEqual(len(pack["evidence"]), 30)
         self.assertLessEqual(pack["token_estimate"], 12_000)
         self.assertEqual(
-            {item["ref"] for item in pack["evidence"]},
-            {item["ref"] for item in resolve_retrieval_spec(FIXTURE_SPEC, root)["evidence"]},
+            {item["id"] for item in pack["evidence"]},
+            {item["id"] for item in resolve_retrieval_spec(FIXTURE_SPEC, root)["evidence"]},
         )
         self.assertTrue(
             any(
@@ -320,10 +344,46 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         self.assertEqual(first["corpus_revision"], second["corpus_revision"])
         self.assertEqual(first["fingerprint"], second["fingerprint"])
         self.assertEqual(
-            [item["ref"] for item in first["evidence"]],
-            [item["ref"] for item in second["evidence"]],
+            [item["id"] for item in first["evidence"]],
+            [item["id"] for item in second["evidence"]],
         )
         self.assertEqual(canonical_retrieval_json(first), canonical_retrieval_json(second))
+
+    def test_adr_paths_emit_typed_ids_and_content_digests(self):
+        root = self.make_project()
+        adr = self.write_adr(root)
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec["filters"]["paths"] = [adr.relative_to(root).as_posix()]
+
+        pack = resolve_retrieval_spec(spec, root)
+        adr_item = next(item for item in pack["evidence"] if item["kind"] == "adr")
+
+        self.assertEqual(adr_item["id"], "adr_retrieval_contract")
+        self.assertEqual(adr_item["source"], ".memory-seed/decisions/adr_retrieval_contract.md")
+        self.assertNotIn("ref", adr_item)
+        self.assertRegex(adr_item["content_digest"], r"^sha256:[0-9a-f]{64}$")
+        self.assertTrue(all("id" in item and "ref" not in item for item in pack["evidence"]))
+        self.assertEqual(validate_evidence_pack(pack, root)["evidence_count"], len(pack["evidence"]))
+
+        wrong_identity = copy.deepcopy(pack)
+        wrong_adr = next(item for item in wrong_identity["evidence"] if item["kind"] == "adr")
+        wrong_adr["id"] = "adr_not_the_source_identity"
+        wrong_identity["fingerprint"] = _evidence_pack_fingerprint(wrong_identity)
+        with self.assertRaises(RetrievalSpecResolutionError) as invalid_identity:
+            validate_evidence_pack(wrong_identity, root)
+        self.assertEqual(invalid_identity.exception.code, "invalid_pack")
+
+    def test_invalid_markdown_in_decisions_directory_fails_as_invalid_adr(self):
+        root = self.make_project()
+        path = root / ".memory-seed" / "decisions" / "not-an-adr.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("# Not an ADR\n", encoding="utf-8")
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec["filters"]["paths"] = [path.relative_to(root).as_posix()]
+
+        with self.assertRaises(RetrievalSpecResolutionError) as invalid:
+            resolve_retrieval_spec(spec, root)
+        self.assertEqual(invalid.exception.code, "invalid_adr")
 
     def test_omitted_sessions_spec_previews_and_resolves_with_one_fingerprint(self):
         root = self.make_project()
@@ -383,7 +443,7 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         precise = copy.deepcopy(stale)
         precise["filters"]["topics"] = ["worktree-integration"]
         pack = resolve_retrieval_spec(precise, root)
-        refs = {item["ref"] for item in pack["evidence"]}
+        refs = {item["id"] for item in pack["evidence"]}
         self.assertIn("mse_side0002:d1", refs)
         self.assertNotIn("mse_side0002:d2", refs)
 
@@ -432,7 +492,7 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         spec["filters"] = {"topics": ["session-fuse"]}
         spec.pop("optional")
         pack = resolve_retrieval_spec(spec, root)
-        refs = {item["ref"] for item in pack["evidence"]}
+        refs = {item["id"] for item in pack["evidence"]}
         self.assertIn("mse_side0002:d1", refs)
         self.assertNotIn("mse_side0002:d2", refs)
         self.assertIn("mse_target0008:d1", refs)
@@ -613,10 +673,27 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         root = self.make_project()
         pack = resolve_retrieval_spec(FIXTURE_SPEC, root)
         tampered = copy.deepcopy(pack)
-        tampered["evidence"][0]["ref"] = "invented"
+        tampered["evidence"][0]["id"] = "invented"
         with self.assertRaises(RetrievalSpecResolutionError) as mismatch:
             validate_evidence_pack(tampered, root)
         self.assertEqual(mismatch.exception.code, "fingerprint_mismatch")
+
+        false_digest = copy.deepcopy(pack)
+        false_digest["evidence"][0]["content_digest"] = "sha256:" + "0" * 64
+        false_digest["fingerprint"] = _evidence_pack_fingerprint(false_digest)
+        with self.assertRaises(RetrievalSpecResolutionError) as digest_mismatch:
+            validate_evidence_pack(false_digest, root)
+        self.assertEqual(digest_mismatch.exception.code, "content_digest_mismatch")
+
+        false_decision_id = copy.deepcopy(pack)
+        decision = next(
+            item for item in false_decision_id["evidence"] if item["kind"] == "decision"
+        )
+        decision["id"] = "mse_invented:d9"
+        false_decision_id["fingerprint"] = _evidence_pack_fingerprint(false_decision_id)
+        with self.assertRaises(RetrievalSpecResolutionError) as decision_identity:
+            validate_evidence_pack(false_decision_id, root)
+        self.assertEqual(decision_identity.exception.code, "invalid_pack")
 
         session = root / ".memory-seed" / "sessions" / "2026-07-07.md"
         session.write_text(

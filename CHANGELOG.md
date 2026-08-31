@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed (breaking)
+
+- [2026-08-31] **Ephemeral Evidence Packs now use one typed identity contract.** Pack and resolver version
+  2 replace the generic per-item `ref` field with `id`; path-selected ADRs emit `kind: adr` and their
+  frontmatter `adr_id`, decision slices emit `kind: decision` and their canonical decision ID, `source`
+  remains the canonical Markdown location, and `content_digest` verifies the selected content. Evidence
+  Packs are inline, non-authoritative results, so v1 consumers re-resolve the Retrieval Specification
+  rather than migrating stored packs; v2 validation rejects v1 packs.
+
 ### Changed
 
 - [2026-08-13] **Bootstrap-generated runtime indexes are now tree-first.** Every new project index
