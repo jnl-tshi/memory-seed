@@ -50,7 +50,7 @@ flowchart LR
 | Object | Owns | Does not own |
 |---|---|---|
 | Retrieval Specification | Selection intent, bounds, clauses, profile, overrides | Evidence, permissions, execution |
-| Evidence Pack | Ordered refs, revision, completeness, provenance, fingerprint | Retrieval policy, authority |
+| Evidence Pack | Ordered typed IDs, sources, digests, revision, completeness, provenance, fingerprint | Retrieval policy, authority |
 | Task Packet | Objective, files, worktree, validation, integration, handoff | Canonical knowledge |
 | Session | Chronological rationale/evidence | Mutable current state |
 | ADR | Promoted decision identity/lifecycle | Dispatch |
@@ -224,11 +224,11 @@ CLI, MCP, and Trace call one core resolver:
 7. Enforce limits.
 8. Record omissions, unavailable inputs, and truncation.
 9. Emit pack plus resolution trace.
-10. Fingerprint canonical inputs and ordered refs.
+10. Fingerprint canonical inputs and ordered evidence identities.
 
 ```text
 effective spec + corpus revision + resolver version + policy context
-    -> identical ordered references and fingerprint
+    -> identical ordered evidence IDs, content digests, and fingerprint
 ```
 
 V1 uses lexical, metadata, graph, date, and stable-identity ordering. Semantic candidates require explicit opt-in and pinned provider/version/parameters; failure follows a declared fallback.
@@ -237,31 +237,42 @@ V1 uses lexical, metadata, graph, date, and stable-identity ordering. Semantic c
 
 ```yaml
 pack_schema: memory-seed/evidence-pack
-pack_version: 1
+pack_version: 2
 pack_id: msep_01J...
 fingerprint: "sha256:..."
 corpus_revision: "git:7ee7e019..."
-resolver_version: 1
+resolver_version: 2
 requested_spec: implementation-default@1
 effective_spec_fingerprint: "sha256:..."
 completeness: complete
 warnings: []
 evidence:
-  - ref: "mse_example:d1"
+  - id: "adr_retrieval_entry_granularity"
+    kind: adr
+    source: ".memory-seed/decisions/adr_retrieval_entry_granularity.md"
+    content_digest: "sha256:<digest-of-selected-content>"
+    selected_by: path_filters
+  - id: "mse_example:d1"
     kind: decision
     source: ".memory-seed/sessions/2026-07/2026-07-29.md"
+    content_digest: "sha256:<digest-of-selected-content>"
     provenance: first-hand
     selected_by: related_decisions
     graph_distance: 1
 ```
 
-Every ref resolves to canonical Markdown. Trace shows requested/effective specs, revision/fingerprints, evidence by selector, selection reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exactly what workers received.
+Every evidence item has one `id`: ADRs use their frontmatter `adr_id`, decision slices use their canonical
+decision ID, and non-semantic Markdown uses its canonical source path. `source` is always the canonical
+Markdown fetch location. `content_digest` verifies the exact selected content and is not an alternate
+identity. Trace shows requested/effective specs, revision/fingerprints, evidence by selector, selection
+reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exactly what workers received.
 
 ## Schema, versioning, provenance, observability
 
 - Schemas/profiles pin integer semantic versions; resolvers never silently upgrade.
 - Packs record resolver version, revision, effective-spec fingerprint, and completeness.
-- Each result records canonical ref/path, selecting clause, declared first-hand/reconstructed provenance, topic/path/date/graph reason, and disposition.
+- Each result records its typed kind, stable ID, canonical source path, content digest, selecting clause,
+  declared first-hand/reconstructed provenance, topic/path/date/graph reason, and disposition.
 - `preview` returns expanded spec, validation, estimated counts, and policy decisions without persistence.
 - `resolve` returns pack, warnings, fingerprint, and stage timing/counts.
 - Observability never stores prompts, hidden reasoning, secrets, or raw vectors.
@@ -280,11 +291,18 @@ Every ref resolves to canonical Markdown. Trace shows requested/effective specs,
 | Timeout | Never return `complete`; report completed stages |
 | Corpus changes | Retry once at fresh revision or fail `corpus_changed` |
 | Provider unavailable | Follow declared fallback |
-| Ref cannot resolve | Fail integrity |
+| Evidence source or ID cannot resolve | Fail integrity |
+| Content digest mismatch | Reject and re-resolve |
 | Forbidden scope | Fail closed with redacted reason |
 | Fingerprint mismatch | Reject and re-resolve |
 
-Validation layers: schema, current-corpus/policy resolution, then pack reference/fingerprint integrity.
+Validation layers: schema, current-corpus/policy resolution, then pack identity/source/digest/fingerprint integrity.
+
+Evidence Pack v2 is a deliberate replacement for the ephemeral v1 result shape. V1 used a generic `ref`
+field and classified path-selected ADRs as generic Markdown. V2 uses `id` consistently, classifies valid
+`.memory-seed/decisions/*.md` sources as `kind: adr`, and binds every record to a `content_digest`. Packs are
+returned inline and are not authoritative stored artifacts, so there is no pack migration or backfill: a
+v1 consumer re-runs its Retrieval Specification and receives v2. A v2 validator rejects v1 packs by version.
 
 ## Security boundaries
 
@@ -308,7 +326,7 @@ Preview/resolve are memory-read-only. Resolve creates an ephemeral pack outside 
 
 Dependencies: current Evidence Pack builder and retrieval service.
 
-Deliverables: freeze inline support for Constitution, topic/path filters, bounded related entries/decisions, recent sessions, deterministic ordering, and limits; define normalization/fingerprints; map every clause to a reader or reject it; create fixture corpus and ordered refs.
+Deliverables: freeze inline support for Constitution, topic/path filters, bounded related entries/decisions, recent sessions, deterministic ordering, and limits; define normalization/fingerprints; map every clause to a reader or reject it; create fixture corpus and ordered evidence identities.
 
 Acceptance: no ambiguous defaults; each field supported/rejected/deferred; normalized YAML/JSON fingerprint identically; unsupported fields fail.
 
@@ -316,14 +334,14 @@ Acceptance: no ambiguous defaults; each field supported/rejected/deferred; norma
 
 Dependencies: M0 and stable pack fields used by the slice.
 
-Deliverables: shared `resolve_retrieval_spec()`; deterministic Constitution/session/topic/path/link resolution; pack revision/refs/completeness/reasons/fingerprint; MCP preview/resolve; CLI preview; Task Packet example; fixture, parity, limit, missing, forbidden, timeout, corpus-change, and stale-pack tests.
+Deliverables: shared `resolve_retrieval_spec()`; deterministic Constitution/session/topic/path/link resolution; pack revision/evidence identities/completeness/reasons/fingerprint; MCP preview/resolve; CLI preview; Task Packet example; fixture, parity, limit, missing, forbidden, timeout, corpus-change, and stale-pack tests.
 
 Acceptance:
 
 - A real MCP client submits the topic-sidecar example and gets a bounded pack.
-- A worker fetches every ref without project-wide startup.
+- A worker fetches every evidence source without project-wide startup.
 - CLI and MCP emit byte-equivalent canonical pack JSON.
-- Repeated resolution at one revision has identical refs/fingerprint.
+- Repeated resolution at one revision has identical IDs, digests, and fingerprint.
 - Required, forbidden, truncation, timeout, and stale-pack failures are proven.
 - Preview/resolve write nothing under `.memory-seed/`.
 - Every result is verifiable from Markdown without Trace.

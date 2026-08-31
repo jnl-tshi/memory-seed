@@ -174,10 +174,13 @@ retrieval:
 evidence_pack:
   corpus_revision: "<revision resolved against>"
   fingerprint: "<resolved-pack fingerprint>"
-  manifest: "<ordered refs, selection reasons, and omissions>"
+  manifest: "<ordered evidence IDs, kinds, sources, digests, selection reasons, and omissions>"
 materialized_evidence:
-  - source: "<canonical path or ref>"
+  - id: "<the manifest evidence ID>"
+    kind: "<adr, decision, constitution, session, or markdown>"
+    source: "<canonical Markdown path>"
     lines: "<inclusive line range>"
+    content_digest: "<sha256 digest from the manifest>"
     selection_reason: "<why this evidence is needed>"
     content: "<task-relevant current view, slice, clause, or excerpt>"
 context_budget:
@@ -204,7 +207,10 @@ Before dispatch, the orchestrator:
 4. Materializes only task-relevant evidence: ADR current views and decision slices, applicable
    policy/Constitution clauses, and implementation excerpts.
 5. Preserves each source, inclusive line range, selection reason, corpus revision, and applicable
-   fingerprint in the manifest/materialized evidence.
+   fingerprint in the manifest/materialized evidence. Evidence Pack v2 uses one `id` field for semantic
+   identity: ADR items use the ADR frontmatter `adr_id`, decision slices use their canonical decision ID,
+   and non-semantic Markdown items use their canonical source path. `source` remains the fetch location;
+   `content_digest` verifies the selected content and is never used as identity.
 
 The worker can then inspect the cited Markdown directly instead of re-deriving a whole-project retrieval
 plan. Avoid excerpt/full-source duplication: materialize the smallest useful view and cite the canonical
