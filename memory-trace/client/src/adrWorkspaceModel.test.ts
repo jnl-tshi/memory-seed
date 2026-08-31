@@ -19,7 +19,7 @@ function record(overrides: Partial<AdrRecord> = {}): AdrRecord {
     adr_id: "adr_cache_format", title: "Cache format", topics: ["cache"], created_at: "2026-08-03T10:00:00Z",
     source: "write-time", current_status: "accepted", authoritative_decision: "mse_source:d2", pending_decisions: ["mse_pending:d1"],
     rejected_decisions: ["mse_rejected:d1"], superseded_by: null, membership: [], digest: "digest", path: null,
-    current: { decision_ref: "mse_source:d2", decision: "Use a typed cache format.", why: "Stable clients.", evolution: "Initial decision." },
+    current: { decision_ref: "mse_source:d2", decision: "Use a typed cache format.", reason: "Stable clients.", impact: "Initial decision.", why: "Stable clients.", evolution: "Initial decision." },
     events: [
       { kind: "revision-proposed", event_id: "proposed", timestamp: "2026-08-03T10:00:00Z", source: "write-time", decision: "Use a typed cache format.", why: "Stable clients.", evolution: "Initial decision.", reason: "", predecessors: [{ decision: "mse_old:d1", relation_assertion: "link:mse_source:d2:evolves:mse_old:d1" }, { decision: "mse_other:d1", relation_assertion: "link:mse_source:d2:evolves:mse_other:d1" }] },
       { kind: "reviewed-no-change", event_id: "unchanged", timestamp: "2026-08-04T10:00:00Z", source: "write-time", decision: "", why: "", evolution: "", reason: "Still valid." },

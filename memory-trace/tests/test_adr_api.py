@@ -117,6 +117,8 @@ subproject_path: null
         self.assertEqual(detail.status_code, 200)
         record = detail.json()
         self.assertEqual(record["current"]["decision"], "Use a typed cache format.")
+        self.assertEqual(record["current"]["reason"], "Trace clients need a stable contract.")
+        self.assertEqual(record["current"]["impact"], "Initial proposal.")
         self.assertEqual(record["current"]["why"], "Trace clients need a stable contract.")
         self.assertEqual(len(record["events"]), 2)
         self.assertIn("mse_adrsrc:d1", record["membership"])

@@ -100,15 +100,22 @@ class AdrEvent(BaseModel):
     supporting_decisions: list[str] = Field(default_factory=list)
     matched_decisions: list[str] = Field(default_factory=list)
     decision: str = ""
+    reason: str = ""
+    impact: str = ""
+    impact_provenance: str = "preserved"
+    impact_evidence: list[str] = Field(default_factory=list)
+    # Deprecated read aliases. Retained during the v1/v2 compatibility window.
     why: str = ""
     evolution: str = ""
-    reason: str = ""
     replacement_adr: str | None = None
 
 
 class AdrCurrent(BaseModel):
     decision_ref: str | None = None
     decision: str = ""
+    reason: str = ""
+    impact: str = ""
+    # Deprecated read aliases. Retained during the v1/v2 compatibility window.
     why: str = ""
     evolution: str = ""
 

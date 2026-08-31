@@ -522,7 +522,7 @@ topics:
             timestamp="2026-07-30T12:00:00",
         )
         self.assertFalse(transitioned.ok)
-        self.assertTrue(any("not canonical" in issue for issue in transitioned.issues), transitioned.issues)
+        self.assertTrue(any("unsupported event kind" in issue for issue in transitioned.issues), transitioned.issues)
         self.assertEqual(path.read_text(encoding="utf-8"), unknown_event)
 
     def test_direct_predecessor_round_trips(self):
@@ -1069,14 +1069,14 @@ topics:
         self.assertIn("Status: **Accepted**", current_view)
         self.assertIn("Authoritative decision: `mse_12345678:d1`", current_view)
         self.assertIn("### Decision\n\nUse the composite writer.", current_view)
-        self.assertIn("### Why\n\nIt preserves a single validation boundary.", current_view)
-        self.assertIn("### How it evolved\n\nThis is the first revision of this architectural concern.", current_view)
+        self.assertIn("### Reason\n\nIt preserves a single validation boundary.", current_view)
+        self.assertIn("### Impact\n\nThe decision is expected to govern this architectural concern; contrary evidence requires a successor revision.", current_view)
         replayed = parse_adr_text(render_adr(merged))
         self.assertEqual(replayed.authoritative_decision, "mse_12345678:d1")
         self.assertEqual(render_adr(replayed), render_adr(merged))
 
         divergent = copy.deepcopy(base)
-        divergent.events[0] = replace(divergent.events[0], why="Different same-id content.")
+        divergent.events[0] = replace(divergent.events[0], reason="Different same-id content.")
         _, divergent_issues = reconcile_adr_records(base, divergent)
         self.assertTrue(any("diverges across branches" in issue for issue in divergent_issues), divergent_issues)
 

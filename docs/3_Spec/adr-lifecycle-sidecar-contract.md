@@ -7,7 +7,7 @@ parent: ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
 
 # Living ADR Sidecar Contract
 
-Status: **IMPLEMENTED AND NORMATIVE — 2026-08-03**.
+Status: **IMPLEMENTED AND NORMATIVE — ADR schema v2, 2026-08-31**.
 
 This contract replaces the deprecated pointer-only prototype. Memory Seed keeps one living ADR per
 architectural concern. The ADR stays concise and current, while an append-only event ledger preserves every
@@ -21,7 +21,7 @@ Authority is partitioned rather than duplicated:
 |---|---|
 | Detailed decision narrative, alternatives, files, tests, and provenance | Immutable session decision `(entry_id, dN)` |
 | Architectural-concern membership and stable ADR identity | Living ADR sidecar |
-| Concise Decision, Why, and Evolution synopsis | The ADR revision proposal that curates them |
+| Concise Decision, Reason, and Impact synopsis | The ADR event ledger |
 | Governing decision | The latest valid `revision-accepted` event |
 | Status, pending/rejected lists, and Current view | Replay of the ADR ledger |
 | Current implementation truth | Current project files and live specs |
@@ -33,12 +33,13 @@ concern.
 
 ## Storage and stable identity
 
-ADRs live at `.memory-seed/decisions/<adr_id>.md`. A missing `decisions/` directory is a valid empty corpus.
+ADRs live at `.memory-seed/decisions/<adr_id>.md`. The reader accepts `memory-seed-adr/1` indefinitely;
+writers emit only `memory-seed-adr/2`. A missing `decisions/` directory is a valid empty corpus.
 
 ```markdown
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_local_index
 title: Local indexing strategy
 topics:
@@ -62,13 +63,13 @@ Authoritative decision: `mse_current:d1`
 
 Use the incremental local index.
 
-### Why
+### Reason
 
 It preserves local speed without rebuilding the corpus.
 
-### How it evolved
+### Impact
 
-Replaces the full-rebuild strategy after scale testing.
+Expected: local indexing remains fast at representative scale. Disconfirming observation: update cost exceeds the agreed bound.
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -82,14 +83,34 @@ independent status store.
 
 ## Event ledger
 
-Each event is a `### <kind> - <timestamp>` block with a fenced JSON envelope. Event IDs are unique and
-content-stable within the ADR.
+Each v2 event is a `### <kind> - <timestamp>` block with **exactly one** fenced JSON envelope, then
+exactly one `#### Decision`, `#### Reason`, and `#### Impact`, in that order. Event IDs are unique and
+content-stable within the ADR. Duplicate, missing, reordered, unknown sections, a second envelope, and
+prose outside the envelope or these three sections are invalid.
+
+`Decision`, `Reason`, and `Impact` have stage-specific meaning while retaining the same shape:
+
+| Stage | Decision | Reason | Impact |
+|---|---|---|---|
+| proposal | candidate decision | reason to propose | expected effect and disconfirming observation |
+| acceptance/rejection | transition | transition rationale | effect on the governing hypothesis |
+| review | retain/change decision | review evidence | observed result against earlier Impact |
+| supersession/context | scope decision | rationale | authority/context effect |
+
+Impact is falsifiable prose. A proposal states both the expected effect and what would disconfirm it.
+Contrary evidence never rewrites or retroactively rejects an accepted head: it requires a successor
+proposal that can replace or refine that head through normal replay.
+
+Every v2 envelope declares `impact_provenance`: `preserved`, `reconstructed`, or `not-recorded`.
+`reconstructed` requires non-empty `impact_evidence` references to direct session/spec evidence.
+`not-recorded` states the gap explicitly and makes no invented claim. Mechanical transition/context
+impacts may be `preserved` only when their effect is explicit in the legacy envelope metadata.
 
 ### `revision-proposed`
 
 Introduces a candidate revision. It records a canonical `decision_ref`, `update_entry_id`, provenance,
-zero or more direct lineage predecessors, optional supporting decisions, and concise `Decision`, `Why`, and
-`Evolution` prose owned by the ADR. A proposal is pending and never changes authority by itself.
+zero or more direct lineage predecessors, optional supporting decisions, and concise `Decision`, `Reason`, and
+`Impact` prose owned by the ADR. A proposal is pending and never changes authority by itself.
 
 ### `revision-accepted`
 
@@ -119,9 +140,9 @@ accepting a revision inside the same concern.
 Replay derives status, the superseding ADR, the single authoritative decision and synopsis, pending and
 rejected revisions, the complete branching/converging lineage, and the generated Current view.
 
-Validation rejects unsupported schemas, malformed or duplicate IDs, unresolved decision references, invalid
-provenance or timestamps, illegal event order, rejected/unknown acceptances, stale expected heads, cycles,
-and competing authority.
+Validation rejects unsupported schemas/formats, malformed or duplicate IDs, malformed canonical bodies,
+unresolved decision references, invalid impact provenance/evidence or timestamps, illegal event order,
+rejected/unknown acceptances, stale expected heads, cycles, and competing authority.
 
 Bare references to an entry with exactly one decision normalize to `<entry_id>:d1` for membership and replay.
 `evolves` and `replaces` define lineage. `related` and supporting references provide context but never trigger
@@ -143,8 +164,8 @@ The receipt binds workspace/runtime identity; the exact proposed title, body, ti
 and lifecycle links; and matched ADR IDs plus canonical ledger digests. Any change invalidates it. A retry
 must supply exactly one outcome for every matched ADR:
 
-- `revise`: append a `revision-proposed` event with concern-specific Decision/Why/Evolution prose; or
-- `no-change`: append `reviewed-no-change` with a short reason.
+- `revise`: append a `revision-proposed` event with concern-specific Decision/Reason/Impact prose; or
+- `no-change`: append `reviewed-no-change` with review evidence in Reason and an observed-result Impact.
 
 Missing, extra, duplicate, malformed, stale, or replayed outcomes are refused. `revise` never silently accepts
 its proposal.
@@ -160,8 +181,8 @@ Decision envelopes use plural ADR actions because one decision can affect severa
       "adr_id": "adr_local_index",
       "outcome": "revise",
       "decision": "Use the incremental index",
-      "why": "It preserves local speed without rebuilding the corpus.",
-      "evolution": "Replaces the full-rebuild strategy after scale testing."
+      "reason": "It preserves local speed without rebuilding the corpus.",
+      "impact": "Expected: local indexing remains fast. Disconfirming observation: update cost exceeds the agreed bound."
     }
   ]
 }
@@ -169,6 +190,24 @@ Decision envelopes use plural ADR actions because one decision can affect severa
 
 The retry carries `adr_review_receipt` at the top level. `memory_session_append` and
 `memory_session_integrate` remain the only MCP writers.
+
+## Migration and compatibility
+
+The v1-to-v2 corpus migration is the constitutional one-time exception in
+[`CONSTITUTION.md`](../CONSTITUTION.md#2-invariants--expected-to-hold-for-years). Before any rewrite it
+archives every ADR byte-for-byte under `.memory-seed/archive/` and writes a manifest of path, byte count,
+and SHA-256. It is corpus-locked: it verifies the known preimage digests, validates the archive, all
+converted ADRs, and regenerated Current views, and refuses unfamiliar input or a second run. It is not a
+public command or reusable rewrite facility.
+
+The conversion preserves `Decision`, maps `Why` to `Reason` and `Evolution` to `Impact`, and preserves
+event IDs, timestamps, JSON envelopes, and references. Transition decisions and lifecycle impacts are
+derived only from explicit metadata. An absent impact is reconstructed only with direct cited historical
+evidence and `reconstructed` provenance; otherwise it is explicit `not-recorded`.
+
+Read payloads expose canonical `reason`, `impact`, `impact_provenance`, and `impact_evidence` through CLI,
+MCP, and Trace. Deprecated `why` and `evolution` read aliases remain during the compatibility window with
+the same values; writers may accept them as input aliases but always emit v2.
 
 ## Transactions and branch reconciliation
 
