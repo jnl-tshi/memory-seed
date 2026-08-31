@@ -135,7 +135,9 @@ tokens. Replacing—not adding to—the 2,000-token reserve produced a conservat
 provider-reported realized total. Record every supplemental call with its missing
 question, source/range, estimate, and whether it returned evidence or only a
 measurement. Stop discretionary reads at the soft cap and return `NEEDS_CONTEXT`
-when a required gap exceeds budget, scope, or authority.
+when a required gap exceeds budget, scope, or authority. Applicable Memory Seed
+read and retrieval tools remain available, but their use is subject to those same
+recorded-gap and debit rules; availability does not authorize broad discovery.
 
 ## Dispatch checklist
 
