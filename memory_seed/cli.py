@@ -442,8 +442,10 @@ def main(argv: list[str] | None = None) -> int:
     adr_promote.add_argument("--agent-type", required=True)
     adr_promote.add_argument("--source", required=True, choices=("write-time", "derived"))
     adr_promote.add_argument("--summary-decision", default="See the authoritative session decision.")
-    adr_promote.add_argument("--why", default="See the authoritative session decision rationale.")
-    adr_promote.add_argument("--evolution", default="This is the first revision of this architectural concern.")
+    adr_promote.add_argument("--reason", default=None, help="canonical ADR rationale")
+    adr_promote.add_argument("--impact", default=None, help="expected falsifiable ADR impact")
+    adr_promote.add_argument("--why", default=None, help="deprecated alias for --reason")
+    adr_promote.add_argument("--evolution", default=None, help="deprecated alias for --impact")
     adr_promote.add_argument("--update-entry-id", default=None, help="promotion/update entry; defaults to source entry")
     adr_promote.add_argument(
         "--predecessor",
@@ -469,8 +471,10 @@ def main(argv: list[str] | None = None) -> int:
     adr_revise.add_argument("--adr-id", required=True)
     adr_revise.add_argument("--decision-ref", required=True, help="canonical session decision ref")
     adr_revise.add_argument("--decision", required=True, help="concise current-decision synopsis")
-    adr_revise.add_argument("--why", required=True)
-    adr_revise.add_argument("--evolution", required=True)
+    adr_revise.add_argument("--reason", default=None, help="canonical ADR rationale")
+    adr_revise.add_argument("--impact", default=None, help="expected falsifiable ADR impact")
+    adr_revise.add_argument("--why", default=None, help="deprecated alias for --reason")
+    adr_revise.add_argument("--evolution", default=None, help="deprecated alias for --impact")
     adr_revise.add_argument("--update-entry-id", required=True)
     adr_revise.add_argument("--source", required=True, choices=("write-time", "derived"))
     adr_revise.add_argument("--predecessor", action="append", default=[], help="decision=relation_assertion")
@@ -1023,8 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
                 agent_type=args.agent_type,
                 source=args.source,
                 decision=args.summary_decision,
-                why=args.why,
-                evolution=args.evolution,
+                reason=args.reason, impact=args.impact, why=args.why, evolution=args.evolution,
                 update_entry_id=args.update_entry_id,
                 direct_predecessors=predecessors,
                 supporting_decisions=tuple(args.supporting_decision),
@@ -1047,8 +1050,7 @@ def main(argv: list[str] | None = None) -> int:
                 adr_id=args.adr_id,
                 decision_ref=args.decision_ref,
                 decision=args.decision,
-                why=args.why,
-                evolution=args.evolution,
+                reason=args.reason, impact=args.impact, why=args.why, evolution=args.evolution,
                 update_entry_id=args.update_entry_id,
                 source=args.source,
                 predecessors=predecessors,

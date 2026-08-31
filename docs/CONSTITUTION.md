@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.9 — **RATIFIED 2026-08-13** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.10 — **RATIFIED 2026-08-31** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -84,6 +84,17 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    capability is a standing invitation to edit history. Invariant #2 applies to diagram sidecars
    without exception. *(The 1.4 row stays in the amendment log: the exception was real while it
    existed, and one repair landed under it.)*
+   <!-- constitution-ref: constitution:v1#adr-ledger-v2-migration -->
+   **Narrow, one-time exception — ADR-ledger v2 canonicalization (1.10):** the historical ADR corpus
+   may be rewritten **once**, solely to replace the v1 mixed `Why`/`Evolution` prose with the v2
+   `Decision`/`Reason`/`Impact` shape. Before any source byte changes, the procedure must archive a
+   byte-for-byte copy of every ADR and emit a SHA-256 manifest containing path, byte count, and digest.
+   It must preserve every event ID, timestamp, JSON-envelope value, decision reference, and lifecycle
+   reference. An absent impact may be reconstructed only from a directly cited historical source and
+   must say so; otherwise it must remain explicitly `not-recorded`. The conversion is corpus-locked:
+   it verifies the known preimage digests, refuses unfamiliar input and any second run, and is neither a
+   general rewrite facility nor a standing CLI/MCP command. On successful completion this exception is
+   exhausted; all future ADR history is append-only under the invariant.
 <!-- constitution-ref: constitution:v1#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
@@ -321,6 +332,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.10 | 2026-08-31 | **Amendment: one-time Canonical ADR Ledger v2 migration.** Authorizes only the corpus-locked conversion from the ambiguous `Decision`/`Why`/`Evolution` and `Reason` event prose to a uniform `Decision`/`Reason`/`Impact` ledger. It requires a preimage archive and SHA-256 manifest before rewrite; preserves event IDs, timestamps, envelopes, and references; requires declared impact provenance with direct evidence for reconstructions; and forbids a reusable rewrite command. Once run, the exception is exhausted and Invariant #2 again applies without qualification. | JNL |
 | 1.9 | 2026-08-13 | **Correction (evolution-class — not an amendment): §8 records the shipped quality instrumentation.** §8 claimed that named quality metrics "are not yet tracked" and listed only `links check`, `topics check`, and `esr` as the partial instrumentation. That was true when written and had since decayed: `memory-seed quality report` shipped 2026-07-17 and measures `unlinked_entry_rate` (180/901 at this revision) and structural `draft_reason_coverage` (857/857, 44 excluded), with `generated_claim_citation_coverage`, `provenance_coverage`, and `ranking_ab_regression_rate` declaring `unavailable`/`not_applicable` and a reason each. Two of the three named metrics — orphan-rate and evidence/decision coverage — therefore have measured proxies; stale-rate does not, and its absence is deliberate v0 scope, not an oversight. §8 **remains `[candidate]`**: graduation is separately gated on the step-6 usefulness review in `2_Todo/memory-quality-metrics-v0-proposal.md`, whose `next_action` names §8 graduation explicitly, so the correction records shipped fact without touching that hold. Nothing this document requires has changed. §11 gains the versioning rule that makes an evolution-class bump legible rather than indistinguishable from an amendment. Found while comparing this project against an external report and noticing that two review passes had read current capability out of §8 — a *why* document — instead of out of the code, which Invariant #4 assigns as the authority for what is true now. | JNL (accepted 2026-08-13; version bump requested so the log tracks document versions, not amendments alone) |
 | 1.8 | 2026-08-11 | **Formal control-plane precedence** — a ratified Constitution declared by the active runtime index now governs lower control files; the index routes, policy states concise executable constraints, accepted ADR heads own durable decision rationale/evolution, sessions retain evidence, and projections remain derived. Draft or undeclared Constitutions do not govern, preserving Constitution-optional bootstrap for other projects. | JNL |
 | 1.7 | 2026-08-06 | **Per-clause anchor markers** — every invariant (and its live sub-clauses), principle, and §4 policy clause gains an HTML-comment `constitution-ref` anchor (`constitution:v1#slug`, 24 in all). Structural only: zero content changed, verified by a markers-stripped byte comparison against v1.6. Added so ADR constitution bindings and the ESR ADR↔Constitution audit resolve against declared anchors rather than prose numbering (the ADR contract extension of the same date validates refs against these markers). Slugs are semantic, not positional, so renumbering never breaks a binding. | Claude, under JNL's delegated ratification (live instruction, 2026-08-06: "ratify for me and get me to the end goal and then i will iterate") |

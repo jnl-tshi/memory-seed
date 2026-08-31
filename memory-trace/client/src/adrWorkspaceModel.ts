@@ -33,7 +33,8 @@ export function filterAdrs(records: readonly AdrRecord[], query: string): AdrRec
     record.adr_id,
     record.title,
     record.current.decision,
-    record.current.why,
+    record.current.reason,
+    record.current.impact,
     ...(record.topics ?? []),
   ].join(" ").toLowerCase().includes(needle));
 }
