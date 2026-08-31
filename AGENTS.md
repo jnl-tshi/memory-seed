@@ -40,7 +40,9 @@ If the reusable control files are missing, use bootstrap mode long enough to rep
 
 ## Operating Mode
 
-When initialized memory files exist, start here:
+When initialized memory files exist, complete all of the following before acting on the task in
+the prompt - task size is not a reason to skip or truncate this list, and reading this file is the
+routing step, not the destination: step 1 still has to happen, not just be reached.
 
 1. Read `.memory-seed/agent-rules.md` for operating-mode rules.
 2. Read `.memory-seed/skills/orientation.md` and apply the SessionStart hook's measured context route. If

@@ -49,7 +49,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 
 ## File Ownership
 
-- `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` route tools into the shared runtime.
+- `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` route tools into the shared runtime; `AGENTS.md`'s orientation-chain completion requirement is governed by (ADR [`adr_orientation_completion_gate`](decisions/adr_orientation_completion_gate.md)).
 - `.memory-seed/agent-rules.md` owns operating-mode rules.
 - `.memory-seed/project-bootstrap.md` owns bootstrap and repair procedures.
 - The ratified Constitution declared by the index governs lower control-plane files.
