@@ -5,13 +5,15 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from memory_seed.cli import main as cli_main
+from memory_seed.cli import _atomic_export_json, main as cli_main
 from memory_seed.mcp_server import MUTATING_TOOL_NAMES, TOOLS, call_tool, handle_jsonrpc_message
 from memory_seed.retrieval import canonical_retrieval_json
 from memory_seed.task_packet import canonical_task_packet_json, compile_task_packet
@@ -172,6 +174,16 @@ class TaskPacketSurfaceTests(unittest.TestCase):
     def test_cli_export_is_atomic_and_refuses_overwrite(self) -> None:
         root = self.make_project()
         dispatch_file, binding_file = self.write_inputs(root)
+        expected = canonical_task_packet_json(
+            compile_task_packet(self.dispatch(), self.binding(root), root)
+        )
+        fresh_output = root / "fresh-packet.json"
+        fresh_args = ["task-packet", "compile", "--dispatch-file", str(dispatch_file),
+                      "--binding-file", str(binding_file), "--cwd", str(root), "--output", str(fresh_output)]
+        code, stdout, stderr = self.cli(fresh_args)
+        self.assertEqual((code, stdout, stderr), (0, "", ""))
+        self.assertEqual(fresh_output.read_text(encoding="utf-8"), expected)
+
         output = root / "packet.json"
         output.write_text("preserve", encoding="utf-8")
         args = ["task-packet", "compile", "--dispatch-file", str(dispatch_file),
@@ -185,9 +197,24 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertEqual((code, stdout, stderr), (0, "", ""))
         self.assertEqual(
             output.read_text(encoding="utf-8"),
-            canonical_task_packet_json(compile_task_packet(self.dispatch(), self.binding(root), root)),
+            expected,
         )
         self.assertFalse(list(root.glob(".packet.json.*.tmp")))
+
+    def test_no_overwrite_publish_preserves_a_target_created_at_publish_time(self) -> None:
+        root = self.make_project()
+        output = root / "raced-packet.json"
+        original_link = os.link
+
+        def create_race(source, destination, *args, **kwargs):
+            Path(destination).write_bytes(b"racer-won")
+            return original_link(source, destination, *args, **kwargs)
+
+        with patch("memory_seed.cli.os.link", side_effect=create_race):
+            with self.assertRaisesRegex(FileExistsError, "output already exists"):
+                _atomic_export_json(str(output), "compiled-packet", overwrite=False)
+        self.assertEqual(output.read_bytes(), b"racer-won")
+        self.assertFalse(list(root.glob(".raced-packet.json.*.tmp")))
 
     def test_mcp_task_packet_tools_are_inline_and_read_only(self) -> None:
         tool_names = {tool["name"] for tool in TOOLS}

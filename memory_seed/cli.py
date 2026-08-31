@@ -86,9 +86,21 @@ def _atomic_export_json(path_text: str, payload: str, *, overwrite: bool) -> Non
             temporary.flush()
             os.fsync(temporary.fileno())
             temporary_name = temporary.name
-        if target.exists() and not overwrite:
-            raise FileExistsError(f"output already exists: {target}; pass --overwrite to replace it")
-        os.replace(temporary_name, target)
+        if overwrite:
+            os.replace(temporary_name, target)
+        else:
+            # ``exists`` is only an early, friendly error.  The hard link is
+            # the publication step: its create-new semantics are atomic on the
+            # target filesystem, so a file created after the early check is
+            # never replaced.  A sibling temp file keeps both paths on the
+            # same volume (including Windows/OneDrive-backed workspaces).
+            try:
+                os.link(temporary_name, target)
+            except FileExistsError as exc:
+                raise FileExistsError(
+                    f"output already exists: {target}; pass --overwrite to replace it"
+                ) from exc
+            Path(temporary_name).unlink()
         temporary_name = None
     finally:
         if temporary_name is not None:
