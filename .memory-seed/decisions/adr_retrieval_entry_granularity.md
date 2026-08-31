@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_retrieval_entry_granularity
 title: "Retrieval: entry-level chunks as default, with optional section granularity"
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `mse_pwwz3ys324ght2qs:d1`
 
 The memory-retrieval service uses session entries delimited by ## headings as the default coherent chunk boundary, with entry_id as the chunk id. Section-level granularity is optional for querying long or multi-topic entries. Entry-level results are collapsed into rollups where section matches drive an entry's score but never appear as separate selectable records. The retrieval service is extracted from the MCP implementation with both running the same service code, and parity is proven by tests.
 
-### Why
+### Reason
 
 A ## entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation together - separating a decision from its rationale loses too much context. Heading-level chunking was rejected because it fragments this coherence. Service extraction lets retrieval and MCP evolve independently without drift, with parity tests locking down the contract. Rollup grouping preserves section highlights as metadata while keeping results organized around entries.
 
-### How it evolved
+### Impact
 
 The decision began with establishing ## entries as the default chunk boundary and rejecting heading-level chunking. It then evolved to extract retrieval service logic into its own module with MCP as a thin wrapper, proven identical by parity tests. Finally it added rollup logic to collapse ranked section results into entry-level rollups with section matches preserved as highlight metadata.
 
@@ -59,6 +59,7 @@ The decision began with establishing ## entries as the default chunk boundary an
   ],
   "decision_ref": "mse_pwwz3ys324ght2qs:d1",
   "event_id": "adre_93b4d4c00e0d495487e8",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-845042c7:d1",
@@ -72,11 +73,11 @@ The decision began with establishing ## entries as the default chunk boundary an
 
 The memory-retrieval service uses session entries (delimited by `##` headings) as the default coherent chunk boundary, with `entry_id` as the chunk id. Section granularity is optional for querying long or multi-topic entries. Rollup and windowing live in the service; the MCP surface adapts presentation only. The retrieval service is extracted from the MCP implementation - both run the same service code, with parity proven by tests.
 
-#### Why
+#### Reason
 
 A `##` entry is the coherent memory block carrying shared metadata, rationale, implementation and validation - separating a decision from its rationale loses too much context, so entry-level retrieval is the normal agent-memory behaviour. The service extraction lets retrieval and MCP evolve without drift, and parity tests lock the contract down.
 
-#### Evolution
+#### Impact
 
 2026-05-26 established entry chunks as the default MCP memory unit; 2026-07-05 extracted the retrieval service from MCP, making MCP a wrapper with proven parity, and placed rollup in the service with the UI adapting only.
 
@@ -86,14 +87,23 @@ A `##` entry is the coherent memory block carrying shared metadata, rationale, i
 {
   "decision_ref": "mse_pwwz3ys324ght2qs:d1",
   "event_id": "adre_28e66483e717d39ac5d0",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
 
+#### Decision
+
+Reject mse_pwwz3ys324ght2qs:d1.
+
 #### Reason
 
 Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+#### Impact
+
+mse_pwwz3ys324ght2qs:d1 is not adopted and the current authoritative decision remains unchanged.
 
 ### revision-proposed - 2026-08-08T23:15:20Z
 
@@ -111,6 +121,7 @@ Wording retired, not the decision. This summary restated a single decision (or, 
   ],
   "decision_ref": "mse_pwwz3ys324ght2qs:d1",
   "event_id": "adre_267faf8eaa6e7e2243b4",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-845042c7:d1",
@@ -124,11 +135,11 @@ Wording retired, not the decision. This summary restated a single decision (or, 
 
 The memory-retrieval service uses session entries delimited by ## headings as the default coherent chunk boundary, with entry_id as the chunk id. Section-level granularity is optional for querying long or multi-topic entries. Entry-level results are collapsed into rollups where section matches drive an entry's score but never appear as separate selectable records. The retrieval service is extracted from the MCP implementation with both running the same service code, and parity is proven by tests.
 
-#### Why
+#### Reason
 
 A ## entry is the coherent memory block carrying shared metadata, rationale, implementation, and validation together - separating a decision from its rationale loses too much context. Heading-level chunking was rejected because it fragments this coherence. Service extraction lets retrieval and MCP evolve independently without drift, with parity tests locking down the contract. Rollup grouping preserves section highlights as metadata while keeping results organized around entries.
 
-#### Evolution
+#### Impact
 
 The decision began with establishing ## entries as the default chunk boundary and rejecting heading-level chunking. It then evolved to extract retrieval service logic into its own module with MCP as a thin wrapper, proven identical by parity tests. Finally it added rollup logic to collapse ranked section results into entry-level rollups with section matches preserved as highlight metadata.
 
@@ -138,7 +149,20 @@ The decision began with establishing ## entries as the default chunk boundary an
 {
   "decision_ref": "mse_pwwz3ys324ght2qs:d1",
   "event_id": "adre_acf2132e530520482dcb",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
+
+#### Decision
+
+Accept mse_pwwz3ys324ght2qs:d1.
+
+#### Reason
+
+Reason was not recorded in the schema-v1 event.
+
+#### Impact
+
+mse_pwwz3ys324ght2qs:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.

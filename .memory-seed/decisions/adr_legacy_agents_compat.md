@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_legacy_agents_compat
 title: Legacy .AGENTS/ compatibility retained until intentional removal
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `founding:.memory-seed/policy.md#L22`
 
 Legacy `.AGENTS/` projects continue to be supported in code. Compatibility is preserved unless intentionally removed through an explicit deprecation process, ensuring that existing projects remain functional across version updates.
 
-### Why
+### Reason
 
 Removing legacy support silently breaks existing projects. Backward compatibility ensures smooth adoption and gives projects clear signal when a legacy feature is being retired. Ours-only deletion logic (only removing entries we authored, not foreign customizations) protects user investments.
 
-### How it evolved
+### Impact
 
 Founded from the control file; control-plane policy ratified 2.3.0+. Session decision ms-6a09aea8:d2 (2026-06-03) implemented the specific legacy compatibility mechanism: stripping the obsolete `mcpServers` block from `.claude/settings.json` only when Memory Seed authored the entry.
 
@@ -55,6 +55,7 @@ Founded from the control file; control-plane policy ratified 2.3.0+. Session dec
   "event_id": "adre_dc4a4f10c07c80fe2846",
   "founding_quote": "Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path.",
   "founding_source": ".memory-seed/policy.md#L22",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ Founded from the control file; control-plane policy ratified 2.3.0+. Session dec
 
 Legacy `.AGENTS/` projects continue to be supported in code. Compatibility is preserved unless intentionally removed through an explicit deprecation process, ensuring that existing projects remain functional across version updates.
 
-#### Why
+#### Reason
 
 Removing legacy support silently breaks existing projects. Backward compatibility ensures smooth adoption and gives projects clear signal when a legacy feature is being retired. Ours-only deletion logic (only removing entries we authored, not foreign customizations) protects user investments.
 
-#### Evolution
+#### Impact
 
 Founded from the control file; control-plane policy ratified 2.3.0+. Session decision ms-6a09aea8:d2 (2026-06-03) implemented the specific legacy compatibility mechanism: stripping the obsolete `mcpServers` block from `.claude/settings.json` only when Memory Seed authored the entry.
 
@@ -77,10 +78,19 @@ Founded from the control file; control-plane policy ratified 2.3.0+. Session dec
 {
   "event_id": "adre_71773f40862a785d6e64",
   "founding_source": ".memory-seed/policy.md#L22",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/policy.md#L22.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/policy.md#L22 becomes the authoritative decision; later contrary evidence requires a successor revision.

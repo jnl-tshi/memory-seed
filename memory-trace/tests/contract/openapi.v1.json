@@ -24,6 +24,16 @@
             "title": "Evolution",
             "type": "string"
           },
+          "impact": {
+            "default": "",
+            "title": "Impact",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
           "why": {
             "default": "",
             "title": "Why",
@@ -70,6 +80,23 @@
               }
             ],
             "title": "Expected Authoritative Decision"
+          },
+          "impact": {
+            "default": "",
+            "title": "Impact",
+            "type": "string"
+          },
+          "impact_evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Impact Evidence",
+            "type": "array"
+          },
+          "impact_provenance": {
+            "default": "preserved",
+            "title": "Impact Provenance",
+            "type": "string"
           },
           "kind": {
             "title": "Kind",

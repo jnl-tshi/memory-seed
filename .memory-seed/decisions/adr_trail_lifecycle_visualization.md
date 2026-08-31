@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_trail_lifecycle_visualization
 title: "Trail: lifecycle visualization and decision-level row rendering"
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: not yet accepted
 
 The Trail displays lifecycle edges (supersedes/evolves/related) between entries and decisions by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision, grouped under an anchor row, with edge selection scoped by entry so clicking any row in a group lights the entire entry's lineage.
 
-### Why
+### Reason
 
 The decision-level edges were recorded but invisible - every decision-level edge drew only on select, so the finest lineage links in the corpus were dark until clicked, and 189 entry-level evolves were equally hidden. Draw all three classes and let weight and opacity carry hierarchy, so history links read as quiet background rather than a wall. Decision rows must compute visibility and grouping by entry identity because selection state is entry-scoped, which is what stops a group from splitting.
 
-### How it evolved
+### Impact
 
 2026-07-18 shipped the vanilla Trail as a B0b presentation mode; 2026-07-19 stabilised scroll and opened a new corpus at the top; 2026-07-21 surfaced decisions as Trail rows via section chunks, then made D1 a heading with D2..DN as subheadings; 2026-07-24 drew all lifecycle edges by default with three-class weighting.
 
@@ -59,6 +59,7 @@ The decision-level edges were recorded but invisible - every decision-level edge
   ],
   "decision_ref": "mse_zm2h343r4shfre3j:d2",
   "event_id": "adre_f8500f2c02f28bf9e6e2",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_74fb71s2cdrwqrqp:d1",
@@ -75,10 +76,10 @@ The decision-level edges were recorded but invisible - every decision-level edge
 
 The Trail displays lifecycle edges (supersedes/evolves/related) between entries and decisions by default, ranked by precision into three classes: decision-to-decision and entry-to-decision edges drawn solid and bold, entry-to-entry edges drawn dashed and light. Multi-decision entries render one Trail row per decision, grouped under an anchor row, with edge selection scoped by entry so clicking any row in a group lights the entire entry's lineage.
 
-#### Why
+#### Reason
 
 The decision-level edges were recorded but invisible - every decision-level edge drew only on select, so the finest lineage links in the corpus were dark until clicked, and 189 entry-level evolves were equally hidden. Draw all three classes and let weight and opacity carry hierarchy, so history links read as quiet background rather than a wall. Decision rows must compute visibility and grouping by entry identity because selection state is entry-scoped, which is what stops a group from splitting.
 
-#### Evolution
+#### Impact
 
 2026-07-18 shipped the vanilla Trail as a B0b presentation mode; 2026-07-19 stabilised scroll and opened a new corpus at the top; 2026-07-21 surfaced decisions as Trail rows via section chunks, then made D1 a heading with D2..DN as subheadings; 2026-07-24 drew all lifecycle edges by default with three-class weighting.

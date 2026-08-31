@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_trail_derived_lanes
 title: Trail derives display lanes without authored graph edges
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `mse_37fpco0vvunilz5k:d1`
 
 Trail generates display lanes derived from lifecycle edges and branch intervals without requiring authored graph edges. Each branch receives the lowest available lane via greedy interval packing, with lanes freed when the branch's visible lifecycle ends.
 
-### Why
+### Reason
 
 The design implements a git-graph timeline format (vertical orientation, straight lanes, fixed row height) based on research of conventional git-graph tools. User direction called for an interactive gitgraph appearance reminiscent of GitKraken and similar tools, with recent-window focus and minimal UI chrome to support dense, readable git history.
 
-### How it evolved
+### Impact
 
 The single decision rebuilt Memory Trace's Trail view from a shared force-layout graph into a vertical git-graph timeline, establishing the lane-assignment algorithm and visual encoding: lifecycle arcs in a left gutter, branch tip chips marking each branch's timeline, day separators for temporal scoping, and a 60-entry bounded window with client-side loading.
 
@@ -55,6 +55,7 @@ The single decision rebuilt Memory Trace's Trail view from a shared force-layout
   "event_id": "adre_6e9d23649def2cb039fb",
   "founding_quote": "Trail derives display lanes without adding authored graph edges.",
   "founding_source": ".memory-seed/index.md#L171",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ The single decision rebuilt Memory Trace's Trail view from a shared force-layout
 
 Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.
 
-#### Why
+#### Reason
 
 Reduces manual edge annotation burden; derived lanes stay synchronized with true causality and evolution chain topology without user needing to draw additional edges.
 
-#### Evolution
+#### Impact
 
 Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan documented in docs/5_Completed/evolution-edges-plan.md.
 
@@ -77,13 +78,22 @@ Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan docume
 {
   "event_id": "adre_4d4d1d741f0f77e7522a",
   "founding_source": ".memory-seed/index.md#L171",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L171.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L171 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-08T19:16:00Z
 
@@ -97,6 +107,7 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
   ],
   "decision_ref": "mse_37fpco0vvunilz5k:d1",
   "event_id": "adre_37f3190fa60d1a7a4c7b",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_kqna9hegj35dwsqj"
 }
@@ -106,11 +117,11 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 
 Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.
 
-#### Why
+#### Reason
 
 Rests on the session decision that instituted it: "one straight lane per branch via interval coloring (lowest free lane, freed when the branch's visible life ends)" (mse_37fpco0vvunilz5k:d1). This decision rebuilt Trail as a git-graph timeline and established the algorithm for deriving lanes from branch intervals without authored graph edges.
 
-#### Evolution
+#### Impact
 
 Founded from .memory-seed/index.md#L171; this revision moves the concern off that control-file line onto mse_37fpco0vvunilz5k:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
 
@@ -120,14 +131,23 @@ Founded from .memory-seed/index.md#L171; this revision moves the concern off tha
 {
   "decision_ref": "mse_37fpco0vvunilz5k:d1",
   "event_id": "adre_c2ebe943e97c0a4279a0",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
 
+#### Decision
+
+Reject mse_37fpco0vvunilz5k:d1.
+
 #### Reason
 
 Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+#### Impact
+
+mse_37fpco0vvunilz5k:d1 is not adopted and the current authoritative decision remains unchanged.
 
 ### revision-proposed - 2026-08-08T23:24:20Z
 
@@ -141,6 +161,7 @@ Wording retired, not the decision. This summary restated a single decision (or, 
   ],
   "decision_ref": "mse_37fpco0vvunilz5k:d1",
   "event_id": "adre_ffdc6aa593d18f493ea8",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
@@ -150,11 +171,11 @@ Wording retired, not the decision. This summary restated a single decision (or, 
 
 Trail generates display lanes derived from lifecycle edges and branch intervals without requiring authored graph edges. Each branch receives the lowest available lane via greedy interval packing, with lanes freed when the branch's visible lifecycle ends.
 
-#### Why
+#### Reason
 
 The design implements a git-graph timeline format (vertical orientation, straight lanes, fixed row height) based on research of conventional git-graph tools. User direction called for an interactive gitgraph appearance reminiscent of GitKraken and similar tools, with recent-window focus and minimal UI chrome to support dense, readable git history.
 
-#### Evolution
+#### Impact
 
 The single decision rebuilt Memory Trace's Trail view from a shared force-layout graph into a vertical git-graph timeline, establishing the lane-assignment algorithm and visual encoding: lifecycle arcs in a left gutter, branch tip chips marking each branch's timeline, day separators for temporal scoping, and a 60-entry bounded window with client-side loading.
 
@@ -165,7 +186,20 @@ The single decision rebuilt Memory Trace's Trail view from a shared force-layout
   "decision_ref": "mse_37fpco0vvunilz5k:d1",
   "event_id": "adre_9410f63d74627d0fa3c5",
   "expected_authoritative_decision": "founding:.memory-seed/index.md#L171",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
+
+#### Decision
+
+Accept mse_37fpco0vvunilz5k:d1.
+
+#### Reason
+
+Reason was not recorded in the schema-v1 event.
+
+#### Impact
+
+mse_37fpco0vvunilz5k:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.

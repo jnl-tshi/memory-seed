@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_lifecycle_edges_live_in_sidecars
 title: Lifecycle edges live only in link sidecars, declared per decision
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `mse_g01sqaac2c10ejd5:d3`
 
 Lifecycle links (replaces/evolves/related_entries) are authored ONLY through the decisions envelope and written to link sidecars. Entry YAML no longer accepts them; published entries keep theirs and are read forever.
 
-### Why
+### Reason
 
 A raw ref in an entry's YAML gives a human reading the Markdown nothing, and Invariant #6 already assigns lifecycle facts to narrow sidecars while entries own narrative rationale. The entry-level flags also cannot carry a per-edge 'why' or evolution type, so keeping them would leave two write surfaces of unequal strength - the parity failure Constitution 1.3 forbids.
 
-### How it evolved
+### Impact
 
 This is the first revision of this architectural concern.
 
@@ -43,6 +43,7 @@ This is the first revision of this architectural concern.
 {
   "decision_ref": "mse_g01sqaac2c10ejd5:d3",
   "event_id": "adre_45653c79fa5238ecc95f",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_g01sqaac2c10ejd5"
 }
@@ -52,11 +53,11 @@ This is the first revision of this architectural concern.
 
 Lifecycle links (replaces/evolves/related_entries) are authored ONLY through the decisions envelope and written to link sidecars. Entry YAML no longer accepts them; published entries keep theirs and are read forever.
 
-#### Why
+#### Reason
 
 A raw ref in an entry's YAML gives a human reading the Markdown nothing, and Invariant #6 already assigns lifecycle facts to narrow sidecars while entries own narrative rationale. The entry-level flags also cannot carry a per-edge 'why' or evolution type, so keeping them would leave two write surfaces of unequal strength - the parity failure Constitution 1.3 forbids.
 
-#### Evolution
+#### Impact
 
 This is the first revision of this architectural concern.
 
@@ -66,11 +67,20 @@ This is the first revision of this architectural concern.
 {
   "decision_ref": "mse_g01sqaac2c10ejd5:d3",
   "event_id": "adre_59133bd6b1f26a7e4910",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_g01sqaac2c10ejd5"
 }
 ```
 
+#### Decision
+
+Accept mse_g01sqaac2c10ejd5:d3.
+
 #### Reason
 
 JNL accepted 2026-08-09: the entry-YAML closure is merged and shipped, so the ADR records standing authority rather than a pending proposal.
+
+#### Impact
+
+mse_g01sqaac2c10ejd5:d3 becomes the authoritative decision; later contrary evidence requires a successor revision.

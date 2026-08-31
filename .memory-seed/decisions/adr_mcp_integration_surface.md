@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_mcp_integration_surface
 title: "MCP integration: per-agent config placement, upsert semantics, and a gated write surface"
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: not yet accepted
 
 Each agent's MCP config goes where that agent actually reads it - Claude in project-root `.mcp.json`, Codex in `.codex/config.toml` - written on init unconditionally rather than gated on a PATH probe. Merges upsert: a matching command is overwritten, a different one under the same key is left alone. The MCP write surface is gated, with `memory_session_append` the only authoring path, inheriting the same write-time guards as the CLI.
 
-### Why
+### Reason
 
 Config placement is per-agent because each vendor discovers servers differently, and writing to the wrong file fails silently. Upsert-on-matching-command protects a user's own server that happens to share our key while still keeping ours current. Unconditional write avoids a PATH probe that is wrong at init time anyway. The write surface is gated because an ungated pair let MCP writes bypass guards the CLI enforced - the write-surface parity rule.
 
-### How it evolved
+### Impact
 
 Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05-29 to 2026-07-19: unconditional write and hook-time detection, then upsert semantics, then per-vendor placement for Claude and Codex, then the gated write surface.
 
@@ -58,6 +58,7 @@ Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05
   ],
   "decision_ref": "mse_vzsef0fmpsde2jh4:d1",
   "event_id": "adre_6cfc49a43e7c18b8352a",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-4c8e2a17:d1",
@@ -77,11 +78,11 @@ Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05
 
 Each agent's MCP config goes where that agent actually reads it - Claude in project-root `.mcp.json`, Codex in `.codex/config.toml` - written on init unconditionally rather than gated on a PATH probe. Merges upsert: a matching command is overwritten, a different one under the same key is left alone. The MCP write surface is gated, with `memory_session_append` the only authoring path, inheriting the same write-time guards as the CLI.
 
-#### Why
+#### Reason
 
 Config placement is per-agent because each vendor discovers servers differently, and writing to the wrong file fails silently. Upsert-on-matching-command protects a user's own server that happens to share our key while still keeping ours current. Unconditional write avoids a PATH probe that is wrong at init time anyway. The write surface is gated because an ungated pair let MCP writes bypass guards the CLI enforced - the write-surface parity rule.
 
-#### Evolution
+#### Impact
 
 Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05-29 to 2026-07-19: unconditional write and hook-time detection, then upsert semantics, then per-vendor placement for Claude and Codex, then the gated write surface.
 
@@ -90,6 +91,7 @@ Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05
 ```json
 {
   "event_id": "adre_c402b1b822ac3cf585e7",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-6eeb512f:d1",
@@ -99,6 +101,14 @@ Founded from an 11-decision lineage chain, entirely `mcp-tools`, running 2026-05
 }
 ```
 
+#### Decision
+
+Record the supplied decisions as context for this ADR.
+
 #### Reason
 
 Attaching two chain members omitted when the supporting list was written by hand. The growth check found them: the chain carries 11 decisions and the ADR named 9.
+
+#### Impact
+
+This adds supporting context only; it does not change ADR membership, status, or authority.

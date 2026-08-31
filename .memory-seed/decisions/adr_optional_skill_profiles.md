@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_optional_skill_profiles
 title: Optional external-tool skills ship in a profile, never core
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: not yet accepted
 
 A skill that wraps an external tool ships in a named install profile, not in CORE_SKILL_NAMES. Registration is a checklist: the profile, SKILL_DESCRIPTIONS, pyproject package-data, and the seed-file install-list test.
 
-### Why
+### Reason
 
 A bare init must not install a runbook for tooling most projects lack. CORE_SKILL_NAMES is reserved for universal memory-workflow skills; code_search.md and graphify_analysis.md both wrap external tools (Semble, the Graphify CLI) and belong to the coding profile. The registration checklist is one concern because missing any step leaves a skill that exists but never installs - which is how superpowers_integration.md was silently unregistered.
 
-### How it evolved
+### Impact
 
 Founded from the 2026-08-04 decision that completed graphify_analysis.md's registration and found superpowers_integration.md missing by the same route.
 
@@ -43,6 +43,7 @@ Founded from the 2026-08-04 decision that completed graphify_analysis.md's regis
 {
   "decision_ref": "mse_y7d6qtjgqdfhtmaj:d2",
   "event_id": "adre_e5aadaa764d24872315b",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_y7d6qtjgqdfhtmaj"
 }
@@ -52,10 +53,10 @@ Founded from the 2026-08-04 decision that completed graphify_analysis.md's regis
 
 A skill that wraps an external tool ships in a named install profile, not in CORE_SKILL_NAMES. Registration is a checklist: the profile, SKILL_DESCRIPTIONS, pyproject package-data, and the seed-file install-list test.
 
-#### Why
+#### Reason
 
 A bare init must not install a runbook for tooling most projects lack. CORE_SKILL_NAMES is reserved for universal memory-workflow skills; code_search.md and graphify_analysis.md both wrap external tools (Semble, the Graphify CLI) and belong to the coding profile. The registration checklist is one concern because missing any step leaves a skill that exists but never installs - which is how superpowers_integration.md was silently unregistered.
 
-#### Evolution
+#### Impact
 
 Founded from the 2026-08-04 decision that completed graphify_analysis.md's registration and found superpowers_integration.md missing by the same route.

@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_community_detection_rejected
 title: Topology-community detection measured and rejected
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: not yet accepted
 
 Reject topology-community detection for graph layout based on corpus-density measurement. The feature does not gate B0b acceptance.
 
-### Why
+### Reason
 
 Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.
 
-### How it evolved
+### Impact
 
 Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to document evaluation rather than defer the feature.
 
@@ -55,6 +55,7 @@ Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to doc
   "event_id": "adre_088fcbc7220e403c32ee",
   "founding_quote": "Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)",
   "founding_source": ".memory-seed/index.md#L73",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to doc
 
 Reject topology-community detection for graph layout based on corpus-density measurement. The feature does not gate B0b acceptance.
 
-#### Why
+#### Reason
 
 Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.
 
-#### Evolution
+#### Impact
 
 Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to document evaluation rather than defer the feature.
 
@@ -77,19 +78,29 @@ Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to doc
 {
   "event_id": "adre_2d123bf3b2c150098ecf",
   "founding_source": ".memory-seed/index.md#L73",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Reject founding:.memory-seed/index.md#L73.
+
 #### Reason
 
 Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.
+
+#### Impact
+
+founding:.memory-seed/index.md#L73 is not adopted and the current authoritative decision remains unchanged.
 
 ### context-added - 2026-08-07T05:22:00Z
 
 ```json
 {
   "event_id": "adre_3b40e48ffd4d4744a18d",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_3yvakpxdshc95e68:d1"
@@ -98,6 +109,14 @@ Measured corpus density and found community detection does not improve layout ef
 }
 ```
 
+#### Decision
+
+Record the supplied decisions as context for this ADR.
+
 #### Reason
 
 Records the implemented alternative and states plainly that Louvain/Leiden are not implemented - the concrete form of the rejection this concern holds.
+
+#### Impact
+
+This adds supporting context only; it does not change ADR membership, status, or authority.

@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_decision_identity
 title: Decision identity is (entry_id, dN)
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `mse_kdhw53hzp4nh8wwm:d1`
 
 A decision's identity is the pair (entry_id, dN). Both ends of a lifecycle edge name their decision: targets as `<entry_id>:dN` (explicit `:d1` even for single-decision entries), sources with a `dN ->` prefix whenever the writing entry carries two or more. Decision-level edges are a distinct edge set - never projected up to their entries.
 
-### Why
+### Reason
 
 A bare entry id is ambiguous the moment an entry carries a second decision, and the write path is the only place the ambiguity can be refused cheaply - the write refuses an unnamed end where the ref is still unwritten, while published bare ids stay legal history. Downstream, decision-level identity is what makes decision-scoped topics, lifecycle lineage and ADR membership addressable at all.
 
-### How it evolved
+### Impact
 
 Write-time `:dN` refs landed the morning of 2026-07-24 (mse_888p3x61z0kev9cp:d1); the mandate hardened both ends that afternoon; retrieval began serving decision granularity with canonical `mse_x:dN` chunk ids on 2026-08-05 (mse_qeht233q9ebvf2ms:d1).
 
@@ -58,6 +58,7 @@ Write-time `:dN` refs landed the morning of 2026-07-24 (mse_888p3x61z0kev9cp:d1)
   ],
   "decision_ref": "mse_kdhw53hzp4nh8wwm:d1",
   "event_id": "adre_d127bc9cb8ec50b64107",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_888p3x61z0kev9cp:d1",
@@ -71,11 +72,11 @@ Write-time `:dN` refs landed the morning of 2026-07-24 (mse_888p3x61z0kev9cp:d1)
 
 A decision's identity is the pair (entry_id, dN). Both ends of a lifecycle edge name their decision: targets as `<entry_id>:dN` (explicit `:d1` even for single-decision entries), sources with a `dN ->` prefix whenever the writing entry carries two or more. Decision-level edges are a distinct edge set - never projected up to their entries.
 
-#### Why
+#### Reason
 
 A bare entry id is ambiguous the moment an entry carries a second decision, and the write path is the only place the ambiguity can be refused cheaply - the write refuses an unnamed end where the ref is still unwritten, while published bare ids stay legal history. Downstream, decision-level identity is what makes decision-scoped topics, lifecycle lineage and ADR membership addressable at all.
 
-#### Evolution
+#### Impact
 
 Write-time `:dN` refs landed the morning of 2026-07-24 (mse_888p3x61z0kev9cp:d1); the mandate hardened both ends that afternoon; retrieval began serving decision granularity with canonical `mse_x:dN` chunk ids on 2026-08-05 (mse_qeht233q9ebvf2ms:d1).
 
@@ -85,7 +86,20 @@ Write-time `:dN` refs landed the morning of 2026-07-24 (mse_888p3x61z0kev9cp:d1)
 {
   "decision_ref": "mse_kdhw53hzp4nh8wwm:d1",
   "event_id": "adre_6c001d21ba2a5e16f164",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_kdhw53hzp4nh8wwm"
 }
 ```
+
+#### Decision
+
+Accept mse_kdhw53hzp4nh8wwm:d1.
+
+#### Reason
+
+Reason was not recorded in the schema-v1 event.
+
+#### Impact
+
+mse_kdhw53hzp4nh8wwm:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.

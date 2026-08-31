@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_runtime_discovery
 title: Runtime discovery walks to the nearest .memory-seed
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `founding:.memory-seed/index.md#L120`
 
 Runtime discovery uses nearest-ancestor `.memory-seed/` directory, walking upward from current working directory to find the active runtime.
 
-### Why
+### Reason
 
 Canonical runtime location enables portable memory systems and supports nested sub-project runtimes with automatic scoping.
 
-### How it evolved
+### Impact
 
 Founded from the control file; no session lineage attached yet.
 
@@ -54,6 +54,7 @@ Founded from the control file; no session lineage attached yet.
   "event_id": "adre_53ef3803d1d2dae27212",
   "founding_quote": "Runtime discovery walks upward from `cwd` and uses the nearest `.memory-seed/`.",
   "founding_source": ".memory-seed/index.md#L120",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -62,11 +63,11 @@ Founded from the control file; no session lineage attached yet.
 
 Runtime discovery uses nearest-ancestor `.memory-seed/` directory, walking upward from current working directory to find the active runtime.
 
-#### Why
+#### Reason
 
 Canonical runtime location enables portable memory systems and supports nested sub-project runtimes with automatic scoping.
 
-#### Evolution
+#### Impact
 
 Founded from the control file; no session lineage attached yet.
 
@@ -76,10 +77,19 @@ Founded from the control file; no session lineage attached yet.
 {
   "event_id": "adre_ad94b19d6358fdc0c727",
   "founding_source": ".memory-seed/index.md#L120",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L120.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L120 becomes the authoritative decision; later contrary evidence requires a successor revision.

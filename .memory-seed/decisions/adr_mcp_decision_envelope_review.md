@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_mcp_decision_envelope_review
 title: MCP decision envelope and mandatory ADR review
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `mse_17d0qqh34a07qp5b:d1`
 
 Require content-bound living ADR review before any MCP write that evolves or replaces a lineage member.
 
-### Why
+### Reason
 
 The LLM must review every affected concern and the exact immutable draft before the transaction mutates session or sidecar state.
 
-### How it evolved
+### Impact
 
 Evolves the shared decision envelope from atomic semantic authorship into a fail-closed multi-ADR review transaction.
 
@@ -47,6 +47,7 @@ Evolves the shared decision envelope from atomic semantic authorship into a fail
 {
   "decision_ref": "mse_ddeat5w29spep3qw:d1",
   "event_id": "adre_7fa98ce0fbc78c300c2f",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_z7rfq8x5qjfbyzdc:d1",
@@ -62,11 +63,11 @@ Evolves the shared decision envelope from atomic semantic authorship into a fail
 
 Use one decision envelope and require content-bound ADR review before lineage-linked writes.
 
-#### Why
+#### Reason
 
 One authoring transaction keeps narrative, semantic sidecars, and review outcomes consistent.
 
-#### Evolution
+#### Impact
 
 Extends the original decision-sidecar envelope with a fail-closed living ADR review gate.
 
@@ -76,14 +77,23 @@ Extends the original decision-sidecar envelope with a fail-closed living ADR rev
 {
   "decision_ref": "mse_ddeat5w29spep3qw:d1",
   "event_id": "adre_6b8b0c9e9f21abdcaa7f",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_kbc2mq9972ppy1vw"
 }
 ```
 
+#### Decision
+
+Accept mse_ddeat5w29spep3qw:d1.
+
 #### Reason
 
 Accepted as the historical governing head before mandatory-review dogfooding.
+
+#### Impact
+
+mse_ddeat5w29spep3qw:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-03T15:41:00
 
@@ -91,6 +101,7 @@ Accepted as the historical governing head before mandatory-review dogfooding.
 {
   "decision_ref": "mse_17d0qqh34a07qp5b:d1",
   "event_id": "adre_b07b33bccf8c6edc2690",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_ddeat5w29spep3qw:d1",
@@ -110,11 +121,11 @@ Accepted as the historical governing head before mandatory-review dogfooding.
 
 Require content-bound living ADR review before any MCP write that evolves or replaces a lineage member.
 
-#### Why
+#### Reason
 
 The LLM must review every affected concern and the exact immutable draft before the transaction mutates session or sidecar state.
 
-#### Evolution
+#### Impact
 
 Evolves the shared decision envelope from atomic semantic authorship into a fail-closed multi-ADR review transaction.
 
@@ -125,14 +136,23 @@ Evolves the shared decision envelope from atomic semantic authorship into a fail
   "decision_ref": "mse_17d0qqh34a07qp5b:d1",
   "event_id": "adre_a4230ddf644860ac66e7",
   "expected_authoritative_decision": "mse_ddeat5w29spep3qw:d1",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_17d0qqh34a07qp5b"
 }
 ```
 
+#### Decision
+
+Accept mse_17d0qqh34a07qp5b:d1.
+
 #### Reason
 
 Accepted after the mandatory review receipt and zero-write first-call proof.
+
+#### Impact
+
+mse_17d0qqh34a07qp5b:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-10T13:00:00
 
@@ -140,6 +160,7 @@ Accepted after the mandatory review receipt and zero-write first-call proof.
 {
   "decision_ref": "mse_axkrkd339br970kw:d2",
   "event_id": "adre_bf87a3552d2336562fde",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_17d0qqh34a07qp5b:d1",
@@ -155,10 +176,10 @@ Accepted after the mandatory review receipt and zero-write first-call proof.
 
 Require content-bound living ADR review before any CLI or MCP session append that evolves or replaces a lineage member.
 
-#### Why
+#### Reason
 
 Every public session-write surface must review the same complete concern context and exact immutable draft before mutation.
 
-#### Evolution
+#### Impact
 
 Extends the accepted MCP gate into one shared append preflight while preserving the zero-write first call and parent-first transaction.

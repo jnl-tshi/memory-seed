@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_append_rule_is_an_invariant
 title: The append rule is stated as an invariant, not as a mechanism
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `ms-e30b9c47:d1`
 
 The append rule is stated as a vendor-neutral invariant: session entries must be added at the physical end of their file, in chronological order, never inserted above existing content. The mechanism to achieve this—whether shell append (>>), Python append mode, or editor-based with an anchor—is left to each agent's available tooling.
 
-### Why
+### Reason
 
 Mandating a specific tool like >> or Python append mode assumed shell or Python access and was platform-unsafe; Windows PowerShell's heredoc example fails or misencodes, making such requirements unsuitable for a cross-platform agent contract. The durable rule is the invariant itself; the property that actually matters is that nothing is inserted above existing content and chronological order is preserved, while the mechanism belongs to each agent's tools.
 
-### How it evolved
+### Impact
 
 Initially instituted as a requirement for >> or Python append mode because append operations write unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on editor care. Later recognized as platform-dependent and reframed to state the invariant itself, demoting the specific tool to an optional shell tip so any file-reading agent can satisfy it with whatever writing surface it has.
 
@@ -58,6 +58,7 @@ Initially instituted as a requirement for >> or Python append mode because appen
   ],
   "decision_ref": "ms-e30b9c47:d1",
   "event_id": "adre_8e176ec34cf3f51cabda",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-d15e8a03:d1"
@@ -70,11 +71,11 @@ Initially instituted as a requirement for >> or Python append mode because appen
 
 The agent contract states the append INVARIANT - an entry is added at the physical end of its file, never inserted above existing content, and chronological order holds - and does not mandate the tool that achieves it. Shell append and Python append mode are optional tips, not requirements.
 
-#### Why
+#### Reason
 
 The contract is read by any file-reading agent, so mandating `>>` assumed shell or Python access and was platform-unsafe: the shell example simply fails for an agent that edits files directly. Stating the invariant lets each agent satisfy it with whatever writing surface it has, while the property that actually matters - nothing is inserted above existing content - is unchanged. This is distinct from Constitution Invariant #2, which says the past IS append-only; this concern is about how that rule is expressed to the agents bound by it.
 
-#### Evolution
+#### Impact
 
 The rule first shipped as a mechanism, requiring shell append or Python append mode as the method for writing session entries; it was then reframed as a vendor-neutral invariant with the mechanism demoted to an optional shell tip.
 
@@ -84,14 +85,23 @@ The rule first shipped as a mechanism, requiring shell append or Python append m
 {
   "decision_ref": "ms-e30b9c47:d1",
   "event_id": "adre_9b1701919888335655ec",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
 
+#### Decision
+
+Reject ms-e30b9c47:d1.
+
 #### Reason
 
 Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+#### Impact
+
+ms-e30b9c47:d1 is not adopted and the current authoritative decision remains unchanged.
 
 ### revision-proposed - 2026-08-08T23:00:20Z
 
@@ -109,6 +119,7 @@ Wording retired, not the decision. This summary restated a single decision (or, 
   ],
   "decision_ref": "ms-e30b9c47:d1",
   "event_id": "adre_9a25bf746de587161e2b",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-d15e8a03:d1"
@@ -121,11 +132,11 @@ Wording retired, not the decision. This summary restated a single decision (or, 
 
 The append rule is stated as a vendor-neutral invariant: session entries must be added at the physical end of their file, in chronological order, never inserted above existing content. The mechanism to achieve this—whether shell append (>>), Python append mode, or editor-based with an anchor—is left to each agent's available tooling.
 
-#### Why
+#### Reason
 
 Mandating a specific tool like >> or Python append mode assumed shell or Python access and was platform-unsafe; Windows PowerShell's heredoc example fails or misencodes, making such requirements unsuitable for a cross-platform agent contract. The durable rule is the invariant itself; the property that actually matters is that nothing is inserted above existing content and chronological order is preserved, while the mechanism belongs to each agent's tools.
 
-#### Evolution
+#### Impact
 
 Initially instituted as a requirement for >> or Python append mode because append operations write unconditionally to the physical end with no anchor, making correct ordering mechanical rather than reliant on editor care. Later recognized as platform-dependent and reframed to state the invariant itself, demoting the specific tool to an optional shell tip so any file-reading agent can satisfy it with whatever writing surface it has.
 
@@ -135,7 +146,20 @@ Initially instituted as a requirement for >> or Python append mode because appen
 {
   "decision_ref": "ms-e30b9c47:d1",
   "event_id": "adre_5b3b51e3b4256e055e99",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
+
+#### Decision
+
+Accept ms-e30b9c47:d1.
+
+#### Reason
+
+Reason was not recorded in the schema-v1 event.
+
+#### Impact
+
+ms-e30b9c47:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.

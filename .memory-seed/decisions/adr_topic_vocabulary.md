@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_topic_vocabulary
 title: Controlled topic vocabulary with axis hierarchy and seed/live parity
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `mse_sbq4ar5bq4wyrt69:d1`
 
 Schema v3 authors the controlled topic vocabulary as `topics -> area|activity -> slug -> children`; the reader derives axis and parent into the stable normalized topic model, with v1/v2 compatibility retained.
 
-### Why
+### Reason
 
 The tree expresses each structural fact once, removes 53 repeated live data rows, and improves human scanning without changing vocabulary meaning or consumer behavior.
 
-### How it evolved
+### Impact
 
 Refines the accepted two-axis hierarchy by moving axis and parent from repeated scalar rows into YAML position while retaining the same axes, hierarchy, detail fields, and runtime semantics.
 
@@ -55,6 +55,7 @@ Refines the accepted two-axis hierarchy by moving axis and parent from repeated 
   "event_id": "adre_9f0b8b2dcedffab463ac",
   "founding_quote": "Indexed topics (completed 2026-07-15; **redesigned into a two-axis hierarchy 2026-07-26/27**): `topics:` is a first-class entry field resolved against the deploy-once project-local `.memory-seed/topics.yaml`",
   "founding_source": ".memory-seed/index.md#L158",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ Refines the accepted two-axis hierarchy by moving axis and parent from repeated 
 
 `topics:` is a first-class entry field resolved against the project-local `.memory-seed/topics.yaml` registry, which implements a two-axis hierarchical vocabulary. The starter vocabulary shipped with Memory Seed is domain-neutral and flat, carrying two axes: areas and activities. Authored topics rank in a declared precedence order with sidecar and inferred topics.
 
-#### Why
+#### Reason
 
 A controlled vocabulary ensures consistent topic use across the corpus and enables coherent navigation and filtering. Two axes (area and activity) remain orthogonal and domain-neutral, supporting software projects, legal matters, research, and other domains. Flat starter vocabulary respects the principle that depth is earned through concentration.
 
-#### Evolution
+#### Impact
 
 Implemented 2026-07-15; redesigned into two-axis hierarchy 2026-07-26/27. Session decision mse_zhf4a0fsgwh47c9j:d1 (2026-07-26) shipped the neutral starter vocabulary, replacing a software-centric starter that had no area axis at all.
 
@@ -77,13 +78,22 @@ Implemented 2026-07-15; redesigned into two-axis hierarchy 2026-07-26/27. Sessio
 {
   "event_id": "adre_87597b0d07f3b19b8c8d",
   "founding_source": ".memory-seed/index.md#L158",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L158.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L158 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-07T05:01:00Z
 
@@ -91,6 +101,7 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 {
   "decision_ref": "mse_25zzy3cmdjgrsf69:d1",
   "event_id": "adre_e3026b93c5cf4fdcc0d4",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_ex5216t2hn30s5wx"
 }
@@ -100,11 +111,11 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 
 `axis: area` / `axis: activity` is declared on the 23 root slugs and on nothing else; every child resolves its axis through the nearest declaring ancestor.
 
-#### Why
+#### Reason
 
 Declaring the axis once per root keeps the two-axis vocabulary consistent without restating the axis on every child, and lets a child move without re-declaring it.
 
-#### Evolution
+#### Impact
 
 Converged from the control-file founding onto the decision that shaped the vocabulary's axis hierarchy.
 
@@ -115,14 +126,23 @@ Converged from the control-file founding onto the decision that shaped the vocab
   "decision_ref": "mse_25zzy3cmdjgrsf69:d1",
   "event_id": "adre_5e5053f442702cc0a122",
   "expected_authoritative_decision": "founding:.memory-seed/index.md#L158",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_ex5216t2hn30s5wx"
 }
 ```
 
+#### Decision
+
+Accept mse_25zzy3cmdjgrsf69:d1.
+
 #### Reason
 
 Approved by JNL 2026-08-07 from the screening shortlist.
+
+#### Impact
+
+mse_25zzy3cmdjgrsf69:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-18T13:30:00
 
@@ -130,6 +150,7 @@ Approved by JNL 2026-08-07 from the screening shortlist.
 {
   "decision_ref": "mse_sbq4ar5bq4wyrt69:d1",
   "event_id": "adre_4d728f48511ea0c3713d",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_25zzy3cmdjgrsf69:d1",
@@ -145,11 +166,11 @@ Approved by JNL 2026-08-07 from the screening shortlist.
 
 Schema v3 authors the controlled topic vocabulary as `topics -> area|activity -> slug -> children`; the reader derives axis and parent into the stable normalized topic model, with v1/v2 compatibility retained.
 
-#### Why
+#### Reason
 
 The tree expresses each structural fact once, removes 53 repeated live data rows, and improves human scanning without changing vocabulary meaning or consumer behavior.
 
-#### Evolution
+#### Impact
 
 Refines the accepted two-axis hierarchy by moving axis and parent from repeated scalar rows into YAML position while retaining the same axes, hierarchy, detail fields, and runtime semantics.
 
@@ -160,11 +181,20 @@ Refines the accepted two-axis hierarchy by moving axis and parent from repeated 
   "decision_ref": "mse_sbq4ar5bq4wyrt69:d1",
   "event_id": "adre_74ff4f3365abb90c3103",
   "expected_authoritative_decision": "mse_25zzy3cmdjgrsf69:d1",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_sbq4ar5bq4wyrt69"
 }
 ```
 
+#### Decision
+
+Accept mse_sbq4ar5bq4wyrt69:d1.
+
 #### Reason
 
 Accepted as part of JNL-approved schema-v3 tree implementation.
+
+#### Impact
+
+mse_sbq4ar5bq4wyrt69:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.

@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_worktree_convention
 title: Worktree=session, branch=task, agent-namespaced branch names
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `founding:.memory-seed/index.md#L81`
 
 Worktree hygiene follows a strict naming and lifecycle convention: one worktree per session, one branch per task or feature. New branches follow the pattern `<agent>/<kind>/<topic>` to encode agent identity, work kind (fix, feature, docs, etc.), and topic area.
 
-### Why
+### Reason
 
 This convention ensures clear traceability between Git artifacts, session scope, and agent work. Agent-namespaced branches prevent collisions in shared environments and make it easy to identify which agent or session created which branch. Single worktree per session simplifies cleanup and lifecycle management.
 
-### How it evolved
+### Impact
 
 Founded from the control file; no session lineage attached yet.
 
@@ -55,6 +55,7 @@ Founded from the control file; no session lineage attached yet.
   "event_id": "adre_dc8864697cadc43d713d",
   "founding_quote": "The worktree hygiene plan uses worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.",
   "founding_source": ".memory-seed/index.md#L81",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ Founded from the control file; no session lineage attached yet.
 
 Worktree hygiene follows a strict naming and lifecycle convention: one worktree per session, one branch per task or feature. New branches follow the pattern `<agent>/<kind>/<topic>` to encode agent identity, work kind (fix, feature, docs, etc.), and topic area.
 
-#### Why
+#### Reason
 
 This convention ensures clear traceability between Git artifacts, session scope, and agent work. Agent-namespaced branches prevent collisions in shared environments and make it easy to identify which agent or session created which branch. Single worktree per session simplifies cleanup and lifecycle management.
 
-#### Evolution
+#### Impact
 
 Founded from the control file; no session lineage attached yet.
 
@@ -77,10 +78,19 @@ Founded from the control file; no session lineage attached yet.
 {
   "event_id": "adre_c5d20377e11567a8e9fa",
   "founding_source": ".memory-seed/index.md#L81",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L81.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L81 becomes the authoritative decision; later contrary evidence requires a successor revision.

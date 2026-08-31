@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_inbox_promotion_workflow
 title: "Inbox promotion: conservative triage, one owner per workstream"
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: not yet accepted
 
 Inbox items are promoted to the active roadmap only when evidence supports actionability. Where many proposals overlap, a distilled crosswalk becomes the surviving record and the individual sources are retired once their deltas are confirmed or merged into an active owner. Every workstream has exactly one owner.
 
-### Why
+### Reason
 
 The inbox accumulated overlapping proposals drafted against stale assumptions, several of which read as missing capability only because they predated the code that shipped them. One distilled crosswalk plus deliberate ownership prevents competing contracts and duplicated lifecycle tracking, and keeps the roadmap something a reader can trust.
 
-### How it evolved
+### Impact
 
 2026-07-08 promoted actionable graph and topic ideas into the roadmap; 2026-07-16 rebaselined the platform review against shipped state and folded 14 inbox documents into owned roadmap items; 2026-07-20 retired both proposal sets, leaving the crosswalk as the surviving record.
 
@@ -59,6 +59,7 @@ The inbox accumulated overlapping proposals drafted against stale assumptions, s
   ],
   "decision_ref": "mse_2geqfa8tg182a77p:d1",
   "event_id": "adre_e98a9fbcea1537edcac3",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_d2daxtnv8eqx4vqr:d1",
@@ -76,10 +77,10 @@ The inbox accumulated overlapping proposals drafted against stale assumptions, s
 
 Inbox items are promoted to the active roadmap only when evidence supports actionability. Where many proposals overlap, a distilled crosswalk becomes the surviving record and the individual sources are retired once their deltas are confirmed or merged into an active owner. Every workstream has exactly one owner.
 
-#### Why
+#### Reason
 
 The inbox accumulated overlapping proposals drafted against stale assumptions, several of which read as missing capability only because they predated the code that shipped them. One distilled crosswalk plus deliberate ownership prevents competing contracts and duplicated lifecycle tracking, and keeps the roadmap something a reader can trust.
 
-#### Evolution
+#### Impact
 
 2026-07-08 promoted actionable graph and topic ideas into the roadmap; 2026-07-16 rebaselined the platform review against shipped state and folded 14 inbox documents into owned roadmap items; 2026-07-20 retired both proposal sets, leaving the crosswalk as the surviving record.
