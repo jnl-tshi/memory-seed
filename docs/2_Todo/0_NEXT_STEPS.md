@@ -611,25 +611,23 @@ before its next step. (Market/account items live under "Parked" below.)
 12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
     2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
     than signed off as-is. Row-by-row outcome pending.
-13. **Memory-index dry-run → Verging Labs v0.2 submission — three runs on record, the regression
-    was diagnosed and recovered.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
-    "Run 6" (2026-08-27, pre-fix): 80.6, kill condition **CLEAR**, but only 4/10 seeding sessions
-    logged any memory. The session-log git-diff trigger fix landed 2026-08-29
-    (`adr_session_log_trigger_enforcement`). "Run 7" (2026-08-31, fix applied): **61.3, TRIGGERED**,
-    first fabrication in 6 runs — the trigger fired correctly, but its wording ("the working tree
-    has changes... detected from git") gave a session room to rationalize pre-existing dirty state
-    as "another session's work" and skip logging; that rationalization, written into a durable
-    entry, propagated to the two sessions with real code changes. Investigated, and a **wording-only
-    fix** (turn-anchored phrasing, an explicit "whichever turn is running when this fires is
-    responsible" clause, a precedent-poisoning guardrail — no blocking mechanism) landed
-    2026-08-31 and was re-run same-day as "Run 8": **83.9, CLEAR — best of the three runs.** The
-    exact two sessions whose silence caused Run 7's regression logged again, with more detail than
-    either prior run. The ADR's wording revision is now Accepted. *Recommendation:* Run 8's result
-    is strong enough to submit on, but still n=1 per condition across all three runs — a fourth run
-    would rule out "this re-run landed well" as an alternative to "the wording fix works." A
-    separate, untouched gap (S3/S4/S10 never log in any of the three runs — task-framing, not
-    wording) does not block submission but is worth its own look before treating the corpus as
-    fully understood.
+13. **Memory-index dry-run → Verging Labs v0.2 submission — four runs on record, best result
+    87.1/CLEAR, zero fabrications.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
+    "Run 6" (pre-fix): 80.6, CLEAR, only 4/10 seeding sessions logged. Git-diff trigger fix landed
+    2026-08-29 (`adr_session_log_trigger_enforcement`). "Run 7" (fix applied): 61.3, TRIGGERED,
+    first fabrication in 6 runs — the trigger fired correctly, but its wording gave a session room
+    to rationalize skipping logging as "another session's work," which propagated to two more
+    sessions. A **wording-only fix** (turn-anchored phrasing, no blocking) recovered this in "Run 8":
+    83.9, CLEAR, the exact two regressed sessions logged again. The wording revision is Accepted.
+    "Run 9" (same day): closed a second loophole (writing a fact into a project file was reading as
+    task-complete without a memory record — S3, S4, S6, S10 never logged in any of Runs 6-8) and
+    fixed Q31's recurring fabrication trap (an abstention clause in the quiz preamble). Result:
+    **87.1, CLEAR, zero fabrications — best of the four runs.** The file-truth fix worked for 2 of
+    the 4 targeted sessions (S3, S10 now log; S4, S6 still don't) — a genuine partial result, so
+    that revision stays Proposed, not Accepted. *Recommendation:* Run 9's result is strong enough to
+    submit on. Still n=1 per condition across all four runs. S4/S6 remain an open, unscoped gap
+    (does not block submission). Q1 (Youssef misattribution) is stable and minor across three runs
+    — a quiz-time nuance, not worth engineering effort at this scale.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 

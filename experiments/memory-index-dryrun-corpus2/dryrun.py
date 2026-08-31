@@ -175,8 +175,12 @@ QUIZ_PREAMBLE = (
     "You are answering questions about this project's history for a teammate. Answer ONLY from "
     "this project's recorded memory (use the memory-seed tools and files under .memory-seed/, "
     "plus committed project files). Do NOT guess: if something was never recorded, say exactly "
-    "that it is not recorded. Do not modify any files and do not append any session entries - "
-    "this is a read-only consultation. Answer each question in 1-3 sentences, numbered.\n\n"
+    "that it is not recorded. Checking whether something is true by reading the source code or a "
+    "config file directly is not the same as it being a recorded decision - if you had to inspect "
+    "a file to answer rather than recall a decision, that means it was NOT recorded; report it as "
+    "not recorded rather than asserting what you found. Do not modify any files and do not append "
+    "any session entries - this is a read-only consultation. Answer each question in 1-3 "
+    "sentences, numbered.\n\n"
 )
 
 

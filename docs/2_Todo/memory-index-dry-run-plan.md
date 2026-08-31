@@ -2,9 +2,9 @@
 title: "Memory Index Dry-Run Plan"
 date: "2026-08-05"
 project: "memory-seed"
-status: "Three runs on the durstr corpus now on record: Run 6 (2026-08-27, pre-fix) 80.6/CLEAR; Run 7 (2026-08-31, git-diff trigger, flawed wording) 61.3/TRIGGERED; Run 8 (2026-08-31, reworded wording, same trigger) 83.9/CLEAR, best of the three. Root cause of Run 7's regression was the reminder's wording, not the trigger mechanism - a wording-only fix (no blocking) recovered compliance, and the exact two sessions whose silence caused Run 7's regression logged again in Run 8. adr_session_log_trigger_enforcement's wording revision is now Accepted."
+status: "Four runs on the durstr corpus now on record: Run 6 (pre-fix) 80.6/CLEAR; Run 7 (git-diff trigger, flawed wording) 61.3/TRIGGERED; Run 8 (reworded wording) 83.9/CLEAR; Run 9 (file-truth loophole + Q31 abstention fix) 87.1/CLEAR, zero fabrications, best of the four. adr_session_log_trigger_enforcement's wording revision is Accepted; its file-truth-loophole revision stays Proposed - it fixed 2 of the 4 targeted sessions (S3, S10) but not all four (S4, S6 remain unresolved), a genuine partial result."
 priority: "P1"
-next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 8's 83.9/CLEAR. Still n=1 per condition across all three runs - a fourth run would separate 'the wording fix works' from 'this re-run landed well', but Run 8's specific-sessions-recovered signal is stronger evidence than a headline-number-only re-run would give. The S3/S4/S10 no-logging gap (present in all three runs, structurally different from the wording issue) is untouched and unscoped."
+next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 9's 87.1/CLEAR, zero-fabrication result. Still n=1 per condition across all four runs. S4 and S6 remain unresolved (never logged in any of the four runs) - two candidate differences from S3/S10 noted in the Run 9 write-up but not confirmed. Q1 (Youssef misattribution) is a stable, minor, quiz-time-only issue across three straight runs, not worth further engineering effort at this scale."
 related:
   - "business/research/field-evidence-log.md"
   - "business/market/competitor-landscape.md"
@@ -452,26 +452,31 @@ questions used for Run 6 and Run 7 (archived at
 | false_memory | 8 | 7 | 0 | 0 | 0 | **1** |
 
 **Blended 26/31 = 83.9. Kill condition CLEAR** — better than both Run 6 (80.6) and Run 7 (61.3).
-8 entries were logged (up from Run 7's 2, and Run 6's 5), covering 10 decisions across 7 of the 10
-seeding sessions (S1, S2, S5, S6, S7, S8, S9) — a wider spread than Run 6's 4 compliant sessions,
-not just a higher count. Critically, **S8 and S9 — the two sessions with real code changes, and the
-only two whose compliance flipped between Run 6 and Run 7 — both logged again**, with more detail
-than either prior run (S8: 3 decisions vs. Run 6's 2; S9: 2 separate entries, splitting the config
-decision from the Youssef fact, vs. Run 6's 1 entry covering both). S2 used the small-work template
-(Summary/Validation/Follow-up, no D/R) for the first time in this experiment's lineage — direct
-evidence the reworded message's "if there's no real decision, use the small-work template" pointer
-was read and followed, not just the urgency clause.
+8 entries were logged (up from Run 7's 2, and Run 6's 5), covering 10 decisions across 6 of the 10
+seeding sessions (S1, S2, S5, S7, S8, S9; S7's brief produced two separate entries) — a wider
+spread than Run 6's 4 compliant sessions, not just a higher count. Critically, **S8 and S9 — the
+two sessions with real code changes, and the only two whose compliance flipped between Run 6 and
+Run 7 — both logged again**, with more detail than either prior run (S8: 3 decisions vs. Run 6's
+2; S9: 2 separate entries, splitting the config decision from the Youssef fact, vs. Run 6's 1
+entry covering both). S2 used the small-work template (Summary/Validation/Follow-up, no D/R) for
+the first time in this experiment's lineage — direct evidence the reworded message's "if there's
+no real decision, use the small-work template" pointer was read and followed, not just the
+urgency clause.
 
-**What didn't improve.** S3, S4, and S10 logged nothing in *any* of the three runs — a structural
-gap this wording fix does not touch, since it only changes what the hook says, not which sessions
-receive a task shaped like "add one line to a doc" or "define a gate, run checks" without treating
-it as decision-worthy. Q3 (the 0.8µs/op baseline, from S3) and Q19 (the Compass 1.0 gate criteria,
-from S10) are wrong in all three runs for the same reason. Two new misses appeared this run: Q1
-(the quiz session added Youssef to the *general* maintainer list rather than crediting him
-specifically for Linux-ARM CI ownership — an attribution imprecision at quiz time, not a capture
-gap; S9's own entry above states the fact correctly) and Q6 (the Python 3.12 rationale). Q31
-fabricated again, the same trap question as Run 7 (durstr's logging dependency) — worth watching
-across a further run before concluding anything about that specific trap.
+**What didn't improve.** S3, S4, S6, and S10 logged nothing in *any* of the three runs — a
+structural gap this wording fix does not touch, since it only changes what the hook says, not
+which sessions receive a task shaped like "add one line to a doc" or "define a gate, run checks"
+without treating it as decision-worthy. (S6 was originally mis-listed as compliant in this section
+— corrected 2026-08-31 after Run 9's investigation found its "wheel audit"/zero-case-contract
+facts were only ever mentioned in passing by *later* sessions finalizing the checklist, never
+recorded as S6's own decision, in any of Run 6/7/8.) Q3 (the 0.8µs/op baseline, from S3) and Q19
+(the Compass 1.0 gate criteria, from S10) are wrong in all three runs for the same reason. Two new
+misses appeared this run: Q1 (the quiz session added Youssef to the *general* maintainer list
+rather than crediting him specifically for Linux-ARM CI ownership — an attribution imprecision at
+quiz time, not a capture gap; S9's own entry above states the fact correctly) and Q6 (the Python
+3.12 rationale). Q31 fabricated again, the same trap question as Run 7 (durstr's logging
+dependency) — worth watching across a further run before concluding anything about that specific
+trap.
 
 **Reading.** The wording-only fix, without any blocking mechanism, recovered — and modestly
 exceeded — the pre-regression baseline, with the clearest possible signal: the exact two sessions
@@ -479,7 +484,7 @@ whose silence produced Run 7's regression are the exact two sessions that logged
 supports the wording diagnosis directly rather than by exclusion. The `mse_42fpw7wbc1f1fs6h`
 telling-vs-enforcing precedent cited after Run 7 turned out not to apply here — the reminder was
 never generically ignored, its specific phrasing was giving cover to decline. **Not resolved**: the
-S3/S4/S10 gap is untouched and looks like a different failure mode (task framing, not reminder
+S3/S4/S6/S10 gap is untouched and looks like a different failure mode (task framing, not reminder
 wording) worth its own investigation if it recurs.
 
 **Caveats:** still n=1 per condition across all three runs (Run 6, 7, 8) — this is the first
@@ -491,6 +496,61 @@ single unbroken `dryrun.py seed` pass — noted for completeness, does not affec
 
 **ADR:** `adr_session_log_trigger_enforcement`'s wording-fix revision (`mse_81504w3dkaanm395:d1`)
 transitioned from Proposed to Accepted on this result.
+
+## Run 9 (2026-08-31) — closing the file-truth loophole, and the Q31 fabrication fix
+
+Two independent follow-ups, tested together. First: S3, S4, S6, and S10 never logged in any of
+Run 6/7/8, unmoved by the turn-anchoring fix — all four hand the session an already-settled fact
+and one mechanical file edit, and writing the fact into the file appeared to read as task-complete
+with no separate "does this need a memory record" checkpoint. Made the file-vs-memory distinction
+(`agent-rules.md:199`'s own "files are authority for what is true now, memory is authority for
+why") explicit and unmissable in all three hook messages, the standing End Of Turn rule, and the
+Small work entry template itself (`mse_9xcwr1j80g755x16`). Second: Q31 (the `false_memory`
+fabrication trap) fired in both Run 7 and Run 8 regardless of seeding quality — the quiz session
+inspects source code, finds no logging import, and asserts "no dependency" instead of abstaining.
+Added an explicit inspection-is-not-recall clause to `dryrun.py`'s `QUIZ_PREAMBLE`.
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 3 | 0 | 3 | 0 | 0 |
+| updated_facts | 6 | 6 | 0 | 0 | 0 | 0 |
+| thread_growth | 3 | 2 | 1 | 0 | 0 | 0 |
+| synthesis | 4 | 4 | 0 | 0 | 0 | 0 |
+| long_term_retention | 4 | 4 | 0 | 0 | 0 | 0 |
+| false_memory | 8 | 8 | 0 | 0 | 0 | 0 |
+
+**Blended 27/31 = 87.1. Kill condition CLEAR** — best of the four runs, and **zero fabrications**
+for the first time since Run 6. The Q31 fix worked cleanly: the same trap that fabricated in both
+Run 7 and Run 8 was answered correctly (abstained) this run.
+
+**The file-truth fix worked for 2 of the 4 targeted sessions.** S3 and S10 — never compliant in
+three prior runs — both logged this time, and both did it correctly: S3's entry
+(`mse_4e485kneyx3sby14`) recorded the perf baseline *and* promoted it to `index.md` Active State in
+the same turn; S10's entry (`mse_3jmgtgck2vzhx2hz`) did the same for the 1.0 gate. Q3 and Q19,
+wrong in every prior run, are both correct this run. S4 and S6 remain unmoved — S4's brief creates
+a brand-new file (`RELEASE.md` doesn't exist yet at that point in the run) rather than editing an
+existing one; S6's brief touches a source-code docstring alongside a doc file, not just a project
+doc. Neither is a confirmed cause, just the two candidate differences from S3/S10's briefs worth
+checking first if this is picked up again. Q6 (S4's Python-3.12 rationale) is wrong, as predicted;
+Q4 and Q14 (S6's zero-case contract and checklist ordering) are new misses this run, not a
+regression — S6 has never logged in any of the four runs, it was mis-listed as compliant in Run
+8's writeup above until this run's investigation caught it (corrected there).
+
+Q1 (Youssef misfiled as a general maintainer rather than specifically Linux-ARM CI owner) recurred
+for the third straight run — small, stable, and unrelated to logging; a quiz-time attribution
+nuance, not a capture gap.
+
+**Reading.** A genuine partial result, not a clean win or a clean miss — worth recording as such.
+The file-vs-memory framing demonstrably worked for two of the four sessions it targeted, with the
+same directness as Run 8's S8/S9 signal (the targeted questions recovered, not just the headline
+score). It did not generalize to all four, and the two holdouts don't share one obvious property
+with each other. Not escalating to enforcement yet: two wording iterations have each fixed the
+specific failure mode they targeted (Run 8: the "not my work" rationalization; Run 9: half of the
+"file already has it" cases), so wording is still finding real ground, not spinning.
+
+**ADR:** `adr_session_log_trigger_enforcement`'s file-truth-loophole revision
+(`mse_9xcwr1j80g755x16:d1`) stays **Proposed**, not accepted — the mixed S3/S10-vs-S4/S6 result
+doesn't meet the same clean bar Run 8's revision cleared.
 
 ## Contamination guard
 
