@@ -18,9 +18,9 @@ source: write-time
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `mse_81504w3dkaanm395:d1`
 
 ### Decision
 
@@ -98,3 +98,27 @@ Run 7 (the fix-validation replication) proved the trigger fires correctly (conse
 #### Impact
 
 The reworded messages should be falsifiable against a second replication run (Run 8) on the same fixture and questions used for Run 6/Run 7: if compliance and the blended score recover toward Run 6's baseline without a new blocking mechanism, the wording was the cause; if not, the next escalation is enforcement, not further wording iteration.
+
+### revision-accepted - 2026-08-31T18:12:37Z
+
+```json
+{
+  "decision_ref": "mse_81504w3dkaanm395:d1",
+  "event_id": "adre_c5873867c407f6f96c83",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_s931k17g4d3w01r4"
+}
+```
+
+#### Decision
+
+Accept mse_81504w3dkaanm395:d1.
+
+#### Reason
+
+Run 8 (mse_s931k17g4d3w01r4:d1) validated the wording-fix revision empirically: blended 83.9/CLEAR, the best of three runs, with the two sessions whose silence caused Run 7's regression logging again.
+
+#### Impact
+
+mse_81504w3dkaanm395:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.

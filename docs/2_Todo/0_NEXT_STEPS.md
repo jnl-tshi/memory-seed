@@ -611,21 +611,25 @@ before its next step. (Market/account items live under "Parked" below.)
 12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
     2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
     than signed off as-is. Row-by-row outcome pending.
-13. **Memory-index dry-run → Verging Labs v0.2 submission — two runs now disagree, read both
-    before deciding.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md) "Run 6"
-    (2026-08-27, pre-fix): 80.6, kill condition **CLEAR**, zero fabrications, but only 4/10 seeding
-    sessions logged any memory. The session-log git-diff trigger fix landed 2026-08-29 to address
-    that (see `adr_session_log_trigger_enforcement`). "Run 7" (2026-08-31, same corpus, fix
-    applied): **61.3, kill condition TRIGGERED, and the first fabrication in 6 runs of this
-    instrument.** The fix is mechanically verified working (`consecutive_misses` climbed exactly as
-    designed, proving the reminder fired and escalated) but is necessary-not-sufficient — one
-    seeding session explicitly declined to log pre-existing dirty state as "another session's
-    work," and later sessions never engaged with the reminder at all despite it firing. **Still
-    time-sensitive** — early-September deadline. *Recommendation:* do not treat either number as
-    settled — this reads as a genuine compliance-gap finding (a reminder is a request; this
-    project's own prior evidence, `mse_42fpw7wbc1f1fs6h`, found requesting compliance failed where
-    enforcing it worked), not simply "the fix made things worse." Worth a third run and/or an
-    enforcement-style fix before trusting either score for a submission decision.
+13. **Memory-index dry-run → Verging Labs v0.2 submission — three runs on record, the regression
+    was diagnosed and recovered.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
+    "Run 6" (2026-08-27, pre-fix): 80.6, kill condition **CLEAR**, but only 4/10 seeding sessions
+    logged any memory. The session-log git-diff trigger fix landed 2026-08-29
+    (`adr_session_log_trigger_enforcement`). "Run 7" (2026-08-31, fix applied): **61.3, TRIGGERED**,
+    first fabrication in 6 runs — the trigger fired correctly, but its wording ("the working tree
+    has changes... detected from git") gave a session room to rationalize pre-existing dirty state
+    as "another session's work" and skip logging; that rationalization, written into a durable
+    entry, propagated to the two sessions with real code changes. Investigated, and a **wording-only
+    fix** (turn-anchored phrasing, an explicit "whichever turn is running when this fires is
+    responsible" clause, a precedent-poisoning guardrail — no blocking mechanism) landed
+    2026-08-31 and was re-run same-day as "Run 8": **83.9, CLEAR — best of the three runs.** The
+    exact two sessions whose silence caused Run 7's regression logged again, with more detail than
+    either prior run. The ADR's wording revision is now Accepted. *Recommendation:* Run 8's result
+    is strong enough to submit on, but still n=1 per condition across all three runs — a fourth run
+    would rule out "this re-run landed well" as an alternative to "the wording fix works." A
+    separate, untouched gap (S3/S4/S10 never log in any of the three runs — task-framing, not
+    wording) does not block submission but is worth its own look before treating the corpus as
+    fully understood.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 
