@@ -8,10 +8,11 @@ from memory_seed.adr import _v2_body_issues, parse_adr, parse_adr_text, render_a
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PREIMAGE = ROOT / ".memory-seed" / "archive" / "2.21" / "adr-ledger-v1-preimage" / "adr_session_decision_authority.md"
 
 
 def _v2_text() -> str:
-    record = parse_adr(ROOT / ".memory-seed" / "decisions" / "adr_session_decision_authority.md")
+    record = parse_adr(PREIMAGE)
     return render_adr(convert_record(record))
 
 
@@ -43,7 +44,7 @@ def test_v2_round_trip_and_impact_provenance_requirements():
 
 
 def test_v1_reader_remains_available_without_normalizing_history():
-    source = ROOT / ".memory-seed" / "decisions" / "adr_session_decision_authority.md"
+    source = PREIMAGE
     parsed = parse_adr(source)
     assert parsed.schema_version == 1
     assert render_adr(parsed) == source.read_text(encoding="utf-8")

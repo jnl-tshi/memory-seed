@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_agent_config_merge
 title: Agent-config JSON/TOML merge, never seed-copy
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `founding:.memory-seed/index.md#L124`
 
 Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.
 
-### Why
+### Reason
 
 Most projects already have .claude/settings.json with permissions, model, and other settings. Using seed-file copy would fail on existing projects or silently wipe their configuration.
 
-### How it evolved
+### Impact
 
 Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_claude_hook and _merge_codex_hook functions.
 
@@ -59,6 +59,7 @@ Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_clau
   "event_id": "adre_fcb2b52919bfb8aa8420",
   "founding_quote": "`.claude/settings.json` and `.codex/hooks.json` are handled as JSON merge targets during init/update — not seed file copies — so existing agent config is preserved.",
   "founding_source": ".memory-seed/index.md#L124",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -67,11 +68,11 @@ Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_clau
 
 Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.
 
-#### Why
+#### Reason
 
 Most projects already have .claude/settings.json with permissions, model, and other settings. Using seed-file copy would fail on existing projects or silently wipe their configuration.
 
-#### Evolution
+#### Impact
 
 Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_claude_hook and _merge_codex_hook functions.
 
@@ -81,13 +82,22 @@ Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_clau
 {
   "event_id": "adre_86af263c06df74dff10c",
   "founding_source": ".memory-seed/index.md#L124",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L124.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L124 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-08T19:00:00Z
 
@@ -101,6 +111,7 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
   ],
   "decision_ref": "ms-7c4e1f9a:d1",
   "event_id": "adre_c6654ffe4a81556ed3dc",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_kqna9hegj35dwsqj"
 }
@@ -110,10 +121,10 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 
 Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.
 
-#### Why
+#### Reason
 
 Rests on the session decision that instituted it: "Handle `.claude/settings.json` as a JSON merge rather than a seed file copy." (ms-7c4e1f9a:d1). Establishes the core principle that agent-config must merge rather than be seed-copied to avoid clobbering existing project settings.
 
-#### Evolution
+#### Impact
 
 Founded from .memory-seed/index.md#L124; this revision moves the concern off that control-file line onto ms-7c4e1f9a:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.

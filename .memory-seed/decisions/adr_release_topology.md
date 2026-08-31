@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_release_topology
 title: Publish via GitHub Release with manual PyPI gate
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: `founding:.memory-seed/policy.md#L72`
 
 Publishing is triggered by GitHub Release creation, which activates the publish.yml workflow. The pypi environment has a manual-approval gate that a reviewer must approve before the PyPI push executes.
 
-### Why
+### Reason
 
 GitHub Release creation produces labeled versions in the Actions UI. Manual approval gate ensures human review before the irreversible PyPI deployment and catches any unintended releases.
 
-### How it evolved
+### Impact
 
 Founded May 2026 (ms-1e38c75c); established as core release policy with multiple releases following the pattern.
 
@@ -55,6 +55,7 @@ Founded May 2026 (ms-1e38c75c); established as core release policy with multiple
   "event_id": "adre_37f74f40bbb87b8e9c41",
   "founding_quote": "Publishing should be triggered by GitHub Release creation, not direct workflow dispatch.",
   "founding_source": ".memory-seed/policy.md#L72",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
@@ -63,11 +64,11 @@ Founded May 2026 (ms-1e38c75c); established as core release policy with multiple
 
 Publishing is triggered by GitHub Release creation, which activates the publish.yml workflow. The pypi environment has a manual-approval gate that a reviewer must approve before the PyPI push executes.
 
-#### Why
+#### Reason
 
 GitHub Release creation produces labeled versions in the Actions UI. Manual approval gate ensures human review before the irreversible PyPI deployment and catches any unintended releases.
 
-#### Evolution
+#### Impact
 
 Founded May 2026 (ms-1e38c75c); established as core release policy with multiple releases following the pattern.
 
@@ -77,10 +78,19 @@ Founded May 2026 (ms-1e38c75c); established as core release policy with multiple
 {
   "event_id": "adre_d74a70d35153c3ae635e",
   "founding_source": ".memory-seed/policy.md#L72",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/policy.md#L72.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/policy.md#L72 becomes the authoritative decision; later contrary evidence requires a successor revision.

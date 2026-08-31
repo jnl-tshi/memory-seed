@@ -222,6 +222,11 @@ export interface components {
             /** Decision Ref */
             decision_ref?: string | null;
             /**
+             * Impact
+             * @default
+             */
+            impact: string;
+            /**
              * Evolution
              * @default
              */
@@ -243,6 +248,15 @@ export interface components {
             decision_ref?: string | null;
             /** Event Id */
             event_id: string;
+            /** Impact */
+            impact: string;
+            /** Impact Evidence */
+            impact_evidence?: string[];
+            /**
+             * Impact Provenance
+             * @default
+             */
+            impact_provenance: string;
             /**
              * Evolution
              * @default

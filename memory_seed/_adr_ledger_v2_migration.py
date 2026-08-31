@@ -18,7 +18,7 @@ from .core import read_text_file, resolve_runtime, write_text_file
 ARCHIVE_RELATIVE = Path("archive") / "2.21" / "adr-ledger-v1-preimage"
 MANIFEST_NAME = "manifest.json"
 # SHA-256 of sorted ``path<TAB>byte-count<TAB>sha256`` v1 corpus rows, ending in LF.
-EXPECTED_V1_CORPUS_SHA256 = "94afad625c2d00165864b992c660d94389efcce33cde783d714c51c72f7294a1"
+EXPECTED_V1_CORPUS_SHA256 = "240e1b65ee3629e1580815aa18d703089363bf13d074cd828db97bb7aeb9438f"
 
 
 def _sha256(data: bytes) -> str:
@@ -44,6 +44,10 @@ def _corpus_digest(rows: list[dict[str, object]]) -> str:
 
 def _not_recorded() -> str:
     return "Impact was not recorded in the schema-v1 event."
+
+
+def _reason_not_recorded() -> str:
+    return "Reason was not recorded in the schema-v1 event."
 
 
 def _lifecycle_impact(event: AdrEvent) -> str:
@@ -94,6 +98,7 @@ def convert_record(record: AdrRecord) -> AdrRecord:
         # mechanical renderings of that recorded state, not reconstructed historical claims.
         converted.append(replace(
             event, decision=_lifecycle_decision(event), why="", evolution="",
+            reason=event.reason.strip() or _reason_not_recorded(),
             impact=_lifecycle_impact(event), impact_provenance="preserved",
             impact_evidence=(), body_issues=None,
         ))
