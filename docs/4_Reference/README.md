@@ -33,6 +33,7 @@ Current Memory Trace provenance:
 |---|---|---|---|
 | [21st-dev-components.md](21st-dev-components.md) | — | — | — |
 | [agent-memory-product-functionality-report.md](agent-memory-product-functionality-report.md) | — | — | source-only |
+| [clean-session-high-signal-task-packet-pilot.md](clean-session-high-signal-task-packet-pilot.md) | — | — | — |
 | [designing-user-interfaces-source-learnings.md](designing-user-interfaces-source-learnings.md) | — | — | source-learnings |
 | [fffuel-svg-css-generators.md](fffuel-svg-css-generators.md) | — | — | — |
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |

@@ -107,14 +107,14 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 51 · 3_Spec 9 · 4_Reference 20 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 51 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
 - **P1** [excerpt-fallback-defect.md](2_Todo/excerpt-fallback-defect.md) — None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires.
 - **P1** [independent-validation-brief.md](2_Todo/independent-validation-brief.md) — Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own method and reports back.
-- **P1** [memory-index-dry-run-plan.md](2_Todo/memory-index-dry-run-plan.md) — JNL decides whether to submit to Verging Labs v0.2 (early September). Two same-corpus runs now disagree on the kill condition (80.6 CLEAR v…
+- **P1** [memory-index-dry-run-plan.md](2_Todo/memory-index-dry-run-plan.md) — JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 8's 83.9/CLEAR. Still n=1 per condition across all three runs -…
 - **P1** [memory-provenance-and-authority-taxonomy-proposal.md](2_Todo/memory-provenance-and-authority-taxonomy-proposal.md) — Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a policy result with reason codes; add fail-closed …
 - **P1** [memory-quality-metrics-v0-proposal.md](2_Todo/memory-quality-metrics-v0-proposal.md) — JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surfacing, further metrics, or §8 graduation.
 - **P1** [memory-seed-semantic-record-and-signal-foundation-plan.md](2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md) — Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality gates; the living ADR foundation shipped 2026…

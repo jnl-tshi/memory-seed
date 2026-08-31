@@ -2,9 +2,9 @@
 title: "Memory Index Dry-Run Plan"
 date: "2026-08-05"
 project: "memory-seed"
-status: "Two runs on the durstr corpus now on record: Run 6 (2026-08-27, pre-fix) 80.6/CLEAR; Run 7 (2026-08-31, post-fix) 61.3/TRIGGERED, first fabrication in 6 runs. The git-diff trigger fix is verified working mechanically (consecutive_misses climbed exactly as designed) but is necessary-not-sufficient - the model can receive the reminder and still decline to log. JNL decides on submission with both numbers now in hand."
+status: "Three runs on the durstr corpus now on record: Run 6 (2026-08-27, pre-fix) 80.6/CLEAR; Run 7 (2026-08-31, git-diff trigger, flawed wording) 61.3/TRIGGERED; Run 8 (2026-08-31, reworded wording, same trigger) 83.9/CLEAR, best of the three. Root cause of Run 7's regression was the reminder's wording, not the trigger mechanism - a wording-only fix (no blocking) recovered compliance, and the exact two sessions whose silence caused Run 7's regression logged again in Run 8. adr_session_log_trigger_enforcement's wording revision is now Accepted."
 priority: "P1"
-next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September). Two same-corpus runs now disagree on the kill condition (80.6 CLEAR vs 61.3 TRIGGERED) - read Run 6 and Run 7 both before deciding; this is not simply 'worse', it's a compliance-gap finding that needs its own follow-up before either number should be trusted as representative."
+next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 8's 83.9/CLEAR. Still n=1 per condition across all three runs - a fourth run would separate 'the wording fix works' from 'this re-run landed well', but Run 8's specific-sessions-recovered signal is stronger evidence than a headline-number-only re-run would give. The S3/S4/S10 no-logging gap (present in all three runs, structurally different from the wording issue) is untouched and unscoped."
 related:
   - "business/research/field-evidence-log.md"
   - "business/market/competitor-landscape.md"
@@ -384,7 +384,11 @@ inspected project files for it, rather than abstaining; expected ABSTAIN).
 not a discredit of the fix.** `.memory-seed/.session-log-check-state` after the run:
 `"consecutive_misses": 5` — direct, mechanical proof the git-diff trigger fired and escalated for
 5 straight sessions (S6–S10) with no compliance. Only 2 entries were logged across all 10 sessions
-this run (down from 5 pre-fix), covering 5 decisions total (down from 9). The seeded content
+this run (down from 5 pre-fix), covering 5 decisions total (down from 10 — corrected from an
+earlier "down from 9" figure recorded in this doc and in `mse_f8kap3c9fshnw08x:d2`'s body; a
+`grep -c "^#### D"` recount missed two Run 6 entries that used the singular `### Decision` heading
+format instead of `#### D1`. The session-log entry that reported "9" cannot be edited — it is
+append-only — so the correction is recorded here instead). The seeded content
 itself is identical in quality to every prior run — every real file (`README.md`, `RELEASE.md`,
 `config.py`, `duration.py`) was correctly updated every time, confirmed directly in the workspace
 — but capture got *worse*, not better.
@@ -422,6 +426,71 @@ same lesson applies to logging compliance, not just tool choice.
 rather than a third independent one, own judge chain. The fabrication and the "another session"
 rationalization are read directly from primary evidence (the entry text, the judge note, the state
 file), not inferred.
+
+## Run 8 (2026-08-31) — wording fix re-run, and the regression recovers
+
+Investigation (same day, before this run) found Run 7's regression was not a defect in the trigger
+mechanism — it fired exactly as designed — but in the new git-diff message's own wording: it was
+impersonal and historical ("the working tree has changes... detected from git") where the old
+time-based message was turn-anchored ("no entry has been logged... before this turn ends"), giving
+linguistic room for the "another session's work" rationalization Run 7 exposed. JNL approved a
+wording-only fix (reword the three reminder messages, add an explicit "whichever turn is running
+when this fires is responsible" clause, add a precedent-poisoning guardrail to `agent-rules.md` and
+`session_logging.md`) over hard enforcement, reasoning the hook was already a strong enough
+guardrail pre-regression to have built the whole system on it. Landed as `mse_81504w3dkaanm395`,
+synced into the `claude-L3-durstr` fixture, and re-run against the *identical* `facts.json`/31
+questions used for Run 6 and Run 7 (archived at
+`experiments/memory-index-dryrun-corpus2/runs-v1-mechanism-only/` for direct comparison).
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 3 | 0 | 3 | 0 | 0 |
+| updated_facts | 6 | 6 | 0 | 0 | 0 | 0 |
+| thread_growth | 3 | 3 | 0 | 0 | 0 | 0 |
+| synthesis | 4 | 3 | 0 | 1 | 0 | 0 |
+| long_term_retention | 4 | 4 | 0 | 0 | 0 | 0 |
+| false_memory | 8 | 7 | 0 | 0 | 0 | **1** |
+
+**Blended 26/31 = 83.9. Kill condition CLEAR** — better than both Run 6 (80.6) and Run 7 (61.3).
+8 entries were logged (up from Run 7's 2, and Run 6's 5), covering 10 decisions across 7 of the 10
+seeding sessions (S1, S2, S5, S6, S7, S8, S9) — a wider spread than Run 6's 4 compliant sessions,
+not just a higher count. Critically, **S8 and S9 — the two sessions with real code changes, and the
+only two whose compliance flipped between Run 6 and Run 7 — both logged again**, with more detail
+than either prior run (S8: 3 decisions vs. Run 6's 2; S9: 2 separate entries, splitting the config
+decision from the Youssef fact, vs. Run 6's 1 entry covering both). S2 used the small-work template
+(Summary/Validation/Follow-up, no D/R) for the first time in this experiment's lineage — direct
+evidence the reworded message's "if there's no real decision, use the small-work template" pointer
+was read and followed, not just the urgency clause.
+
+**What didn't improve.** S3, S4, and S10 logged nothing in *any* of the three runs — a structural
+gap this wording fix does not touch, since it only changes what the hook says, not which sessions
+receive a task shaped like "add one line to a doc" or "define a gate, run checks" without treating
+it as decision-worthy. Q3 (the 0.8µs/op baseline, from S3) and Q19 (the Compass 1.0 gate criteria,
+from S10) are wrong in all three runs for the same reason. Two new misses appeared this run: Q1
+(the quiz session added Youssef to the *general* maintainer list rather than crediting him
+specifically for Linux-ARM CI ownership — an attribution imprecision at quiz time, not a capture
+gap; S9's own entry above states the fact correctly) and Q6 (the Python 3.12 rationale). Q31
+fabricated again, the same trap question as Run 7 (durstr's logging dependency) — worth watching
+across a further run before concluding anything about that specific trap.
+
+**Reading.** The wording-only fix, without any blocking mechanism, recovered — and modestly
+exceeded — the pre-regression baseline, with the clearest possible signal: the exact two sessions
+whose silence produced Run 7's regression are the exact two sessions that logged again. This
+supports the wording diagnosis directly rather than by exclusion. The `mse_42fpw7wbc1f1fs6h`
+telling-vs-enforcing precedent cited after Run 7 turned out not to apply here — the reminder was
+never generically ignored, its specific phrasing was giving cover to decline. **Not resolved**: the
+S3/S4/S10 gap is untouched and looks like a different failure mode (task framing, not reminder
+wording) worth its own investigation if it recurs.
+
+**Caveats:** still n=1 per condition across all three runs (Run 6, 7, 8) — this is the first
+same-fixture, same-wording-fix pairing to *recover*, but a fourth run would be needed to separate
+"the wording fix works" from "this particular re-run happened to land well." S10's seeding session
+hit an unrelated session-quota limit mid-run (external to the experiment) and was resumed via a
+direct re-invocation of the same brief against the same workspace ~20 minutes later, rather than a
+single unbroken `dryrun.py seed` pass — noted for completeness, does not affect S1-S9's results.
+
+**ADR:** `adr_session_log_trigger_enforcement`'s wording-fix revision (`mse_81504w3dkaanm395:d1`)
+transitioned from Proposed to Accepted on this result.
 
 ## Contamination guard
 
