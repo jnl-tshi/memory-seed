@@ -591,6 +591,56 @@ def load_adr_for_write(path: Path, cwd: str | Path = ".") -> tuple[AdrRecord | N
     return (None, tuple(issues)) if issues else (record, ())
 
 
+def _migration_lifecycle_text(event: AdrEvent) -> tuple[str, str, str]:
+    """The only permitted v1 -> v2 reconciliation projection.
+
+    This mirrors the one-time corpus migration but deliberately accepts no prose supplied by a
+    caller: values come only from a v1 event or its explicit lifecycle envelope. It is a merge
+    compatibility guard, not a general rewrite capability.
+    """
+    ref = event.decision_ref or (f"founding:{event.founding_source}" if event.founding_source else "the selected revision")
+    if event.kind == "revision-proposed":
+        return event.decision, event.why, event.evolution or "Impact was not recorded in the schema-v1 event."
+    reason = event.reason or "Reason was not recorded in the schema-v1 event."
+    if event.kind == "revision-accepted":
+        return f"Accept {ref}.", reason, f"{ref} becomes the authoritative decision; later contrary evidence requires a successor revision."
+    if event.kind == "revision-rejected":
+        return f"Reject {ref}.", reason, f"{ref} is not adopted and the current authoritative decision remains unchanged."
+    if event.kind == "reviewed-no-change":
+        return f"Retain {ref} as the governing decision.", reason, "The review retained the governing decision; the original impact was not otherwise recorded."
+    if event.kind == "adr-superseded":
+        return f"Supersede this ADR with {event.replacement_adr or 'the replacement ADR'}.", reason, f"Authority for this concern moves to {event.replacement_adr or 'the replacement ADR'} while this ledger remains historical evidence."
+    if event.kind == "context-added":
+        return "Record the supplied decisions as context for this ADR.", reason, "This adds supporting context only; it does not change ADR membership, status, or authority."
+    return "", "", ""
+
+
+def _is_exact_v2_migration(base: AdrRecord, incoming: AdrRecord) -> bool:
+    """True only for the ratified v1 prose projection, with no changed ledger facts."""
+    if base.schema_version != 1 or incoming.schema_version != 2:
+        return False
+    fields = ("adr_id", "title", "topics", "created_at", "user_initials", "agent_type", "source")
+    if any(getattr(base, name) != getattr(incoming, name) for name in fields):
+        return False
+    if len(base.events) != len(incoming.events):
+        return False
+    for old, new in zip(base.events, incoming.events):
+        # All non-prose envelope fields must be literal equality.
+        envelope = ("kind", "event_id", "timestamp", "source", "decision_ref", "update_entry_id",
+                    "expected_authoritative_decision", "predecessors", "supporting_decisions",
+                    "matched_decisions", "replacement_adr", "constitution_refs", "founding_source",
+                    "founding_quote")
+        if any(getattr(old, name) != getattr(new, name) for name in envelope):
+            return False
+        decision, reason, impact = _migration_lifecycle_text(old)
+        provenance = "preserved" if old.kind != "revision-proposed" or old.evolution else "not-recorded"
+        if (new.decision, new.reason, new.impact, new.impact_provenance, new.impact_evidence) != (
+            decision, reason, impact, provenance, (),
+        ):
+            return False
+    return True
+
+
 def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrRecord | None, list[str]]:
     """Structurally merge two branch-local ledgers for one concern.
 
@@ -598,6 +648,10 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
     ordered deterministically. A reused event id with different content or a
     transition whose expected head is stale is an explicit conflict.
     """
+    # Constitution v1.10 permits exactly this lossless historical projection. A normal branch
+    # reconciliation otherwise remains fail-closed for a changed event id or schema identity.
+    if _is_exact_v2_migration(base, incoming):
+        return incoming, []
     issues: list[str] = []
     identity_fields = (
         "schema_version", "adr_id", "title", "topics", "created_at",
