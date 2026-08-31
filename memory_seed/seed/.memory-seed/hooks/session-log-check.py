@@ -256,10 +256,12 @@ if is_stale or dirty_since_baseline:
             f"new entry): a prior reminder for {target_label} already fired and nothing new has "
             f"been logged since. Deferring or batching session log writes is a discipline "
             f"failure, and so is treating outstanding changes as someone else's turn to log - "
-            f"whichever turn is running when this fires owns it. Stop and append an entry now "
-            f"covering everything done since the last logged entry - this is especially "
-            f"important if the turn ran `git push`, `git merge`, deleted or moved files, or "
-            f"made any decision worth remembering."
+            f"whichever turn is running when this fires owns it, and having already written the "
+            f"change into the affected file is not a substitute for logging it. Stop and append "
+            f"an entry now covering everything done since the last logged entry - a small-work "
+            f"entry if there's no real decision, this is especially important if the turn ran "
+            f"`git push`, `git merge`, deleted or moved files, or made any decision worth "
+            f"remembering."
         )
     elif dirty_since_baseline:
         messages.append(
@@ -268,19 +270,23 @@ if is_stale or dirty_since_baseline:
             f"fast turn cannot slip past it the way it can slip past a 15-minute clock. Append "
             f"one now, before this turn ends - not deferred, not batched, and not skipped "
             f"because the changes predate this turn: whichever turn is running when this fires "
-            f"is responsible for logging them. If there's no real decision, use the small-work "
-            f"template (Summary/Validation/Follow-up); otherwise D and R are required, A/F/T "
-            f"optional."
+            f"is responsible for logging them, and having already written the change into the "
+            f"affected file is not a substitute - the file is what's true now, the entry is why "
+            f"and when. If there's no real decision, use the small-work template "
+            f"(Summary/Validation/Follow-up); otherwise D and R are required, A/F/T optional."
         )
     else:
         messages.append(
             f"SESSION LOG REMINDER: no entry has been logged in {target_label} in the last 15 "
             f"minutes. Append one now, before this turn ends - not deferred, not batched, and "
             f"not skipped because the outstanding work predates this turn: whichever turn is "
-            f"running when this fires is responsible for logging it. This applies whenever the "
-            f"turn changed files, ran a git operation (push, merge, rebase, delete), or made a "
-            f"decision, however small. D (Decision) and R (Reason) are required on every entry; "
-            f"A (Alternatives), F (Files), T (Tests) are optional."
+            f"running when this fires is responsible for logging it, and having already written "
+            f"the change into the affected file is not a substitute - the file is what's true "
+            f"now, the entry is why and when. This applies whenever the turn changed files, ran "
+            f"a git operation (push, merge, rebase, delete), or made a decision, however small. "
+            f"If there's no real decision, use the small-work template "
+            f"(Summary/Validation/Follow-up); otherwise D (Decision) and R (Reason) are required "
+            f"on every entry, with A (Alternatives), F (Files), T (Tests) optional."
         )
 else:
     consecutive_misses = 0
