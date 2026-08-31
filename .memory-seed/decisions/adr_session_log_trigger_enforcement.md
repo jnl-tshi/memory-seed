@@ -37,6 +37,7 @@ The reworded messages should be falsifiable against a second replication run (Ru
 ### Awaiting review
 
 - `mse_4e4y2348y7493b37:d1` - A session-log entry is required whenever git detects tracked-file changes outside the session log since the...
+- `mse_9xcwr1j80g755x16:d1` - State explicitly in the hook wording and standing rules that writing a fact into a project file is not itself...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -122,3 +123,33 @@ Run 8 (mse_s931k17g4d3w01r4:d1) validated the wording-fix revision empirically: 
 #### Impact
 
 mse_81504w3dkaanm395:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### revision-proposed - 2026-08-31T20:34:12Z
+
+```json
+{
+  "decision_ref": "mse_9xcwr1j80g755x16:d1",
+  "event_id": "adre_2a23fcd846c314c42869",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_81504w3dkaanm395:d1",
+      "relation_assertion": "link:mse_9xcwr1j80g755x16:d1:evolves:mse_81504w3dkaanm395:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_9xcwr1j80g755x16"
+}
+```
+
+#### Decision
+
+State explicitly in the hook wording and standing rules that writing a fact into a project file is not itself a memory record
+
+#### Reason
+
+S3, S4, and S10 never logged in any of Run 6/7/8, unaffected by the turn-anchoring wording fix - a different rationalization than Run 7's 'not my work': the task hands the session an already-settled fact and one mechanical file edit, and writing it into the file appears to read as task-complete without a separate memory-record checkpoint.
+
+#### Impact
+
+Falsifiable against a fourth run (Run 9) on the same fixture/questions: if S3/S4/S10 log (at minimum a small-work entry) and the corresponding questions (Q3, Q6, Q19) recover, the file-vs-memory framing was the missing piece; if not, this is a genuine negative result and the next lever is enforcement, not a third wording attempt.

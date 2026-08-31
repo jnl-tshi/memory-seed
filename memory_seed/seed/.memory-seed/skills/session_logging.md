@@ -317,6 +317,8 @@ which lifecycle edges, ADR sidecars and decision-level topics already assume.
 ### Small work entry
 
 Use for routine edits, small fixes, or verification-only work with no real decision. Do not invent reason.
+This applies even when the fact is now fully expressed in the changed file itself — a README line or a
+RELEASE.md note is what's true now, not why or when it became true, and is not a substitute for this entry.
 
 ```markdown
 ### Summary
