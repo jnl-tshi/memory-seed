@@ -24,8 +24,8 @@ or broad durable-memory authority.
 
 ```yaml
 context_load: packet
-worker_role: researcher
-capability_tier: balanced
+role: researcher
+capability_tier: standard
 memory_update_policy: orchestrator
 working_revision: <rerun corpus revision>
 evidence_pack: <manifest or returned inline result>
@@ -35,10 +35,15 @@ context_budget: <ledger path or inline ledger>
 ```
 
 Use `memory_update_policy: orchestrator` for normal delegated work: the
-orchestrator owns durable session memory. An explicitly delegated,
-branch-local pilot may instead use `worker_checkpoint`; that exception grants
-only the named guarded checkpoints, not control-plane ownership. Use `none` for
-workers that must not write session memory at all.
+worker writes no memory, and the orchestrator decides whether the durable result
+warrants logging. An explicitly delegated, branch-local pilot may instead use
+`worker_checkpoint`; that is the sole narrow exception and grants only the named
+guarded checkpoints, not control-plane ownership.
+
+The `standard` worker in this example was routed under the accepted provisional
+balanced packet-budget band: a 32K starting target, 48K soft cap, and 64K shard
+threshold. This routing/budget band is contextual planning guidance, not another
+Task Packet field or a replacement capability-tier value.
 
 ## Compact project context example
 
@@ -131,7 +136,8 @@ as the model-context total.
 In the accepted assessment, three bounded supplemental calls (two rereads of
 materialized evidence plus one measurement-only check) totalled 9,102 estimated
 tokens. Replacing—not adding to—the 2,000-token reserve produced a conservative
-38,002 projection, 9,998 below the balanced 48K soft cap. It was not a
+38,002 projection, 9,998 below the provisional balanced packet-budget band's
+48K soft cap. It was not a
 provider-reported realized total. Record every supplemental call with its missing
 question, source/range, estimate, and whether it returned evidence or only a
 measurement. Stop discretionary reads at the soft cap and return `NEEDS_CONTEXT`
@@ -179,15 +185,16 @@ pilot decision at graph distance one; that is an expected consequence of rerunni
 the same depth-one graph after the pilot was recorded. It refines the point-in-time
 example without changing the bounded-packet premise.
 
-For the Task 3 balanced-tier planning view, non-evidence categories total 22,700
-tokens: 2,000 brief/dispatch, 200 project context, 1,500 procedure pointers,
-3,500 accepted report, 1,500 scoped instructions, 6,000 tool/schema reserve, and
-8,000 supplemental/synthesis headroom. If an orchestrator materializes this
-rerun's 19,335 selected evidence estimate, the conservative all-inclusive planning
-projection is 42,035 tokens (19,335 + 22,700), 5,965 below the 48K soft cap and
-below the 64K shard threshold. This is a planning calculation, not a measured
-model-context total; the 2,500 manifest/materialized-reference line in the original
-25,200 packet plan must be replaced, not added, when using the resolved estimate.
+For the Task 3 planning view under that provisional balanced packet-budget band,
+non-evidence categories total 22,700 tokens: 2,000 brief/dispatch, 200 project
+context, 1,500 procedure pointers, 3,500 accepted report, 1,500 scoped
+instructions, 6,000 tool/schema reserve, and 8,000 supplemental/synthesis
+headroom. If an orchestrator materializes this rerun's 19,335 selected evidence
+estimate, the conservative all-inclusive planning projection is 42,035 tokens
+(19,335 + 22,700), 5,965 below the 48K soft cap and below the 64K shard threshold.
+This is a planning calculation, not a measured model-context total; the 2,500
+manifest/materialized-reference line in the original 25,200 packet plan must be
+replaced, not added, when using the resolved estimate.
 
 This checkpoint made two required resolver calls—preview and resolve—but made no
 supplemental canonical-source fetch or materialized-evidence reread. With
