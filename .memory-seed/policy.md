@@ -59,7 +59,8 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - `.memory-seed/skills/*.md` owns task-specific execution runbooks.
 - `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` owns chronological work history.
 - `.memory-seed/archive/` owns archived prior control-plane states.
-- `.memory-seed/hooks/*.py` owns lifecycle hook scripts (e.g. `session-log-check.py`).
+- `.memory-seed/hooks/*.py` owns lifecycle hook scripts (e.g. `session-log-check.py`, whose logging
+  trigger is governed by (ADR [`adr_session_log_trigger_enforcement`](decisions/adr_session_log_trigger_enforcement.md))).
 - `memory_seed/seed/` owns reusable files copied by `memory-seed init`.
 
 ## Security And Privacy
