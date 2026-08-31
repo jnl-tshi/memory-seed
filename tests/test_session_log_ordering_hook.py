@@ -191,6 +191,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
         self.assertIn("SESSION LOG REMINDER", out)
         self.assertNotIn("repeated", out)
+        self.assertIn("whichever turn is running when this fires is responsible", out)
 
     def test_second_consecutive_stale_check_escalates_wording(self):
         cwd = self.make_project()
@@ -201,6 +202,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
         self.assertIn("SESSION LOG REMINDER (repeated - 2 checks in a row", out)
         self.assertIn("discipline failure", out)
+        self.assertIn("whichever turn is running when this fires owns it", out)
 
     def test_escalation_count_keeps_climbing_across_repeated_misses(self):
         cwd = self.make_project()
@@ -295,6 +297,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
         self.assertIn("SESSION LOG REMINDER", out)
         self.assertIn("detected from git", out)
+        self.assertIn("whichever turn is running when this fires is responsible", out)
 
     def test_git_diff_trigger_silent_when_dirty_file_predates_the_entry(self):
         cwd = self.make_git_project()

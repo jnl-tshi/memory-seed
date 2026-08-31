@@ -177,7 +177,7 @@ Restricted updates:
 - `.memory-seed/policy.md`: update only when durable behavioral constraints changed.
 - `.memory-seed/skills/*.md`: update only when the corresponding reusable runbook changes.
 
-Immediate durable-memory update exception: update `.memory-seed/index.md`, `.memory-seed/policy.md`, or an active skill during a session only when leaving the current content stale would immediately mislead active work, route an agent to wrong files, preserve an unsafe assumption, or cause repeated incorrect actions.
+Immediate durable-memory update exception: update `.memory-seed/index.md`, `.memory-seed/policy.md`, or an active skill during a session only when leaving the current content stale would immediately mislead active work, route an agent to wrong files, preserve an unsafe assumption, or cause repeated incorrect actions. This includes recording a durable fact established this turn that has no entry to live in (see `session_logging.md`'s Decision Harvest) — an `index.md` that never gained the fact is exactly as misleading as one that kept a stale one.
 
 For restricted files, the agent must be able to explain why the file's ownership scope was affected.
 
@@ -205,7 +205,7 @@ Cross-cutting principles that apply to any agent and any task:
 - Load `.memory-seed/skills/skill_architecture.md` before adding, removing, renaming, splitting, or refactoring skills, editing `skills/index.md`, changing profiles, or moving procedural guidance between this file, `policy.md`, and skills.
 - Before integration, read `.memory-seed/project.yaml` `integration_mode`: unset/`local-merge` runs `session integrate` or `merge-branch` from the integration/base checkout and never pushes; `pr` runs `session integrate` or `open-pr` from the task branch, where only the declared mode authorizes a normal non-force push and PR. A Task Packet's `integration_artifact` overrides the default; force and other destructive operations remain gated. **No hook checks this either** — misreading it risks an unwanted push or PR, so re-read the mode immediately before the integration step itself, not from memory of an earlier turn.
 ## End Of Turn
-After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
+After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure. A prior session's choice not to log or not to act on something is scoped to exactly what it named, not blanket precedent for later turns — logging your own turn's changes is required regardless of what else is already dirty or what an earlier entry said about it (measured 2026-08-31: a session's own note excusing itself from logging pre-existing dirty files was apparently read as covering unrelated later work too, and the two sessions with real code changes stopped logging).
 
 Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
 
