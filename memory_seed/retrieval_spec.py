@@ -17,6 +17,7 @@ from typing import Any
 
 SCHEMA = "memory-seed/retrieval-spec"
 VERSION = 1
+V2_VERSION = 2
 
 # Explicit M1 reader ownership.  These strings name existing or planned
 # canonical readers, not executable hooks or permissions.
@@ -39,6 +40,7 @@ DEFAULT_ON_MISSING = {"required": "fail", "optional": "report"}
 DEFAULT_OUTPUT = {"include_resolution_trace": False, "include_excerpts": False}
 
 _TOP_LEVEL = frozenset({"schema", "version", "required", "optional", "filters", "ordering", "limits", "on_missing", "output"})
+_V2_TOP_LEVEL = _TOP_LEVEL | {"selectors"}
 _DEFERRED = {
     "id": "named specs are deferred; submit an inline spec without 'id'",
     "profile": "profiles are deferred; submit an inline spec",
@@ -228,9 +230,95 @@ def normalize_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate Retrieval Specification v2 without changing the frozen v1 path.
+
+    V2 retains every v1 clause and default, adding only exact, local pinned
+    evidence selectors.  Keeping this separate from :func:`normalize_retrieval_spec`
+    is intentional: callers that use v1 retain its canonical bytes and digest.
+    """
+    spec = _mapping(spec, "$")
+    _known_keys(spec, "", set(_V2_TOP_LEVEL))
+    for required_key in ("schema", "version", "required"):
+        if required_key not in spec:
+            _error(required_key, "is required")
+    if spec["schema"] != SCHEMA:
+        _error("schema", f"must equal {SCHEMA!r}")
+    if type(spec["version"]) is not int or spec["version"] != V2_VERSION:
+        _error("version", f"must equal integer {V2_VERSION}")
+
+    # Reuse the v1 validator as the owner of every inherited invariant.  Its
+    # result is the v1 canonical shape; the v2-only selector is appended below.
+    v1_input = {key: value for key, value in spec.items() if key != "selectors"}
+    v1_input["version"] = VERSION
+    base = normalize_retrieval_spec(v1_input)
+
+    selectors_in = _mapping(spec.get("selectors", {}), "selectors")
+    _known_keys(selectors_in, "selectors", {"pinned"})
+    pinned_in = selectors_in.get("pinned", [])
+    if not isinstance(pinned_in, list):
+        _error("selectors.pinned", "must be a list")
+    pinned: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for index, record in enumerate(pinned_in):
+        path = f"selectors.pinned[{index}]"
+        record = _mapping(record, path)
+        _known_keys(record, path, {"kind", "id", "reason", "required"})
+        if set(record) - {"kind", "id", "reason", "required"}:
+            _error(path, "contains an unknown field")
+        for name in ("kind", "id", "reason"):
+            if name not in record:
+                _error(f"{path}.{name}", "is required")
+        kind = record["kind"]
+        if kind not in {"adr", "decision"}:
+            _error(f"{path}.kind", "must be 'adr' or 'decision'")
+        evidence_id = record["id"]
+        if not isinstance(evidence_id, str) or not evidence_id.strip():
+            _error(f"{path}.id", "must be a non-empty string")
+        if kind == "decision":
+            import re
+
+            if re.fullmatch(r"[a-z0-9][a-z0-9_-]*:d[1-9][0-9]*", evidence_id) is None:
+                _error(
+                    f"{path}.id",
+                    "must use canonical '<entry-id>:dN' decision identity",
+                )
+        reason = record["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            _error(f"{path}.reason", "must be a non-empty string")
+        required = _bool(record.get("required", True), f"{path}.required")
+        identity = (kind, evidence_id)
+        if identity in seen:
+            _error(path, "duplicates a pinned evidence identity")
+        seen.add(identity)
+        pinned.append(
+            {
+                "kind": kind,
+                "id": evidence_id,
+                "reason": reason,
+                "required": required,
+            }
+        )
+    base["version"] = V2_VERSION
+    base["selectors"] = {"pinned": pinned}
+    return base
+
+
+def normalize_any_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Dispatch only on the explicitly versioned Retrieval Specification."""
+    if not isinstance(spec, Mapping):
+        _error("$", "must be a mapping")
+    version = spec.get("version")
+    if version == VERSION:
+        return normalize_retrieval_spec(spec)
+    if version == V2_VERSION:
+        return normalize_retrieval_spec_v2(spec)
+    _error("version", f"must equal integer {VERSION} or {V2_VERSION}")
+
+
 def canonical_retrieval_spec_json(spec: Mapping[str, Any]) -> str:
-    """Return canonical normalized JSON used as the full v1 fingerprint input."""
-    return json.dumps(normalize_retrieval_spec(spec), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    """Return canonical normalized JSON for the explicitly selected spec version."""
+    return json.dumps(normalize_any_retrieval_spec(spec), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def retrieval_spec_fingerprint(spec: Mapping[str, Any]) -> str:

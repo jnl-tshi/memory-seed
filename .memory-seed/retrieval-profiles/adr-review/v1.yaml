@@ -1,0 +1,15 @@
+schema: memory-seed/retrieval-profile
+version: 1
+id: adr-review
+profile_version: 1
+extends: []
+spec:
+  required:
+    related_decisions:
+      depth: 5
+  optional:
+    sessions:
+      neighbouring_entries: 10
+  limits:
+    max_entries: 50
+    max_tokens: 20000
