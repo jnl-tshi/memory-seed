@@ -130,6 +130,37 @@ class TaskPacketTests(unittest.TestCase):
             "integration_artifact": "branch" if writing else "handoff",
         }
 
+    def compile_at_envelope(self, root, tier, desired, *, allow=False):
+        dispatch = self.dispatch(tier=tier)
+        dispatch["budget"].update(
+            {
+                "supplemental_input_tokens": max(0, desired - 5_000),
+                "output_tokens": 2_000,
+                "over_soft_cap": "allow" if allow else "fail",
+                "over_soft_cap_reason": (
+                    "Coupled evidence requires one bounded synthesis." if allow else None
+                ),
+            }
+        )
+        seen = set()
+        for _ in range(20):
+            supplemental = dispatch["budget"]["supplemental_input_tokens"]
+            self.assertNotIn(supplemental, seen, "boundary adjustment oscillated")
+            seen.add(supplemental)
+            try:
+                outcome = compile_task_packet(dispatch, self.binding(root), root)
+                total = outcome["input_ledger"]["total_context_envelope_tokens"]
+            except TaskPacketValidationError as exc:
+                if exc.code not in {"soft_cap_exceeded", "shard_required"}:
+                    raise
+                outcome = exc
+                total = exc.details["total_context_tokens"]
+            if total == desired:
+                return outcome
+            dispatch["budget"]["supplemental_input_tokens"] += desired - total
+            self.assertGreaterEqual(dispatch["budget"]["supplemental_input_tokens"], 0)
+        self.fail(f"could not construct exact {tier} envelope {desired}")
+
     def test_dispatch_is_strict_defaults_memory_owner_and_enforces_context_band(self):
         dispatch = self.dispatch()
         normalized = normalize_task_dispatch(dispatch)
@@ -180,6 +211,41 @@ class TaskPacketTests(unittest.TestCase):
         dispatch["memory_checkpoints"]["branch_local_only"] = False
         with self.assertRaisesRegex(TaskPacketValidationError, "must be true"):
             normalize_task_dispatch(dispatch)
+
+    def test_checkpoint_paths_reject_wildcards_and_use_windows_alias_identity(self):
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["memory_update_policy"] = "worker_checkpoint"
+        dispatch["execution"]["allowed_files"] = [
+            ".MEMORY-SEED\\SESSIONS\\2026-08\\2026-08-31.md"
+        ]
+        dispatch["memory_checkpoints"] = {
+            "names": ["implementation-complete"],
+            "session_paths": [".memory-seed/sessions/2026-08/2026-08-31.md"],
+            "branch_local_only": True,
+            "guarded_append": True,
+        }
+        normalized = normalize_task_dispatch(dispatch)
+        self.assertEqual(
+            normalized["execution"]["allowed_files"],
+            [".MEMORY-SEED/SESSIONS/2026-08/2026-08-31.md"],
+        )
+
+        wildcard = copy.deepcopy(dispatch)
+        wildcard["memory_checkpoints"]["session_paths"] = [
+            ".memory-seed/sessions/**/*.md"
+        ]
+        wildcard["execution"]["allowed_files"] = [
+            ".memory-seed/sessions/**/*.md"
+        ]
+        with self.assertRaisesRegex(TaskPacketValidationError, "exact .* files"):
+            normalize_task_dispatch(wildcard)
+
+        alias_conflict = copy.deepcopy(dispatch)
+        alias_conflict["execution"]["forbidden_files"] = [
+            ".memory-seed/sessions/2026-08/2026-08-31.MD"
+        ]
+        with self.assertRaisesRegex(TaskPacketValidationError, "must not overlap"):
+            normalize_task_dispatch(alias_conflict)
 
     def test_effective_profile_requires_a_pinned_topic_or_path_selector(self):
         root = self.make_project()
@@ -233,6 +299,27 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaises(TaskPacketValidationError) as caught:
             normalize_runtime_binding(binding, write_intent="read-only", cwd=root)
         self.assertEqual(caught.exception.code, "binding_mismatch")
+
+    def test_base_branch_must_be_an_exact_local_branch(self):
+        root = self.make_project()
+        self.git(root, "tag", "fixture-tag")
+        base_sha = self.git(root, "rev-parse", "HEAD")
+        for invalid in ("HEAD", "fixture-tag", base_sha, "main^{commit}"):
+            with self.subTest(base_branch=invalid):
+                binding = self.binding(root)
+                binding["base_branch"] = invalid
+                with self.assertRaises(TaskPacketValidationError) as caught:
+                    normalize_runtime_binding(
+                        binding, write_intent="read-only", cwd=root
+                    )
+                self.assertEqual(caught.exception.code, "invalid_binding")
+                self.assertEqual(caught.exception.path, "runtime_binding.base_branch")
+        self.assertEqual(
+            normalize_runtime_binding(
+                self.binding(root), write_intent="read-only", cwd=root
+            )["base_branch"],
+            "main",
+        )
 
     def test_compilation_is_byte_identical_and_materializes_content_once(self):
         root = self.make_project()
@@ -312,6 +399,49 @@ class TaskPacketTests(unittest.TestCase):
             )
         self.assertEqual(caught.exception.code, "shard_required")
 
+    def test_compiler_hits_exact_target_soft_override_and_shard_boundaries_for_all_tiers(self):
+        root = self.make_project()
+        bands = {
+            "economy": (16_000, 24_000, 32_000),
+            "balanced": (32_000, 48_000, 64_000),
+            "frontier": (64_000, 96_000, 128_000),
+        }
+        for tier, (target, soft_cap, shard) in bands.items():
+            with self.subTest(tier=tier, boundary="target"):
+                packet = self.compile_at_envelope(root, tier, target)
+                self.assertIsInstance(packet, dict)
+                self.assertEqual(packet["input_ledger"]["status"], "within_target")
+                self.assertEqual(
+                    packet["input_ledger"]["total_context_envelope_tokens"], target
+                )
+            with self.subTest(tier=tier, boundary="soft_cap"):
+                packet = self.compile_at_envelope(root, tier, soft_cap)
+                self.assertIsInstance(packet, dict)
+                self.assertEqual(packet["input_ledger"]["status"], "elevated")
+                self.assertEqual(
+                    packet["input_ledger"]["total_context_envelope_tokens"], soft_cap
+                )
+            with self.subTest(tier=tier, boundary="override"):
+                refusal = self.compile_at_envelope(root, tier, soft_cap + 1)
+                self.assertIsInstance(refusal, TaskPacketValidationError)
+                self.assertEqual(refusal.code, "soft_cap_exceeded")
+                self.assertEqual(
+                    refusal.details["total_context_tokens"], soft_cap + 1
+                )
+                packet = self.compile_at_envelope(root, tier, soft_cap + 1, allow=True)
+                self.assertIsInstance(packet, dict)
+                self.assertEqual(
+                    packet["input_ledger"]["status"], "allowed_above_soft_cap"
+                )
+                self.assertEqual(
+                    packet["input_ledger"]["total_context_envelope_tokens"], soft_cap + 1
+                )
+            with self.subTest(tier=tier, boundary="shard"):
+                refusal = self.compile_at_envelope(root, tier, shard, allow=True)
+                self.assertIsInstance(refusal, TaskPacketValidationError)
+                self.assertEqual(refusal.code, "shard_required")
+                self.assertEqual(refusal.details["total_context_tokens"], shard)
+
     def test_tier_bands_are_exact(self):
         expected = {
             "economy": (16_000, 24_000, 32_000),
@@ -388,6 +518,38 @@ class TaskPacketTests(unittest.TestCase):
         self.assertGreater(packet["input_ledger"]["tool_schema_input_tokens"], 0)
         self.assertEqual(packet["cost_ledger"]["output_input_ratio"], 5.0)
         self.assertEqual(packet["cost_ledger"]["cached_input_tokens"], 100)
+
+    def test_cached_input_can_equal_the_converged_final_total_input(self):
+        root = self.make_project()
+        pricing = {
+            "currency": "GBP",
+            "effective_date": "2026-09-01",
+            "per_million_input": 2,
+            "per_million_cached_input": 0.2,
+            "per_million_output": 10,
+            "tool_cost": 0,
+        }
+        cached = 0
+        for _ in range(12):
+            packet = compile_task_packet(
+                self.dispatch(),
+                self.binding(root),
+                root,
+                environment={
+                    "fixed_instructions": [],
+                    "tool_schemas": [],
+                    "cached_input_tokens": cached,
+                },
+                pricing=pricing,
+            )
+            final_input = packet["input_ledger"]["total_input_tokens"]
+            if cached == final_input:
+                break
+            cached = final_input
+        else:
+            self.fail("cached-input/final-input equality did not converge")
+        self.assertEqual(packet["cost_ledger"]["cached_input_tokens"], final_input)
+        self.assertIsNotNone(packet["cost_ledger"]["expected_cost"])
 
 
 if __name__ == "__main__":

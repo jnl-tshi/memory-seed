@@ -126,6 +126,17 @@ _PRICING_KEYS = frozenset(
 _PROFILE_ID_RE = re.compile(r"[a-z][a-z0-9-]*\Z")
 _SLUG_RE = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _SHA_RE = re.compile(r"[0-9a-fA-F]{40}\Z")
+_EXACT_SESSION_PATH_RE = re.compile(
+    r"\.memory-seed/sessions/[A-Za-z0-9._/-]+\.md\Z", re.IGNORECASE
+)
+_BUDGET_STATUSES = (
+    "within_target",
+    "elevated",
+    "allowed_above_soft_cap",
+    "soft_cap_exceeded",
+    "shard_required",
+)
+_BUDGET_STATUS_WIDTH = max(len(status) for status in _BUDGET_STATUSES)
 
 
 class TaskPacketValidationError(ValueError):
@@ -230,7 +241,20 @@ def _path_string(value: Any, path: str) -> str:
         or ".." in windows.parts
     ):
         _fail(path, "must be a runtime-relative path without parent traversal")
-    return text.replace("\\", "/")
+    return PurePosixPath(text.replace("\\", "/")).as_posix()
+
+
+def _canonical_scope_identity(value: str) -> str:
+    """Compare declared path scopes using Windows separator/case semantics."""
+    return PurePosixPath(value.replace("\\", "/")).as_posix().casefold()
+
+
+def _scope_list(value: Any, path: str) -> list[str]:
+    result = [item.replace("\\", "/") for item in _string_list(value, path)]
+    identities = [_canonical_scope_identity(item) for item in result]
+    if len(set(identities)) != len(identities):
+        _fail(path, "must not contain separator/case aliases")
+    return result
 
 
 def estimate_tokens(value: str | bytes | Mapping[str, Any] | Sequence[Any]) -> int:
@@ -330,9 +354,11 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     write_intent = _string(execution_in["write_intent"], "execution.write_intent")
     if write_intent not in {"read-only", "writing"}:
         _fail("execution.write_intent", "must be 'read-only' or 'writing'")
-    allowed_files = _string_list(execution_in["allowed_files"], "execution.allowed_files")
-    forbidden_files = _string_list(execution_in["forbidden_files"], "execution.forbidden_files")
-    overlap = sorted(set(allowed_files) & set(forbidden_files))
+    allowed_files = _scope_list(execution_in["allowed_files"], "execution.allowed_files")
+    forbidden_files = _scope_list(execution_in["forbidden_files"], "execution.forbidden_files")
+    allowed_identities = {_canonical_scope_identity(item) for item in allowed_files}
+    forbidden_identities = {_canonical_scope_identity(item) for item in forbidden_files}
+    overlap = sorted(allowed_identities & forbidden_identities)
     if overlap:
         _fail(
             "execution",
@@ -442,12 +468,20 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
                 )
             )
         ]
-        if not all(path.startswith(".memory-seed/sessions/") for path in session_paths):
+        if not all(_EXACT_SESSION_PATH_RE.fullmatch(path) for path in session_paths):
             _fail(
                 "memory_checkpoints.session_paths",
-                "must be scoped beneath .memory-seed/sessions/",
+                "must name exact .memory-seed/sessions/*.md files without wildcard or pathspec metacharacters",
             )
-        missing_authority = sorted(set(session_paths) - set(allowed_files))
+        session_identities = {
+            _canonical_scope_identity(path) for path in session_paths
+        }
+        if len(session_identities) != len(session_paths):
+            _fail(
+                "memory_checkpoints.session_paths",
+                "must not contain separator/case aliases",
+            )
+        missing_authority = sorted(session_identities - allowed_identities)
         if missing_authority:
             _fail(
                 "memory_checkpoints.session_paths",
@@ -559,9 +593,18 @@ def normalize_runtime_binding(
             code="invalid_binding",
             stage="binding",
         )
-    measured_base = _git_required(
-        root, ("rev-parse", f"{base_branch}^{{commit}}"), label="base branch SHA"
-    ).lower()
+    base_code, measured_base = _git_text(
+        root,
+        ("show-ref", "--verify", "--hash", f"refs/heads/{base_branch}"),
+    )
+    if base_code != 0 or not measured_base:
+        _fail(
+            "runtime_binding.base_branch",
+            "must name an existing local branch exactly",
+            code="invalid_binding",
+            stage="binding",
+        )
+    measured_base = measured_base.lower()
     if measured_base != base_sha.lower():
         _fail(
             "runtime_binding.base_sha",
@@ -750,6 +793,7 @@ def assess_context_budget(
     output_tokens: int,
     over_soft_cap: str,
     over_soft_cap_reason: str | None,
+    _enforce: bool = True,
 ) -> dict[str, Any]:
     if tier not in TIER_BANDS:
         _fail("execution.capability_tier", "is unsupported", code="invalid_budget", stage="budget")
@@ -771,6 +815,21 @@ def assess_context_budget(
     total = total_input + output_tokens
     band = dict(TIER_BANDS[tier])
     if total >= band["shard_threshold_tokens"]:
+        status = "shard_required"
+    elif total <= band["target_tokens"]:
+        status = "within_target"
+    elif total <= band["soft_cap_tokens"]:
+        status = "elevated"
+    else:
+        if (
+            over_soft_cap != "allow"
+            or not isinstance(over_soft_cap_reason, str)
+            or not over_soft_cap_reason.strip()
+        ):
+            status = "soft_cap_exceeded"
+        else:
+            status = "allowed_above_soft_cap"
+    if _enforce and status == "shard_required":
         _fail(
             "budget",
             "context envelope meets or exceeds the tier shard threshold",
@@ -778,20 +837,14 @@ def assess_context_budget(
             stage="budget",
             details={"total_context_tokens": total, **band},
         )
-    if total <= band["target_tokens"]:
-        status = "within_target"
-    elif total <= band["soft_cap_tokens"]:
-        status = "elevated"
-    else:
-        if over_soft_cap != "allow" or not isinstance(over_soft_cap_reason, str) or not over_soft_cap_reason.strip():
-            _fail(
-                "budget",
-                "context envelope exceeds the soft cap without an explicit reasoned override",
-                code="soft_cap_exceeded",
-                stage="budget",
-                details={"total_context_tokens": total, **band},
-            )
-        status = "allowed_above_soft_cap"
+    if _enforce and status == "soft_cap_exceeded":
+        _fail(
+            "budget",
+            "context envelope exceeds the soft cap without an explicit reasoned override",
+            code="soft_cap_exceeded",
+            stage="budget",
+            details={"total_context_tokens": total, **band},
+        )
     return {
         "estimator": TOKEN_ESTIMATOR,
         "tier": tier,
@@ -800,6 +853,10 @@ def assess_context_budget(
         "total_input_tokens": total_input,
         "total_context_envelope_tokens": total,
         "status": status,
+        # The status strings have different lengths.  A fixed-width companion
+        # keeps their combined serialized footprint constant so classifying an
+        # exact boundary cannot change the boundary it just classified.
+        "status_padding": " " * (_BUDGET_STATUS_WIDTH - len(status)),
         "soft_cap_override": {
             "mode": over_soft_cap,
             "reason": over_soft_cap_reason,
@@ -813,12 +870,13 @@ def calculate_cost_ledger(
     output_tokens: int,
     pricing: Mapping[str, Any] | None,
     cached_input_tokens: int | None = None,
+    _validate_cached_input: bool = True,
 ) -> dict[str, Any]:
     _nonnegative_int(input_tokens, "cost.input_tokens")
     _nonnegative_int(output_tokens, "cost.output_tokens")
     if cached_input_tokens is not None:
         _nonnegative_int(cached_input_tokens, "cost.cached_input_tokens")
-        if cached_input_tokens > input_tokens:
+        if _validate_cached_input and cached_input_tokens > input_tokens:
             _fail(
                 "cost.cached_input_tokens",
                 "cannot exceed total input tokens",
@@ -1094,6 +1152,7 @@ def compile_task_packet(
             output_tokens=budget["output_tokens"],
             over_soft_cap=budget["over_soft_cap"],
             over_soft_cap_reason=budget["over_soft_cap_reason"],
+            _enforce=False,
         )
         packet["input_ledger"] = ledger
         packet["cost_ledger"] = calculate_cost_ledger(
@@ -1101,6 +1160,7 @@ def compile_task_packet(
             output_tokens=ledger["output_reasoning_reserve_tokens"],
             pricing=pricing,
             cached_input_tokens=normalized_environment["cached_input_tokens"],
+            _validate_cached_input=False,
         )
         if estimate_tokens(canonical_json(packet)) == serialized_tokens:
             break
@@ -1112,6 +1172,34 @@ def compile_task_packet(
             stage="budget",
         )
 
+    # The input total is now stable.  Validate cached input against that final
+    # value, not an undersized provisional iteration.  Recalculation is byte
+    # identical because the validation flag is not serialized.
+    packet["cost_ledger"] = calculate_cost_ledger(
+        input_tokens=packet["input_ledger"]["total_input_tokens"],
+        output_tokens=packet["input_ledger"]["output_reasoning_reserve_tokens"],
+        pricing=pricing,
+        cached_input_tokens=normalized_environment["cached_input_tokens"],
+    )
+    final_status = packet["input_ledger"]["status"]
+    final_total = packet["input_ledger"]["total_context_envelope_tokens"]
+    final_band = packet["input_ledger"]["band"]
+    if final_status == "shard_required":
+        _fail(
+            "budget",
+            "context envelope meets or exceeds the tier shard threshold",
+            code="shard_required",
+            stage="budget",
+            details={"total_context_tokens": final_total, **final_band},
+        )
+    if final_status == "soft_cap_exceeded":
+        _fail(
+            "budget",
+            "context envelope exceeds the soft cap without an explicit reasoned override",
+            code="soft_cap_exceeded",
+            stage="budget",
+            details={"total_context_tokens": final_total, **final_band},
+        )
     packet["fingerprint"] = _packet_fingerprint(packet)
     # Fingerprint replacement is fixed-width.  Assert the reported serialization
     # count is the real final packet rather than silently accepting drift.
