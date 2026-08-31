@@ -47,6 +47,7 @@ Current Memory Trace provenance:
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
+| [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
 | [warranty-file-structure-index.md](warranty-file-structure-index.md) | — | — | — |
