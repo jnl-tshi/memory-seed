@@ -2,9 +2,9 @@
 title: "Memory Index Dry-Run Plan"
 date: "2026-08-05"
 project: "memory-seed"
-status: "Independent replication run 2026-08-27: 80.6 on a second corpus (durstr), kill condition CLEAR. Capture loss reproduced WORSE than the original (4/10 seeding sessions logged an entry, vs the original's 7/10->10/10). JNL decides on submission with this now in hand."
+status: "Two runs on the durstr corpus now on record: Run 6 (2026-08-27, pre-fix) 80.6/CLEAR; Run 7 (2026-08-31, post-fix) 61.3/TRIGGERED, first fabrication in 6 runs. The git-diff trigger fix is verified working mechanically (consecutive_misses climbed exactly as designed) but is necessary-not-sufficient - the model can receive the reminder and still decline to log. JNL decides on submission with both numbers now in hand."
 priority: "P1"
-next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September), reading the capture-loss finding below first - it is a real, reproduced limitation, not a fixture artifact, though the kill condition does not block submission on it."
+next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September). Two same-corpus runs now disagree on the kill condition (80.6 CLEAR vs 61.3 TRIGGERED) - read Run 6 and Run 7 both before deciding; this is not simply 'worse', it's a compliance-gap finding that needs its own follow-up before either number should be trusted as representative."
 related:
   - "business/research/field-evidence-log.md"
   - "business/market/competitor-landscape.md"
@@ -358,6 +358,70 @@ session start, so an already-logged-but-still-uncommitted diff never re-fires, a
 already-covered file (content, not just path, so this is caught) does. See
 `.memory-seed/hooks/session-log-check.py` (and its seed twin) and
 `tests/test_session_log_ordering_hook.py`'s six new git-diff tests.
+
+## Run 7 (2026-08-31) — fix-validation re-run on the same corpus, and a sobering result
+
+Re-ran the identical `durstr` corpus (same fixture, same `facts.json`, same 10 briefs/31
+questions) after syncing the fixed `session-log-check.py` into the fixture template, specifically
+to see whether the git-diff trigger actually raised the capture rate. Prior evidence archived at
+`experiments/memory-index-dryrun-corpus2/runs-before-fix/` for direct comparison.
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 4 | 0 | 2 | 0 | 0 |
+| updated_facts | 6 | 2 | 1 | 2 | 1 | 0 |
+| thread_growth | 3 | 3 | 0 | 0 | 0 | 0 |
+| synthesis | 4 | 0 | 0 | 4 | 0 | 0 |
+| long_term_retention | 4 | 3 | 0 | 1 | 0 | 0 |
+| false_memory | 8 | 7 | 0 | 0 | 0 | **1** |
+
+**Blended 19/31 = 61.3. Kill condition TRIGGERED** — worse than both the original 96.8 and Run 6's
+own 80.6, and the **first fabrication in six runs of this instrument** (Q31, "what logging library
+does durstr depend on" — the agent asserted "no logging dependency" while claiming to have
+inspected project files for it, rather than abstaining; expected ABSTAIN).
+
+**The hook worked exactly as designed — and that is precisely why this is the important result,
+not a discredit of the fix.** `.memory-seed/.session-log-check-state` after the run:
+`"consecutive_misses": 5` — direct, mechanical proof the git-diff trigger fired and escalated for
+5 straight sessions (S6–S10) with no compliance. Only 2 entries were logged across all 10 sessions
+this run (down from 5 pre-fix), covering 5 decisions total (down from 9). The seeded content
+itself is identical in quality to every prior run — every real file (`README.md`, `RELEASE.md`,
+`config.py`, `duration.py`) was correctly updated every time, confirmed directly in the workspace
+— but capture got *worse*, not better.
+
+**Root cause of the regression, read from the session entries themselves.** S5
+(`mse_7rgqp848ampvkdvq`) is the pivot: it explicitly discusses the pre-existing dirty files left by
+S2–S4 (`README.md`'s perf-baseline line, `run_checks.py`'s TODO block, untracked `RELEASE.md`) and
+states verbatim: *"those belong to another session's in-progress work"* — declining to log them
+rather than fabricating rationale it wasn't present for. That's the correct instinct in isolation
+(this project's own policy forbids fabricating decision rationale), but each seeding session is a
+genuinely fresh, memoryless invocation in the *same* accumulating store — there is no "another
+session" from the store's perspective, only unlogged history. Once S5's own entry reset the
+git-diff baseline to include that already-explained-away dirty state, later sessions' *further*
+edits to those same files (S6's checklist item, S7's cadence line, S8's real code fix, S9's real
+code fix, S10's gate section) kept re-triggering the reminder — proven by the climbing
+`consecutive_misses` — but none of them logged anything, and none of their `seed-log.json` summary
+text shows any acknowledgment of the reminder at all, unlike S5's.
+
+**Reading.** The fix closed the mechanical blind spot it was built for (the hook now demonstrably
+fires within a session far shorter than 15 minutes) but exposed a second, harder problem: a
+correctly-firing reminder is necessary, not sufficient. The model can receive it and still decline
+to comply, for a locally-reasonable-sounding reason ("not my work to explain") that is actually
+wrong at the level the reminder is written for — the reminder asks for coverage of *what changed*,
+not authorship of *who is allowed to explain it*. The reminder wording doesn't currently address
+this case at all. **Not fixed in this pass** — recording the finding rather than patching the
+wording speculatively, since the wording fix itself deserves the same scrutiny (test it, don't
+guess) the original trigger fix got. This project has direct precedent for exactly this shape of
+result: `mse_42fpw7wbc1f1fs6h` (2026-08-06) found that *telling* agents to use retrieval-only
+tooling did not work — every session ignored the instruction — and only *enforcing* it
+(`--disallowedTools`) produced a reliable result. A reminder is a request; this run suggests the
+same lesson applies to logging compliance, not just tool choice.
+
+**Caveats:** n=1 re-run (no repeat to separate this result from ordinary variance — the
+2026-08-27 pre-fix run's own capture rate varied within a 13-minute span too), same fixture reused
+rather than a third independent one, own judge chain. The fabrication and the "another session"
+rationalization are read directly from primary evidence (the entry text, the judge note, the state
+file), not inferred.
 
 ## Contamination guard
 
