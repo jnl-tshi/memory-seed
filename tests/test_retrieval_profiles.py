@@ -1,8 +1,10 @@
 import copy
 import json
 import shutil
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from memory_seed.retrieval import (
@@ -13,6 +15,7 @@ from memory_seed.retrieval import (
 )
 from memory_seed.retrieval_profiles import (
     RetrievalProfileValidationError,
+    _read_profile_yaml,
     load_retrieval_profile,
     normalize_retrieval_profile,
 )
@@ -32,11 +35,12 @@ class RetrievalProfileTests(unittest.TestCase):
         self.write_entry(root, "mse_entry0001", "### Decision\n\n- D: Keep exact retrieval.\n- R: IDs are stable.\n")
         return root
 
-    def write_entry(self, root, entry_id, body):
+    def write_entry(self, root, entry_id, body, *, topics=()):
+        topic_lines = "topics:\n" + "".join(f"  - {topic}\n" for topic in topics) if topics else ""
         (root / ".memory-seed" / "sessions" / "2026-08-01.md").write_text(
             "## 2026-08-01 09:00 - Test entry\n\n```yaml\n"
             f"entry_id: {entry_id}\nuser_initials: JN\nagent_type: codex\n"
-            "project_path: .\nsubproject_path: null\n```\n\n" + body,
+            "project_path: .\nsubproject_path: null\n" + topic_lines + "```\n\n" + body,
             encoding="utf-8",
         )
 
@@ -97,6 +101,33 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(RetrievalProfileValidationError, "exact path"):
             load_retrieval_profile("mismatch", 1, root)
 
+    def test_profile_parser_is_dependency_free_and_accepts_documented_forms(self):
+        root = self.make_project()
+        self.write_profile(
+            root,
+            "base",
+            self.profile("base", "  filters:\n    topics:\n      - alpha\n"),
+        )
+        self.write_profile(
+            root,
+            "child",
+            self.profile(
+                "child",
+                "  filters:\n    topics: {append: [], remove: []}\n"
+                "  output:\n    include_resolution_trace: true\n",
+                extends="\n  - id: base\n    profile_version: 1",
+            ),
+        )
+        with patch.dict(sys.modules, {"yaml": None}):
+            resolved = load_retrieval_profile("child", 1, root)
+        self.assertEqual(resolved["filters"]["topics"], ["alpha"])
+        self.assertTrue(resolved["output"]["include_resolution_trace"])
+        parsed = _read_profile_yaml(
+            "root:\n  children:\n    - name: one\n      enabled: true\n    - name: two\n      value: null\n",
+            path="fixture.yaml",
+        )
+        self.assertEqual(parsed["root"]["children"][1], {"name": "two", "value": None})
+
     def test_profile_cycles_duplicates_and_downgrades_fail_closed(self):
         root = self.make_project()
         self.write_profile(root, "a", self.profile("a", "  limits:\n    max_entries: 30\n", extends="\n  - id: b\n    profile_version: 1"))
@@ -154,6 +185,31 @@ class RetrievalProfileTests(unittest.TestCase):
         self.assertNotIn("Event ledger", "\n".join((root / adr["source"]).read_text(encoding="utf-8").splitlines()[adr["line_range"][0] - 1:adr["line_range"][1]]))
         self.assertEqual(adr["model_selection_reasons"], ["architecture mandate"])
         self.assertTrue(validate_evidence_pack(pack, root)["valid"])
+
+    def test_v2_profile_candidate_and_pin_deduplicate_to_colon_decision_id(self):
+        root = self.make_project()
+        self.write_entry(
+            root,
+            "mse_entry0001",
+            "### Decision\n\n- D: Keep exact retrieval.\n- R: IDs are stable.\n",
+            topics=("focus",),
+        )
+        self.write_profile(
+            root,
+            "dedup",
+            self.profile(
+                "dedup",
+                "  filters:\n    topics:\n      - focus\n"
+                "  selectors:\n    pinned:\n      - kind: decision\n"
+                "        id: mse_entry0001:d1\n"
+                "        reason: exact instruction\n",
+            ),
+        )
+        pack = resolve_retrieval_spec(load_retrieval_profile("dedup", 1, root), root)
+        decisions = [item for item in pack["evidence"] if item["kind"] == "decision"]
+        self.assertEqual([item["id"] for item in decisions], ["mse_entry0001:d1"])
+        self.assertIn("selectors.pinned", decisions[0]["selected_by"])
+        self.assertIn("required.related_decisions", decisions[0]["selected_by"])
 
     def test_optional_missing_and_tampered_v2_packs_fail_correctly(self):
         root = self.make_project()

@@ -91,20 +91,164 @@ def normalize_retrieval_profile(profile: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+_PROFILE_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*\Z")
+
+
+def _profile_scalar(token: str, *, path: str, line: int) -> Any:
+    """Parse the deliberately small YAML scalar/flow subset profiles document."""
+    token = token.strip()
+    if token == "[]":
+        return []
+    if token == "{}":
+        return {}
+    if token in {"null", "~"}:
+        return None
+    if token == "true":
+        return True
+    if token == "false":
+        return False
+    if re.fullmatch(r"-?[0-9]+", token):
+        return int(token)
+    if token.startswith('"'):
+        try:
+            value = json.loads(token)
+        except json.JSONDecodeError as exc:
+            _error(path, f"line {line}: malformed quoted scalar")
+            raise AssertionError("unreachable") from exc
+        if not isinstance(value, str):
+            _error(path, f"line {line}: quoted scalar must be a string")
+        return value
+    if token.startswith("'") and token.endswith("'") and len(token) >= 2:
+        return token[1:-1].replace("''", "'")
+    if token.startswith("{") and token.endswith("}"):
+        body = token[1:-1].strip()
+        if not body:
+            return {}
+        result: dict[str, Any] = {}
+        for item in body.split(","):
+            if ":" not in item:
+                _error(path, f"line {line}: unsupported flow mapping")
+            key, value = item.split(":", 1)
+            key = key.strip()
+            if _PROFILE_KEY_RE.fullmatch(key) is None or key in result:
+                _error(path, f"line {line}: invalid or duplicate flow mapping key")
+            result[key] = _profile_scalar(value, path=path, line=line)
+        return result
+    if token.startswith("[") or token.endswith("]") or any(mark in token for mark in ("{", "}", "#")):
+        _error(path, f"line {line}: unsupported YAML scalar")
+    if not token:
+        _error(path, f"line {line}: scalar cannot be empty")
+    return token
+
+
+def _profile_lines(text: str, *, path: str) -> list[tuple[int, int, str]]:
+    lines: list[tuple[int, int, str]] = []
+    for number, raw in enumerate(text.splitlines(), start=1):
+        if not raw.strip():
+            continue
+        if "\t" in raw:
+            _error(path, f"line {number}: tabs are unsupported")
+        stripped = raw.lstrip(" ")
+        if stripped.startswith("#"):
+            continue
+        indent = len(raw) - len(stripped)
+        if indent % 2:
+            _error(path, f"line {number}: indentation must use two-space levels")
+        lines.append((indent, number, stripped))
+    return lines
+
+
+def _read_profile_yaml(text: str, *, path: str) -> Mapping[str, Any]:
+    """Read strict profile YAML without adding a package dependency.
+
+    This is intentionally not a general YAML parser.  It accepts exactly the
+    profile language: indentation-based maps/lists, list-of-map inheritance,
+    documented scalars, and simple flow maps/lists used by list overlays.
+    """
+    lines = _profile_lines(text, path=path)
+    if not lines:
+        _error(path, "profile is empty")
+    index = 0
+
+    def split_mapping(content: str, number: int) -> tuple[str, str]:
+        if ":" not in content:
+            _error(path, f"line {number}: expected mapping key")
+        key, value = content.split(":", 1)
+        key = key.strip()
+        if _PROFILE_KEY_RE.fullmatch(key) is None:
+            _error(path, f"line {number}: invalid mapping key")
+        return key, value.strip()
+
+    def parse_block(indent: int) -> Any:
+        nonlocal index
+        if index >= len(lines) or lines[index][0] != indent:
+            _error(path, "expected an indented profile value")
+        is_list = lines[index][2].startswith("- ") or lines[index][2] == "-"
+        if is_list:
+            values: list[Any] = []
+            while index < len(lines) and lines[index][0] == indent:
+                _indent, number, content = lines[index]
+                if not (content.startswith("- ") or content == "-"):
+                    _error(path, f"line {number}: cannot mix maps and lists")
+                tail = content[1:].strip()
+                index += 1
+                if not tail:
+                    if index >= len(lines) or lines[index][0] != indent + 2:
+                        _error(path, f"line {number}: list item requires a value")
+                    values.append(parse_block(indent + 2))
+                    continue
+                if ":" not in tail:
+                    values.append(_profile_scalar(tail, path=path, line=number))
+                    continue
+                key, value = split_mapping(tail, number)
+                item: dict[str, Any] = {}
+                if value:
+                    item[key] = _profile_scalar(value, path=path, line=number)
+                elif index < len(lines) and lines[index][0] == indent + 2:
+                    item[key] = parse_block(indent + 2)
+                else:
+                    _error(path, f"line {number}: mapping value is required")
+                if index < len(lines) and lines[index][0] == indent + 2:
+                    extra = parse_block(indent + 2)
+                    if not isinstance(extra, Mapping):
+                        _error(path, f"line {number}: list mapping item requires map fields")
+                    if set(item) & set(extra):
+                        _error(path, f"line {number}: duplicate mapping key")
+                    item.update(extra)
+                values.append(item)
+            return values
+
+        result: dict[str, Any] = {}
+        while index < len(lines) and lines[index][0] == indent:
+            _indent, number, content = lines[index]
+            if content.startswith("- ") or content == "-":
+                _error(path, f"line {number}: cannot mix maps and lists")
+            key, value = split_mapping(content, number)
+            if key in result:
+                _error(path, f"line {number}: duplicate mapping key")
+            index += 1
+            if value:
+                result[key] = _profile_scalar(value, path=path, line=number)
+            elif index < len(lines) and lines[index][0] == indent + 2:
+                result[key] = parse_block(indent + 2)
+            else:
+                _error(path, f"line {number}: mapping value is required")
+        return result
+
+    result = parse_block(0)
+    if index != len(lines):
+        _error(path, f"line {lines[index][1]}: unsupported indentation structure")
+    return _mapping(result, path)
+
+
 def _read_yaml(path: Path) -> Mapping[str, Any]:
     try:
-        import yaml
-    except ImportError as exc:  # pragma: no cover - package runtime guard
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         raise RetrievalProfileValidationError(
-            "retrieval profile YAML support is unavailable"
+            f"retrieval profile {path.as_posix()}: unreadable profile file"
         ) from exc
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        raise RetrievalProfileValidationError(
-            f"retrieval profile {path.as_posix()}: unreadable or malformed YAML"
-        ) from exc
-    return _mapping(data, path.as_posix())
+    return _read_profile_yaml(text, path=path.as_posix())
 
 
 def _profile_path(runtime_root: Path, profile_id: str, profile_version: int) -> Path:

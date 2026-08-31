@@ -552,6 +552,7 @@ def _decision_candidates(
     reasons: set[str],
     graph_distance: int,
     ordinals: set[str] | None = None,
+    canonical_ids: bool = False,
 ) -> list[_RetrievalCandidate]:
     from .core import entry_body_decisions
 
@@ -618,7 +619,7 @@ def _decision_candidates(
             _RetrievalCandidate(
                 evidence_id=(
                     f"{chunk.entry_id}:{decision.ordinal}"
-                    if multiple
+                    if canonical_ids or multiple
                     else str(chunk.entry_id)
                 ),
                 kind="decision",
@@ -721,13 +722,11 @@ def _pinned_decision_candidate(
         reasons={"explicit canonical pinned selector"},
         graph_distance=0,
         ordinals={ordinal},
+        canonical_ids=True,
     )
     if not candidates:
         return None
     candidate = candidates[0]
-    # v1 historically used an entry id for singular decisions.  Pinned v2
-    # identifiers deliberately use the current canonical `entry:dN` form.
-    candidate.evidence_id = f"{chunk.entry_id}:{ordinal}"
     candidate.model_selection_reasons.add(reason)
     candidate.pinned_required = required
     return candidate
@@ -1268,6 +1267,7 @@ def _build_retrieval_plan(
             reasons=reasons,
             graph_distance=distance,
             ordinals={ordinal},
+            canonical_ids=normalized["version"] == 2,
         )
         for candidate in decision_candidates:
             _merge_candidate(candidates, candidate)
