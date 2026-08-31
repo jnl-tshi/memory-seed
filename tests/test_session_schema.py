@@ -559,6 +559,37 @@ class SessionSchemaTests(unittest.TestCase):
         self.assertIn("agent_collaboration.md", agent_rules)
         self.assertNotIn("merge queue is required", agent_rules)
 
+    def test_agent_collaboration_documents_clean_session_task_packet_convention(self):
+        """Keep the high-signal worker packet anchors explicit and seed-compatible."""
+        live_skill = Path(".memory-seed/skills/agent_collaboration.md")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/agent_collaboration.md")
+        content = live_skill.read_text(encoding="utf-8")
+
+        self.assertEqual(content, seed_skill.read_text(encoding="utf-8"))
+        for phrase in (
+            "Clean-session, high-signal packet convention",
+            "documentation-only interoperability conventions",
+            "not validated public API",
+            "project_context:",
+            "100–250-token project",
+            "task_fit",
+            "downstream_use",
+            "relevant accepted or proposed ADR heads",
+            "inline Retrieval Specification",
+            "ADR current views and decision slices",
+            "corpus revision",
+            "token_estimate` from the resolver is evidence content only",
+            "all-inclusive prepared-context",
+            "orchestrator-only searches",
+            "Return `NEEDS_CONTEXT` only",
+            "memory_update_policy: orchestrator",
+            "worker_checkpoint",
+            "guarded branch-local append mechanics",
+            "Duration alone never changes context, authority, or memory ownership",
+            "context_load: full` is reserved",
+        ):
+            self.assertIn(phrase, content)
+
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
         path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")
         self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")

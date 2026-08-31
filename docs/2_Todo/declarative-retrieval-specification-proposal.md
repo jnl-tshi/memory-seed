@@ -134,6 +134,20 @@ payloads use `{"ok": false, "error": {"code", "message", "stage", "completed_sta
 Profiles, `profile_version`, `overrides`, composition, named specs, Task Packet schema enforcement, and
 Evidence Pack lookup remain later milestones.
 
+### Operational Task Packet preparation convention
+
+The collaboration skill's clean-session, high-signal Task Packet procedure is an **operational
+documentation convention**, not a shipped retrieval or Task Packet API. An orchestrator may put a
+source-grounded project frame, an inline retrieval input, a resolved-pack manifest, materialized excerpts,
+and all-inclusive context-budget notes in its handoff. This makes an M1 result usable by a clean worker
+without changing M1: `preview` and `resolve` remain the same read-only inline-spec operations.
+
+In particular, this convention does **not** ship a profile, named-spec registry, Task Packet schema,
+Evidence Pack registry, or native ADR selector. It does not validate those packet labels, persist packs,
+or change `memory_search` ranking. ADR current views and decision slices are materialized by the
+orchestrator from ordinary canonical Markdown references; lifecycle-aware/native ADR selectors remain
+later work.
+
 ## Retrieval Specification v1
 
 ```yaml
