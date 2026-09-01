@@ -228,6 +228,35 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertEqual(unsupported["error"]["code"], "invalid_arguments")
         self.assertEqual(unsupported["error"]["details"]["unsupported_arguments"], ["output"])
 
+    def test_mcp_task_packet_profile_normalization_error_is_structured_and_read_only(self) -> None:
+        root = self.make_project()
+        profile = root / ".memory-seed" / "retrieval-profiles" / "invalid" / "v1.yaml"
+        profile.parent.mkdir(parents=True)
+        profile.write_text(
+            "schema: memory-seed/retrieval-profile\nschema_version: 1\nid: invalid\n"
+            "profile_version: 1\nextends: []\nspec:\n"
+            "  limits:\n    max_tokens: 0\n",
+            encoding="utf-8",
+        )
+        dispatch, binding = self.dispatch(), self.binding(root)
+        dispatch["retrieval"] = {"profile": "invalid", "profile_version": 1, "overrides": {}}
+        before = self.snapshot(root)
+        for command in ("preview", "compile"):
+            with self.subTest(command=command):
+                arguments = {"dispatch": dispatch, "binding": binding, "cwd": str(root)}
+                result = call_tool(f"memory_task_packet_{command}", arguments)
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error"]["code"], "invalid_spec")
+                self.assertEqual(result["error"]["stage"], "validation")
+                self.assertEqual(result["error"]["completed_stages"], [])
+                response = handle_jsonrpc_message({
+                    "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                    "params": {"name": f"memory_task_packet_{command}", "arguments": arguments},
+                })
+                wire = json.loads(response["result"]["content"][0]["text"])
+                self.assertEqual(wire, result)
+        self.assertEqual(self.snapshot(root), before)
+
 
 if __name__ == "__main__":
     unittest.main()

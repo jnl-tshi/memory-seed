@@ -841,6 +841,7 @@ def call_tool(
     if name in {"memory_task_packet_preview", "memory_task_packet_compile"}:
         from .task_packet import TaskPacketValidationError, compile_task_packet
         from .retrieval_profiles import RetrievalProfileValidationError
+        from .retrieval_spec import RetrievalSpecValidationError
 
         if not isinstance(args, dict):
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "tool arguments must be a JSON object", "stage": "validation", "completed_stages": [], "details": {}}}
@@ -855,6 +856,11 @@ def call_tool(
             return {"ok": True, "preview" if name.endswith("_preview") else "packet": packet}
         except TaskPacketValidationError as exc:
             return {"ok": False, "error": exc.to_dict()}
+        except RetrievalSpecValidationError as exc:
+            return {"ok": False, "error": {
+                "code": "invalid_spec", "message": str(exc),
+                "stage": "validation", "completed_stages": [], "details": {},
+            }}
         except RetrievalSpecResolutionError as exc:
             return {"ok": False, "error": exc.to_dict()}
         except RetrievalProfileValidationError as exc:
