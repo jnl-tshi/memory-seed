@@ -611,7 +611,7 @@ before its next step. (Market/account items live under "Parked" below.)
 12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
     2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
     than signed off as-is. Row-by-row outcome pending.
-13. **Memory-index dry-run → Verging Labs v0.2 submission — four runs on record, best result
+13. **Memory-index dry-run → Verging Labs v0.2 submission — five runs on record, best result
     87.1/CLEAR, zero fabrications.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
     "Run 6" (pre-fix): 80.6, CLEAR, only 4/10 seeding sessions logged. Git-diff trigger fix landed
     2026-08-29 (`adr_session_log_trigger_enforcement`). "Run 7" (fix applied): 61.3, TRIGGERED,
@@ -624,10 +624,21 @@ before its next step. (Market/account items live under "Parked" below.)
     fixed Q31's recurring fabrication trap (an abstention clause in the quiz preamble). Result:
     **87.1, CLEAR, zero fabrications — best of the four runs.** The file-truth fix worked for 2 of
     the 4 targeted sessions (S3, S10 now log; S4, S6 still don't) — a genuine partial result, so
-    that revision stays Proposed, not Accepted. *Recommendation:* Run 9's result is strong enough to
-    submit on. Still n=1 per condition across all four runs. S4/S6 remain an open, unscoped gap
-    (does not block submission). Q1 (Youssef misattribution) is stable and minor across three runs
-    — a quiz-time nuance, not worth engineering effort at this scale.
+    that revision stays Proposed, not Accepted. Diagnosed S4/S6 as a broken orientation chain (one
+    full-skip, one stop-at-entry-point) and fixed it as a mandatory-completion gate
+    (`adr_orientation_completion_gate`, Accepted on direct review). "Run 10" (2026-09-01):
+    **51.6, TRIGGERED — discounted, not a measurement of the fix.** Seven sessions logged correctly
+    but on worktree branches that never merged to `main` (a harness/product mismatch — the real
+    merge discipline correctly waits for a human before resolving a conflict, but seeding sessions
+    are non-interactive with no human ever present, so the first stranded branch cascades into every
+    later session touching the same file); `false_memory` still 8/8, so Q31's fix held regardless.
+    Fixed in `dryrun.py` (harness-only): reconcile every seeding session's branch back to `main`
+    immediately, before the next session starts, so staleness can't accumulate. **Run 11 needed** to
+    confirm the orientation-gate fix's actual effect now that the merge cascade can't mask it.
+    *Recommendation:* Run 9's result remains strong enough to submit on if a clean re-run doesn't
+    land soon. Still n=1 per condition across all runs. S4/S6 remain an open, unscoped gap pending
+    Run 11 (does not block submission). Q1 (Youssef misattribution) is stable and minor across
+    every run — a quiz-time nuance, not worth engineering effort at this scale.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 

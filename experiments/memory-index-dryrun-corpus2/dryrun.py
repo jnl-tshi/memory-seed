@@ -119,6 +119,91 @@ def run_claude(cwd: Path, brief: str, timeout: int = 900, extra: list[str] | Non
     }
 
 
+def _no_merged_branches(workspace: Path) -> list[str]:
+    out = subprocess.run(
+        ["git", "branch", "--no-merged", "main", "--format=%(refname:short)"],
+        cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+    )
+    return [b for b in out.stdout.splitlines() if b.strip()]
+
+
+def _worktree_path_for_branch(workspace: Path, branch: str) -> Path | None:
+    out = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"], cwd=workspace,
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    path: str | None = None
+    for block in out.split("\n\n"):
+        path = None
+        for line in block.splitlines():
+            if line.startswith("worktree "):
+                path = line[len("worktree "):]
+            if line == f"branch refs/heads/{branch}":
+                return Path(path) if path else None
+    return None
+
+
+def reconcile_seed_branches(workspace: Path, session_id: str) -> list[str]:
+    """Merge every branch a seeding session left ahead of `main` straight back in, immediately.
+
+    Real product sessions correctly stop and ask a human before merging through a conflict - but
+    dryrun.py's seeding sessions are single-shot, non-interactive `claude -p` calls with no human
+    ever present to give that confirmation. Left alone, a session's unmerged worktree branch just
+    sits there; the NEXT session (working from a now-stale `main`) can independently touch the
+    same file and leave a second unmerged branch, and sessions after that inherit an
+    unresolvable multi-branch conflict neither the agent nor `session fuse` can untangle after
+    the fact - this is exactly what collapsed Run 10 to 51.6/kill-condition (see
+    docs/2_Todo/memory-index-dry-run-plan.md, Run 10). Reconciling after every single session
+    keeps at most one branch ever ahead of `main`, so staleness can never accumulate: each merge
+    lands against the same `main` the branch was cut from, which is exactly the case
+    `session fuse` (and the compliant S1/S3/S5 sessions calling it themselves) already handles
+    cleanly - confirmed separately: replaying the same merge against Run 10's already-stale,
+    6-session-old pile-up still fails even with `session fuse`, because the guard it fails on
+    (`existing entries are not chronological`) is specifically a staleness symptom, not a fuse
+    limitation.
+    """
+    notes: list[str] = []
+    for branch in _no_merged_branches(workspace):
+        merge = subprocess.run(
+            ["git", "merge", branch, "--no-ff", "--no-commit"],
+            cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+        )
+        fused = False
+        if merge.returncode != 0:
+            fuse = subprocess.run(
+                [sys.executable, "-m", "memory_seed.cli", "session", "fuse", "--branch", branch, "--apply"],
+                cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+            )
+            remaining = subprocess.run(
+                ["git", "diff", "--name-only", "--diff-filter=U"],
+                cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+            ).stdout.strip()
+            fused = fuse.returncode == 0 and not remaining
+            if not fused:
+                subprocess.run(["git", "merge", "--abort"], cwd=workspace, capture_output=True, text=True)
+                notes.append(f"LEFT UNMERGED ({session_id}): {branch} - {(fuse.stdout or merge.stdout)[:200]!r}")
+                continue
+        commit = subprocess.run(
+            ["git", "commit", "--no-edit"], cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+        )
+        if commit.returncode != 0:
+            subprocess.run(["git", "merge", "--abort"], cwd=workspace, capture_output=True, text=True)
+            notes.append(f"LEFT UNMERGED ({session_id}): {branch} - commit failed: {commit.stdout[:200]!r}")
+            continue
+        notes.append(f"merged {branch}" + (" (fused)" if fused else ""))
+        wt_path = _worktree_path_for_branch(workspace, branch)
+        if wt_path and wt_path.exists():
+            removed = subprocess.run(
+                ["git", "worktree", "remove", str(wt_path), "--force"],
+                cwd=workspace, capture_output=True, text=True,
+            )
+            if removed.returncode != 0:
+                rmtree_force(wt_path)  # Windows worktree remove/prune permission quirk - rm -rf works
+                subprocess.run(["git", "worktree", "prune"], cwd=workspace, capture_output=True, text=True)
+        subprocess.run(["git", "branch", "-d", branch], cwd=workspace, capture_output=True, text=True)
+    return notes
+
+
 def phase_seed() -> None:
     if WORKSPACE.exists():
         raise SystemExit(f"{WORKSPACE} exists - delete it to re-seed (the store accumulates)")
@@ -130,13 +215,7 @@ def phase_seed() -> None:
     for spec in FACTS["seeding_briefs"]:
         started = _dt.datetime.now().isoformat(timespec="seconds")
         out = run_claude(WORKSPACE, spec["brief"])
-        entries = sum(
-            1
-            for p in (WORKSPACE / ".memory-seed" / "sessions").rglob("*.md")
-            if "topics" not in p.parts and "links" not in p.parts
-            for line in [p.read_text(encoding="utf-8")]
-            for _ in []
-        )
+        merge_notes = reconcile_seed_branches(WORKSPACE, spec["id"])
         store_files = [
             p
             for p in (WORKSPACE / ".memory-seed" / "sessions").rglob("*.md")
@@ -147,8 +226,9 @@ def phase_seed() -> None:
             for p in store_files
         )
         log.append({"id": spec["id"], "exit": out["exit"], "started": started,
-                    "entries_total": int(entry_count), "final": out["result"][:300]})
-        print(f"{spec['id']} exit={out['exit']} entries_total={entry_count}", flush=True)
+                    "entries_total": int(entry_count), "merge_notes": merge_notes,
+                    "final": out["result"][:300]})
+        print(f"{spec['id']} exit={out['exit']} entries_total={entry_count} merge_notes={merge_notes}", flush=True)
     (RUNS / "seed-log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
     print("seeded:", WORKSPACE)
 
