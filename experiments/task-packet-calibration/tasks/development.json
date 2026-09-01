@@ -1,0 +1,32 @@
+{
+  "schema": "memory-seed/task-packet-calibration-tasks",
+  "version": 1,
+  "status": "development",
+  "tasks": [
+    {
+      "id": "TPC-DEV-001",
+      "split": "development",
+      "profile": "implementation:v1",
+      "fixture": "task_packet_pilot",
+      "question": "Determine which statements about the compiled Task Packet and its worker contract are supported by project evidence.",
+      "propositions": [
+        {
+          "id": "p1",
+          "text": "The compiled Task Packet is a derived, non-authoritative artifact."
+        },
+        {
+          "id": "p2",
+          "text": "Receiving the Task Packet grants the worker permission to write durable Memory Seed records."
+        },
+        {
+          "id": "p3",
+          "text": "A worker should refetch evidence that is already materialized in the packet before using it."
+        },
+        {
+          "id": "p4",
+          "text": "The Task Packet compiler dispatches the worker that consumes the packet."
+        }
+      ]
+    }
+  ]
+}

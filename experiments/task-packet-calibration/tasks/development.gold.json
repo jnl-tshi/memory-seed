@@ -1,0 +1,40 @@
+{
+  "schema": "memory-seed/task-packet-calibration-gold",
+  "version": 1,
+  "status": "development-only",
+  "tasks": {
+    "TPC-DEV-001": {
+      "propositions": {
+        "p1": {
+          "verdict": "true",
+          "evidence_ids": [
+            "adr_task_packet_pilot",
+            "docs/CONSTITUTION.md"
+          ]
+        },
+        "p2": {
+          "verdict": "false",
+          "evidence_ids": [
+            "adr_task_packet_pilot",
+            "mse_packetpilot:d1",
+            "docs/CONSTITUTION.md"
+          ]
+        },
+        "p3": {
+          "verdict": "false",
+          "evidence_ids": [
+            "adr_task_packet_pilot",
+            "mse_packetpilot:d1"
+          ]
+        },
+        "p4": {
+          "verdict": "false",
+          "evidence_ids": [
+            "adr_task_packet_pilot",
+            "docs/pilot-support.md"
+          ]
+        }
+      }
+    }
+  }
+}
