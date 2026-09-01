@@ -11,8 +11,13 @@ from pathlib import Path
 from memory_seed.retrieval import (
     RetrievalSpecResolutionError,
     _evidence_pack_fingerprint,
+    preview_retrieval_spec,
     resolve_retrieval_spec,
     validate_evidence_pack,
+)
+from memory_seed.retrieval_adapters import (
+    preview_retrieval_input,
+    resolve_retrieval_input_pack,
 )
 from memory_seed.retrieval_profiles import (
     RetrievalProfileValidationError,
@@ -23,6 +28,7 @@ from memory_seed.retrieval_profiles import (
 from memory_seed.retrieval_spec import (
     RetrievalSpecValidationError,
     normalize_retrieval_spec_v2,
+    retrieval_spec_fingerprint,
 )
 
 
@@ -36,9 +42,9 @@ class RetrievalProfileTests(unittest.TestCase):
         self.write_entry(root, "mse_entry0001", "### Decision\n\n- D: Keep exact retrieval.\n- R: IDs are stable.\n")
         return root
 
-    def write_entry(self, root, entry_id, body, *, topics=()):
+    def write_entry(self, root, entry_id, body, *, topics=(), filename="2026-08-01.md"):
         topic_lines = "topics:\n" + "".join(f"  - {topic}\n" for topic in topics) if topics else ""
-        (root / ".memory-seed" / "sessions" / "2026-08-01.md").write_text(
+        (root / ".memory-seed" / "sessions" / filename).write_text(
             "## 2026-08-01 09:00 - Test entry\n\n```yaml\n"
             f"entry_id: {entry_id}\nuser_initials: JN\nagent_type: codex\n"
             "project_path: .\nsubproject_path: null\n" + topic_lines + "```\n\n" + body,
@@ -173,6 +179,52 @@ class RetrievalProfileTests(unittest.TestCase):
         self.assertEqual(resolved["required"]["related_decisions"]["depth"], 3)
         self.assertEqual(resolved["limits"]["max_entries"], 30)
 
+    def test_multiple_parent_raw_list_operations_compose_in_order(self):
+        root = self.make_project()
+        self.write_profile(
+            root,
+            "first",
+            self.profile(
+                "first",
+                "  filters:\n    topics:\n      append:\n        - alpha\n      remove: []\n",
+            ),
+        )
+        self.write_profile(
+            root,
+            "second",
+            self.profile(
+                "second",
+                "  filters:\n    topics:\n      append:\n        - beta\n      remove: []\n",
+            ),
+        )
+        self.write_profile(
+            root,
+            "literal",
+            self.profile("literal", "  filters:\n    paths:\n      - docs/old.md\n"),
+        )
+        self.write_profile(
+            root,
+            "child",
+            self.profile(
+                "child",
+                "  filters:\n    topics:\n      append:\n        - child\n      remove:\n        - alpha\n"
+                "    paths:\n      append:\n        - docs/new.md\n      remove:\n        - docs/old.md\n",
+                extends=(
+                    "\n  - id: first\n    profile_version: 1"
+                    "\n  - id: second\n    profile_version: 1"
+                    "\n  - id: literal\n    profile_version: 1"
+                ),
+            ),
+        )
+        resolved = load_retrieval_profile(
+            "child",
+            1,
+            root,
+            overrides={"filters": {"topics": {"append": ["dispatch"], "remove": ["beta"]}}},
+        )
+        self.assertEqual(resolved["filters"]["topics"], ["child", "dispatch"])
+        self.assertEqual(resolved["filters"]["paths"], ["docs/new.md"])
+
     def test_required_pins_cannot_be_removed_by_child_or_dispatch_override(self):
         root = self.make_project()
         self.write_profile(
@@ -292,6 +344,20 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(RetrievalProfileValidationError, "outside the active runtime"):
             load_retrieval_profile("escape", 1, root)
 
+        external_session = outside / "external.md"
+        external_session.write_text("# externally linked session\n", encoding="utf-8")
+        session_link = root / ".memory-seed" / "sessions" / "external.md"
+        os.symlink(external_session, session_link)
+        plain_spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+        }
+        with self.assertRaises(RetrievalSpecResolutionError) as escaped_session:
+            resolve_retrieval_spec(plain_spec, root)
+        self.assertEqual(escaped_session.exception.code, "forbidden_path")
+        session_link.unlink()
+
         external_adr = self.write_adr(outside, "adr_escape")
         adr_link = root / ".memory-seed" / "decisions" / "adr_escape.md"
         adr_link.parent.mkdir(parents=True, exist_ok=True)
@@ -305,6 +371,42 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaises(RetrievalSpecResolutionError) as escaped:
             resolve_retrieval_spec(spec, root)
         self.assertEqual(escaped.exception.code, "forbidden_path")
+
+    def test_public_retrieval_paths_fail_closed_before_guarded_topic_read(self):
+        """Exercise preview/resolve and both adapters without relying on symlink support."""
+        root = self.make_project()
+        topic_path = root / ".memory-seed" / "topics.yaml"
+        topic_path.write_text("topics: {}\n", encoding="utf-8")
+        spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+        }
+        from memory_seed import retrieval as retrieval_module
+
+        real_guard = retrieval_module._runtime_scoped_candidate_path
+
+        def reject_topic(root_path, candidate, *, stage, details=None):
+            if Path(candidate).resolve() == topic_path.resolve():
+                raise RetrievalSpecResolutionError(
+                    "forbidden_path", "mocked external topic source", stage=stage
+                )
+            return real_guard(root_path, candidate, stage=stage, details=details)
+
+        public_calls = (
+            lambda: preview_retrieval_spec(spec, root),
+            lambda: resolve_retrieval_spec(spec, root),
+            lambda: preview_retrieval_input(spec=spec, cwd=root),
+            lambda: resolve_retrieval_input_pack(spec=spec, cwd=root),
+        )
+        with patch("memory_seed.retrieval._runtime_scoped_candidate_path", side_effect=reject_topic), patch(
+            "memory_seed.retrieval.extract_memory_chunks"
+        ) as extract:
+            for call in public_calls:
+                with self.subTest(call=call), self.assertRaises(RetrievalSpecResolutionError) as raised:
+                    call()
+                self.assertEqual(raised.exception.code, "forbidden_path")
+            extract.assert_not_called()
 
     def test_decision_only_pins_ignore_unrelated_malformed_adrs(self):
         root = self.make_project()
@@ -367,6 +469,45 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaises(RetrievalSpecResolutionError) as required_error:
             resolve_retrieval_spec(required_missing, root)
         self.assertEqual(required_error.exception.code, "missing_required")
+
+    def test_required_pin_defaults_true_for_recomputed_pack_membership(self):
+        root = self.make_project()
+        self.write_entry(
+            root,
+            "mse_entry0002",
+            "### Decision\n\n- D: Optional evidence remains optional.\n",
+            filename="2026-08-02.md",
+        )
+        spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+            "selectors": {"pinned": [
+                {"kind": "decision", "id": "mse_entry0001:d1", "reason": "implicit required"},
+                {"kind": "decision", "id": "mse_entry0002:d1", "reason": "optional", "required": False},
+            ]},
+        }
+        pack = resolve_retrieval_spec(spec, root)
+
+        deleted_required = copy.deepcopy(pack)
+        deleted_required["effective_spec"]["selectors"]["pinned"][0].pop("required", None)
+        deleted_required["effective_spec_fingerprint"] = retrieval_spec_fingerprint(
+            deleted_required["effective_spec"]
+        )
+        deleted_required["evidence"] = [
+            item for item in deleted_required["evidence"] if item["id"] != "mse_entry0001:d1"
+        ]
+        deleted_required["fingerprint"] = _evidence_pack_fingerprint(deleted_required)
+        with self.assertRaises(RetrievalSpecResolutionError) as required_error:
+            validate_evidence_pack(deleted_required, root)
+        self.assertEqual(required_error.exception.code, "invalid_pack")
+
+        deleted_optional = copy.deepcopy(pack)
+        deleted_optional["evidence"] = [
+            item for item in deleted_optional["evidence"] if item["id"] != "mse_entry0002:d1"
+        ]
+        deleted_optional["fingerprint"] = _evidence_pack_fingerprint(deleted_optional)
+        self.assertTrue(validate_evidence_pack(deleted_optional, root)["valid"])
 
 
 if __name__ == "__main__":

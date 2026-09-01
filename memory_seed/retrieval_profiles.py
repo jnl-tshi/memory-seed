@@ -277,6 +277,23 @@ def _stable_value(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+def _empty_list_base(path: str) -> list[Any]:
+    """Return the sole list default applicable to a raw partial overlay leaf.
+
+    Parent profiles compose as partial specs.  An append/remove overlay at a
+    previously absent leaf therefore needs a list to operate on, but must not
+    materialize the rest of the Retrieval Specification defaults.  ``ordering``
+    is the one leaf whose semantic baseline is its published default; the
+    selector and filter lists start empty.
+    """
+    if path in {"spec.filters.topics", "spec.filters.paths", "spec.selectors.pinned"}:
+        return []
+    if path == "spec.ordering":
+        return copy.deepcopy(_PROFILE_BASE_SPEC["ordering"])
+    _error(path, "append/remove operations require a list parent value")
+    raise AssertionError("unreachable")
+
+
 def _merge(base: Any, patch: Any, *, path: str) -> Any:
     """Depth-merge maps, replace normal lists/scalars, and operate on lists explicitly."""
     if isinstance(patch, Mapping) and _list_operation(patch):
@@ -297,7 +314,17 @@ def _merge(base: Any, patch: Any, *, path: str) -> Any:
             if not isinstance(key, str):
                 _error(path, "keys must be strings")
             next_path = f"{path}.{key}" if path else key
-            result[key] = _merge(result[key], value, path=next_path) if key in result else copy.deepcopy(value)
+            if key in result:
+                result[key] = _merge(result[key], value, path=next_path)
+            elif isinstance(value, Mapping) and _list_operation(value):
+                result[key] = _merge(_empty_list_base(next_path), value, path=next_path)
+            elif isinstance(value, Mapping):
+                # Recurse into a new raw map so an operation at a nested
+                # absent leaf is applied now, rather than being carried into a
+                # later parent as an invalid map-vs-list merge.
+                result[key] = _merge({}, value, path=next_path)
+            else:
+                result[key] = copy.deepcopy(value)
         return result
     return copy.deepcopy(patch)
 

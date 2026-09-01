@@ -445,16 +445,46 @@ def _retrieval_corpus_revision(
 
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root.resolve()
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="corpus_revision",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     inputs: set[Path] = set()
     for constitution in (root / "docs" / "CONSTITUTION.md", root / "CONSTITUTION.md"):
         if constitution.is_file():
-            inputs.add(constitution)
+            inputs.add(
+                _runtime_scoped_candidate_path(
+                    root,
+                    constitution,
+                    stage="corpus_revision",
+                    details={"path": constitution.as_posix()},
+                )
+            )
     topics_index = runtime.memory_dir / "topics.yaml"
     if topics_index.is_file():
-        inputs.add(topics_index)
+        inputs.add(
+            _runtime_scoped_candidate_path(
+                root,
+                topics_index,
+                stage="corpus_revision",
+                details={"path": topics_index.as_posix()},
+            )
+        )
     sessions = runtime.memory_dir / "sessions"
     if sessions.is_dir():
-        inputs.update(path for path in sessions.rglob("*.md") if path.is_file())
+        _assert_runtime_tree_confined(root, sessions, stage="corpus_revision")
+        inputs.update(
+            _runtime_scoped_candidate_path(
+                root,
+                path,
+                stage="corpus_revision",
+                details={"path": path.as_posix()},
+            )
+            for path in sessions.rglob("*.md")
+            if path.is_file()
+        )
     if (
         normalized_spec.get("version") == 2
         and any(
@@ -464,6 +494,7 @@ def _retrieval_corpus_revision(
     ):
         decisions = runtime.memory_dir / "decisions"
         if decisions.is_dir():
+            _assert_runtime_tree_confined(root, decisions, stage="corpus_revision")
             for path in decisions.rglob("*.md"):
                 if path.is_file():
                     inputs.add(
@@ -528,17 +559,36 @@ def _runtime_scoped_candidate_path(
     details: Mapping[str, Any] | None = None,
 ) -> Path:
     """Resolve a local source and reject symlink/junction escapes before reads."""
-    target = candidate.resolve()
     try:
+        target = candidate.resolve()
         target.relative_to(root.resolve())
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         raise RetrievalSpecResolutionError(
             "forbidden_path",
-            "path resolves outside the active runtime",
+            "path cannot be resolved inside the active runtime",
             stage=stage,
             details=dict(details or {"path": candidate.as_posix()}),
         ) from exc
     return target
+
+
+def _assert_runtime_tree_confined(root: Path, directory: Path, *, stage: str) -> None:
+    """Preflight every retrieval-visible source path before a reader opens it."""
+    _runtime_scoped_candidate_path(
+        root,
+        directory,
+        stage=stage,
+        details={"path": directory.as_posix()},
+    )
+    if not directory.is_dir():
+        return
+    for candidate in directory.rglob("*"):
+        _runtime_scoped_candidate_path(
+            root,
+            candidate,
+            stage=stage,
+            details={"path": candidate.as_posix()},
+        )
 
 
 def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
@@ -903,6 +953,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clauses": list(_RETRIEVAL_REQUIRED_CLAUSES)},
         )
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="runtime",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     completed.append("runtime")
     trace.append(
         {
@@ -932,6 +988,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clause": "required.constitution"},
         )
+    constitution_path = _runtime_scoped_candidate_path(
+        root,
+        constitution_path,
+        stage="constitution",
+        details={"path": constitution_path.as_posix()},
+    )
     try:
         constitution_text = constitution_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -971,6 +1033,16 @@ def _build_retrieval_plan(
         clock, started, timeout_ms, stage="sessions", completed_stages=completed
     )
 
+    sessions_dir = runtime.memory_dir / "sessions"
+    _assert_runtime_tree_confined(root, sessions_dir, stage="sessions")
+    topics_index_path = runtime.memory_dir / "topics.yaml"
+    if topics_index_path.exists():
+        _runtime_scoped_candidate_path(
+            root,
+            topics_index_path,
+            stage="topic_filters",
+            details={"path": topics_index_path.as_posix()},
+        )
     chunks = augment_chunks_with_topic_sidecars(
         augment_chunks_with_link_sidecars(
             extract_memory_chunks(root, granularity="entry"),
@@ -1893,7 +1965,8 @@ def validate_evidence_pack(
             "Evidence Pack fingerprint does not match its canonical evidence identities",
             stage="pack_validation",
         )
-    root = Path(resolve_runtime(cwd).workspace_root).resolve()
+    runtime = resolve_runtime(cwd)
+    root = Path(runtime.workspace_root).resolve()
     session_chunks: list[MemoryChunk] | None = None
     source_lines: dict[str, tuple[str, ...]] = {}
     pinned_by_identity = {
@@ -1903,7 +1976,7 @@ def validate_evidence_pack(
     required_pins = {
         identity
         for identity, record in pinned_by_identity.items()
-        if record.get("required") is True
+        if record.get("required", True) is True
     }
     present_pins = {
         (item.get("kind"), item.get("id"))
@@ -2048,6 +2121,11 @@ def validate_evidence_pack(
                     details={"id": evidence_id},
                 )
             if session_chunks is None:
+                _assert_runtime_tree_confined(
+                    root,
+                    runtime.memory_dir / "sessions",
+                    stage="pack_validation",
+                )
                 session_chunks = extract_memory_chunks(root, granularity="entry")
             line_range = tuple(item.get("line_range", ()))
             from .core import entry_body_decisions
