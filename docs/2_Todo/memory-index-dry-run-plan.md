@@ -552,6 +552,71 @@ specific failure mode they targeted (Run 8: the "not my work" rationalization; R
 (`mse_9xcwr1j80g755x16:d1`) stays **Proposed**, not accepted — the mixed S3/S10-vs-S4/S6 result
 doesn't meet the same clean bar Run 8's revision cleared.
 
+## Run 10 (2026-09-01) — orientation-gate fix validation, invalidated by a harness bug
+
+Investigated why S4/S6 stayed unmoved through Run 9: a targeted replay with **full** transcripts
+(`dryrun.py` only keeps 300-char summaries) showed both break the orientation chain rather than
+reason past it — S4 never opens `AGENTS.md` at all; S6 reads it in full but never follows its own
+"1. Read `agent-rules.md`" instruction, stopping at the entry point. Fixed both links to state the
+chain must *complete*, not just be opened (`session-start-context.py`'s injected block, `AGENTS.md`'s
+Operating Mode section) — `adr_orientation_completion_gate`, accepted on JNL's direct review ahead
+of validation. Ran Run 10 to validate.
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 3 | 0 | 3 | 0 | 0 |
+| updated_facts | 6 | 2 | 1 | 1 | 2 | 0 |
+| thread_growth | 3 | 0 | 2 | 1 | 0 | 0 |
+| synthesis | 4 | 0 | 0 | 4 | 0 | 0 |
+| long_term_retention | 4 | 3 | 0 | 1 | 0 | 0 |
+| false_memory | 8 | 8 | 0 | 0 | 0 | 0 |
+
+**Blended 16/31 = 51.6. Kill condition TRIGGERED** — the worst of five runs. **This result is
+discounted from consideration**: it does not measure the orientation-gate fix at all. Root cause,
+confirmed directly against the seeded workspace's git history rather than inferred:
+
+- **S1, S3, S5 logged and merged to `main` cleanly** — the orientation-gate fix worked; the full
+  chain completed for these three.
+- **S2, S4, S6, S7, S8, S9, S10 also logged correctly** — proper DRAFT structure, the right MCP
+  tool — but on isolated worktree branches (`worktree-docs+release-checklist-030`,
+  `worktree-wanjiru-format-duration-repro`, `claude/feature/settings-numeric-coercion`,
+  `worktree-claude+docs+release-cadence`, `claude/docs/release-1.0-gate`) that **never merged into
+  `main`**. `dryrun.py` only ever reads `main`, so all seven sessions' work was invisible to
+  scoring even though the logging discipline held. S4, S6, and S8's entries were stacked three-deep
+  on one never-merged branch; S10's own entry records hitting the pile-up directly: *"RELEASE.md
+  doesn't exist on `main`. Two unmerged branches from earlier sessions each independently created
+  it, with conflicting content, and neither ever landed."*
+- **The mechanism is a genuine harness/product mismatch, not a regression.** This project's real
+  merge discipline correctly has an agent stop and ask a human before merging through a conflict
+  (S9's own words: *"merge is blocked and needs your call on one thing"*). `dryrun.py`'s seeding
+  sessions are single-shot, non-interactive `claude -p` calls — no human is ever present to give
+  that confirmation, so the first branch that hits any conflict-in-waiting stays stranded forever,
+  and every later session touching the same file inherits an ever-worsening pile of unmerged,
+  divergent branches. Four of eight quiz batches (including Q31, the fabrication-trap question)
+  also hit a `claude` account rate limit mid-run and had to be retried after reset — unrelated to
+  the merge-cascade finding, but it independently explains why this run took much longer than
+  Run 6-9.
+- **Zero fabrications, `false_memory` 8/8 perfect** — the only number from this run still worth
+  reading: Run 9's Q31 abstention fix held completely even under this run's otherwise-degraded
+  conditions.
+
+**Fix landed in `dryrun.py` (harness-only, no product/seed-twin change, no ADR — matches how
+`facts.json`/`QUIZ_PREAMBLE` edits are handled).** Added `reconcile_seed_branches()`: after every
+seeding session, merge any branch left ahead of `main` straight back in via `git merge --no-ff
+--no-commit` + (on conflict) `memory-seed session fuse --branch <branch> --apply` — the same
+session-aware fuse mechanism the compliant S1/S3/S5 sessions already use themselves, just invoked
+by the harness instead of relying on the agent to complete it. Reconciling after *every single*
+session, before the next one starts, keeps at most one branch ever ahead of `main` — so the
+staleness that caused Run 10's pile-up can't accumulate: each merge always lands against the exact
+`main` its branch was cut from. Confirmed separately that replaying the same merge against Run 10's
+already-6-session-stale pile fails even with `session fuse` (the guard trips on `existing entries
+are not chronological` — a staleness symptom, not a fuse limitation), which is consistent with
+"reconcile immediately" being the fix rather than "reconcile better."
+
+**Not yet re-validated** — Run 11 needed to confirm this closes the gap without introducing a new
+failure mode (a merge that goes wrong mechanically would be a different, worse problem than a
+merge that never happens).
+
 ## Contamination guard
 
 Dry-run materials stay out of the published store paths (`experiments/memory-index-dryrun/`,
