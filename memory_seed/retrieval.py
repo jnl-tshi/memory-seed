@@ -2126,7 +2126,7 @@ def validate_evidence_pack(
                     runtime.memory_dir / "sessions",
                     stage="pack_validation",
                 )
-                session_chunks = extract_memory_chunks(root, granularity="entry")
+                session_chunks = load_corpus(root, granularity="entry")
             line_range = tuple(item.get("line_range", ()))
             from .core import entry_body_decisions
 

@@ -1,20 +1,21 @@
 {
   "schema": "context-fixture-source.v1",
   "fixture_id": "real-current",
-  "base_sha": "f11a5dcb453f1a160864a10c7c5a1ee81ade0e48",
+  "base_sha": "81069fd0cdb46759b0cf1ca35ddb979e4003ca03",
   "description": "Frozen slice of the three live ADRs and the seven session entries needed to validate their decision evidence.",
+  "maintenance_note": "No regeneration script exists - these sha256 pins are hand-updated by re-hashing each path at a chosen commit (see base_sha) whenever a source file drifts. Drifted and was hand-fixed 2026-08-12 (fdcefb3c) and again 2026-09-01 (see that day's session log) - both times discovered only because a test happened to fail, not proactively. If this drifts again, re-hash every path in adr_sources/session_sources against the current tree (not just the one the failing test names first - check all of them) and update base_sha to match.",
   "adr_sources": [
     {
       "path": ".memory-seed/decisions/adr_mcp_decision_envelope_review.md",
-      "sha256": "379afee5512c1dda1a227b2879a9ec5b39118f2bcfe8ca86974e2b83da49db42"
+      "sha256": "701e266329b0ac33c38a3598ffaa397508c8d1daa3900479cc35ce82b23ff691"
     },
     {
       "path": ".memory-seed/decisions/adr_parent_first_sidecar_transaction.md",
-      "sha256": "5de5097a6fa5a52b24dc34bbd327d16c08127d091bacce31342992d58d286f0b"
+      "sha256": "51f6a7d95aee99fe2b5f8c8c05cf28f583406e3363caa24baa1fbb8d91d90dcc"
     },
     {
       "path": ".memory-seed/decisions/adr_session_decision_authority.md",
-      "sha256": "89471a997584c31388965353bd5dc6fd068926c2fcaf38f1821c7dfc8499cb42"
+      "sha256": "ce6bb14a939cdc79d8d9289da90e62795e523b1b978978ced15b572c27501ce9"
     }
   ],
   "session_sources": [
@@ -40,7 +41,7 @@
     },
     {
       "path": ".memory-seed/sessions/2026-08/2026-08-10.md",
-      "sha256": "f418bc44cc4245581d4a73250d81484b89ab29c5073594beca346a436fe15de0",
+      "sha256": "e9cdf0e8389dd05a2450df6219ebbfd8d7cc1687763b325fca4af5c9985acbee",
       "entry_ids": ["mse_axkrkd339br970kw"]
     }
   ],
