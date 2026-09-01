@@ -130,9 +130,6 @@ _EXACT_SESSION_PATH_RE = re.compile(
     r"\.memory-seed/sessions/[A-Za-z0-9._/-]+\.md\Z", re.IGNORECASE
 )
 _PATH_SCOPE_METACHAR_RE = re.compile(r'[*?\[\]{}!<>:"|]')
-_WINDOWS_DEVICE_SEGMENT_RE = re.compile(
-    r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?\Z", re.IGNORECASE
-)
 _BUDGET_STATUSES = (
     "within_target",
     "elevated",
@@ -257,7 +254,7 @@ def _path_string(value: Any, path: str) -> str:
         )
     if _PATH_SCOPE_METACHAR_RE.search(normalized) or any(
         segment.endswith((".", " "))
-        or _WINDOWS_DEVICE_SEGMENT_RE.fullmatch(segment) is not None
+        or PureWindowsPath(segment).is_reserved()
         for segment in segments
     ):
         _fail(

@@ -298,6 +298,45 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "must not overlap"):
             normalize_task_dispatch(conflict)
 
+    def test_edit_authority_rejects_every_windows_reserved_component(self):
+        reserved_scopes = (
+            "CONIN$",
+            "nested/conin$.txt",
+            "CONOUT$",
+            r"nested\ConOut$.log",
+            "COM¹",
+            "nested/com².txt",
+            "CoM³.LOG",
+            "LPT¹",
+            "nested/lpt².txt",
+            "LpT³.LOG",
+        )
+        for scope in reserved_scopes:
+            with self.subTest(scope=scope):
+                dispatch = self.dispatch(write_intent="writing")
+                dispatch["execution"]["allowed_files"] = [scope]
+                with self.assertRaises(TaskPacketValidationError):
+                    normalize_task_dispatch(dispatch)
+
+        valid_near_misses = (
+            "CONIN",
+            "CONOUT",
+            "nested/COM⁴.txt",
+            "LPT⁴.txt",
+            "COM0.log",
+            "LPT0.log",
+            "COM10.log",
+            "LPT10.log",
+            "CONSOLE.md",
+            "nested/auxiliary.txt",
+        )
+        for scope in valid_near_misses:
+            with self.subTest(scope=scope):
+                dispatch = self.dispatch(write_intent="writing")
+                dispatch["execution"]["allowed_files"] = [scope]
+                normalized = normalize_task_dispatch(dispatch)
+                self.assertEqual(normalized["execution"]["allowed_files"], [scope])
+
     def test_exact_repo_relative_edit_scopes_preserve_read_only_semantics(self):
         writing = self.dispatch(write_intent="writing")
         writing["execution"]["allowed_files"] = [
