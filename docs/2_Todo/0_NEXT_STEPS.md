@@ -633,8 +633,11 @@ before its next step. (Market/account items live under "Parked" below.)
     are non-interactive with no human ever present, so the first stranded branch cascades into every
     later session touching the same file); `false_memory` still 8/8, so Q31's fix held regardless.
     Fixed in `dryrun.py` (harness-only): reconcile every seeding session's branch back to `main`
-    immediately, before the next session starts, so staleness can't accumulate. **Run 11 needed** to
-    confirm the orientation-gate fix's actual effect now that the merge cascade can't mask it.
+    immediately, before the next session starts, so staleness can't accumulate. "Run 11": the design
+    held - S2, S4, S6 all merged cleanly for the first time - but two implementation bugs in the new
+    reconcile step (a session colliding with its own uncommitted direct edits; a foreign-package
+    guard false positive against the nested fixture) stalled S7 onward. Both fixed. **Run 12 needed**
+    to confirm the orientation-gate fix's actual effect now that the merge cascade can't mask it.
     *Recommendation:* Run 9's result remains strong enough to submit on if a clean re-run doesn't
     land soon. Still n=1 per condition across all runs. S4/S6 remain an open, unscoped gap pending
     Run 11 (does not block submission). Q1 (Youssef misattribution) is stable and minor across

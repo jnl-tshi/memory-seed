@@ -617,6 +617,32 @@ are not chronological` — a staleness symptom, not a fuse limitation), which is
 failure mode (a merge that goes wrong mechanically would be a different, worse problem than a
 merge that never happens).
 
+## Run 11 (2026-09-01) — the reconcile-immediately design worked; two implementation bugs, both fixed
+
+Seed-only (never reached quiz — **also discounted**, same reason as Run 10: not a clean measurement
+of the orientation-gate fix). The core design held: **S1-S6 all merged cleanly**, including S2, S4,
+and S6 - exactly the three sessions stuck since Run 9/10. Two narrower implementation bugs surfaced
+in `reconcile_seed_branches()` itself, not the design:
+
+- **Self-collision.** A session that works directly on `main` for part of its task *and* uses a
+  worktree for another part in the same turn leaves its own direct edits uncommitted; the merge of
+  its *own* worktree branch then fails with "local changes would be overwritten" - not a real
+  conflict, the session colliding with itself. Fixed: `_commit_dirty_root()` commits any dirty
+  tracked root state (the session's own legitimate work) before touching any worktree branch.
+- **Foreign-package guard false positive.** The fixture is a subdirectory of this checkout with no
+  `pyproject.toml` of its own, so the CLI's checkout-root walk-up finds *this* repo's
+  `pyproject.toml` and refuses to run `session fuse` against a path that doesn't match the loaded
+  package - a false positive for a deliberately-nested fixture, not a real version mismatch. Fixed:
+  pass `MEMORY_SEED_ALLOW_FOREIGN_PACKAGE=1` (the guard's own documented escape hatch) to the fuse
+  subprocess call.
+
+Both bugs hit S7 first and, because reconciliation never completed for it, its branch went stale
+across S8/S9/S10, past the point `session fuse` could recover it after the fact (same
+`existing entries are not chronological` staleness guard as Run 10) - consistent with "reconcile
+immediately, before staleness accumulates" being the correct design, undermined here only by the
+merge step itself failing to run. **Run 12 needed**, with both fixes in place from S1 onward this
+time rather than patched in mid-run.
+
 ## Contamination guard
 
 Dry-run materials stay out of the published store paths (`experiments/memory-index-dryrun/`,

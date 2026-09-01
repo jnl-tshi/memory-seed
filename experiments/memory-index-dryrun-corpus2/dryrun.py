@@ -143,6 +143,33 @@ def _worktree_path_for_branch(workspace: Path, branch: str) -> Path | None:
     return None
 
 
+def _commit_dirty_root(workspace: Path, session_id: str) -> str | None:
+    """Commit any uncommitted TRACKED changes already sitting in the root checkout.
+
+    A session that works directly on `main` (no worktree - fully normal for small, single-file
+    work) doesn't always commit its own edits before exiting; a session that mixes direct-main
+    edits with a worktree for a separate part of the same task leaves the same residue. Either
+    way, `git merge <branch>` then refuses with "local changes would be overwritten" - not a
+    content conflict, just root not being clean going into the merge attempt. Found live in Run
+    11: S7's own reconcile call failed on exactly this (root held S5/S6's already-committed
+    content correctly, but this session's own direct edits on top of it, still uncommitted).
+    Committing them first (as this session's own legitimate work, not discarding anything) before
+    touching any worktree branch keeps root clean for the merge step that follows.
+    """
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+    ).stdout.strip()
+    if not dirty:
+        return None
+    subprocess.run(["git", "add", "-A"], cwd=workspace, capture_output=True, text=True)
+    commit = subprocess.run(
+        ["git", "commit", "-m", f"direct edits ({session_id})"],
+        cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+    )
+    return "committed dirty root" if commit.returncode == 0 else f"commit failed: {commit.stdout[:200]!r}"
+
+
 def reconcile_seed_branches(workspace: Path, session_id: str) -> list[str]:
     """Merge every branch a seeding session left ahead of `main` straight back in, immediately.
 
@@ -163,6 +190,9 @@ def reconcile_seed_branches(workspace: Path, session_id: str) -> list[str]:
     limitation.
     """
     notes: list[str] = []
+    dirty_note = _commit_dirty_root(workspace, session_id)
+    if dirty_note:
+        notes.append(dirty_note)
     for branch in _no_merged_branches(workspace):
         merge = subprocess.run(
             ["git", "merge", branch, "--no-ff", "--no-commit"],
@@ -170,9 +200,15 @@ def reconcile_seed_branches(workspace: Path, session_id: str) -> list[str]:
         )
         fused = False
         if merge.returncode != 0:
+            # The fixture is a nested subdirectory of this checkout with no pyproject.toml of its
+            # own, so the CLI's foreign-package guard walks up to THIS repo's pyproject.toml and
+            # refuses (path mismatch against the loaded global package) - a false positive for a
+            # deliberately-nested standalone fixture, not an actual version mismatch. The guard's
+            # own documented escape hatch applies.
+            fuse_env = dict(os.environ, MEMORY_SEED_ALLOW_FOREIGN_PACKAGE="1")
             fuse = subprocess.run(
                 [sys.executable, "-m", "memory_seed.cli", "session", "fuse", "--branch", branch, "--apply"],
-                cwd=workspace, capture_output=True, text=True, encoding="utf-8",
+                cwd=workspace, capture_output=True, text=True, encoding="utf-8", env=fuse_env,
             )
             remaining = subprocess.run(
                 ["git", "diff", "--name-only", "--diff-filter=U"],
@@ -181,14 +217,16 @@ def reconcile_seed_branches(workspace: Path, session_id: str) -> list[str]:
             fused = fuse.returncode == 0 and not remaining
             if not fused:
                 subprocess.run(["git", "merge", "--abort"], cwd=workspace, capture_output=True, text=True)
-                notes.append(f"LEFT UNMERGED ({session_id}): {branch} - {(fuse.stdout or merge.stdout)[:200]!r}")
+                reason = (fuse.stdout or fuse.stderr or merge.stdout or merge.stderr or "(no output)")[:200]
+                notes.append(f"LEFT UNMERGED ({session_id}): {branch} - {reason!r}")
                 continue
         commit = subprocess.run(
             ["git", "commit", "--no-edit"], cwd=workspace, capture_output=True, text=True, encoding="utf-8",
         )
         if commit.returncode != 0:
             subprocess.run(["git", "merge", "--abort"], cwd=workspace, capture_output=True, text=True)
-            notes.append(f"LEFT UNMERGED ({session_id}): {branch} - commit failed: {commit.stdout[:200]!r}")
+            reason = (commit.stdout or commit.stderr or "(no output)")[:200]
+            notes.append(f"LEFT UNMERGED ({session_id}): {branch} - commit failed: {reason!r}")
             continue
         notes.append(f"merged {branch}" + (" (fused)" if fused else ""))
         wt_path = _worktree_path_for_branch(workspace, branch)
