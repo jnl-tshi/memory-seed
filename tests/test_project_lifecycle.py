@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from memory_seed.core import (
+    CORE_RETRIEVAL_PROFILES,
     MEMORY_DIR_NAME,
     PACKAGE_ROOT,
     SEED_FILES,
@@ -145,6 +146,92 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue((cwd / ".agents" / "developer.md").exists())
         self.assertTrue((cwd / ".agents" / "solo-founder.md").exists())
         self.assertFalse((cwd / ".agents" / "_registry.yaml").exists())
+
+    def test_core_retrieval_profiles_install_update_and_remain_immutable(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile_root = cwd / MEMORY_DIR_NAME / "retrieval-profiles"
+        expected = {
+            f"{profile_id}/v{profile_version}.yaml"
+            for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+        }
+        installed = {
+            path.relative_to(profile_root).as_posix()
+            for path in profile_root.glob("*/v*.yaml")
+        }
+        self.assertEqual(installed, expected)
+
+        implementation = profile_root / "implementation" / "v1.yaml"
+        customized = implementation.read_text(encoding="utf-8") + "# local note\n"
+        implementation.write_text(customized, encoding="utf-8")
+        custom = profile_root / "team-review" / "v7.yaml"
+        custom.parent.mkdir(parents=True)
+        custom.write_text("project-owned\n", encoding="utf-8")
+        missing = profile_root / "research" / "v1.yaml"
+        missing.unlink()
+
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(implementation.read_text(encoding="utf-8"), customized)
+        self.assertEqual(custom.read_text(encoding="utf-8"), "project-owned\n")
+        self.assertTrue(missing.is_file())
+        self.assertIn(
+            ".memory-seed/retrieval-profiles/research/v1.yaml", result.created
+        )
+        self.assertNotIn(
+            ".memory-seed/retrieval-profiles/implementation/v1.yaml", result.created
+        )
+
+    def test_force_init_preserves_existing_core_profile_and_custom_ids(self):
+        cwd = self.make_project()
+        implementation = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        implementation.parent.mkdir(parents=True)
+        implementation.write_text("existing-core-version\n", encoding="utf-8")
+        custom = (
+            cwd / MEMORY_DIR_NAME / "retrieval-profiles" / "my-custom" / "v2.yaml"
+        )
+        custom.parent.mkdir(parents=True)
+        custom.write_text("existing-custom-id\n", encoding="utf-8")
+
+        init_project(cwd=cwd, force=True)
+
+        self.assertEqual(
+            implementation.read_text(encoding="utf-8"), "existing-core-version\n"
+        )
+        self.assertEqual(custom.read_text(encoding="utf-8"), "existing-custom-id\n")
+
+    def test_doctor_warns_when_managed_retrieval_profile_is_malformed(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "id: implementation", "id: wrong-profile"
+            ),
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        warning = next(
+            warning
+            for warning in result.warnings
+            if "Managed retrieval profile implementation:v1 is invalid" in warning
+        )
+        self.assertIn("identity does not match exact path", warning)
+        self.assertTrue(result.control_plane_ok)
 
     def test_init_merges_into_foreign_routing_file_without_force(self):
         # A pre-existing foreign entry-point file (no frontmatter, e.g. a host's
@@ -633,6 +720,12 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/hooks/session-log-check.py",
                 ".memory-seed/hooks/session-start-context.py",
                 ".memory-seed/project-bootstrap.md",
+                ".memory-seed/retrieval-profiles/adr-review/v1.yaml",
+                ".memory-seed/retrieval-profiles/architecture/v1.yaml",
+                ".memory-seed/retrieval-profiles/bug-investigation/v1.yaml",
+                ".memory-seed/retrieval-profiles/implementation/v1.yaml",
+                ".memory-seed/retrieval-profiles/refactoring/v1.yaml",
+                ".memory-seed/retrieval-profiles/research/v1.yaml",
                 ".memory-seed/sessions/.gitkeep",
                 ".memory-seed/skills/adr_sweep.md",
                 ".memory-seed/skills/agent_collaboration.md",

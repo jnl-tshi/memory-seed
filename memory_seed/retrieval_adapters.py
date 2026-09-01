@@ -1,7 +1,9 @@
 """Thin input adapters for Retrieval Specification preview and resolution.
 
-The resolver deliberately accepts only inline specifications. These adapters
-add exact local-profile input without duplicating the canonical resolver.
+The canonical resolver accepts a normalized specification. These adapters let
+callers choose exactly one input mode--an inline specification or an exact
+project-local profile version with bounded overrides--without duplicating the
+resolver.
 """
 
 from __future__ import annotations

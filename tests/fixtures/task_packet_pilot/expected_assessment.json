@@ -1,0 +1,53 @@
+{
+  "conclusions": [
+    {
+      "claim": "The complete packet is reconstructed from semantic dispatch, the immutable profile version, measured binding, and pinned corpus revision.",
+      "evidence_ids": [
+        "docs/pilot-support.md"
+      ]
+    },
+    {
+      "claim": "Materialized sources are not refetched, every worker-visible document counts toward input, and input, output, and cost accounting remain distinct.",
+      "evidence_ids": [
+        "mse_packetpilot:d1"
+      ]
+    },
+    {
+      "claim": "Compilation adds no packet registry, worker dispatch, authority, worktree creation, provider lookup, pricing lookup, or network access.",
+      "evidence_ids": [
+        "adr_task_packet_pilot",
+        "docs/pilot-support.md"
+      ]
+    }
+  ],
+  "missing_questions": [],
+  "supplemental_sources": [],
+  "supplemental_calls": 0,
+  "unsupported_assertions": [],
+  "evidence_id_correctness": {
+    "valid": true,
+    "checked_ids": [
+      "adr_task_packet_pilot",
+      "mse_packetpilot:d1",
+      "docs/CONSTITUTION.md",
+      "docs/pilot-support.md"
+    ],
+    "invalid_ids": []
+  },
+  "repeated_fetches": [],
+  "broad_discovery": false,
+  "selected_tier": "balanced",
+  "soft_cap_tokens": 48000,
+  "actual_provider_usage": {
+    "status": "unavailable",
+    "reason": "not surfaced by execution environment"
+  },
+  "actual_provider_latency": {
+    "status": "unavailable",
+    "reason": "not surfaced by execution environment"
+  },
+  "actual_provider_cost": {
+    "status": "unavailable",
+    "reason": "not surfaced by execution environment"
+  }
+}

@@ -305,9 +305,9 @@ class McpReadParityTests(unittest.TestCase):
         self.assertEqual(payload["corpus_cache"]["health"], "missing")
         self.assertFalse(missing.exists())
 
-    def test_registry_adds_exactly_three_read_tools_without_changing_writes(self) -> None:
+    def test_registry_preserves_read_write_classification(self) -> None:
         names = [tool["name"] for tool in TOOLS]
-        self.assertEqual(len(names), 23)
+        self.assertEqual(len(names), 25)
         self.assertEqual(
             MUTATING_TOOL_NAMES,
             {
@@ -317,7 +317,13 @@ class McpReadParityTests(unittest.TestCase):
                 "memory_link_retract",
             },
         )
-        for name in ("memory_links_chain", "memory_link_audit", "memory_esr"):
+        for name in (
+            "memory_links_chain",
+            "memory_link_audit",
+            "memory_esr",
+            "memory_task_packet_preview",
+            "memory_task_packet_compile",
+        ):
             self.assertNotIn(name, MUTATING_TOOL_NAMES)
             tool = next(tool for tool in TOOLS if tool["name"] == name)
             self.assertNotIn("dry_run", tool["inputSchema"]["properties"])

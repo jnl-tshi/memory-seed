@@ -1,9 +1,8 @@
 # Clean-session high-signal Task Packet pilot
 
-> **Status:** worked pilot reference, derived at a point in time. It documents an
-> orchestration convention; it is not a new API, policy, or authority source.
-> Rerun the inline Retrieval Specification preview and resolve against the intended
-> dispatch revision before relying on any values below.
+> **Status:** current compiler-backed pilot reference, rerun 2026-09-01. The
+> versioned fixture is reproducible; each exported packet is derived and ephemeral.
+> The older M1 convention pilot remains below as historical evidence.
 
 ## Purpose and authority boundary
 
@@ -14,12 +13,10 @@ orchestrator selects and materializes bounded evidence, while the worker reports
 only what that evidence establishes. The accepted curated pilot is recorded by
 [`mse_r0z6p0gfxap0ps23`](../../.memory-seed/sessions/2026-08/2026-08-31.md).
 
-The shipped M1 surface is an inline `memory-seed/retrieval-spec` v1 request and
-an ephemeral Evidence Pack result. The Retrieval Specification remains v1, while
-the current resolver emits Evidence Pack v2. `context_load`, packet fields, materialized
-evidence, budget ledgers, and `memory_update_policy` are operating conventions,
-not schema-enforced API fields. The worker has no implied write, shell, merge,
-or broad durable-memory authority.
+The current surface retains inline `memory-seed/retrieval-spec` v1 compatibility and adds exact
+project-local profile resolution, Retrieval Specification v2, Evidence Pack v2, semantic
+`memory-seed/task-dispatch` v1, and compiled `memory-seed/task-packet` v1. The worker has no implied
+write, shell, merge, network, or broad durable-memory authority.
 
 Evidence Pack v2 uses `id` consistently: ADR evidence carries its frontmatter
 `adr_id`, session decision evidence carries its canonical decision ID, `kind`
@@ -27,6 +24,55 @@ distinguishes `adr` from `decision`, and `source` remains the canonical Markdown
 path. `content_digest` verifies the selected content; it is not another identity.
 The v1 fingerprints and counts later in this document are retained as historical
 pilot evidence and must not be sent as a current pack without re-resolution.
+
+## Current compiler-backed clean-session pilot (2026-09-01)
+
+The frontier-authored artifact is the minimal semantic dispatch in
+`tests/fixtures/task_packet_pilot/dispatch.json`. It does not duplicate resolved sources or hand-author a
+complete packet. The deterministic compiler combines that dispatch with `implementation:v1`, the measured
+binding of a fresh offline Git fixture, and the pinned corpus revision to reconstruct the complete Task
+Packet. The versioned fixture corpus and expected assessment are committed; the exported packet and fresh
+fixture checkout are derived, ephemeral output and stay untracked.
+
+Every worker-visible document counts toward input. Resolver `token_estimate` is evidence-only; it is not
+total worker input or actual provider usage. Materialized sources are present once under
+`materialized_evidence` and are not refetched. The input ledger, output/reasoning reserve, and cost ledger
+remain distinct. Actual provider usage, latency, and cost are post-run evidence only; when the execution
+surface does not expose them, the result says unavailable and why. Compilation performs no registry write,
+worker dispatch, worktree creation, authority expansion, provider/pricing lookup, or network access.
+
+The fixture compiled to packet fingerprint
+`sha256:3ec963c4d67a3f711cfe82a77e7ec08480e13c60378c906cafed9acc3d907820` at corpus revision
+`git:de283da2d27125fbb252484f338a6b2876216e3f:sha256:ddfb66e8981d6656267e9d5287bea87029c795203bd895675cdd41d42255ce51`.
+
+| Compiler/pilot measurement | Result |
+|---|---:|
+| Frontier semantic-dispatch handoff estimate | 580 tokens |
+| Resolver evidence estimate / materialized content estimate | 352 / 352 tokens |
+| Serialized complete packet input | 3,249 tokens |
+| Supplemental-input reserve | 1,000 tokens |
+| Total input ledger | 4,250 tokens |
+| Output/reasoning reserve | 2,500 tokens |
+| Total context envelope | 6,750 tokens |
+| Selected tier / soft cap / status | balanced / 48,000 / within target |
+| Materialized evidence IDs | `mse_packetpilot:d1`, `adr_task_packet_pilot`, `docs/CONSTITUTION.md`, `docs/pilot-support.md` |
+
+A clean balanced-tier worker received only the exact compiled packet path and the bounded Evidence Pack
+assessment contract. It reported three source-linked conclusions; no missing questions, supplemental
+sources, supplemental calls, unsupported assertions, invalid evidence IDs, repeated fetches, or broad
+discovery. All four materialized IDs were checked and valid. The selected tier was `balanced` with a
+48,000-token soft cap. Actual provider usage, provider latency, and provider cost were each unavailable
+because the execution environment did not surface them; no value was inferred from estimates or reserves.
+
+The offline regression test recompiles the fixture twice and asserts canonical byte identity, exact
+profile/binding use, single-copy materialization, evidence-reference correctness, zero supplemental and
+broad-discovery outcomes, balanced-cap compliance, unavailable cost reasoning when pricing is absent, and
+absence of registry/dispatch/worktree/network/authority expansion fields.
+
+## Historical M1 convention pilot
+
+The remaining sections preserve the August 2026 inline-only pilot. Its numbers and terminology are
+point-in-time evidence, not the current compiled-packet contract.
 
 ## Worker launch contract
 

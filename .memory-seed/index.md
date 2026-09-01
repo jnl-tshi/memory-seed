@@ -53,6 +53,7 @@ memory-seed/
 ├── project.yaml         # Participants, integration mode, and merge trigger
 ├── topics.yaml          # Controlled area/activity vocabulary
 ├── decisions/           # Living ADR records and accepted heads
+├── retrieval-profiles/  # Immutable versioned local retrieval contracts
 ├── skills/
 │   ├── index.md         # Deterministic task-to-runbook trigger registry
 │   └── *.md             # Lazy-loaded execution runbooks
@@ -98,7 +99,7 @@ entry points matter.
 Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
 head → session evidence → derived projection.
 
-- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.9 ratified 2026-08-13**.
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.10 ratified 2026-08-31**.
 - Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
 - Markdown source-of-truth boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md).
 - Append-only history: [`adr_append_rule_is_an_invariant`](decisions/adr_append_rule_is_an_invariant.md).
@@ -116,8 +117,8 @@ file to direct reading at or below 12,000 characters or economy-worker compressi
 
 Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
 relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
-before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.9**, ratified
-2026-08-13) before consequential design, governance, or control-plane changes. It remains the highest
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.10**, ratified
+2026-08-31) before consequential design, governance, or control-plane changes. It remains the highest
 declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
@@ -152,11 +153,12 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 
 - Project type: reusable local AI memory-system seed and Python CLI/MCP tooling.
 - Current priority: use this repository as a meta-test for the all-in-one `.memory-seed/` v2 layout with nearest-runtime sub-project discovery.
+- Retrieval Specification M0-M3 and the reconstructable Task Packet compiler are delivered as of 2026-09-01. Six immutable core v1 profiles live under `.memory-seed/retrieval-profiles/`; semantic Task Dispatch plus measured binding and a pinned corpus revision reconstructs a complete ephemeral packet through shared CLI/MCP/core code. Trace/Evidence Envelope and advanced selectors remain planned; this adds no registry, dispatch engine, authority, provider lookup, or network dependency.
 - Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed; v2.17.0 released; Memory Trace packaging now ships through the root `memory-seed[trace]` extra with the `memory-trace` command.
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `replacing_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
 - Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b packages the React/TypeScript shell with the accepted graph, search, selection, Trail, reader, diagram, and workspace interaction rules. Accessibility and scale closeout landed 2026-07-29; JNL approved the frontend cutover on 2026-08-11, so React owns `/` and the vanilla frontend and parity-only harnesses are retired. **Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)** — an ADR records the corpus-density measurement that ruled it out; it does not gate B0b acceptance. **Navigation and layout gained ground 2026-07-28/29**: the flat topic-chip list became a recursive Areas/Activities ontology tree; long lifecycle chains now wind into a spiral (oldest innermost, gated by a concordance check so a chain only spirals when its topology actually tracks chronology); the layout leans away from crossing edges via a soft force; and Trace can now open any correctly-initialised folder from inside the app, not only switch between this repo's own git worktrees. **Memory Seed 2.20.0 released 2026-08-12** with the React-only frontend and durable bootstrap-to-ADR authority chain.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v1.9** as of 2026-08-13 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v1.10** as of 2026-08-31 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
   `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
   living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
@@ -179,12 +181,12 @@ The trees above show where things live. These notes capture relationships, compa
 and configured surfaces that a folder tree cannot explain by itself.
 
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` (Copilot thin router).
-- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
+- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), deploy-once `.memory-seed/retrieval-profiles/<id>/vN.yaml`, `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
 - Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects measured checkout/session facts and a whole-file direct-or-compress route without injecting session bodies), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
 - Agent hook configs (auto-merged by `init`/`update`): `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, plus Copilot CLI `.github/hooks/memory-seed.json` (sessionStart prompt hook).
 - Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only), `.github/mcp.json` (Copilot CLI, `mcpServers` key), `.vscode/mcp.json` (VS Code Copilot, `servers` key).
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
-- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py` (the public retrieval service the UI consumes).
+- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py` (the public retrieval service the UI consumes), `memory_seed/retrieval_spec.py` (v1/v2 contracts), `memory_seed/retrieval_profiles.py` plus `memory_seed/retrieval_adapters.py` (exact local profile composition and shared inputs), and `memory_seed/task_packet.py` (semantic dispatch and deterministic complete-packet compiler).
 - Companion review UI (Trace source / optional extra target): `memory-trace/` is the `memory_trace` UI source package and owns the `memory-trace` command (formerly the in-package Memory Lense). It consumes `memory_seed/retrieval.py` and owns the web stack (`fastapi`/`uvicorn`) + static assets (`memory-trace/memory_trace/static/`). The release strategy now folds Trace into the root `memory-seed[trace]` install path rather than a separate PyPI project; plain `memory-seed` must still ship no web framework, and `memory-seed lense` remains a deprecated shim/alias path. (ADR [`adr_trace_boundary`](decisions/adr_trace_boundary.md))
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.

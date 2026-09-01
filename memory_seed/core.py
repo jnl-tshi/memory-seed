@@ -91,6 +91,29 @@ class SeedFile:
     agent: str | None = None
 
 
+CORE_RETRIEVAL_PROFILES = (
+    ("implementation", 1),
+    ("bug-investigation", 1),
+    ("research", 1),
+    ("adr-review", 1),
+    ("refactoring", 1),
+    ("architecture", 1),
+)
+
+
+def _core_retrieval_profile_destination(profile_id: str, profile_version: int) -> str:
+    return (
+        f"{MEMORY_DIR_NAME}/retrieval-profiles/{profile_id}/"
+        f"v{profile_version}.yaml"
+    )
+
+
+CORE_RETRIEVAL_PROFILE_DESTINATIONS = frozenset(
+    _core_retrieval_profile_destination(profile_id, profile_version)
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+)
+
+
 @dataclass(frozen=True)
 class BranchStatus:
     is_git_repo: bool
@@ -8387,6 +8410,17 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "project-bootstrap.md",
         ".memory-seed/project-bootstrap.md",
     ),
+    *(
+        SeedFile(
+            SEED_ROOT
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / profile_id
+            / f"v{profile_version}.yaml",
+            _core_retrieval_profile_destination(profile_id, profile_version),
+        )
+        for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+    ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "security_triage.md",
         ".memory-seed/skills/security_triage.md",
@@ -10507,6 +10541,7 @@ def init_project(
         seed_file.destination
         for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
+        and seed_file.destination not in CORE_RETRIEVAL_PROFILE_DESTINATIONS
         and not _is_foreign_routing_file(target_root, seed_file)
     ]
 
@@ -10524,6 +10559,17 @@ def init_project(
 
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
+
+        # Core Retrieval Profiles are immutable, version-addressed project
+        # inputs. Install a missing exact version, but never replace an
+        # existing one (including under init --force). A future profile change
+        # publishes a new vN file; custom profile IDs are absent from SEED_FILES
+        # and therefore remain wholly project-owned.
+        if (
+            seed_file.destination in CORE_RETRIEVAL_PROFILE_DESTINATIONS
+            and destination.exists()
+        ):
+            continue
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
         # (holds even under --force — the point is non-destruction).
@@ -10901,6 +10947,30 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 }
             )
 
+    # Managed profiles are deploy-once rather than byte/version refreshed, so
+    # validate their exact identities with the same strict loader used by the
+    # compiler. Existing custom IDs are deliberately outside this inventory.
+    from .retrieval_profiles import (
+        RetrievalProfileValidationError,
+        load_retrieval_profile,
+    )
+
+    profile_warnings: list[str] = []
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES:
+        profile_path = target_root / _core_retrieval_profile_destination(
+            profile_id, profile_version
+        )
+        if not profile_path.is_file():
+            continue  # already reported through DoctorResult.missing above
+        try:
+            load_retrieval_profile(profile_id, profile_version, target_root)
+        except RetrievalProfileValidationError as exc:
+            profile_warnings.append(
+                f"Managed retrieval profile {profile_id}:v{profile_version} is invalid: "
+                f"{exc}. Existing profile versions are immutable; repair this file "
+                "explicitly or add a new version rather than relying on update to overwrite it."
+            )
+
     bootstrap_missing = [
         path
         for path in BOOTSTRAP_GENERATED_FILES
@@ -10910,7 +10980,7 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     control_plane_ok = not missing and not version_mismatches
     bootstrap_complete = not bootstrap_missing
 
-    warnings: list[str] = []
+    warnings: list[str] = list(profile_warnings)
     codex_status = _codex_mcp_status(target_root) if "codex" in selected else "absent"
     if "codex" in selected and (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
         warnings.append(
