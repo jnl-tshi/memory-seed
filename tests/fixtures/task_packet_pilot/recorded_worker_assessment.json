@@ -1,0 +1,80 @@
+{
+  "evidence_status": {
+    "status": "sufficient",
+    "conclusion": "The complete materialized Evidence Pack supports the bounded clean-worker assessment.",
+    "evidence_ids": [
+      "mse_packetpilot:d1",
+      "adr_task_packet_pilot",
+      "docs/CONSTITUTION.md",
+      "docs/pilot-support.md"
+    ]
+  },
+  "conclusions": [
+    {
+      "assertion": "Materialized evidence establishes that worker-visible context must be counted, sources must not be refetched, and actual provider usage is post-run evidence only.",
+      "evidence_ids": [
+        "mse_packetpilot:d1"
+      ]
+    },
+    {
+      "assertion": "The pack is a local, rebuildable, non-authoritative artifact that grants neither execution nor memory-write authority.",
+      "evidence_ids": [
+        "adr_task_packet_pilot",
+        "docs/CONSTITUTION.md",
+        "docs/pilot-support.md"
+      ]
+    }
+  ],
+  "missing_questions": [],
+  "supplemental_sources": [],
+  "supplemental_calls": [],
+  "unsupported_assertions": [],
+  "evidence_id_correctness": {
+    "status": "correct",
+    "evidence_ids": [
+      "mse_packetpilot:d1",
+      "adr_task_packet_pilot",
+      "docs/CONSTITUTION.md",
+      "docs/pilot-support.md"
+    ],
+    "basis": "Each cited ID is present in materialized_evidence and has matching source, kind, line range, and digest metadata in evidence_pack.evidence."
+  },
+  "repeated_fetches": {
+    "status": "none",
+    "basis": "worker_self_report; only the supplied packet and worker contract were read, and no materialized source was fetched."
+  },
+  "broad_discovery": {
+    "status": "none",
+    "basis": "worker_self_report; no repository, index, policy, session history, or filesystem discovery was performed."
+  },
+  "selected_tier": "balanced",
+  "soft_cap_tokens": 48000,
+  "tool_call_instrumentation": {
+    "status": "unavailable",
+    "reason": "No independent tool-call instrumentation exists; no-refetch and no-broad-discovery are worker self-report evidence."
+  },
+  "platform_overhead": {
+    "status": "available",
+    "fixed_instruction_tokens": 341,
+    "tool_schema_input_tokens": 124,
+    "evidence_ids": [
+      "mse_packetpilot:d1"
+    ]
+  },
+  "actual_provider_input": {
+    "status": "unavailable",
+    "reason": "No post-run provider telemetry is supplied."
+  },
+  "actual_provider_usage": {
+    "status": "unavailable",
+    "reason": "No post-run provider telemetry is supplied."
+  },
+  "actual_provider_latency": {
+    "status": "unavailable",
+    "reason": "No post-run provider telemetry is supplied."
+  },
+  "actual_provider_cost": {
+    "status": "unavailable",
+    "reason": "Packet cost ledger states pricing_not_supplied; no post-run provider telemetry is supplied."
+  }
+}

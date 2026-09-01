@@ -77,6 +77,12 @@ def worker_environment() -> dict[str, Any]:
     )
 
 
+def recorded_worker_assessment() -> dict[str, Any]:
+    return json.loads(
+        (FIXTURE_ROOT / "recorded_worker_assessment.json").read_text(encoding="utf-8")
+    )
+
+
 def runtime_binding(root: Path) -> dict[str, Any]:
     base_sha = _git(root, "rev-parse", "main")
     return {

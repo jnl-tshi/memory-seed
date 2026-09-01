@@ -12,6 +12,7 @@ from memory_seed.task_packet import (
 from tests.pilot_task_packet_fixture import (
     build_fixture_runtime,
     compile_fixture_packet,
+    recorded_worker_assessment,
     semantic_dispatch,
     worker_environment,
 )
@@ -74,6 +75,51 @@ class TaskPacketPilotTests(unittest.TestCase):
             self.assertEqual(
                 canonical.count(json.dumps(item["content"], ensure_ascii=False)), 1
             )
+
+        # This versioned record is the genuine clean worker's self-report. The
+        # harness can prove schema/reference/ledger consistency, but it cannot
+        # turn no-refetch/no-discovery into independently instrumented facts.
+        assessment = recorded_worker_assessment()
+        cited_ids = {
+            evidence_id
+            for conclusion in assessment["conclusions"]
+            for evidence_id in conclusion["evidence_ids"]
+        }
+        cited_ids.update(assessment["evidence_status"]["evidence_ids"])
+        self.assertEqual(assessment["evidence_status"]["status"], "sufficient")
+        self.assertTrue(cited_ids <= materialized_ids)
+        self.assertEqual(
+            set(assessment["evidence_id_correctness"]["evidence_ids"]),
+            materialized_ids,
+        )
+        self.assertEqual(assessment["evidence_id_correctness"]["status"], "correct")
+        self.assertEqual(assessment["missing_questions"], [])
+        self.assertEqual(assessment["supplemental_sources"], [])
+        self.assertEqual(assessment["supplemental_calls"], [])
+        self.assertEqual(assessment["unsupported_assertions"], [])
+        self.assertEqual(assessment["repeated_fetches"]["status"], "none")
+        self.assertEqual(assessment["broad_discovery"]["status"], "none")
+        self.assertIn("worker_self_report", assessment["repeated_fetches"]["basis"])
+        self.assertIn("worker_self_report", assessment["broad_discovery"]["basis"])
+        self.assertEqual(assessment["selected_tier"], "balanced")
+        self.assertEqual(assessment["soft_cap_tokens"], 48_000)
+        self.assertEqual(
+            assessment["platform_overhead"]["fixed_instruction_tokens"],
+            packet["input_ledger"]["fixed_instruction_tokens"],
+        )
+        self.assertEqual(
+            assessment["platform_overhead"]["tool_schema_input_tokens"],
+            packet["input_ledger"]["tool_schema_input_tokens"],
+        )
+        self.assertEqual(assessment["tool_call_instrumentation"]["status"], "unavailable")
+        for field in (
+            "actual_provider_input",
+            "actual_provider_usage",
+            "actual_provider_latency",
+            "actual_provider_cost",
+        ):
+            self.assertEqual(assessment[field]["status"], "unavailable")
+            self.assertTrue(assessment[field]["reason"])
 
         forbidden_expansions = {
             "packet_registry",

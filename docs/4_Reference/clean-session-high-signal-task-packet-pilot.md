@@ -1,6 +1,6 @@
 # Clean-session high-signal Task Packet pilot
 
-> **Status:** corrected compiler-backed pilot prepared 2026-09-01; clean-worker rerun pending. The
+> **Status:** corrected compiler-backed pilot rerun 2026-09-01. The
 > versioned fixture is reproducible; each exported packet is derived and ephemeral.
 > The older M1 convention pilot remains below as historical evidence.
 
@@ -31,8 +31,8 @@ The frontier-authored artifact is the minimal semantic dispatch in
 `tests/fixtures/task_packet_pilot/dispatch.json`. It does not duplicate resolved sources or hand-author a
 complete packet. The deterministic compiler combines that dispatch with `implementation:v1`, the measured
 binding of a fresh offline Git fixture, and the pinned corpus revision to reconstruct the complete Task
-Packet. The versioned fixture corpus and exact caller-supplied worker environment are committed; the
-recorded worker assessment will be added only after a genuinely clean balanced run. The exported packet and fresh
+Packet. The versioned fixture corpus, exact caller-supplied worker environment, and recorded clean-worker
+assessment are committed. The exported packet and fresh
 fixture checkout are derived, ephemeral output and stay untracked.
 
 Every worker-visible document counts toward input. Resolver `token_estimate` is evidence-only; it is not
@@ -44,10 +44,10 @@ input: hidden platform/system/tool overhead and provider total input are unavail
 not surface them. Actual provider usage, latency, and cost are also post-run evidence only. Compilation performs no registry write,
 worker dispatch, worktree creation, authority expansion, provider/pricing lookup, or network access.
 
-Any recorded assessment is worker self-report evidence. Its no-refetch, supplemental-call, and
-broad-discovery fields are not mechanically replayed proof when tool-call instrumentation is unavailable.
-Regression tests may validate a recorded JSON schema, evidence references, and internal consistency, but
-must not claim execution provenance the harness could not observe.
+The recorded assessment is worker self-report evidence. Its no-refetch, zero-supplemental-call, and
+no-broad-discovery fields are not mechanically replayed proof: independent tool-call instrumentation was
+unavailable. Regression tests validate its JSON shape, evidence references, and ledger consistency, not
+execution provenance the harness could not observe.
 
 The fixture compiled to packet fingerprint
 `sha256:a4563fba46b31430e9d375e4ddd555c1e85adb4898ac26e0b852f62caeed883a` at corpus revision
@@ -67,14 +67,23 @@ The fixture compiled to packet fingerprint
 | Selected tier / soft cap / status | balanced / 48,000 / within target |
 | Materialized evidence IDs | `mse_packetpilot:d1`, `adr_task_packet_pilot`, `docs/CONSTITUTION.md`, `docs/pilot-support.md` |
 
-The corrected packet and exact launch contract are prepared for a genuinely clean `fork_turns: none`
-balanced-tier worker. No rerun outcome is recorded at this checkpoint. Platform overhead and actual
-provider total input/usage, latency, and cost remain unavailable unless the execution surface reports them;
-the compiler-accounted values above are not substitutes.
+A genuinely clean worker (`/root/m2_task4_pilot_clean`, `gpt-5.6-terra`, medium reasoning,
+`fork_turns: none`) received only the exact packet and `worker_environment` paths. Its recorded self-report
+found the pack sufficient and returned two source-linked conclusions using all four valid materialized
+evidence IDs. It reported no missing questions, supplemental sources/calls, unsupported assertions,
+repeated fetches, or broad discovery. The latter two claims remain worker self-report because independent
+tool-call instrumentation was unavailable.
+
+The assessment's `platform_overhead` label contains 341 fixed-instruction tokens and 124 tool-schema
+tokens, but those are only the explicit caller-supplied harness contract/schema counted by the compiler;
+they are not hidden platform/system/tool overhead. Actual hidden overhead and provider total input/usage,
+latency, and cost were not surfaced and remain unavailable. The compiler-accounted values above are not
+substitutes for post-run provider telemetry.
 
 The offline regression test recompiles the fixture twice and asserts canonical byte identity, exact
 profile/binding use, nonzero fixed-instruction/tool-manifest accounting, single-copy materialization,
-balanced-cap compliance, unavailable cost reasoning when pricing is absent, and
+recorded assessment shape/reference/ledger consistency, balanced-cap compliance, unavailable provider and
+cost evidence when telemetry/pricing are absent, and
 absence of registry/dispatch/worktree/network/authority expansion fields.
 
 ## Historical M1 convention pilot
