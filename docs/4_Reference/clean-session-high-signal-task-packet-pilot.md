@@ -50,35 +50,35 @@ unavailable. Regression tests validate its JSON shape, evidence references, and 
 execution provenance the harness could not observe.
 
 The fixture compiled to packet fingerprint
-`sha256:a4563fba46b31430e9d375e4ddd555c1e85adb4898ac26e0b852f62caeed883a` at corpus revision
+`sha256:699016efbbc7c5ed95d0228238d29f7ce240403567f74b3337d31c29c2a5276a` at corpus revision
 `git:dcc00d65ff1d917a8ba7c59adc5ef1f3d248c1b8:sha256:ddfb66e8981d6656267e9d5287bea87029c795203bd895675cdd41d42255ce51`.
 
 | Compiler/pilot measurement | Result |
 |---|---:|
 | Frontier semantic-dispatch handoff estimate | 574 tokens |
 | Resolver evidence estimate / materialized content estimate | 352 / 352 tokens |
-| Serialized complete packet input | 3,346 tokens |
-| Exact caller fixed instructions | 341 tokens |
+| Serialized complete packet input | 3,347 tokens |
+| Exact caller fixed instructions | 447 tokens |
 | Stable caller tool manifest | 124 tokens |
 | Supplemental-input reserve | 1,000 tokens |
-| Total input ledger | 4,811 tokens |
+| Total input ledger | 4,918 tokens |
 | Output/reasoning reserve | 2,500 tokens |
-| Total context envelope | 7,311 tokens |
+| Total context envelope | 7,418 tokens |
 | Selected tier / soft cap / status | balanced / 48,000 / within target |
 | Materialized evidence IDs | `mse_packetpilot:d1`, `adr_task_packet_pilot`, `docs/CONSTITUTION.md`, `docs/pilot-support.md` |
 
-A genuinely clean worker (`/root/m2_task4_pilot_clean`, `gpt-5.6-terra`, medium reasoning,
+A genuinely fresh clean worker (`/root/m2_task4_impl/m2_task4_pilot_round2_clean`, `gpt-5.6-terra`, medium reasoning,
 `fork_turns: none`) received only the exact packet and `worker_environment` paths. Its recorded self-report
-found the pack sufficient and returned two source-linked conclusions using all four valid materialized
+found the pack sufficient and returned three source-linked conclusions using all four valid materialized
 evidence IDs. It reported no missing questions, supplemental sources/calls, unsupported assertions,
 repeated fetches, or broad discovery. The latter two claims remain worker self-report because independent
 tool-call instrumentation was unavailable.
 
-The assessment's `platform_overhead` label contains 341 fixed-instruction tokens and 124 tool-schema
-tokens, but those are only the explicit caller-supplied harness contract/schema counted by the compiler;
-they are not hidden platform/system/tool overhead. Actual hidden overhead and provider total input/usage,
-latency, and cost were not surfaced and remain unavailable. The compiler-accounted values above are not
-substitutes for post-run provider telemetry.
+The assessment records `caller_supplied_harness_accounting` as available with 447 fixed-instruction tokens
+and 124 tool-schema tokens from the compiler ledger. It records `hidden_platform_overhead` separately as
+unavailable because the runtime did not surface it. Actual provider total input, usage, latency, and cost
+were likewise not surfaced and remain unavailable. The compiler-accounted values above are not substitutes
+for post-run provider telemetry.
 
 The offline regression test recompiles the fixture twice and asserts canonical byte identity, exact
 profile/binding use, nonzero fixed-instruction/tool-manifest accounting, single-copy materialization,

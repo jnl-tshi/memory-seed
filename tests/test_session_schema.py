@@ -30,6 +30,14 @@ def _seed_files_skill_names():
 
 
 class SessionSchemaTests(unittest.TestCase):
+    def test_session_logging_opening_example_uses_current_numbered_decision_shape(self):
+        content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
+        opening_example = content.split("````markdown", 1)[1].split("````", 1)[0]
+
+        self.assertIn("### Decisions", opening_example)
+        self.assertIn("#### D1 - State the decision", opening_example)
+        self.assertNotIn("### Decision\n", opening_example)
+
     def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
         content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
 

@@ -39,7 +39,9 @@ related_entries:
 
 - Required for every newly appended entry: state the context, change, or check.
 
-### Decision
+### Decisions
+
+#### D1 - State the decision
 
 - D: State the decision that was made or implemented. (mandatory)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)

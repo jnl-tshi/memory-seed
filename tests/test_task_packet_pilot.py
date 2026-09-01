@@ -85,33 +85,48 @@ class TaskPacketPilotTests(unittest.TestCase):
             for conclusion in assessment["conclusions"]
             for evidence_id in conclusion["evidence_ids"]
         }
-        cited_ids.update(assessment["evidence_status"]["evidence_ids"])
-        self.assertEqual(assessment["evidence_status"]["status"], "sufficient")
+        self.assertEqual(assessment["evidence_status"], "sufficient")
         self.assertTrue(cited_ids <= materialized_ids)
         self.assertEqual(
-            set(assessment["evidence_id_correctness"]["evidence_ids"]),
+            set(assessment["evidence_id_correctness"]["referenced_evidence_ids"]),
             materialized_ids,
         )
         self.assertEqual(assessment["evidence_id_correctness"]["status"], "correct")
+        self.assertTrue(assessment["evidence_id_correctness"]["all_present_in_packet"])
         self.assertEqual(assessment["missing_questions"], [])
         self.assertEqual(assessment["supplemental_sources"], [])
         self.assertEqual(assessment["supplemental_calls"], [])
         self.assertEqual(assessment["unsupported_assertions"], [])
         self.assertEqual(assessment["repeated_fetches"]["status"], "none")
-        self.assertEqual(assessment["broad_discovery"]["status"], "none")
-        self.assertIn("worker_self_report", assessment["repeated_fetches"]["basis"])
-        self.assertIn("worker_self_report", assessment["broad_discovery"]["basis"])
+        self.assertFalse(assessment["repeated_fetches"]["materialized_sources_refetched"])
+        self.assertFalse(assessment["broad_discovery"]["occurred"])
         self.assertEqual(assessment["selected_tier"], "balanced")
         self.assertEqual(assessment["soft_cap_tokens"], 48_000)
+        caller_accounting = assessment["caller_supplied_harness_accounting"]
         self.assertEqual(
-            assessment["platform_overhead"]["fixed_instruction_tokens"],
+            set(caller_accounting),
+            {"status", "fixed_instruction_tokens", "tool_schema_tokens"},
+        )
+        self.assertEqual(caller_accounting["status"], "available")
+        self.assertEqual(
+            caller_accounting["fixed_instruction_tokens"],
             packet["input_ledger"]["fixed_instruction_tokens"],
         )
         self.assertEqual(
-            assessment["platform_overhead"]["tool_schema_input_tokens"],
+            caller_accounting["tool_schema_tokens"],
             packet["input_ledger"]["tool_schema_input_tokens"],
         )
-        self.assertEqual(assessment["tool_call_instrumentation"]["status"], "unavailable")
+        self.assertNotIn("platform_overhead", assessment)
+        self.assertEqual(assessment["hidden_platform_overhead"]["status"], "unavailable")
+        self.assertIn(
+            "runtime did not surface",
+            assessment["hidden_platform_overhead"]["reason"].lower(),
+        )
+        self.assertEqual(
+            assessment["tool_call_instrumentation"]["status"],
+            "self_report_only",
+        )
+        self.assertEqual(assessment["tool_call_instrumentation"]["tool_calls_made"], 0)
         for field in (
             "actual_provider_input",
             "actual_provider_usage",

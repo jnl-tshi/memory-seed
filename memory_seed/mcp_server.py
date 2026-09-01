@@ -578,7 +578,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
                 "body": {
                     "type": "string",
-                    "description": "The entry body, verbatim. DRAFT shape: '### Decision' (or '### Decisions' with '#### Dn - name' subsections) then '- D:' and a mandatory '- R:', optionally '- A:', '- F:', '- T:'.",
+                    "description": "The entry body, verbatim. Current DRAFT shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', and '- T:'. Legacy singular '### Decision' remains readable but is refused for new appends.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
