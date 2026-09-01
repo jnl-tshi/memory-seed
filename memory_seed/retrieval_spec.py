@@ -278,7 +278,10 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
         if kind == "decision":
             import re
 
-            if re.fullmatch(r"[a-z0-9][a-z0-9_-]*:d[1-9][0-9]*", evidence_id) is None:
+            if re.fullmatch(
+                r"(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):d[1-9][0-9]*",
+                evidence_id,
+            ) is None:
                 _error(
                     f"{path}.id",
                     "must use canonical '<entry-id>:dN' decision identity",

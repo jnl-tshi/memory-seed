@@ -259,7 +259,14 @@ def _read_yaml(path: Path) -> Mapping[str, Any]:
 def _profile_path(runtime_root: Path, profile_id: str, profile_version: int) -> Path:
     # Identity validation happens before this join.  The generated exact path is
     # therefore the only lookup surface; no caller-supplied path is accepted.
-    return runtime_root / "retrieval-profiles" / profile_id / f"v{profile_version}.yaml"
+    candidate = runtime_root / "retrieval-profiles" / profile_id / f"v{profile_version}.yaml"
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(runtime_root.resolve())
+    except (OSError, ValueError) as exc:
+        _error("lookup", "profile path resolves outside the active runtime")
+        raise AssertionError("unreachable") from exc
+    return resolved
 
 
 def _list_operation(value: Mapping[str, Any]) -> bool:
@@ -324,6 +331,24 @@ def _assert_no_weakening(before: Mapping[str, Any], after: Mapping[str, Any], *,
             _error(path, "cannot reduce required.related_decisions.depth")
         if before["on_missing"]["required"] == "fail" and after["on_missing"]["required"] != "fail":
             _error(path, "cannot weaken on_missing.required")
+        before_required_pins = {
+            (str(pin.get("kind")), str(pin.get("id"))): pin
+            for pin in before.get("selectors", {}).get("pinned", [])
+            if isinstance(pin, Mapping) and pin.get("required", True) is True
+        }
+        after_pins = {
+            (str(pin.get("kind")), str(pin.get("id"))): pin
+            for pin in after.get("selectors", {}).get("pinned", [])
+            if isinstance(pin, Mapping)
+        }
+        for identity, pin in before_required_pins.items():
+            replacement = after_pins.get(identity)
+            if replacement is None:
+                _error(path, f"cannot remove required pinned selector {identity[0]}:{identity[1]}")
+            if replacement.get("required", True) is not True:
+                _error(path, f"cannot demote required pinned selector {identity[0]}:{identity[1]}")
+            if replacement.get("reason") != pin.get("reason"):
+                _error(path, f"cannot change reason for required pinned selector {identity[0]}:{identity[1]}")
     except (KeyError, TypeError):
         # The complete v2 schema validator emits the structural error below.
         return
@@ -361,17 +386,31 @@ def load_retrieval_profile(
         if (profile["id"], profile["profile_version"]) != identity:
             _error("lookup", f"profile identity does not match exact path: {path.as_posix()}")
         stack.append(identity)
-        combined = copy.deepcopy(_PROFILE_BASE_SPEC)
+        # Profiles are partial overlays.  Defaults are applied exactly once,
+        # after the complete parent/child/dispatch composition, so a later
+        # parent's omitted clauses cannot reset an earlier parent to defaults.
+        combined: dict[str, Any] = {}
         for parent in profile["extends"]:
             parent_spec = visit((parent["id"], parent["profile_version"]))
+            before_parent = _merge(_PROFILE_BASE_SPEC, combined, path="spec")
             combined = _merge(combined, parent_spec, path="spec")
+            _assert_no_weakening(
+                before_parent,
+                _merge(_PROFILE_BASE_SPEC, combined, path="spec"),
+                path=f"{profile['id']}:v{profile['profile_version']}",
+            )
+        before = _merge(_PROFILE_BASE_SPEC, combined, path="spec")
         after = _merge(combined, profile["spec"], path="spec")
-        _assert_no_weakening(combined, after, path=f"{profile['id']}:v{profile['profile_version']}")
+        _assert_no_weakening(
+            before,
+            _merge(_PROFILE_BASE_SPEC, after, path="spec"),
+            path=f"{profile['id']}:v{profile['profile_version']}",
+        )
         stack.pop()
         seen.add(identity)
         return after
 
-    effective = visit(requested)
+    effective = _merge(_PROFILE_BASE_SPEC, visit(requested), path="spec")
     if overrides is not None:
         overrides = _mapping(overrides, "overrides")
         overridden = _merge(effective, overrides, path="overrides")

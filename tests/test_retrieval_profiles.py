@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -142,6 +143,67 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaises(RetrievalProfileValidationError):
             normalize_retrieval_profile({"schema": "memory-seed/retrieval-profile"})
 
+    def test_multiple_parent_partial_specs_preserve_earlier_parent_clauses(self):
+        root = self.make_project()
+        self.write_profile(
+            root,
+            "first",
+            self.profile(
+                "first",
+                "  filters:\n    topics:\n      - first-topic\n"
+                "  required:\n    related_decisions:\n      depth: 3\n",
+            ),
+        )
+        self.write_profile(
+            root,
+            "second",
+            self.profile("second", "  limits:\n    max_entries: 30\n"),
+        )
+        self.write_profile(
+            root,
+            "child",
+            self.profile(
+                "child",
+                "  optional:\n    sessions:\n      neighbouring_entries: 5\n",
+                extends="\n  - id: first\n    profile_version: 1\n  - id: second\n    profile_version: 1",
+            ),
+        )
+        resolved = load_retrieval_profile("child", 1, root)
+        self.assertEqual(resolved["filters"]["topics"], ["first-topic"])
+        self.assertEqual(resolved["required"]["related_decisions"]["depth"], 3)
+        self.assertEqual(resolved["limits"]["max_entries"], 30)
+
+    def test_required_pins_cannot_be_removed_by_child_or_dispatch_override(self):
+        root = self.make_project()
+        self.write_profile(
+            root,
+            "parent",
+            self.profile(
+                "parent",
+                "  selectors:\n    pinned:\n      - kind: decision\n"
+                "        id: mse_entry0001:d1\n"
+                "        reason: inherited requirement\n",
+            ),
+        )
+        self.write_profile(
+            root,
+            "child",
+            self.profile(
+                "child",
+                "  selectors:\n    pinned: []\n",
+                extends="\n  - id: parent\n    profile_version: 1",
+            ),
+        )
+        with self.assertRaisesRegex(RetrievalProfileValidationError, "cannot remove required pinned"):
+            load_retrieval_profile("child", 1, root)
+        with self.assertRaisesRegex(RetrievalProfileValidationError, "cannot remove required pinned"):
+            load_retrieval_profile(
+                "parent",
+                1,
+                root,
+                overrides={"selectors": {"pinned": []}},
+            )
+
     def test_core_profiles_have_the_published_bounds(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
@@ -211,17 +273,73 @@ class RetrievalProfileTests(unittest.TestCase):
         self.assertIn("selectors.pinned", decisions[0]["selected_by"])
         self.assertIn("required.related_decisions", decisions[0]["selected_by"])
 
+    def test_runtime_local_profile_and_adr_reads_reject_symlink_escapes(self):
+        root = self.make_project()
+        outside = Path(tempfile.mkdtemp(prefix="memory-seed-retrieval-outside-"))
+        self.addCleanup(lambda: shutil.rmtree(outside, ignore_errors=True))
+        external_profiles = outside / "profiles"
+        external_profiles.mkdir()
+        (external_profiles / "v1.yaml").write_text(
+            self.profile("escape", "  limits:\n    max_entries: 2\n"),
+            encoding="utf-8",
+        )
+        profile_link = root / ".memory-seed" / "retrieval-profiles" / "escape"
+        profile_link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(external_profiles, profile_link, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symlinks unavailable on this platform: {exc}")
+        with self.assertRaisesRegex(RetrievalProfileValidationError, "outside the active runtime"):
+            load_retrieval_profile("escape", 1, root)
+
+        external_adr = self.write_adr(outside, "adr_escape")
+        adr_link = root / ".memory-seed" / "decisions" / "adr_escape.md"
+        adr_link.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(external_adr, adr_link)
+        spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+            "selectors": {"pinned": [{"kind": "adr", "id": "adr_escape", "reason": "escape"}]},
+        }
+        with self.assertRaises(RetrievalSpecResolutionError) as escaped:
+            resolve_retrieval_spec(spec, root)
+        self.assertEqual(escaped.exception.code, "forbidden_path")
+
+    def test_decision_only_pins_ignore_unrelated_malformed_adrs(self):
+        root = self.make_project()
+        bad = root / ".memory-seed" / "decisions" / "bad.md"
+        bad.parent.mkdir(parents=True, exist_ok=True)
+        bad.write_text("# not an ADR\n", encoding="utf-8")
+        spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+            "selectors": {"pinned": [{"kind": "decision", "id": "mse_entry0001:d1", "reason": "exact"}]},
+        }
+        self.assertTrue(validate_evidence_pack(resolve_retrieval_spec(spec, root), root)["valid"])
+
+    def test_v2_rejects_non_entry_typed_decision_ids(self):
+        spec = {
+            "schema": "memory-seed/retrieval-spec",
+            "version": 2,
+            "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
+            "selectors": {"pinned": [{"kind": "decision", "id": "not-an-entry:d1", "reason": "invalid"}]},
+        }
+        with self.assertRaisesRegex(RetrievalSpecValidationError, "canonical '<entry-id>:dN'"):
+            normalize_retrieval_spec_v2(spec)
+
     def test_optional_missing_and_tampered_v2_packs_fail_correctly(self):
         root = self.make_project()
         spec = {
             "schema": "memory-seed/retrieval-spec",
             "version": 2,
             "required": {"constitution": True, "related_decisions": {"depth": 1}, "evidence": {"mode": "latest"}},
-            "selectors": {"pinned": [{"kind": "decision", "id": "mse_missing:d1", "reason": "optional", "required": False}]},
+            "selectors": {"pinned": [{"kind": "decision", "id": "mse_missing1:d1", "reason": "optional", "required": False}]},
         }
         spec["selectors"]["pinned"].append({"kind": "decision", "id": "mse_entry0001:d1", "reason": "required"})
         pack = resolve_retrieval_spec(spec, root)
-        self.assertIn("mse_missing:d1", [warning["detail"] for warning in pack["warnings"]])
+        self.assertIn("mse_missing1:d1", [warning["detail"] for warning in pack["warnings"]])
         tampered = copy.deepcopy(pack)
         next(
             item for item in tampered["evidence"] if "selectors.pinned" in item["selected_by"]
@@ -230,6 +348,14 @@ class RetrievalProfileTests(unittest.TestCase):
         with self.assertRaises(RetrievalSpecResolutionError) as tampered_error:
             validate_evidence_pack(tampered, root)
         self.assertEqual(tampered_error.exception.code, "invalid_pack")
+        deleted_pin = copy.deepcopy(pack)
+        deleted_pin["evidence"] = [
+            item for item in deleted_pin["evidence"] if item["id"] != "mse_entry0001:d1"
+        ]
+        deleted_pin["fingerprint"] = _evidence_pack_fingerprint(deleted_pin)
+        with self.assertRaises(RetrievalSpecResolutionError) as deleted_error:
+            validate_evidence_pack(deleted_pin, root)
+        self.assertEqual(deleted_error.exception.code, "invalid_pack")
         session = root / ".memory-seed" / "sessions" / "2026-08-01.md"
         session.write_text(session.read_text(encoding="utf-8") + "\nchanged\n", encoding="utf-8")
         with self.assertRaises(RetrievalSpecResolutionError) as stale_error:
@@ -237,7 +363,7 @@ class RetrievalProfileTests(unittest.TestCase):
         self.assertEqual(stale_error.exception.code, "stale_pack")
 
         required_missing = copy.deepcopy(spec)
-        required_missing["selectors"]["pinned"] = [{"kind": "decision", "id": "mse_missing:d1", "reason": "required"}]
+        required_missing["selectors"]["pinned"] = [{"kind": "decision", "id": "mse_missing1:d1", "reason": "required"}]
         with self.assertRaises(RetrievalSpecResolutionError) as required_error:
             resolve_retrieval_spec(required_missing, root)
         self.assertEqual(required_error.exception.code, "missing_required")

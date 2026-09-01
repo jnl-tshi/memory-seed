@@ -455,21 +455,32 @@ def _retrieval_corpus_revision(
     sessions = runtime.memory_dir / "sessions"
     if sessions.is_dir():
         inputs.update(path for path in sessions.rglob("*.md") if path.is_file())
-    if normalized_spec.get("version") == 2 and normalized_spec.get("selectors", {}).get("pinned"):
+    if (
+        normalized_spec.get("version") == 2
+        and any(
+            record.get("kind") == "adr"
+            for record in normalized_spec.get("selectors", {}).get("pinned", [])
+        )
+    ):
         decisions = runtime.memory_dir / "decisions"
         if decisions.is_dir():
-            inputs.update(path for path in decisions.rglob("*.md") if path.is_file())
+            for path in decisions.rglob("*.md"):
+                if path.is_file():
+                    inputs.add(
+                        _runtime_scoped_candidate_path(
+                            root,
+                            path,
+                            stage="corpus_revision",
+                            details={"path": path.as_posix()},
+                        )
+                    )
     for relative in normalized_spec["filters"]["paths"]:
         if any(
             part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS
             for part in Path(relative).parts
         ):
             continue
-        candidate = (root / relative).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            continue
+        candidate = _runtime_scoped_path(root, relative)
         if candidate.is_file() and candidate.suffix.lower() == ".md":
             inputs.add(candidate)
 
@@ -501,15 +512,31 @@ def _runtime_scoped_path(root: Path, relative: str) -> Path:
             stage="path_filters",
             details={"path": relative},
         )
-    target = (root / relative).resolve()
+    return _runtime_scoped_candidate_path(
+        root,
+        root / relative,
+        stage="path_filters",
+        details={"path": relative},
+    )
+
+
+def _runtime_scoped_candidate_path(
+    root: Path,
+    candidate: Path,
+    *,
+    stage: str,
+    details: Mapping[str, Any] | None = None,
+) -> Path:
+    """Resolve a local source and reject symlink/junction escapes before reads."""
+    target = candidate.resolve()
     try:
         target.relative_to(root.resolve())
     except ValueError as exc:
         raise RetrievalSpecResolutionError(
             "forbidden_path",
             "path resolves outside the active runtime",
-            stage="path_filters",
-            details={"path": relative},
+            stage=stage,
+            details=dict(details or {"path": candidate.as_posix()}),
         ) from exc
     return target
 
@@ -669,7 +696,12 @@ def _adr_current_view_candidate(
     required: bool,
 ) -> _RetrievalCandidate:
     """Materialize only an ADR's canonical Current view, never its event ledger."""
-    path = Path(record.path)
+    path = _runtime_scoped_candidate_path(
+        root,
+        Path(record.path),
+        stage="pinned_selectors",
+        details={"id": record.adr_id},
+    )
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as exc:
@@ -736,21 +768,37 @@ def _pinned_candidates(
     pinned: Sequence[Mapping[str, Any]],
     *,
     root: Path,
+    memory_dir: Path,
     by_id: Mapping[str, MemoryChunk],
 ) -> tuple[list[_RetrievalCandidate], list[dict[str, str]]]:
     """Resolve exact pinned identities via the existing ADR/session readers."""
     if not pinned:
         return [], []
-    from .adr import iter_adrs
+    from .adr import parse_adr
 
-    try:
-        adrs = {record.adr_id: record for record in iter_adrs(root)}
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise RetrievalSpecResolutionError(
-            "invalid_adr",
-            "canonical ADR corpus could not be read",
+    adr_pins = [record for record in pinned if record["kind"] == "adr"]
+    adrs: dict[str, Any] = {}
+    for record in adr_pins:
+        evidence_id = str(record["id"])
+        path = _runtime_scoped_candidate_path(
+            root,
+            memory_dir / "decisions" / f"{evidence_id}.md",
             stage="pinned_selectors",
-        ) from exc
+            details={"id": evidence_id},
+        )
+        if not path.is_file():
+            continue
+        try:
+            adr = parse_adr(path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise RetrievalSpecResolutionError(
+                "invalid_adr",
+                "pinned ADR source is not a valid Memory Seed ADR",
+                stage="pinned_selectors",
+                details={"id": evidence_id},
+            ) from exc
+        if adr.adr_id == evidence_id:
+            adrs[evidence_id] = adr
     source_lines: dict[str, tuple[str, ...]] = {}
     candidates: list[_RetrievalCandidate] = []
     warnings: list[dict[str, str]] = []
@@ -945,6 +993,7 @@ def _build_retrieval_plan(
     pinned_candidates, pinned_warnings = _pinned_candidates(
         pinned,
         root=root,
+        memory_dir=runtime.memory_dir,
         by_id=by_id,
     )
     for candidate in pinned_candidates:
@@ -1851,6 +1900,23 @@ def validate_evidence_pack(
         (record["kind"], record["id"]): record
         for record in effective_spec.get("selectors", {}).get("pinned", [])
     } if v2 else {}
+    required_pins = {
+        identity
+        for identity, record in pinned_by_identity.items()
+        if record.get("required") is True
+    }
+    present_pins = {
+        (item.get("kind"), item.get("id"))
+        for item in evidence
+    }
+    missing_pins = sorted(required_pins - present_pins)
+    if missing_pins:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "Evidence Pack omits required pinned evidence",
+            stage="pack_validation",
+            details={"required_pins": [list(identity) for identity in missing_pins]},
+        )
     for item in evidence:
         evidence_id = item.get("id")
         kind = item.get("kind")
