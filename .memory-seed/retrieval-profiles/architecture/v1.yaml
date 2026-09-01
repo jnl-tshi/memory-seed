@@ -1,0 +1,15 @@
+schema: memory-seed/retrieval-profile
+schema_version: 1
+id: architecture
+profile_version: 1
+extends: []
+spec:
+  required:
+    related_decisions:
+      depth: 4
+  optional:
+    sessions:
+      neighbouring_entries: 15
+  limits:
+    max_entries: 50
+    max_tokens: 20000

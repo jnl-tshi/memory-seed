@@ -13,6 +13,21 @@ All notable changes to Memory Seed are summarized here.
   Packs are inline, non-authoritative results, so v1 consumers re-resolve the Retrieval Specification
   rather than migrating stored packs; v2 validation rejects v1 packs.
 
+### Added
+
+- [2026-09-01] **Semantic dispatch now reconstructs a complete bounded Task Packet.** Six immutable,
+  project-local core v1 Retrieval Profiles support exact lookup, composition, bounded overrides, and
+  shared inline/profile preview and resolution. The deterministic Task Packet compiler combines semantic
+  dispatch, a measured existing-runtime binding, an exact profile version, and the pinned corpus revision;
+  it materializes Evidence Pack sources once and keeps input, output/reasoning, and cost accounting
+  distinct. The input ledger accounts only for the caller-supplied packet/fixed-instruction/tool-schema
+  envelope; provider totals and hidden platform overhead remain post-run evidence. Task Dispatch file lists
+  bound execution edits, not memory reads, and required retrieval clauses cannot be weakened. CLI
+  preview/compile and read-only MCP twins share the same compiler. Init/update deploy missing
+  core profile versions but never overwrite existing versions or custom IDs. Packets remain derived and
+  ephemeral; no registry, worker dispatch, authority, provider/pricing lookup, or network dependency was
+  added.
+
 ### Changed
 
 - [2026-08-13] **Bootstrap-generated runtime indexes are now tree-first.** Every new project index

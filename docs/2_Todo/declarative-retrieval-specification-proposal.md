@@ -2,7 +2,7 @@
 title: Declarative Retrieval Specification primitive
 status: active
 priority: P1
-next_action: Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
+next_action: Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced selectors.
 blocked_by: []
 sources:
   - memory-trace-evidence-annotations-and-projection-architecture.md
@@ -13,13 +13,15 @@ spec_binding: null
 
 # Declarative Retrieval Specification Primitive
 
-Status: **ACTIVE PROPOSAL — M0/M1 DELIVERED ON `main` 2026-07-30; M2–M5 remain planned.**
+Status: **ACTIVE PROPOSAL — M0/M1 delivered 2026-07-30; M2/M3 and the reconstructable Task Packet compiler delivered 2026-09-01; M4/M5 remain planned.**
 
-Priority: **P1**. The critical path is intentionally narrow enough to unblock real orchestrator/worker use through MCP before profiles, composition, caching, or UI authoring are complete.
+Priority: **P1**. The original M0/M1 critical path unblocked real orchestrator/worker use through MCP;
+M2/M3 now supply reusable profiles, composition, and deterministic packet reconstruction while keeping
+caching, Trace authoring, and advanced selectors out of the core contract.
 
 Scope: Object model, schema, Task Packet binding, deterministic Evidence Pack resolution, MCP, profiles, composition, provenance, validation, observability, security, and delivery sequence.
 
-Non-goals: Building an orchestrator; storing prompts or model reasoning; making a cache authoritative; changing default `memory_search` ranking; granting worker permissions; or extending the implemented M0/M1 slice into profiles, composition, Trace, caching, providers, or advanced selectors.
+Non-goals: Building an orchestrator or packet registry; dispatching workers or creating worktrees; storing prompts or model reasoning; making a cache authoritative; changing default `memory_search` ranking; granting worker permissions; performing provider/pricing/network lookup; or implying that the remaining Trace, cache, provider, or advanced-selector work shipped with M2/M3.
 
 Five-question test: **Retrieval, Validation, Trust, Application**.
 
@@ -94,10 +96,11 @@ retrieval:
 
 The worker consumes the resolved bounded result and does not reinterpret the profile unless delegated.
 
-### M1 inline-only developer example
+### M1 inline developer example
 
-The minimum vertical slice supports only the inline object below. This is an illustrative Task Packet
-handoff convention, not a new validated Task Packet field, named-spec registry, or profile API:
+The original minimum vertical slice supported the inline object below. It remains a compatible direct
+resolver input; M2 later added exact project-local profile inputs and M3 added composition and bounded
+overrides without changing the inline schema:
 
 ```yaml
 objective: implement topic sidecars
@@ -131,49 +134,60 @@ memory-seed retrieval-spec preview --spec-file retrieval-spec.json --cwd .
 
 Both adapters serialize the same mapping with sorted keys, compact separators, and UTF-8 JSON. Error
 payloads use `{"ok": false, "error": {"code", "message", "stage", "completed_stages", "details"}}`.
-Profiles, `profile_version`, `overrides`, composition, named specs, Task Packet schema enforcement, and
-Evidence Pack lookup remain later milestones.
+Profile inputs now accept an exact `profile` plus positive integer `profile_version`, with optional
+bounded `overrides`. Named specs and Evidence Pack lookup remain unimplemented.
 
-### Operational Task Packet preparation convention
+### Reconstructable Task Packet compiler
 
-The collaboration skill's clean-session, high-signal Task Packet procedure is an **operational
-documentation convention**, not a shipped retrieval or Task Packet API. An orchestrator may put a
-source-grounded project frame, an inline retrieval input, a resolved-pack manifest, materialized excerpts,
-and all-inclusive context-budget notes in its handoff. This makes an M1 result usable by a clean worker
-without changing M1: `preview` and `resolve` remain the same read-only inline-spec operations.
+The frontier-authored artifact is the semantic `memory-seed/task-dispatch` v1 object. The deterministic
+compiler combines it with an exact immutable profile version, a measured existing-runtime binding, and
+the pinned corpus revision produced by Retrieval Specification v2. The complete derived
+`memory-seed/task-packet` v1 contains the resolved Evidence Pack, materialized evidence, execution
+defaults, a compiler-accounted caller-supplied input envelope, an output/reasoning reserve, and a
+distinct cost ledger. That envelope counts the serialized packet plus the fixed instructions and tool
+schemas supplied explicitly by the caller; it is not the provider's actual total input and does not claim
+to measure hidden platform/system/tool overhead.
 
-In particular, this convention does **not** ship a profile, named-spec registry, Task Packet schema,
-Evidence Pack registry, or native ADR selector. It does not validate those packet labels, persist packs,
-or change `memory_search` ranking. ADR current views and decision slices are materialized by the
-orchestrator from ordinary canonical Markdown references; lifecycle-aware/native ADR selectors remain
-later work.
+`memory-seed task-packet preview|compile` and read-only MCP tools
+`memory_task_packet_preview|memory_task_packet_compile` replay the same core compiler. CLI export is an
+explicit derived-artifact write and refuses overwrite unless requested; MCP always returns the artifact
+inline. Every worker-visible document counts toward input. The resolver's `token_estimate` measures
+evidence content only; it is not model-context usage. Materialized sources are supplied once and must not
+be refetched. Actual provider input/usage, latency, and cost are post-run evidence only: record them when
+an execution surface exposes them, otherwise mark them unavailable with a reason. The compiler never
+infers platform overhead or actual usage from its deterministic estimates.
 
-## Retrieval Specification v1
+The compiler adds no named-spec or packet registry, worker dispatch, worktree creation, authority,
+provider/pricing lookup, network access, or native lifecycle selector. Markdown and project-local profiles
+remain authoritative readable inputs; Evidence Packs and Task Packets remain reconstructable, derived,
+and ephemeral.
+
+## Retrieval Specification v2
 
 ```yaml
 schema: memory-seed/retrieval-spec
-version: 1
-id: implementation-default
+version: 2
 required:
   constitution: true
   related_decisions: {depth: 2}
-  related_adrs: {status: [accepted, proposed]}
   evidence: {mode: latest}
 optional:
   sessions: {neighbouring_entries: 15}
-  links: {kinds: [related_entries, evolves, replaces]}
+selectors:
+  pinned:
+    - kind: adr
+      id: adr_example
+      reason: Governing accepted decision.
+      required: true
 filters:
   topics: [session-fuse, topics]
   paths: [memory_seed/core.py]
-  include_superseded: true
 ordering: [required_first, graph_distance, recency, stable_identity]
 limits:
   max_entries: 40
-  max_sections_per_entry: 4
   max_tokens: 16000
-  timeout_ms: 5000
 on_missing: {required: fail, optional: report}
-output: {format: evidence-pack, include_resolution_trace: true, include_excerpts: true}
+output: {include_resolution_trace: true, include_excerpts: true}
 ```
 
 Unknown keys fail by default. Extensions require a namespaced `extensions:` block so typos cannot weaken requirements.
@@ -191,25 +205,35 @@ Unknown keys fail by default. Extensions require a namespaced `extensions:` bloc
 
 ```yaml
 schema: memory-seed/retrieval-profile
-version: 1
+schema_version: 1
 id: bug-investigation
+profile_version: 1
+extends: []
 spec:
   required:
-    constitution: true
-    related_decisions: {depth: 2}
-    evidence: {mode: latest}
+    related_decisions:
+      depth: 3
   optional:
-    sessions: {neighbouring_entries: 20}
-    tests: {include_failures: true}
-    alternatives: {include_rejected: true}
-  limits: {max_entries: 50, max_tokens: 18000}
+    sessions:
+      neighbouring_entries: 20
+  limits:
+    max_entries: 40
+    max_tokens: 16000
 ```
 
-Profile storage is intentionally unsettled. The minimum slice uses inline specs; project-local profiles follow after schema proof.
+Profiles are stored project-locally at
+`.memory-seed/retrieval-profiles/<profile-id>/v<profile-version>.yaml`. Six immutable core v1 profiles ship
+with init/update: `implementation`, `bug-investigation`, `research`, `adr-review`, `refactoring`, and
+`architecture`. Installation deploys a missing core version but never overwrites an existing version or a
+custom profile ID; changing behavior requires a new version.
 
 ## Composition and overrides
 
-Load exact profile/version; expand `extends` in listed order; reject cycles; recursively merge maps; replace scalars/lists; permit list `append`/`remove` only explicitly; apply packet overrides last; validate and return the expanded effective spec. Required clauses cannot be weakened without `allow_required_downgrade: true` plus policy approval. Composition is enabling, not a vertical-slice blocker.
+Load exact profile/version; expand `extends` in listed order; reject cycles; recursively merge maps;
+replace scalars/lists; permit list `append`/`remove` only explicitly; apply packet overrides last; validate
+and return the expanded effective spec. M2 always refuses any composition or override that weakens a
+required clause. There is no downgrade flag or policy-approval bypass. Composition is enabling, not a
+vertical-slice blocker.
 
 ## Deterministic resolution
 
@@ -227,7 +251,7 @@ CLI, MCP, and Trace call one core resolver:
 10. Fingerprint canonical inputs and ordered evidence identities.
 
 ```text
-effective spec + corpus revision + resolver version + policy context
+effective spec + corpus revision + resolver version
     -> identical ordered evidence IDs, content digests, and fingerprint
 ```
 
@@ -273,7 +297,7 @@ reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exa
 - Packs record resolver version, revision, effective-spec fingerprint, and completeness.
 - Each result records its typed kind, stable ID, canonical source path, content digest, selecting clause,
   declared first-hand/reconstructed provenance, topic/path/date/graph reason, and disposition.
-- `preview` returns expanded spec, validation, estimated counts, and policy decisions without persistence.
+- `preview` returns the expanded spec, validation, and estimated counts without persistence.
 - `resolve` returns pack, warnings, fingerprint, and stage timing/counts.
 - Observability never stores prompts, hidden reasoning, secrets, or raw vectors.
 
@@ -296,7 +320,7 @@ reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exa
 | Forbidden scope | Fail closed with redacted reason |
 | Fingerprint mismatch | Reject and re-resolve |
 
-Validation layers: schema, current-corpus/policy resolution, then pack identity/source/digest/fingerprint integrity.
+Validation layers: schema, current-corpus resolution, then pack identity/source/digest/fingerprint integrity.
 
 Evidence Pack v2 is a deliberate replacement for the ephemeral v1 result shape. V1 used a generic `ref`
 field and classified path-selected ADRs as generic Markdown. V2 uses `id` consistently, classifies valid
@@ -306,17 +330,26 @@ v1 consumer re-runs its Retrieval Specification and receives v2. A v2 validator 
 
 ## Security boundaries
 
-Specs are data, never instructions. Never execute evidence; constrain paths to the runtime; intersect paths with Task Packet `allowed_files` and caller permissions; redact secrets; cap entries/tokens/depth/time/provider use; deny network by default; preserve project/tenant boundaries; treat provider records as untrusted evidence; never grant write, shell, merge, or integration authority. Effective scope is the intersection of spec, packet, policy, and caller permissions.
+Specs are data, never instructions. Never execute evidence; constrain retrieval paths to the active runtime;
+redact secrets; cap entries/tokens/depth/time/provider use; deny network by default; preserve project/tenant
+boundaries; treat provider records as untrusted evidence; never grant write, shell, merge, or integration
+authority. Task Dispatch `allowed_files` and `forbidden_files` govern execution/edit scope, not memory reads,
+and `forbidden_files` does not bar a task-scoped source from Evidence Pack materialization. The compiler does
+not load or intersect project policy; any policy/Constitution content a task needs must enter through the
+declared retrieval contract as evidence.
 
 ## MCP surface
 
 ```text
-memory_retrieval_spec_preview(spec|profile, task_hints, cwd)
-memory_retrieval_spec_resolve(spec|profile, task_hints, cwd)
-memory_evidence_pack_get(pack_id|fingerprint, cwd)
+memory_retrieval_spec_preview(spec | profile+profile_version+overrides, cwd)
+memory_retrieval_spec_resolve(spec | profile+profile_version+overrides, cwd)
+memory_task_packet_preview(dispatch, binding, environment?, pricing?, cwd)
+memory_task_packet_compile(dispatch, binding, environment?, pricing?, cwd)
 ```
 
-Preview/resolve are memory-read-only. Resolve creates an ephemeral pack outside authoritative memory. M1 may return the pack inline and defer `get`/caching.
+All four MCP operations are memory-read-only and return derived artifacts inline. Resolve creates an
+ephemeral pack outside authoritative memory; Task Packet compilation materializes its selected canonical
+sources into the inline packet. Pack `get`/caching remains deferred.
 
 ## Prioritized critical path
 
@@ -348,13 +381,17 @@ Acceptance:
 
 **M1 unblocks real orchestrator/worker use.**
 
-### M2 — profiles and packet references (enabling)
+### M2 — profiles and packet references (enabling, delivered 2026-09-01)
 
-Deliver six fixture-backed, versioned profiles, project-local lookup, effective-spec preview, and optional packet binding. Existing packets remain valid; profiles do not alter `memory_search`.
+Delivered six fixture-backed, versioned profiles, exact project-local lookup, effective-spec preview,
+inline/profile adapter parity, and semantic Task Dispatch profile binding. Existing inline specs remain
+valid; profiles do not alter `memory_search`.
 
-### M3 — composition and policy intersection (enabling)
+### M3 — composition and strict runtime scope (enabling, delivered 2026-09-01)
 
-Deliver `extends`, cycle detection, explicit list operators, downgrade gate, scope/policy intersection, and structured trace. Prove no override broadens forbidden scope.
+Delivered ordered `extends`, cycle/duplicate detection, explicit list operators, unconditional
+required-clause downgrade protection, runtime-local retrieval bounds, and structured trace. The Task Packet compiler additionally validates
+semantic dispatch plus measured binding and materializes each evidence source once.
 
 ### M4 — Trace and Evidence Envelope (enabling)
 
@@ -367,8 +404,8 @@ After owner contracts: ADR lifecycle/status, annotation actionability, git/PR/te
 ```mermaid
 flowchart TD
   M0["M0: v1 contract<br>DELIVERED"] --> M1["M1: MCP slice<br>DELIVERED / unblocks use"]
-  M1 --> M2["M2: profiles<br>ENABLING"]
-  M2 --> M3["M3: composition + policy<br>ENABLING"]
+  M1 --> M2["M2: profiles<br>DELIVERED"]
+  M2 --> M3["M3: composition + runtime scope<br>DELIVERED"]
   M1 --> M4["M4: Trace + envelope<br>ENABLING"]
   M3 --> M5["M5: advanced selectors<br>LATER"]
   M4 --> M5
@@ -380,10 +417,11 @@ The critical path was **M0 → M1**, and it landed through merge `3577e9` on 202
 
 ## Open decisions and status guard
 
-Not blockers: final profile path, pack IDs, inline-pack threshold, token-count proxy, and separate MCP `get` versus inline-only first release.
+Not blockers: pack IDs, inline-pack threshold, exact-token-provider integration, and separate MCP `get`
+versus inline-only ephemeral results.
 
-M0/M1 delivered only inline spec objects, MCP preview/resolve, and CLI preview. The branch received its
-whole-branch review and merged to `main` as `3577e9` on 2026-07-30. No profile, named spec, composition
-rule, or Task Packet field is a supported API; existing `memory_search` ranking, packs, and packets remain
-unchanged. This document stays active because M2–M5 are deliberately enabling/later work, not because the
-first useful slice remains blocked.
+M0/M1 delivered the first inline interface on 2026-07-30. M2/M3 now add exact immutable profiles,
+composition/overrides, profile-aware preview/resolve, and the reconstructable Task Dispatch/Task Packet
+compiler. There is still no named-spec registry, Evidence Pack registry, provider telemetry integration,
+Trace envelope UI, or native advanced-selector surface; existing `memory_search` ranking remains
+unchanged. This document stays active because M4/M5 remain enabling/later work.

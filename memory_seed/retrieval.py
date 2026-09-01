@@ -20,7 +20,7 @@ import hashlib
 import json
 import re
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
@@ -362,6 +362,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
 
 
 RETRIEVAL_RESOLVER_VERSION = 2
+RETRIEVAL_V2_RESOLVER_VERSION = 3
 RETRIEVAL_PREVIEW_SCHEMA = "memory-seed/retrieval-spec-preview"
 EVIDENCE_PACK_SCHEMA = "memory-seed/evidence-pack"
 EVIDENCE_PACK_VERSION = 2
@@ -417,6 +418,8 @@ class _RetrievalCandidate:
     text: str
     selected_by: set[str]
     reasons: set[str]
+    model_selection_reasons: set[str] = field(default_factory=set)
+    pinned_required: bool = False
 
     @property
     def token_estimate(self) -> int:
@@ -442,27 +445,73 @@ def _retrieval_corpus_revision(
 
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root.resolve()
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="corpus_revision",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     inputs: set[Path] = set()
     for constitution in (root / "docs" / "CONSTITUTION.md", root / "CONSTITUTION.md"):
         if constitution.is_file():
-            inputs.add(constitution)
+            inputs.add(
+                _runtime_scoped_candidate_path(
+                    root,
+                    constitution,
+                    stage="corpus_revision",
+                    details={"path": constitution.as_posix()},
+                )
+            )
     topics_index = runtime.memory_dir / "topics.yaml"
     if topics_index.is_file():
-        inputs.add(topics_index)
+        inputs.add(
+            _runtime_scoped_candidate_path(
+                root,
+                topics_index,
+                stage="corpus_revision",
+                details={"path": topics_index.as_posix()},
+            )
+        )
     sessions = runtime.memory_dir / "sessions"
     if sessions.is_dir():
-        inputs.update(path for path in sessions.rglob("*.md") if path.is_file())
+        _assert_runtime_tree_confined(root, sessions, stage="corpus_revision")
+        inputs.update(
+            _runtime_scoped_candidate_path(
+                root,
+                path,
+                stage="corpus_revision",
+                details={"path": path.as_posix()},
+            )
+            for path in sessions.rglob("*.md")
+            if path.is_file()
+        )
+    if (
+        normalized_spec.get("version") == 2
+        and any(
+            record.get("kind") == "adr"
+            for record in normalized_spec.get("selectors", {}).get("pinned", [])
+        )
+    ):
+        decisions = runtime.memory_dir / "decisions"
+        if decisions.is_dir():
+            _assert_runtime_tree_confined(root, decisions, stage="corpus_revision")
+            for path in decisions.rglob("*.md"):
+                if path.is_file():
+                    inputs.add(
+                        _runtime_scoped_candidate_path(
+                            root,
+                            path,
+                            stage="corpus_revision",
+                            details={"path": path.as_posix()},
+                        )
+                    )
     for relative in normalized_spec["filters"]["paths"]:
         if any(
             part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS
             for part in Path(relative).parts
         ):
             continue
-        candidate = (root / relative).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            continue
+        candidate = _runtime_scoped_path(root, relative)
         if candidate.is_file() and candidate.suffix.lower() == ".md":
             inputs.add(candidate)
 
@@ -494,17 +543,52 @@ def _runtime_scoped_path(root: Path, relative: str) -> Path:
             stage="path_filters",
             details={"path": relative},
         )
-    target = (root / relative).resolve()
+    return _runtime_scoped_candidate_path(
+        root,
+        root / relative,
+        stage="path_filters",
+        details={"path": relative},
+    )
+
+
+def _runtime_scoped_candidate_path(
+    root: Path,
+    candidate: Path,
+    *,
+    stage: str,
+    details: Mapping[str, Any] | None = None,
+) -> Path:
+    """Resolve a local source and reject symlink/junction escapes before reads."""
     try:
+        target = candidate.resolve()
         target.relative_to(root.resolve())
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         raise RetrievalSpecResolutionError(
             "forbidden_path",
-            "path resolves outside the active runtime",
-            stage="path_filters",
-            details={"path": relative},
+            "path cannot be resolved inside the active runtime",
+            stage=stage,
+            details=dict(details or {"path": candidate.as_posix()}),
         ) from exc
     return target
+
+
+def _assert_runtime_tree_confined(root: Path, directory: Path, *, stage: str) -> None:
+    """Preflight every retrieval-visible source path before a reader opens it."""
+    _runtime_scoped_candidate_path(
+        root,
+        directory,
+        stage=stage,
+        details={"path": directory.as_posix()},
+    )
+    if not directory.is_dir():
+        return
+    for candidate in directory.rglob("*"):
+        _runtime_scoped_candidate_path(
+            root,
+            candidate,
+            stage=stage,
+            details={"path": candidate.as_posix()},
+        )
 
 
 def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
@@ -512,7 +596,10 @@ def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
     distance = -1 if candidate.graph_distance is None else candidate.graph_distance
     # ISO dates sort lexically; invert their integer representation for newest first.
     recency = -int(candidate.session_date.replace("-", "")) if candidate.session_date else 0
-    return (0 if required else 1, distance, recency, candidate.evidence_id)
+    # Required pinned evidence has an explicit caller mandate and must precede
+    # every otherwise-required candidate.  The leading field is constant for
+    # v1 candidates, preserving the frozen v1 order byte-for-byte.
+    return (0 if candidate.pinned_required else 1, 0 if required else 1, distance, recency, candidate.evidence_id)
 
 
 def _merge_candidate(
@@ -525,6 +612,8 @@ def _merge_candidate(
         return
     existing.selected_by.update(candidate.selected_by)
     existing.reasons.update(candidate.reasons)
+    existing.model_selection_reasons.update(candidate.model_selection_reasons)
+    existing.pinned_required = existing.pinned_required or candidate.pinned_required
     if existing.graph_distance is None:
         existing.graph_distance = candidate.graph_distance
     elif candidate.graph_distance is not None:
@@ -540,6 +629,7 @@ def _decision_candidates(
     reasons: set[str],
     graph_distance: int,
     ordinals: set[str] | None = None,
+    canonical_ids: bool = False,
 ) -> list[_RetrievalCandidate]:
     from .core import entry_body_decisions
 
@@ -606,7 +696,7 @@ def _decision_candidates(
             _RetrievalCandidate(
                 evidence_id=(
                     f"{chunk.entry_id}:{decision.ordinal}"
-                    if multiple
+                    if canonical_ids or multiple
                     else str(chunk.entry_id)
                 ),
                 kind="decision",
@@ -647,6 +737,178 @@ def _entry_candidate(
     )
 
 
+def _adr_current_view_candidate(
+    *,
+    root: Path,
+    record: Any,
+    selected_by: set[str],
+    reason: str,
+    required: bool,
+) -> _RetrievalCandidate:
+    """Materialize only an ADR's canonical Current view, never its event ledger."""
+    path = _runtime_scoped_candidate_path(
+        root,
+        Path(record.path),
+        stage="pinned_selectors",
+        details={"id": record.adr_id},
+    )
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "canonical ADR Markdown is unreadable",
+            stage="pinned_selectors",
+            details={"id": record.adr_id},
+        ) from exc
+    start = next((index for index, line in enumerate(lines) if line == "## Current view"), None)
+    end = next((index for index, line in enumerate(lines) if line == "## Event ledger"), None)
+    if start is None or end is None or end <= start:
+        raise RetrievalSpecResolutionError(
+            "invalid_adr",
+            "ADR has no canonical Current view slice",
+            stage="pinned_selectors",
+            details={"id": record.adr_id},
+        )
+    return _RetrievalCandidate(
+        evidence_id=record.adr_id,
+        kind="adr",
+        source=path.relative_to(root).as_posix(),
+        line_range=(start + 1, end),
+        chunk_id=None,
+        session_date=None,
+        graph_distance=0,
+        text="\n".join(lines[start:end]),
+        selected_by=selected_by,
+        reasons={"explicit canonical pinned selector"},
+        model_selection_reasons={reason},
+        pinned_required=required,
+    )
+
+
+def _pinned_decision_candidate(
+    *,
+    root: Path,
+    chunk: MemoryChunk,
+    ordinal: str,
+    source_lines: dict[str, tuple[str, ...]],
+    reason: str,
+    required: bool,
+) -> _RetrievalCandidate | None:
+    """Use the existing decision reader, retaining its exact Markdown slice."""
+    candidates = _decision_candidates(
+        chunk,
+        root=root,
+        source_lines=source_lines,
+        selected_by={"selectors.pinned"},
+        reasons={"explicit canonical pinned selector"},
+        graph_distance=0,
+        ordinals={ordinal},
+        canonical_ids=True,
+    )
+    if not candidates:
+        return None
+    candidate = candidates[0]
+    candidate.model_selection_reasons.add(reason)
+    candidate.pinned_required = required
+    return candidate
+
+
+def _pinned_candidates(
+    pinned: Sequence[Mapping[str, Any]],
+    *,
+    root: Path,
+    memory_dir: Path,
+    by_id: Mapping[str, MemoryChunk],
+) -> tuple[list[_RetrievalCandidate], list[dict[str, str]]]:
+    """Resolve exact pinned identities via the existing ADR/session readers."""
+    if not pinned:
+        return [], []
+    from .adr import parse_adr
+
+    adr_pins = [record for record in pinned if record["kind"] == "adr"]
+    adrs: dict[str, Any] = {}
+    for record in adr_pins:
+        evidence_id = str(record["id"])
+        path = _runtime_scoped_candidate_path(
+            root,
+            memory_dir / "decisions" / f"{evidence_id}.md",
+            stage="pinned_selectors",
+            details={"id": evidence_id},
+        )
+        if not path.is_file():
+            continue
+        try:
+            adr = parse_adr(path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise RetrievalSpecResolutionError(
+                "invalid_adr",
+                "pinned ADR source is not a valid Memory Seed ADR",
+                stage="pinned_selectors",
+                details={"id": evidence_id},
+            ) from exc
+        if adr.adr_id == evidence_id:
+            adrs[evidence_id] = adr
+    source_lines: dict[str, tuple[str, ...]] = {}
+    candidates: list[_RetrievalCandidate] = []
+    warnings: list[dict[str, str]] = []
+    for record in pinned:
+        kind = str(record["kind"])
+        evidence_id = str(record["id"])
+        required = bool(record["required"])
+        reason = str(record["reason"])
+        candidate: _RetrievalCandidate | None = None
+        if kind == "adr":
+            adr = adrs.get(evidence_id)
+            if adr is not None:
+                candidate = _adr_current_view_candidate(
+                    root=root,
+                    record=adr,
+                    selected_by={"selectors.pinned"},
+                    reason=reason,
+                    required=required,
+                )
+        else:
+            entry_id, ordinal = evidence_id.rsplit(":", 1)
+            chunk = by_id.get(entry_id)
+            if chunk is not None:
+                candidate = _pinned_decision_candidate(
+                    root=root,
+                    chunk=chunk,
+                    ordinal=ordinal,
+                    source_lines=source_lines,
+                    reason=reason,
+                    required=required,
+                )
+        if candidate is not None:
+            # A required exact pin is canonical evidence in its own right.  A
+            # decision pin supplies the exact decision and latest-evidence
+            # obligations; an ADR pin supplies evidence but cannot pretend to
+            # be a related session decision.  Optional pins never broaden the
+            # inherited required coverage.
+            if required:
+                candidate.selected_by.add("required.evidence")
+                if kind == "decision":
+                    candidate.selected_by.add("required.related_decisions")
+            candidates.append(candidate)
+            continue
+        if required:
+            raise RetrievalSpecResolutionError(
+                "missing_required",
+                "a required pinned evidence identity was not found",
+                stage="pinned_selectors",
+                details={"id": evidence_id, "clause": "selectors.pinned"},
+            )
+        warnings.append(
+            {
+                "code": "optional_missing",
+                "clause": "selectors.pinned",
+                "detail": evidence_id,
+            }
+        )
+    return candidates, warnings
+
+
 def _check_retrieval_timeout(
     clock: Callable[[], float],
     started: float,
@@ -672,6 +934,7 @@ def _build_retrieval_plan(
     clock: Callable[[], float],
     started: float,
     timeout_ms: int,
+    pinned: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     from .core import resolve_runtime
     from .semantic_cache import _entry_file_refs
@@ -690,6 +953,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clauses": list(_RETRIEVAL_REQUIRED_CLAUSES)},
         )
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="runtime",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     completed.append("runtime")
     trace.append(
         {
@@ -719,6 +988,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clause": "required.constitution"},
         )
+    constitution_path = _runtime_scoped_candidate_path(
+        root,
+        constitution_path,
+        stage="constitution",
+        details={"path": constitution_path.as_posix()},
+    )
     try:
         constitution_text = constitution_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -758,6 +1033,16 @@ def _build_retrieval_plan(
         clock, started, timeout_ms, stage="sessions", completed_stages=completed
     )
 
+    sessions_dir = runtime.memory_dir / "sessions"
+    _assert_runtime_tree_confined(root, sessions_dir, stage="sessions")
+    topics_index_path = runtime.memory_dir / "topics.yaml"
+    if topics_index_path.exists():
+        _runtime_scoped_candidate_path(
+            root,
+            topics_index_path,
+            stage="topic_filters",
+            details={"path": topics_index_path.as_posix()},
+        )
     chunks = augment_chunks_with_topic_sidecars(
         augment_chunks_with_link_sidecars(
             extract_memory_chunks(root, granularity="entry"),
@@ -777,6 +1062,24 @@ def _build_retrieval_plan(
             "candidate_count": len(by_id),
         }
     )
+    pinned_candidates, pinned_warnings = _pinned_candidates(
+        pinned,
+        root=root,
+        memory_dir=runtime.memory_dir,
+        by_id=by_id,
+    )
+    for candidate in pinned_candidates:
+        _merge_candidate(candidates, candidate)
+    warnings.extend(pinned_warnings)
+    if pinned:
+        trace.append(
+            {
+                "stage": "pinned_selectors",
+                "reader": "canonical ADR and session decision readers",
+                "requested": len(pinned),
+                "resolved": len(pinned_candidates),
+            }
+        )
     _check_retrieval_timeout(
         clock, started, timeout_ms, stage="topic_filters", completed_stages=completed
     )
@@ -1085,6 +1388,7 @@ def _build_retrieval_plan(
             reasons=reasons,
             graph_distance=distance,
             ordinals={ordinal},
+            canonical_ids=normalized["version"] == 2,
         )
         for candidate in decision_candidates:
             _merge_candidate(candidates, candidate)
@@ -1248,17 +1552,29 @@ def _build_retrieval_plan(
         if clause in _RETRIEVAL_REQUIRED_CLAUSES
     }
     lost = [clause for clause in _RETRIEVAL_REQUIRED_CLAUSES if clause not in covered]
-    if lost:
+    lost_pins = [
+        candidate.evidence_id
+        for candidate in ordered
+        if candidate.pinned_required and candidate not in selected
+    ]
+    if lost or lost_pins:
+        details: dict[str, Any] = {
+            "clauses": lost,
+            "max_entries": max_entries,
+            "max_tokens": max_tokens,
+        }
+        if lost_pins:
+            details["pinned_ids"] = lost_pins
         raise RetrievalSpecResolutionError(
             "required_limit_exceeded",
-            "limits would remove required clause coverage",
+            (
+                "limits would remove required clause coverage or pinned evidence"
+                if lost_pins
+                else "limits would remove required clause coverage"
+            ),
             stage="limits",
             completed_stages=completed,
-            details={
-                "clauses": lost,
-                "max_entries": max_entries,
-                "max_tokens": max_tokens,
-            },
+            details=details,
         )
     if omitted:
         warnings.append(
@@ -1294,6 +1610,7 @@ def _evidence_record(
     candidate: _RetrievalCandidate,
     *,
     include_excerpt: bool,
+    include_v2_selection_fields: bool = False,
 ) -> dict[str, Any]:
     fetch = (
         {
@@ -1307,7 +1624,7 @@ def _evidence_record(
             "line_end": candidate.line_range[1],
         }
     )
-    return {
+    record = {
         "id": candidate.evidence_id,
         "kind": candidate.kind,
         "source": candidate.source,
@@ -1332,6 +1649,13 @@ def _evidence_record(
             else None
         ),
     }
+    if include_v2_selection_fields:
+        # ``reasons`` stays source-derived.  A profile/dispatch author's
+        # requested purpose is carried separately and can never masquerade as
+        # corpus evidence.
+        record["model_selection_reasons"] = sorted(candidate.model_selection_reasons)
+        record["pinned_required"] = candidate.pinned_required
+    return record
 
 
 def _source_slice(path: Path, line_range: Any) -> str:
@@ -1373,29 +1697,33 @@ def _source_slice(path: Path, line_range: Any) -> str:
 
 
 def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
+    v2 = pack.get("resolver_version") == RETRIEVAL_V2_RESOLVER_VERSION
     identity = {
         "pack_schema": pack["pack_schema"],
         "pack_version": pack["pack_version"],
         "resolver_version": pack["resolver_version"],
         "corpus_revision": pack["corpus_revision"],
         "effective_spec_fingerprint": pack["effective_spec_fingerprint"],
-        "evidence": [
-            {
-                key: item[key]
-                for key in (
-                    "id",
-                    "kind",
-                    "source",
-                    "line_range",
-                    "chunk_id",
-                    "graph_distance",
-                    "selected_by",
-                    "content_digest",
-                )
-            }
-            for item in pack["evidence"]
-        ],
+        "evidence": [],
     }
+    for item in pack["evidence"]:
+        record = {
+            key: item[key]
+            for key in (
+                "id",
+                "kind",
+                "source",
+                "line_range",
+                "chunk_id",
+                "graph_distance",
+                "selected_by",
+                "content_digest",
+            )
+        }
+        if v2:
+            record["model_selection_reasons"] = item["model_selection_reasons"]
+            record["pinned_required"] = item["pinned_required"]
+        identity["evidence"].append(record)
     return "sha256:" + hashlib.sha256(
         canonical_retrieval_json(identity).encode("utf-8")
     ).hexdigest()
@@ -1409,9 +1737,9 @@ def _stable_retrieval_plan(
     timeout_ms: int,
     revision_reader: Callable[[str | Path, Mapping[str, Any]], str],
 ) -> tuple[dict[str, Any], dict[str, Any], str, int, float]:
-    from .retrieval_spec import normalize_retrieval_spec
+    from .retrieval_spec import normalize_any_retrieval_spec
 
-    normalized = normalize_retrieval_spec(spec)
+    normalized = normalize_any_retrieval_spec(spec)
     started = clock()
     seen: list[tuple[str, str]] = []
     for attempt in (1, 2):
@@ -1422,6 +1750,7 @@ def _stable_retrieval_plan(
             clock=clock,
             started=started,
             timeout_ms=timeout_ms,
+            pinned=normalized.get("selectors", {}).get("pinned", ()),
         )
         end_revision = revision_reader(cwd, normalized)
         _check_retrieval_timeout(
@@ -1466,7 +1795,11 @@ def preview_retrieval_spec(
     preview = {
         "preview_schema": RETRIEVAL_PREVIEW_SCHEMA,
         "preview_version": 1,
-        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "resolver_version": (
+            RETRIEVAL_V2_RESOLVER_VERSION
+            if normalized["version"] == 2
+            else RETRIEVAL_RESOLVER_VERSION
+        ),
         "valid": True,
         "corpus_revision": revision,
         "effective_spec": normalized,
@@ -1513,7 +1846,11 @@ def resolve_retrieval_spec(
     pack: dict[str, Any] = {
         "pack_schema": EVIDENCE_PACK_SCHEMA,
         "pack_version": EVIDENCE_PACK_VERSION,
-        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "resolver_version": (
+            RETRIEVAL_V2_RESOLVER_VERSION
+            if normalized["version"] == 2
+            else RETRIEVAL_RESOLVER_VERSION
+        ),
         "corpus_revision": revision,
         "effective_spec": normalized,
         "effective_spec_fingerprint": retrieval_spec_fingerprint(normalized),
@@ -1523,6 +1860,7 @@ def resolve_retrieval_spec(
             _evidence_record(
                 candidate,
                 include_excerpt=normalized["output"]["include_excerpts"],
+                include_v2_selection_fields=normalized["version"] == 2,
             )
             for candidate in plan["selected"]
         ],
@@ -1560,7 +1898,7 @@ def validate_evidence_pack(
     if (
         pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA
         or pack.get("pack_version") != EVIDENCE_PACK_VERSION
-        or pack.get("resolver_version") != RETRIEVAL_RESOLVER_VERSION
+        or pack.get("resolver_version") not in {RETRIEVAL_RESOLVER_VERSION, RETRIEVAL_V2_RESOLVER_VERSION}
     ):
         raise RetrievalSpecResolutionError(
             "invalid_pack",
@@ -1574,6 +1912,17 @@ def validate_evidence_pack(
             "effective_spec is missing",
             stage="pack_validation",
         )
+    resolver_version = pack.get("resolver_version")
+    if (
+        (effective_spec.get("version") == 1 and resolver_version != RETRIEVAL_RESOLVER_VERSION)
+        or (effective_spec.get("version") == 2 and resolver_version != RETRIEVAL_V2_RESOLVER_VERSION)
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "resolver version does not match the effective Retrieval Specification version",
+            stage="pack_validation",
+        )
+    v2 = resolver_version == RETRIEVAL_V2_RESOLVER_VERSION
     if pack.get("effective_spec_fingerprint") != retrieval_spec_fingerprint(
         effective_spec
     ):
@@ -1616,9 +1965,31 @@ def validate_evidence_pack(
             "Evidence Pack fingerprint does not match its canonical evidence identities",
             stage="pack_validation",
         )
-    root = Path(resolve_runtime(cwd).workspace_root).resolve()
+    runtime = resolve_runtime(cwd)
+    root = Path(runtime.workspace_root).resolve()
     session_chunks: list[MemoryChunk] | None = None
     source_lines: dict[str, tuple[str, ...]] = {}
+    pinned_by_identity = {
+        (record["kind"], record["id"]): record
+        for record in effective_spec.get("selectors", {}).get("pinned", [])
+    } if v2 else {}
+    required_pins = {
+        identity
+        for identity, record in pinned_by_identity.items()
+        if record.get("required", True) is True
+    }
+    present_pins = {
+        (item.get("kind"), item.get("id"))
+        for item in evidence
+    }
+    missing_pins = sorted(required_pins - present_pins)
+    if missing_pins:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "Evidence Pack omits required pinned evidence",
+            stage="pack_validation",
+            details={"required_pins": [list(identity) for identity in missing_pins]},
+        )
     for item in evidence:
         evidence_id = item.get("id")
         kind = item.get("kind")
@@ -1628,6 +1999,23 @@ def validate_evidence_pack(
                 "evidence id is missing",
                 stage="pack_validation",
             )
+        if v2:
+            if not isinstance(item.get("model_selection_reasons"), list) or not all(
+                isinstance(reason, str) and reason for reason in item["model_selection_reasons"]
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 evidence must carry model_selection_reasons separately",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if not isinstance(item.get("pinned_required"), bool):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 evidence must carry pinned_required as a boolean",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
         if kind not in {"adr", "constitution", "decision", "markdown", "session"}:
             raise RetrievalSpecResolutionError(
                 "invalid_pack",
@@ -1635,6 +2023,26 @@ def validate_evidence_pack(
                 stage="pack_validation",
                 details={"id": evidence_id, "kind": kind},
             )
+        if v2:
+            pin = pinned_by_identity.get((kind, evidence_id))
+            pinned = "selectors.pinned" in item.get("selected_by", [])
+            if pinned != (pin is not None):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 pinned selector attribution does not match the effective specification",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if pin is not None and (
+                item["model_selection_reasons"] != [pin["reason"]]
+                or item["pinned_required"] is not pin.get("required", True)
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 model selection reason does not match the effective specification",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
         source = item.get("source")
         if not isinstance(source, str):
             raise RetrievalSpecResolutionError(
@@ -1681,6 +2089,21 @@ def validate_evidence_pack(
                     stage="pack_validation",
                     details={"id": evidence_id, "adr_id": adr.adr_id},
                 )
+            if v2 and "selectors.pinned" in item.get("selected_by", []):
+                expected = _adr_current_view_candidate(
+                    root=root,
+                    record=adr,
+                    selected_by=set(),
+                    reason="validation",
+                    required=bool(item.get("pinned_required")),
+                )
+                if tuple(item.get("line_range", ())) != expected.line_range:
+                    raise RetrievalSpecResolutionError(
+                        "invalid_pack",
+                        "pinned ADR evidence must be its canonical Current view slice",
+                        stage="pack_validation",
+                        details={"id": evidence_id},
+                    )
         chunk_id = item.get("chunk_id")
         if kind in {"constitution", "markdown"} and evidence_id != source:
             raise RetrievalSpecResolutionError(
@@ -1698,15 +2121,24 @@ def validate_evidence_pack(
                     details={"id": evidence_id},
                 )
             if session_chunks is None:
+                _assert_runtime_tree_confined(
+                    root,
+                    runtime.memory_dir / "sessions",
+                    stage="pack_validation",
+                )
                 session_chunks = extract_memory_chunks(root, granularity="entry")
             line_range = tuple(item.get("line_range", ()))
-            expected_ids = {
-                candidate.evidence_id
-                for chunk in session_chunks
-                if chunk.source_path == source
-                and chunk.start_line <= line_range[0]
-                and chunk.end_line >= line_range[1]
-                for candidate in _decision_candidates(
+            from .core import entry_body_decisions
+
+            expected_ids: set[str] = set()
+            for chunk in session_chunks:
+                if (
+                    chunk.source_path != source
+                    or chunk.start_line > line_range[0]
+                    or chunk.end_line < line_range[1]
+                ):
+                    continue
+                candidates_for_chunk = _decision_candidates(
                     chunk,
                     root=root,
                     source_lines=source_lines,
@@ -1714,8 +2146,16 @@ def validate_evidence_pack(
                     reasons=set(),
                     graph_distance=0,
                 )
-                if candidate.line_range == line_range
-            }
+                ordinals = entry_body_decisions(chunk.text)
+                for candidate in candidates_for_chunk:
+                    if candidate.line_range != line_range:
+                        continue
+                    if not v2:
+                        expected_ids.add(candidate.evidence_id)
+                    elif ":" in candidate.evidence_id:
+                        expected_ids.add(candidate.evidence_id)
+                    elif len(ordinals) == 1:
+                        expected_ids.add(f"{chunk.entry_id}:{ordinals[0].ordinal}")
             if evidence_id not in expected_ids:
                 raise RetrievalSpecResolutionError(
                     "invalid_pack",

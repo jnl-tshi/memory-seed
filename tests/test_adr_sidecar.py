@@ -220,7 +220,7 @@ topics:
         return {
             "cwd": str(self.root),
             "title": title,
-            "body": "### Summary\n\n- Review.\n\n### Decision\n\n- D: Evolve it.\n- R: New evidence.",
+            "body": "### Summary\n\n- Review.\n\n### Decisions\n\n#### D1 - Evolve it\n\n- D: Evolve it.\n- R: New evidence.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": timestamp,
@@ -311,7 +311,7 @@ topics:
         decisions_path = self.root / "review-decisions.json"
         body_path.write_text(
             "### Summary\n\nThe CLI and MCP review the same proposed entry.\n\n"
-            "### Decision\n\n- D: Keep the transaction and clarify its use.\n"
+            "### Decisions\n\n#### D1 - Clarify the transaction\n\n- D: Keep the transaction and clarify its use.\n"
             "- R: The existing head still governs this refinement.\n",
             encoding="utf-8",
         )
@@ -609,7 +609,7 @@ topics:
         payload = {
             "cwd": str(self.root),
             "title": "Evolve the sidecar transaction",
-            "body": "### Summary\n\n- Evolve the writer.\n\n### Decision\n\n- D: Add the ADR ledger to the transaction.\n- R: Review and mutation must remain atomic.",
+            "body": "### Summary\n\n- Evolve the writer.\n\n### Decisions\n\n#### D1 - Add ADR ledger publication\n\n- D: Add the ADR ledger to the transaction.\n- R: Review and mutation must remain atomic.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:10",
@@ -679,7 +679,7 @@ topics:
         payload = {
             "cwd": str(self.root),
             "title": "Review lineage",
-            "body": "### Summary\n\n- Review.\n\n### Decision\n\n- D: Evolve it.\n- R: New evidence.",
+            "body": "### Summary\n\n- Review.\n\n### Decisions\n\n#### D1 - Evolve it\n\n- D: Evolve it.\n- R: New evidence.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:00",

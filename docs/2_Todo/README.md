@@ -3,7 +3,7 @@
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after … |
+| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence E… |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [excerpt-fallback-defect.md](excerpt-fallback-defect.md) | P1 | — | None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the f… |
 | [independent-validation-brief.md](independent-validation-brief.md) | P1 | — | Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own… |

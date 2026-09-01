@@ -30,6 +30,14 @@ def _seed_files_skill_names():
 
 
 class SessionSchemaTests(unittest.TestCase):
+    def test_session_logging_opening_example_uses_current_numbered_decision_shape(self):
+        content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
+        opening_example = content.split("````markdown", 1)[1].split("````", 1)[0]
+
+        self.assertIn("### Decisions", opening_example)
+        self.assertIn("#### D1 - State the decision", opening_example)
+        self.assertNotIn("### Decision\n", opening_example)
+
     def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
         content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
 
@@ -568,28 +576,30 @@ class SessionSchemaTests(unittest.TestCase):
         self.assertEqual(content, seed_skill.read_text(encoding="utf-8"))
         for phrase in (
             "Clean-session, high-signal packet convention",
-            "documentation-only interoperability conventions",
-            "not validated public API",
+            "frontier-authored artifact is the **semantic dispatch**",
+            "immutable profile version",
+            "pinned corpus revision",
             "context_load: packet",
             "project_context:",
             "retrieval:",
-            "evidence_pack:",
-            "materialized_evidence:",
-            "context_budget:",
+            "memory-seed/task-packet",
+            "Evidence Pack",
+            "`materialized_evidence`",
+            "budget:",
             "memory_update_policy:",
             "100–250-token project",
             "task_fit",
             "downstream_use",
-            "relevant accepted or proposed ADR heads",
-            "inline Retrieval Specification",
-            "ADR current views and decision slices",
+            "ADR current views, decision slices",
             "corpus revision",
-            "token_estimate` from the resolver is evidence content only",
-            "all-inclusive prepared-context",
-            "orchestrator-only searches",
-            "debit its actual token cost",
-            "including the fetched evidence content",
-            "does not replace that all-inclusive debit",
+            "token_estimate` is **evidence-only**",
+            "input_ledger",
+            "cost_ledger",
+            "must not be fetched again",
+            "post-run evidence",
+            "adds no packet registry",
+            "For every supplemental fetch",
+            "including fetched evidence content",
             "Return `NEEDS_CONTEXT` only",
             "memory_update_policy: orchestrator",
             "worker_checkpoint",

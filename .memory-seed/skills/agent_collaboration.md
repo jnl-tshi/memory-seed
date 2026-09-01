@@ -155,79 +155,98 @@ Keep packets narrow. Do not hand a worker the whole repository history when a pa
 
 ### Clean-session, high-signal packet convention
 
-The following fields are **documentation-only interoperability conventions**, not validated public API
-fields or a Task Packet schema. They make a packet reproducible across agent clients without changing the
-shipped retrieval API:
+The frontier-authored artifact is the **semantic dispatch**: a minimal
+`memory-seed/task-dispatch` v1 object that states the objective, grounded project frame, execution
+contract, exact Retrieval Profile identity plus bounded overrides, budget, and memory-update policy.
+Frontier judgment chooses meaning and scope; it does not hand-author the expanded packet. Deterministic
+tooling combines that dispatch with the immutable profile version, measured runtime binding, and
+pinned corpus revision to reconstruct the complete `memory-seed/task-packet` v1 artifact.
+
+This compiler boundary is local and non-expansive. It adds no packet registry, worker dispatch,
+worktree creation, authority, provider lookup, pricing lookup, or network access. Profiles and Markdown
+remain readable project-local inputs; Evidence Packs and compiled Task Packets are derived and ephemeral.
 
 ```yaml
-context_load: packet
+schema: memory-seed/task-dispatch
+version: 1
+objective: "<one concrete outcome>"
 project_context:
-  frame: "<100–250 source-grounded tokens describing this project and task>"
   project_type_and_purpose: "<what this project is for>"
   relevant_subsystem: "<the surface this task touches>"
   task_fit: "<why this objective belongs in that surface>"
   downstream_use: "<who or what consumes the result>"
   non_goals:
     - "<explicitly excluded work>"
+execution:
+  role: worker
+  persona: none
+  capability_tier: "economy|balanced|frontier"
+  write_intent: "read-only|writing"
+  allowed_files: []
+  forbidden_files: []
+  validation: []
+  output_contract: []
 retrieval:
-  inline: "<the resolved inline Retrieval Specification or its source-grounded input>"
-evidence_pack:
-  corpus_revision: "<revision resolved against>"
-  fingerprint: "<resolved-pack fingerprint>"
-  manifest: "<ordered evidence IDs, kinds, sources, digests, selection reasons, and omissions>"
-materialized_evidence:
-  - id: "<the manifest evidence ID>"
-    kind: "<adr, decision, constitution, session, or markdown>"
-    source: "<canonical Markdown path>"
-    lines: "<inclusive line range>"
-    content_digest: "<sha256 digest from the manifest>"
-    selection_reason: "<why this evidence is needed>"
-    content: "<task-relevant current view, slice, clause, or excerpt>"
-context_budget:
-  total_prepared_tokens: "<all-inclusive cap>"
-  reserved_supplemental_retrieval_tokens: "<headroom>"
-  reserved_synthesis_tokens: "<headroom>"
+  profile: "<exact project-local profile ID>"
+  profile_version: "<positive integer>"
+  overrides: "<bounded v2 selector/filter overrides>"
+budget:
+  supplemental_input_tokens: "<reserved task-scoped reads>"
+  output_tokens: "<output/reasoning reserve>"
+  over_soft_cap: fail
+  over_soft_cap_reason: null
 memory_update_policy: orchestrator
 ```
 
-Use `context_load: packet` for this procedure. Give the worker a source-grounded **100–250-token project
-frame** rather than a broad startup dump. It must state the project type and purpose, relevant subsystem,
-why the task fits there, downstream use, and non-goals. The worker has the same applicable read and
-retrieval tool availability as the orchestrator for task-scoped work; tool availability never grants
-additional write, merge, integration, or other authority.
+The compiled packet is the worker's `context_load: packet` context. Give it a source-grounded
+**100–250-token project frame** rather than a broad startup dump. Every worker-visible document counts
+toward input: the serialized packet itself, fixed instructions, tool/schema descriptions, materialized
+evidence, and any later supplemental fetch. Tool availability never grants additional write, merge,
+integration, network, or memory authority.
+
+Task Dispatch `allowed_files` and `forbidden_files` are execution/edit boundaries. They do not filter
+Retrieval Specification memory reads, and a path in `forbidden_files` may still be materialized as
+task-scoped evidence. Reading evidence never grants permission to edit its source.
 
 #### Orchestrator evidence flow
 
 Before dispatch, the orchestrator:
 
-1. Identifies the current files and memory concerns that affect the objective.
-2. Lists and selects the relevant accepted or proposed ADR heads; proposed material remains evidence, not
-   governing authority.
-3. Resolves an inline Retrieval Specification for the task.
-4. Materializes only task-relevant evidence: ADR current views and decision slices, applicable
-   policy/Constitution clauses, and implementation excerpts.
-5. Preserves each source, inclusive line range, selection reason, corpus revision, and applicable
-   fingerprint in the manifest/materialized evidence. Evidence Pack v2 uses one `id` field for semantic
-   identity: ADR items use the ADR frontmatter `adr_id`, decision slices use their canonical decision ID,
-   and non-semantic Markdown items use their canonical source path. `source` remains the fetch location;
-   `content_digest` verifies the selected content and is never used as identity.
+1. Authors the smallest semantic dispatch that preserves the ability to decide.
+2. Measures the existing runtime binding; the compiler validates it and never creates a worktree.
+3. Compiles through the exact immutable profile version and Retrieval Specification v2 resolver.
+4. Verifies the Evidence Pack before materializing exact ADR current views, decision slices,
+   Constitution clauses, sessions, or Markdown ranges.
+5. Passes the complete compiled packet to the worker. Evidence Pack v2 keeps one semantic `id`, canonical
+   `source`, inclusive range, digest, selection reason, corpus revision, and fingerprints.
 
-The worker can then inspect the cited Markdown directly instead of re-deriving a whole-project retrieval
-plan. Avoid excerpt/full-source duplication: materialize the smallest useful view and cite the canonical
-source for anything else.
+Materialized sources are worker input already and **must not be fetched again**. A canonical `source` is
+provenance and a supplemental-gap route, not permission to duplicate included content. The handoff reports
+repeated fetches as a packet-procedure failure. Excerpts stay disabled in compiled manifests so each
+evidence slice appears exactly once, under `materialized_evidence`.
 
 #### Budget and supplemental retrieval
 
-`token_estimate` from the resolver is evidence content only. The packet's all-inclusive prepared-context
-budget must add instructions, Evidence Pack manifest, materialized memory evidence, implementation
-evidence, tool/schema overhead, and reserved supplemental-retrieval and synthesis headroom. Count expected
-future fetches when reserving worker headroom; do not count orchestrator-only searches unless their results
-are passed to the worker.
+The resolver's `token_estimate` is **evidence-only**; it is not total model input and never replaces the
+compiler ledger. Keep three ledgers distinct:
+
+- `input_ledger`: serialized packet input, fixed instructions, tool/schema input, supplemental-input
+  reserve, total input, output/reasoning reserve, and the total context envelope;
+- output/reasoning reserve: a capacity plan, not consumed input and not provider-reported output; and
+- `cost_ledger`: caller-supplied price arithmetic only, explicitly unavailable when prices were not
+  supplied.
+
+Do not collapse input, output, and cost into one token or money figure. The input ledger is the
+**compiler-accounted caller-supplied envelope**, not actual provider input; hidden platform/system/tool
+overhead is unavailable unless the runtime exposes it. Actual provider input/usage, latency, and cost are
+**post-run evidence**, recorded only when the provider or execution surface exposes them;
+otherwise report each as unavailable with the reason. Never infer actual usage from the resolver estimate,
+budget reserve, or price ceiling.
 
 Workers may use the same read tools for a task-scoped gap. They record the missing question, sources
-consulted, and token cost in their handoff. For every supplemental fetch, debit its actual token cost —
-including the fetched evidence content — from the worker's all-inclusive total context budget. The resolver
-`token_estimate` remains only the evidence-content component; it does not replace that all-inclusive debit.
+consulted, tool call, and token estimate in their handoff. For every supplemental fetch, debit its estimated
+token cost — including fetched evidence content — from the compiler-accounted caller envelope and confirm it was not
+already materialized. The resolver `token_estimate` remains only the evidence-content component.
 Return `NEEDS_CONTEXT` only when the gap exceeds the budget, objective, or authority — not merely because
 additional context might be useful.
 

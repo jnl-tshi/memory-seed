@@ -1,9 +1,8 @@
 # Clean-session high-signal Task Packet pilot
 
-> **Status:** worked pilot reference, derived at a point in time. It documents an
-> orchestration convention; it is not a new API, policy, or authority source.
-> Rerun the inline Retrieval Specification preview and resolve against the intended
-> dispatch revision before relying on any values below.
+> **Status:** corrected compiler-backed pilot rerun 2026-09-01. The
+> versioned fixture is reproducible; each exported packet is derived and ephemeral.
+> The older M1 convention pilot remains below as historical evidence.
 
 ## Purpose and authority boundary
 
@@ -14,12 +13,10 @@ orchestrator selects and materializes bounded evidence, while the worker reports
 only what that evidence establishes. The accepted curated pilot is recorded by
 [`mse_r0z6p0gfxap0ps23`](../../.memory-seed/sessions/2026-08/2026-08-31.md).
 
-The shipped M1 surface is an inline `memory-seed/retrieval-spec` v1 request and
-an ephemeral Evidence Pack result. The Retrieval Specification remains v1, while
-the current resolver emits Evidence Pack v2. `context_load`, packet fields, materialized
-evidence, budget ledgers, and `memory_update_policy` are operating conventions,
-not schema-enforced API fields. The worker has no implied write, shell, merge,
-or broad durable-memory authority.
+The current surface retains inline `memory-seed/retrieval-spec` v1 compatibility and adds exact
+project-local profile resolution, Retrieval Specification v2, Evidence Pack v2, semantic
+`memory-seed/task-dispatch` v1, and compiled `memory-seed/task-packet` v1. The worker has no implied
+write, shell, merge, network, or broad durable-memory authority.
 
 Evidence Pack v2 uses `id` consistently: ADR evidence carries its frontmatter
 `adr_id`, session decision evidence carries its canonical decision ID, `kind`
@@ -27,6 +24,72 @@ distinguishes `adr` from `decision`, and `source` remains the canonical Markdown
 path. `content_digest` verifies the selected content; it is not another identity.
 The v1 fingerprints and counts later in this document are retained as historical
 pilot evidence and must not be sent as a current pack without re-resolution.
+
+## Current compiler-backed clean-session pilot (2026-09-01)
+
+The frontier-authored artifact is the minimal semantic dispatch in
+`tests/fixtures/task_packet_pilot/dispatch.json`. It does not duplicate resolved sources or hand-author a
+complete packet. The deterministic compiler combines that dispatch with `implementation:v1`, the measured
+binding of a fresh offline Git fixture, and the pinned corpus revision to reconstruct the complete Task
+Packet. The versioned fixture corpus, exact caller-supplied worker environment, and recorded clean-worker
+assessment are committed. The exported packet and fresh
+fixture checkout are derived, ephemeral output and stay untracked.
+
+Every worker-visible document counts toward input. Resolver `token_estimate` is evidence-only; it is not
+total worker input or actual provider usage. Materialized sources are present once under
+`materialized_evidence`; the worker contract says not to refetch them. The input ledger is the
+compiler-accounted caller-supplied envelope (serialized packet plus the exact fixed instructions and tool
+manifest), while the output/reasoning reserve and cost ledger remain distinct. It is not actual provider
+input: hidden platform/system/tool overhead and provider total input are unavailable because the runtime did
+not surface them. Actual provider usage, latency, and cost are also post-run evidence only. Compilation performs no registry write,
+worker dispatch, worktree creation, authority expansion, provider/pricing lookup, or network access.
+
+The recorded assessment is worker self-report evidence. Its no-refetch, zero-supplemental-call, and
+no-broad-discovery fields are not mechanically replayed proof: independent tool-call instrumentation was
+unavailable. Regression tests validate its JSON shape, evidence references, and ledger consistency, not
+execution provenance the harness could not observe.
+
+The fixture compiled to packet fingerprint
+`sha256:699016efbbc7c5ed95d0228238d29f7ce240403567f74b3337d31c29c2a5276a` at corpus revision
+`git:dcc00d65ff1d917a8ba7c59adc5ef1f3d248c1b8:sha256:ddfb66e8981d6656267e9d5287bea87029c795203bd895675cdd41d42255ce51`.
+
+| Compiler/pilot measurement | Result |
+|---|---:|
+| Frontier semantic-dispatch handoff estimate | 574 tokens |
+| Resolver evidence estimate / materialized content estimate | 352 / 352 tokens |
+| Serialized complete packet input | 3,347 tokens |
+| Exact caller fixed instructions | 447 tokens |
+| Stable caller tool manifest | 124 tokens |
+| Supplemental-input reserve | 1,000 tokens |
+| Total input ledger | 4,918 tokens |
+| Output/reasoning reserve | 2,500 tokens |
+| Total context envelope | 7,418 tokens |
+| Selected tier / soft cap / status | balanced / 48,000 / within target |
+| Materialized evidence IDs | `mse_packetpilot:d1`, `adr_task_packet_pilot`, `docs/CONSTITUTION.md`, `docs/pilot-support.md` |
+
+A genuinely fresh clean worker (`/root/m2_task4_impl/m2_task4_pilot_round2_clean`, `gpt-5.6-terra`, medium reasoning,
+`fork_turns: none`) received only the exact packet and `worker_environment` paths. Its recorded self-report
+found the pack sufficient and returned three source-linked conclusions using all four valid materialized
+evidence IDs. It reported no missing questions, supplemental sources/calls, unsupported assertions,
+repeated fetches, or broad discovery. The latter two claims remain worker self-report because independent
+tool-call instrumentation was unavailable.
+
+The assessment records `caller_supplied_harness_accounting` as available with 447 fixed-instruction tokens
+and 124 tool-schema tokens from the compiler ledger. It records `hidden_platform_overhead` separately as
+unavailable because the runtime did not surface it. Actual provider total input, usage, latency, and cost
+were likewise not surfaced and remain unavailable. The compiler-accounted values above are not substitutes
+for post-run provider telemetry.
+
+The offline regression test recompiles the fixture twice and asserts canonical byte identity, exact
+profile/binding use, nonzero fixed-instruction/tool-manifest accounting, single-copy materialization,
+recorded assessment shape/reference/ledger consistency, balanced-cap compliance, unavailable provider and
+cost evidence when telemetry/pricing are absent, and
+absence of registry/dispatch/worktree/network/authority expansion fields.
+
+## Historical M1 convention pilot
+
+The remaining sections preserve the August 2026 inline-only pilot. Its numbers and terminology are
+point-in-time evidence, not the current compiled-packet contract.
 
 ## Worker launch contract
 
@@ -220,5 +283,6 @@ source-range fetch must still be logged and debited before synthesis.
 The supplied evidence established a read-only inline interface and runtime path
 containment. It did not independently re-prove byte parity, no-write behavior,
 timeouts, corpus-change handling, provider accounting, cache behavior, or proposed
-`allowed_files`/caller-permission, redaction, and network controls. Do not turn
+execution/write `allowed_files`/caller-permission, redaction, and network controls. Those file lists do
+not filter memory reads or prevent task-scoped evidence materialization. Do not turn
 those reported or proposed properties into fresh claims without targeted evidence.

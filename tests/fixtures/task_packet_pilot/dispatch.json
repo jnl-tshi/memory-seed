@@ -1,0 +1,73 @@
+{
+  "schema": "memory-seed/task-dispatch",
+  "version": 1,
+  "objective": "Assess whether the compiled Evidence Pack supplies the complete bounded context for the clean worker contract.",
+  "project_context": {
+    "project_type_and_purpose": "Memory Seed is a local-first, Markdown-authoritative project-memory system for file-reading AI agents. It preserves decisions, evidence, and operational context without requiring a hosted service or authoritative derived store.",
+    "relevant_subsystem": "The Retrieval Profile, Retrieval Specification v2 resolver, Evidence Pack v2 materializer, and Task Packet v1 compiler reconstruct bounded worker input from explicit semantic dispatch.",
+    "task_fit": "This assessment checks the compiler boundary and clean-session evidence discipline against a small offline corpus with pinned semantic records and one supporting Markdown source.",
+    "downstream_use": "An orchestrator uses the assessment to decide whether a balanced clean worker received enough source-linked context without broad discovery, duplicate fetches, or authority expansion.",
+    "non_goals": [
+      "Do not dispatch another worker, modify memory, create a worktree, access the network, or infer provider usage."
+    ]
+  },
+  "execution": {
+    "role": "researcher",
+    "persona": "none",
+    "capability_tier": "balanced",
+    "write_intent": "read-only",
+    "allowed_files": [],
+    "forbidden_files": [
+      ".memory-seed/policy.md"
+    ],
+    "validation": [
+      "Check each conclusion against supplied evidence IDs."
+    ],
+    "output_contract": [
+      "Report missing questions, supplemental sources and calls, unsupported assertions, evidence-ID correctness, repeated fetches, and whether broad discovery occurred."
+    ]
+  },
+  "retrieval": {
+    "profile": "implementation",
+    "profile_version": 1,
+    "overrides": {
+      "selectors": {
+        "pinned": [
+          {
+            "kind": "adr",
+            "id": "adr_task_packet_pilot",
+            "reason": "Defines the compiler boundary and authority exclusions.",
+            "required": true
+          },
+          {
+            "kind": "decision",
+            "id": "mse_packetpilot:d1",
+            "reason": "Defines the clean-worker evidence and accounting procedure.",
+            "required": true
+          }
+        ]
+      },
+      "filters": {
+        "paths": [
+          "docs/pilot-support.md"
+        ],
+        "topics": []
+      },
+      "limits": {
+        "max_entries": 10,
+        "max_tokens": 6000
+      },
+      "output": {
+        "include_resolution_trace": true,
+        "include_excerpts": false
+      }
+    }
+  },
+  "budget": {
+    "supplemental_input_tokens": 1000,
+    "output_tokens": 2500,
+    "over_soft_cap": "fail",
+    "over_soft_cap_reason": null
+  },
+  "memory_update_policy": "orchestrator"
+}

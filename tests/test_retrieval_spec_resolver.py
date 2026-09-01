@@ -234,7 +234,7 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             if path.is_file()
         }
 
-    def test_mcp_surface_is_inline_only(self):
+    def test_mcp_surface_is_inline_or_exact_profile_only(self):
         retrieval_tools = {
             item["name"]: item for item in TOOLS if item["name"].startswith("memory_retrieval_spec_")
         }
@@ -248,20 +248,20 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         for tool in retrieval_tools.values():
             self.assertEqual(
                 set(tool["inputSchema"]["properties"]),
-                {"spec", "cwd"},
+                {"spec", "profile", "profile_version", "overrides", "cwd"},
             )
-            self.assertNotIn("profile", tool["inputSchema"]["properties"])
+            self.assertFalse(tool["inputSchema"].get("required"))
 
     def test_mcp_rejects_unknown_arguments_before_retrieval(self):
         root = self.make_project()
         for tool_name, service_name in (
             (
                 "memory_retrieval_spec_preview",
-                "memory_seed.mcp_server.preview_retrieval_spec",
+                "memory_seed.mcp_server.preview_retrieval_input",
             ),
             (
                 "memory_retrieval_spec_resolve",
-                "memory_seed.mcp_server.resolve_retrieval_spec",
+                "memory_seed.mcp_server.resolve_retrieval_input_pack",
             ),
         ):
             with self.subTest(tool=tool_name), patch(service_name) as service:
@@ -286,7 +286,7 @@ class RetrievalSpecResolverTests(unittest.TestCase):
                 self.assertEqual(payload["error"]["code"], "invalid_arguments")
                 self.assertEqual(
                     payload["error"]["details"]["unsupported_arguments"],
-                    ["profile", "unknown"],
+                    ["unknown"],
                 )
                 service.assert_not_called()
 

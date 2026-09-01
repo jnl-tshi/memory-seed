@@ -27,7 +27,11 @@ from memory_seed.core import (
 from memory_seed.retrieval import entry_topic_sidecars
 from memory_seed import corpus_cache
 
-BODY = "### Summary\n\n- Context for this entry.\n\n### Decision\n\n- D: Something durable.\n- R: Because."
+BODY = (
+    "### Summary\n\n- Context for this entry.\n\n### Decisions\n\n"
+    "#### D1 - Record the durable choice\n\n"
+    "- D: Something durable.\n- R: Because."
+)
 
 
 class SessionAppendTests(unittest.TestCase):
@@ -644,8 +648,8 @@ topics:
         self.assertIn("branch: feature-x", result.path.read_text(encoding="utf-8"))
 
     def test_dry_run_rendered_is_byte_identical_to_the_real_append(self):
-        # The dummy write's whole value is fidelity: on a fresh file the block
-        # IS the file, so the preview must match the real write byte for byte.
+        # The preview is the exact entry block. A fresh flat file also receives
+        # the canonical file frontmatter owned by the sanctioned writer.
         preview = self._append(dry_run=True)
 
         self.assertTrue(preview.ok, preview.issues)
@@ -654,7 +658,11 @@ topics:
         self.assertFalse(preview.path.exists(), "a dry run must not create the file")
 
         real = self._append()
-        self.assertEqual(real.path.read_text(encoding="utf-8"), preview.rendered)
+        self.assertEqual(
+            real.path.read_text(encoding="utf-8"),
+            "---\ntags:\n  - session-log\n  - memory-seed\n"
+            "session_date: 2026-06-13\n---\n\n" + preview.rendered,
+        )
         self.assertEqual(real.entry_id, preview.entry_id)
 
     def test_rendered_is_absent_outside_a_passing_dry_run(self):
@@ -681,7 +689,12 @@ topics:
         self.assertEqual(len(entry_body_advisories(body)), 1)
 
     def test_append_requires_a_summary_for_new_entries_only(self):
-        refused = self._append(body="### Decision\n\n- D: Something durable.\n- R: Because.")
+        refused = self._append(
+            body=(
+                "### Decisions\n\n#### D1 - Missing summary\n\n"
+                "- D: Something durable.\n- R: Because."
+            )
+        )
 
         self.assertFalse(refused.ok)
         self.assertTrue(any("no '### Summary'" in issue for issue in refused.issues), refused.issues)
@@ -689,6 +702,34 @@ topics:
         # lacking a Summary are rendered as legacy records, not rejected data.
         from memory_seed.core import entry_body_format_issues
         self.assertEqual(entry_body_format_issues("### Decision\n\n- D: old.\n- R: because."), [])
+
+    def test_append_rejects_legacy_singular_decision_but_reader_accepts_it(self):
+        refused = self._append(
+            body=(
+                "### Summary\n\n- New write.\n\n### Decision\n\n"
+                "- D: Legacy shape.\n- R: It remains readable only."
+            )
+        )
+
+        self.assertFalse(refused.ok)
+        self.assertTrue(any("legacy '### Decision'" in issue for issue in refused.issues))
+        from memory_seed.core import entry_body_format_issues
+        self.assertEqual(
+            entry_body_format_issues("### Decision\n\n- D: old.\n- R: because."),
+            [],
+        )
+
+    def test_append_refuses_existing_headerless_flat_file(self):
+        target = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-13.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        original = "## 2026-06-13 08:00 - Legacy\n"
+        target.write_text(original, encoding="utf-8")
+
+        refused = self._append()
+
+        self.assertFalse(refused.ok)
+        self.assertTrue(any("headerless" in issue for issue in refused.issues))
+        self.assertEqual(target.read_text(encoding="utf-8"), original)
 
     def test_future_timestamp_advisory_grace_window_and_past_are_quiet(self):
         from datetime import datetime, timedelta

@@ -91,6 +91,29 @@ class SeedFile:
     agent: str | None = None
 
 
+CORE_RETRIEVAL_PROFILES = (
+    ("implementation", 1),
+    ("bug-investigation", 1),
+    ("research", 1),
+    ("adr-review", 1),
+    ("refactoring", 1),
+    ("architecture", 1),
+)
+
+
+def _core_retrieval_profile_destination(profile_id: str, profile_version: int) -> str:
+    return (
+        f"{MEMORY_DIR_NAME}/retrieval-profiles/{profile_id}/"
+        f"v{profile_version}.yaml"
+    )
+
+
+CORE_RETRIEVAL_PROFILE_DESTINATIONS = frozenset(
+    _core_retrieval_profile_destination(profile_id, profile_version)
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+)
+
+
 @dataclass(frozen=True)
 class BranchStatus:
     is_git_repo: bool
@@ -1740,7 +1763,12 @@ _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
 
 
-def entry_body_format_issues(body: str, *, require_summary: bool = False) -> list[str]:
+def entry_body_format_issues(
+    body: str,
+    *,
+    require_summary: bool = False,
+    require_numbered_decisions: bool = False,
+) -> list[str]:
     """Return DRAFT-format problems in one entry BODY (text after the ```yaml
     block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
     ``- `` list items; DRAFT prose with no ``### Decision``/``### Summary``
@@ -1750,9 +1778,10 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
     labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
     only rejects malformed DRAFT usage, it does not force DRAFT on every entry.
 
-    ``require_summary`` is the write-time policy for new entries. Integrity
-    checks leave it false so historic records remain readable rather than being
-    retroactively labelled malformed or rewritten."""
+    ``require_summary`` and ``require_numbered_decisions`` are write-time
+    policies for new entries. Integrity checks leave both false so historic
+    records remain readable rather than being retroactively labelled malformed
+    or rewritten."""
     lines = body.splitlines()
     issues: list[str] = []
     bare = [ln for ln in lines if _BARE_DRAFT_RE.match(ln)]
@@ -1761,6 +1790,8 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
     has_section = any(_ENTRY_SECTION_RE.match(ln) for ln in lines)
     has_summary = any(_SUMMARY_HEADING_RE.match(ln) for ln in lines)
     singular_decision = any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines)
+    plural_decision = any(re.match(r"^###\s+Decisions\s*$", ln, re.I) for ln in lines)
+    numbered_decision = any(_NUMBERED_DECISION_HEADING_RE.match(ln) for ln in lines)
     if bare:
         labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
         issues.append(f"DRAFT labels ({labels}) are not list items - prefix each with '- ' under a section heading")
@@ -1777,6 +1808,21 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
         issues.append("a decision (D:) has no reason (R:) - R is mandatory")
     if require_summary and not has_summary:
         issues.append("entry has no '### Summary' section - every newly recorded entry needs context")
+    if require_numbered_decisions and singular_decision:
+        issues.append(
+            "legacy '### Decision' is read-only - newly recorded decisions require "
+            "'### Decisions' + '#### D1 - name'"
+        )
+    if (
+        require_numbered_decisions
+        and any(_ANY_D_LABEL_RE.match(ln) for ln in lines)
+        and (not plural_decision or not numbered_decision)
+        and not singular_decision
+    ):
+        issues.append(
+            "new decision records require '### Decisions' + at least one "
+            "'#### D1 - name' subsection"
+        )
     return issues
 
 
@@ -4173,6 +4219,11 @@ def session_append_entry(
 
     if target.path.exists():
         text = read_text_file(target.path)
+        if target.layout == "month-flat" and text.strip() and not text.startswith("---\n"):
+            issues.append(
+                "existing flat session file has no canonical file frontmatter; "
+                "refusing to grandfather a headerless file through session append"
+            )
         heading_times = [
             match.group(1)
             for match in (_REORDER_HEADING_RE.match(m.group(0)) for m in _ENTRY_HEADING_RE.finditer(text))
@@ -4464,7 +4515,11 @@ def session_append_entry(
     # Write-time DRAFT-format gate: the tool owns structure, so it refuses to
     # write a malformed decision record (bare labels, missing R:, wrong
     # multi-decision shape). The message names the fix; see session_logging.md.
-    for issue in entry_body_format_issues(body, require_summary=True):
+    for issue in entry_body_format_issues(
+        body,
+        require_summary=True,
+        require_numbered_decisions=True,
+    ):
         issues.append(f"body format: {issue}")
 
     yaml_lines = [
@@ -4755,7 +4810,9 @@ def session_append_entry(
         if existing.strip():
             new_text = existing.rstrip("\n") + "\n\n" + block
         else:
-            new_text = existing + block
+            new_text = _session_file_prefix(
+                existing, date_part, user=target.user
+            ) + block
         write_text_file(target.path, new_text)
 
     if "topics" in rendered_sidecars:
@@ -8387,6 +8444,17 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "project-bootstrap.md",
         ".memory-seed/project-bootstrap.md",
     ),
+    *(
+        SeedFile(
+            SEED_ROOT
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / profile_id
+            / f"v{profile_version}.yaml",
+            _core_retrieval_profile_destination(profile_id, profile_version),
+        )
+        for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+    ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "security_triage.md",
         ".memory-seed/skills/security_triage.md",
@@ -10507,6 +10575,7 @@ def init_project(
         seed_file.destination
         for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
+        and seed_file.destination not in CORE_RETRIEVAL_PROFILE_DESTINATIONS
         and not _is_foreign_routing_file(target_root, seed_file)
     ]
 
@@ -10524,6 +10593,17 @@ def init_project(
 
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
+
+        # Core Retrieval Profiles are immutable, version-addressed project
+        # inputs. Install a missing exact version, but never replace an
+        # existing one (including under init --force). A future profile change
+        # publishes a new vN file; custom profile IDs are absent from SEED_FILES
+        # and therefore remain wholly project-owned.
+        if (
+            seed_file.destination in CORE_RETRIEVAL_PROFILE_DESTINATIONS
+            and destination.exists()
+        ):
+            continue
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
         # (holds even under --force — the point is non-destruction).
@@ -10901,16 +10981,41 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 }
             )
 
+    # Managed profiles are deploy-once rather than byte/version refreshed, so
+    # validate their exact identities with the same strict loader used by the
+    # compiler. Existing custom IDs are deliberately outside this inventory.
+    from .retrieval_profiles import (
+        RetrievalProfileValidationError,
+        load_retrieval_profile,
+    )
+    from .retrieval_spec import RetrievalSpecValidationError
+
+    profile_warnings: list[str] = []
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES:
+        profile_path = target_root / _core_retrieval_profile_destination(
+            profile_id, profile_version
+        )
+        if not profile_path.is_file():
+            continue  # already reported through DoctorResult.missing above
+        try:
+            load_retrieval_profile(profile_id, profile_version, target_root)
+        except (RetrievalProfileValidationError, RetrievalSpecValidationError) as exc:
+            profile_warnings.append(
+                f"Managed retrieval profile {profile_id}:v{profile_version} is invalid: "
+                f"{exc}. Existing profile versions are immutable; repair this file "
+                "explicitly or add a new version rather than relying on update to overwrite it."
+            )
+
     bootstrap_missing = [
         path
         for path in BOOTSTRAP_GENERATED_FILES
         if not (target_root / path).exists()
     ]
 
-    control_plane_ok = not missing and not version_mismatches
+    control_plane_ok = not missing and not version_mismatches and not profile_warnings
     bootstrap_complete = not bootstrap_missing
 
-    warnings: list[str] = []
+    warnings: list[str] = list(profile_warnings)
     codex_status = _codex_mcp_status(target_root) if "codex" in selected else "absent"
     if "codex" in selected and (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
         warnings.append(

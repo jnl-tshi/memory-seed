@@ -114,11 +114,18 @@ graph TD
     subgraph Retrieval["retrieval layer"]
       direction TB
       RET["retrieval.py<br>public search/fetch"]
+      RSPEC["retrieval_spec.py<br>v1/v2 contract"]
+      PROFILE["retrieval_profiles.py<br>exact profile composition"]
+      PACKET["task_packet.py<br>deterministic compiler"]
       CACHE["semantic_cache.py<br>chunks + graph"]
       MCP["mcp_server.py<br>stdio JSON-RPC"]
       VAL["mcp_validate.py<br>validation"]
       RET --> CACHE
+      PROFILE --> RSPEC
+      PACKET --> PROFILE
+      PACKET --> RET
       MCP --> RET
+      MCP --> PACKET
       VAL --> RET
     end
   end
@@ -225,6 +232,8 @@ graph TD
 | `init [--agents ...] [--no-agent-prompt] [--dry-run] [--force]` | Copy control plane + routing into a project; prompts on a TTY for opt-out agent integration selection unless skipped. |
 | `update [--dry-run]` | Forward-only refresh of control-plane files; archives replaced versions; preserves generated/local memory. |
 | `doctor` | Health check: missing files, version mismatches, bootstrap completeness, non-fatal warnings. |
+| `retrieval-spec preview --spec-file ...` | Preview one inline Retrieval Specification without writing memory. Profile-aware preview/resolve are also exposed by MCP. |
+| `task-packet preview\|compile --dispatch-file ... --binding-file ...` | Reconstruct the same canonical Task Packet through the shared compiler; preview prints it, compile may atomically export a derived JSON artifact. |
 | `compact [--days N] [--output]` | Summarise recent session activity; writes only with `--output`. |
 | `agents list \| add <a> \| remove <a>` | Show selected/ignored agents or reconfigure installed agent integrations (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
@@ -552,7 +561,7 @@ graph TD
 ```
 
 ### I. MCP memory retrieval and control preview
-- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`). Authoring tools (unreleased) split into a read-only pair and a write pair: `memory_link_suggest` (rank older entries to link — paste-ready `related_entries`) and `memory_link_show` (one entry's graph node) remain read-only, while `memory_session_append` (author an entry through every write-time guard; `dry_run` pre-flights) and `memory_session_integrate` (merge + fuse a task branch) are the MCP **write** path. Together they close the write-side loop the retrieval tools open on the read side. The earlier read-only `memory_session_target` and `memory_entry_id` tools were removed and subsumed by `memory_session_append`'s `dry_run`. Topic-management tools are `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`, all read-only wrappers over the project-local topic index and `topics check` semantics. Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture), `memory_worktree_guard` (read-only agent namespace pre-write classification), and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Unreleased after 2.15: retrieval is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
+- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections), `memory_get_chunk` (full text for one `chunk_id`), inline/profile-aware `memory_retrieval_spec_preview` and `memory_retrieval_spec_resolve`, and the read-only `memory_task_packet_preview` / `memory_task_packet_compile` pair. The Task Packet tools return derived artifacts inline and accept no export path. Authoring tools (unreleased) split into a read-only pair and a write pair: `memory_link_suggest` (rank older entries to link — paste-ready `related_entries`) and `memory_link_show` (one entry's graph node) remain read-only, while `memory_session_append` (author an entry through every write-time guard; `dry_run` pre-flights) and `memory_session_integrate` (merge + fuse a task branch) are the MCP **write** path. Together they close the write-side loop the retrieval tools open on the read side. The earlier read-only `memory_session_target` and `memory_entry_id` tools were removed and subsumed by `memory_session_append`'s `dry_run`. Topic-management tools are `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`, all read-only wrappers over the project-local topic index and `topics check` semantics. Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture), `memory_worktree_guard` (read-only agent namespace pre-write classification), and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Unreleased after 2.15: retrieval is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
 - `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
 - **MCP skill surface (unreleased).** `skills/index.md` routes `memory_search`/`memory_get_chunk` plus the authoring-support tools (`memory_link_suggest`/`memory_link_show`/`memory_session_append`) to `history_retrieval.md`, and routes `memory_branch_status`/`memory_worktree_guard`/`memory_session_fuse_preview` to `agent_collaboration.md`, which also documents `memory_session_integrate`. Topic MCP tools (`memory_topics_list`/`memory_topic_inspect`/`memory_topics_check`) support the same history-retrieval/session-authoring loop by letting an LLM inspect the controlled vocabulary before choosing entry topics. Most MCP tools are read-only, but MCP is no longer a read-only surface: `memory_link_suggest`/`memory_link_show` help an LLM fill `related_entries`, the topic tools help it choose/validate existing topics, and the collaboration tools help it diagnose branch posture, classify agent namespace safety, and preview fuse blockers/plans — while `memory_session_append` and `memory_session_integrate` write. Constitution v1.3 replaced the old "writes stay on the CLI" posture with **write-surface parity** (Invariant #2): a writing surface is legitimate provided it runs identical validation, so `memory_session_append` wraps the same `session_append_entry` guards as the CLI and `memory_session_integrate` wraps the same merge+fuse. Topic-index edits and root-write overrides still stay on the CLI/direct-file path with user approval where required.
 - `semantic_cache.py`: `extract_memory_chunks()` parses `sessions/*.md` into typed `MemoryChunk`s (entry- or section-granularity; `session_date` derived from filename; `entry_id` as `chunk_id`). `rank_memory_chunks()` combines **lexical + semantic + recency** signals:
@@ -1208,11 +1217,18 @@ three real decisions after B0b and BG1/BG2; current ADR status and every index/v
 workflow-review workbench and one Decision projection depend on that proof. Evidence Envelope and Capability
 Status phases were folded into the existing evidence architecture. Publishability and a generic skill/router
 architecture remain deferred. A first-class
-[`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) now has its M0/M1
-inline slice implemented on `main` (merge `3577e9`, 2026-07-30): a versioned request resolves
-deterministically into an Evidence Pack which a Task Packet can reference, keeping orchestrators thin while
-preserving the same Markdown/Trace evidence for humans. Profiles, composition, Trace integration, and
-advanced selectors remain planned rather than implied by that first slice.
+[`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) has its M0-M3
+contracts implemented: inline requests and exact immutable project-local profiles resolve deterministically
+through composition, bounded overrides, runtime-local retrieval bounds, and Evidence Pack v2. Required
+clauses cannot be weakened. Task Dispatch file lists govern execution edits rather than memory reads; the
+compiler does not load or intersect project policy. The
+`memory-seed/task-dispatch` v1 compiler combines semantic dispatch, a measured existing-runtime binding,
+one exact profile version, and the pinned corpus revision into a complete derived Task Packet with
+single-copy materialized evidence and distinct input/output/cost accounting. Its input ledger is the
+compiler-accounted caller-supplied envelope, not provider total input or hidden platform overhead. CLI and read-only MCP adapters
+share the core compiler. Six core v1 profiles seed missing versions without overwriting existing versions
+or custom IDs. Trace/Evidence Envelope integration and advanced selectors remain planned; no registry,
+dispatch engine, authority, provider lookup, or network dependency was added.
 
 ### Near term - current lead
 
@@ -1233,7 +1249,7 @@ graph TD
   end
   subgraph FollowOnTier["Sequenced follow-ons"]
     direction LR
-    RETSPEC["Retrieval Specification<br>M0 contract → M1 MCP slice"]
+    RETSPEC["Retrieval Specification<br>M0-M3 + Task Packet compiler"]
     SEM["ADR sidecar foundation<br>SHIPPED 2026-08-03"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
   end
   CurrentTier ~~~ GuardTier

@@ -110,7 +110,7 @@ overwritten on the next `docs index` run.
 Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 51 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
-- **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
+- **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced select…
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
 - **P1** [excerpt-fallback-defect.md](2_Todo/excerpt-fallback-defect.md) — None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires.
 - **P1** [independent-validation-brief.md](2_Todo/independent-validation-brief.md) — Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own method and reports back.
