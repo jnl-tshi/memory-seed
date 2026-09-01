@@ -752,6 +752,51 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
 
     @pytest.mark.integration
+    def test_session_merge_branch_does_not_double_import_a_new_adr_diagram_file(self):
+        # Regression: a diagram-sidecar file that does not exist on main at all
+        # is added wholesale by git's own merge; the sidecar-import step must
+        # still recognise the adr_id-keyed block already sitting in the
+        # working tree and skip it, not append a second copy. The bug was
+        # keying the dedup check by entry_id alone (always None for
+        # adr_id-authored blocks), so it never matched and always appended -
+        # visible only for brand-new files, since an existing file's blocks
+        # are reconstructed by this same fuse logic rather than git's raw
+        # merge, and entry-keyed blocks (entry_id never None) were unaffected.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        promoted = promote_decision(
+            cwd,
+            adr_id="adr_fuse_no_dup",
+            title="Fuse without duplication",
+            topics=(),
+            user_initials="JN",
+            agent_type="codex",
+            source="write-time",
+            decision="Fuse diagrams by their declared authority.",
+            why="ADR diagrams do not have a parent session entry.",
+            founding_source="bootstrap",
+            founding_quote="Fuse diagrams by their declared authority.",
+            timestamp="2026-07-10T08:00:00Z",
+        )
+        self.assertTrue(promoted.ok, promoted.issues)
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        # A brand-new diagram-sidecar file: no prior version on main.
+        self._write_adr_diagram(cwd, "2026-07-15", "adr_fuse_no_dup")
+        self._commit_all(cwd, "add new ADR diagram file")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        diagram_file = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-07" / "2026-07-15.md"
+        text = diagram_file.read_text(encoding="utf-8")
+        self.assertEqual(text.count("adr_id: adr_fuse_no_dup"), 1)
+        self.assertEqual(text.count("## 2026-07-15"), 1)
+
+    @pytest.mark.integration
     def test_session_merge_branch_removes_its_clean_registered_source_worktree(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
