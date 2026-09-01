@@ -611,8 +611,8 @@ before its next step. (Market/account items live under "Parked" below.)
 12. **Adjudication queue — formal sign-off, under re-review.** 22 rows JNL corrected twice on
     2026-07-27 were presented again for review on 2026-08-26 (a month old, worth a fresh look) rather
     than signed off as-is. Row-by-row outcome pending.
-13. **Memory-index dry-run → Verging Labs v0.2 submission — five runs on record, best result
-    87.1/CLEAR, zero fabrications.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
+13. **Memory-index dry-run → Verging Labs v0.2 submission — seven runs on record, best result
+    93.5/CLEAR, zero fabrications.** [`memory-index-dry-run-plan.md`](memory-index-dry-run-plan.md)
     "Run 6" (pre-fix): 80.6, CLEAR, only 4/10 seeding sessions logged. Git-diff trigger fix landed
     2026-08-29 (`adr_session_log_trigger_enforcement`). "Run 7" (fix applied): 61.3, TRIGGERED,
     first fabrication in 6 runs — the trigger fired correctly, but its wording gave a session room
@@ -636,12 +636,16 @@ before its next step. (Market/account items live under "Parked" below.)
     immediately, before the next session starts, so staleness can't accumulate. "Run 11": the design
     held - S2, S4, S6 all merged cleanly for the first time - but two implementation bugs in the new
     reconcile step (a session colliding with its own uncommitted direct edits; a foreign-package
-    guard false positive against the nested fixture) stalled S7 onward. Both fixed. **Run 12 needed**
-    to confirm the orientation-gate fix's actual effect now that the merge cascade can't mask it.
-    *Recommendation:* Run 9's result remains strong enough to submit on if a clean re-run doesn't
-    land soon. Still n=1 per condition across all runs. S4/S6 remain an open, unscoped gap pending
-    Run 11 (does not block submission). Q1 (Youssef misattribution) is stable and minor across
-    every run — a quiz-time nuance, not worth engineering effort at this scale.
+    guard false positive against the nested fixture) stalled S7 onward. Both fixed. "Run 12" (both
+    fixes in place from S1): **all 10 sessions logged and merged cleanly, zero unmerged branches at
+    the end.** Result: **93.5, CLEAR, zero fabrications — best of seven runs.** S2, S4, S6 - stuck
+    since Run 6-10 - are fully resolved. Two residual misses: Q1 (Youssef misattribution, stable and
+    minor across every run since Run 8) and Q22 (a new retrieval-time miss on a correctly-captured
+    fact, not a capture gap) - neither in scope for this investigation.
+    *Recommendation:* **Submit on Run 12's result.** `adr_orientation_completion_gate` is confirmed
+    by a clean measurement; the merge-cascade harness bug that masked it in Runs 10-11 is fixed and
+    gitignored evidence for all seven runs is preserved for audit. Q1/Q22 are minor and out of scope
+    at this scale.
 
 ## Evidence programme — does durable rationale actually change a later decision?
 

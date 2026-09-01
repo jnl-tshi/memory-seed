@@ -643,6 +643,39 @@ immediately, before staleness accumulates" being the correct design, undermined 
 merge step itself failing to run. **Run 12 needed**, with both fixes in place from S1 onward this
 time rather than patched in mid-run.
 
+## Run 12 (2026-09-01) — clean sweep: best result on record, orientation-gate fix confirmed
+
+Both `dryrun.py` bugs from Run 11 fixed, seeded from scratch. **All 10 sessions logged and merged
+cleanly** - zero `LEFT UNMERGED`, zero branches left unmerged at the end. S9/S10 hit the account's
+session rate limit on the first pass and were resumed (not reseeded) once it cleared; both merged
+cleanly on retry, same as every other session.
+
+| Category | n | correct | not_addr | incorrect | outdated | fabricated |
+|---|---|---|---|---|---|---|
+| direct_recall | 6 | 5 | 0 | 1 | 0 | 0 |
+| updated_facts | 6 | 6 | 0 | 0 | 0 | 0 |
+| thread_growth | 3 | 3 | 0 | 0 | 0 | 0 |
+| synthesis | 4 | 4 | 0 | 0 | 0 | 0 |
+| long_term_retention | 4 | 3 | 0 | 1 | 0 | 0 |
+| false_memory | 8 | 8 | 0 | 0 | 0 | 0 |
+
+**Blended 29/31 = 93.5. Kill condition CLEAR — best of all six runs**, and zero fabrications
+(Run 9's Q31 fix continues to hold with a clean seeding pass behind it for the first time). The two
+misses: Q1 (Youssef misfiled as a general maintainer rather than Linux-ARM CI owner specifically) -
+the same stable, minor quiz-time attribution nuance seen across every run since Run 8, unrelated to
+logging. Q22 (long_term_retention, claims the kickoff roster "was not recorded") is new and
+different in kind - S1's roster fact **is** in the store (S1 merged cleanly, `entries_total` starts
+at 1), so this is a retrieval/answer miss on a correctly-captured fact, not a capture gap - out of
+scope for the orientation-gate and merge-cascade fixes this investigation targeted.
+
+**Reading.** This is the clean measurement Run 10 and Run 11 couldn't provide. With the merge
+cascade no longer masking anything, `adr_orientation_completion_gate` gets full credit: S2, S4, and
+S6 - stuck across Runs 6 through 10 - all logged and merged this run, and nothing that was working
+regressed. Recommend this as the submission result.
+
+**ADR:** `adr_orientation_completion_gate` was already Accepted (JNL's direct review, 2026-09-01,
+ahead of this validation) - this run is confirming evidence, not a gate it needed to clear.
+
 ## Contamination guard
 
 Dry-run materials stay out of the published store paths (`experiments/memory-index-dryrun/`,
