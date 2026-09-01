@@ -129,6 +129,10 @@ _SHA_RE = re.compile(r"[0-9a-fA-F]{40}\Z")
 _EXACT_SESSION_PATH_RE = re.compile(
     r"\.memory-seed/sessions/[A-Za-z0-9._/-]+\.md\Z", re.IGNORECASE
 )
+_PATH_SCOPE_METACHAR_RE = re.compile(r'[*?\[\]{}!<>:"|]')
+_WINDOWS_DEVICE_SEGMENT_RE = re.compile(
+    r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?\Z", re.IGNORECASE
+)
 _BUDGET_STATUSES = (
     "within_target",
     "elevated",
@@ -228,20 +232,39 @@ def _nonnegative_int(value: Any, path: str) -> int:
 
 
 def _path_string(value: Any, path: str) -> str:
+    """Return one exact runtime-relative file identity.
+
+    Dispatch edit scopes and checkpoint scopes are file authorities, not glob
+    or pathspec selectors.  Normalize separators once, then reject every form
+    that could escape the measured runtime or alias another Windows path.
+    """
     text = _string(value, path)
     assert text is not None
+    normalized = text.replace("\\", "/")
     windows = PureWindowsPath(text)
-    posix = PurePosixPath(text)
+    posix = PurePosixPath(normalized)
+    segments = normalized.split("/")
     if (
-        "\x00" in text
+        any(ord(character) < 32 for character in text)
         or windows.is_absolute()
         or windows.drive
         or posix.is_absolute()
-        or ".." in posix.parts
-        or ".." in windows.parts
+        or any(segment in {"", ".", ".."} for segment in segments)
     ):
-        _fail(path, "must be a runtime-relative path without parent traversal")
-    return PurePosixPath(text.replace("\\", "/")).as_posix()
+        _fail(
+            path,
+            "must name an exact runtime-relative file without absolute, device, or parent-traversal syntax",
+        )
+    if _PATH_SCOPE_METACHAR_RE.search(normalized) or any(
+        segment.endswith((".", " "))
+        or _WINDOWS_DEVICE_SEGMENT_RE.fullmatch(segment) is not None
+        for segment in segments
+    ):
+        _fail(
+            path,
+            "must name exact runtime-relative files without wildcard, pathspec, or Windows alias metacharacters",
+        )
+    return PurePosixPath(normalized).as_posix()
 
 
 def _canonical_scope_identity(value: str) -> str:
@@ -250,7 +273,10 @@ def _canonical_scope_identity(value: str) -> str:
 
 
 def _scope_list(value: Any, path: str) -> list[str]:
-    result = [item.replace("\\", "/") for item in _string_list(value, path)]
+    result = [
+        _path_string(item, f"{path}[{index}]")
+        for index, item in enumerate(_string_list(value, path))
+    ]
     identities = [_canonical_scope_identity(item) for item in result]
     if len(set(identities)) != len(identities):
         _fail(path, "must not contain separator/case aliases")

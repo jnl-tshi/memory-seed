@@ -247,6 +247,81 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "must not overlap"):
             normalize_task_dispatch(alias_conflict)
 
+    def test_edit_authority_rejects_paths_outside_the_runtime(self):
+        invalid_scopes = (
+            "",
+            ".",
+            "../../outside.py",
+            "memory_seed/../../../outside.py",
+            r"..\..\outside.py",
+            "/etc/passwd",
+            r"C:\outside.py",
+            r"C:outside.py",
+            r"\\server\share\outside.py",
+            r"\\?\C:\outside.py",
+            r"\\.\C:\outside.py",
+            "memory_seed/",
+            "memory_seed//task_packet.py",
+            "memory_seed/./task_packet.py",
+            "memory_seed/*.py",
+            "memory_seed/[ab].py",
+            "memory_seed/{task,other}.py",
+            "memory_seed/task_packet.py:stream",
+            "memory_seed/NUL.txt",
+        )
+        for field in ("allowed_files", "forbidden_files"):
+            for scope in invalid_scopes:
+                with self.subTest(field=field, scope=scope):
+                    dispatch = self.dispatch(write_intent="writing")
+                    dispatch["execution"][field] = [scope]
+                    with self.assertRaises(TaskPacketValidationError):
+                        normalize_task_dispatch(dispatch)
+
+        root = self.make_project()
+        escaping = self.dispatch()
+        escaping["execution"]["forbidden_files"] = ["../outside.py"]
+        with self.assertRaises(TaskPacketValidationError):
+            compile_task_packet(escaping, self.binding(root), root)
+
+    def test_edit_authority_uses_one_windows_path_identity(self):
+        duplicate = self.dispatch(write_intent="writing")
+        duplicate["execution"]["allowed_files"] = [
+            r"Memory_Seed\Task_Packet.py",
+            "memory_seed/task_packet.py",
+        ]
+        with self.assertRaisesRegex(TaskPacketValidationError, "separator/case aliases"):
+            normalize_task_dispatch(duplicate)
+
+        conflict = self.dispatch(write_intent="writing")
+        conflict["execution"]["allowed_files"] = [r"Memory_Seed\Task_Packet.py"]
+        conflict["execution"]["forbidden_files"] = ["memory_seed/task_packet.py"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "must not overlap"):
+            normalize_task_dispatch(conflict)
+
+    def test_exact_repo_relative_edit_scopes_preserve_read_only_semantics(self):
+        writing = self.dispatch(write_intent="writing")
+        writing["execution"]["allowed_files"] = [
+            r"memory_seed\task_packet.py",
+            "docs/My File.md",
+            "LICENSE",
+        ]
+        writing["execution"]["forbidden_files"] = ["generated/output.json"]
+        normalized = normalize_task_dispatch(writing)
+        self.assertEqual(
+            normalized["execution"]["allowed_files"],
+            ["memory_seed/task_packet.py", "docs/My File.md", "LICENSE"],
+        )
+
+        read_only = self.dispatch(write_intent="read-only")
+        read_only["execution"]["allowed_files"] = []
+        read_only["execution"]["forbidden_files"] = ["memory_seed/task_packet.py"]
+        normalized_read_only = normalize_task_dispatch(read_only)
+        self.assertEqual(normalized_read_only["execution"]["allowed_files"], [])
+        self.assertEqual(
+            normalized_read_only["retrieval"],
+            normalize_task_dispatch(self.dispatch())["retrieval"],
+        )
+
     def test_effective_profile_requires_a_pinned_topic_or_path_selector(self):
         root = self.make_project()
         dispatch = self.dispatch()
