@@ -55,7 +55,7 @@ class TaskPacketTests(unittest.TestCase):
         )
         (root / ".memory-seed" / "retrieval-profiles" / "implementation" / "v1.yaml").write_text(
             "schema: memory-seed/retrieval-profile\n"
-            "version: 1\nid: implementation\nprofile_version: 1\nextends: []\n"
+            "schema_version: 1\nid: implementation\nprofile_version: 1\nextends: []\n"
             "spec:\n"
             "  filters:\n    paths:\n      - docs/evidence.md\n"
             "  output:\n    include_excerpts: true\n"

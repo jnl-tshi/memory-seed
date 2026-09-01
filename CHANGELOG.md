@@ -20,7 +20,10 @@ All notable changes to Memory Seed are summarized here.
   shared inline/profile preview and resolution. The deterministic Task Packet compiler combines semantic
   dispatch, a measured existing-runtime binding, an exact profile version, and the pinned corpus revision;
   it materializes Evidence Pack sources once and keeps input, output/reasoning, and cost accounting
-  distinct. CLI preview/compile and read-only MCP twins share the same compiler. Init/update deploy missing
+  distinct. The input ledger accounts only for the caller-supplied packet/fixed-instruction/tool-schema
+  envelope; provider totals and hidden platform overhead remain post-run evidence. Task Dispatch file lists
+  bound execution edits, not memory reads, and required retrieval clauses cannot be weakened. CLI
+  preview/compile and read-only MCP twins share the same compiler. Init/update deploy missing
   core profile versions but never overwrite existing versions or custom IDs. Packets remain derived and
   ephemeral; no registry, worker dispatch, authority, provider/pricing lookup, or network dependency was
   added.

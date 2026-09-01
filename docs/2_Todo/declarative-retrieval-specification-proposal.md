@@ -143,47 +143,51 @@ The frontier-authored artifact is the semantic `memory-seed/task-dispatch` v1 ob
 compiler combines it with an exact immutable profile version, a measured existing-runtime binding, and
 the pinned corpus revision produced by Retrieval Specification v2. The complete derived
 `memory-seed/task-packet` v1 contains the resolved Evidence Pack, materialized evidence, execution
-defaults, an all-inclusive input ledger, an output/reasoning reserve, and a distinct cost ledger.
+defaults, a compiler-accounted caller-supplied input envelope, an output/reasoning reserve, and a
+distinct cost ledger. That envelope counts the serialized packet plus the fixed instructions and tool
+schemas supplied explicitly by the caller; it is not the provider's actual total input and does not claim
+to measure hidden platform/system/tool overhead.
 
 `memory-seed task-packet preview|compile` and read-only MCP tools
 `memory_task_packet_preview|memory_task_packet_compile` replay the same core compiler. CLI export is an
 explicit derived-artifact write and refuses overwrite unless requested; MCP always returns the artifact
 inline. Every worker-visible document counts toward input. The resolver's `token_estimate` measures
 evidence content only; it is not model-context usage. Materialized sources are supplied once and must not
-be refetched. Actual provider usage, latency, and cost are post-run evidence only: record them when an
-execution surface exposes them, otherwise mark them unavailable with a reason.
+be refetched. Actual provider input/usage, latency, and cost are post-run evidence only: record them when
+an execution surface exposes them, otherwise mark them unavailable with a reason. The compiler never
+infers platform overhead or actual usage from its deterministic estimates.
 
 The compiler adds no named-spec or packet registry, worker dispatch, worktree creation, authority,
 provider/pricing lookup, network access, or native lifecycle selector. Markdown and project-local profiles
 remain authoritative readable inputs; Evidence Packs and Task Packets remain reconstructable, derived,
 and ephemeral.
 
-## Retrieval Specification v1
+## Retrieval Specification v2
 
 ```yaml
 schema: memory-seed/retrieval-spec
-version: 1
-id: implementation-default
+version: 2
 required:
   constitution: true
   related_decisions: {depth: 2}
-  related_adrs: {status: [accepted, proposed]}
   evidence: {mode: latest}
 optional:
   sessions: {neighbouring_entries: 15}
-  links: {kinds: [related_entries, evolves, replaces]}
+selectors:
+  pinned:
+    - kind: adr
+      id: adr_example
+      reason: Governing accepted decision.
+      required: true
 filters:
   topics: [session-fuse, topics]
   paths: [memory_seed/core.py]
-  include_superseded: true
 ordering: [required_first, graph_distance, recency, stable_identity]
 limits:
   max_entries: 40
-  max_sections_per_entry: 4
   max_tokens: 16000
-  timeout_ms: 5000
 on_missing: {required: fail, optional: report}
-output: {format: evidence-pack, include_resolution_trace: true, include_excerpts: true}
+output: {include_resolution_trace: true, include_excerpts: true}
 ```
 
 Unknown keys fail by default. Extensions require a namespaced `extensions:` block so typos cannot weaken requirements.
@@ -201,18 +205,20 @@ Unknown keys fail by default. Extensions require a namespaced `extensions:` bloc
 
 ```yaml
 schema: memory-seed/retrieval-profile
-version: 1
+schema_version: 1
 id: bug-investigation
+profile_version: 1
+extends: []
 spec:
   required:
-    constitution: true
-    related_decisions: {depth: 2}
-    evidence: {mode: latest}
+    related_decisions:
+      depth: 3
   optional:
-    sessions: {neighbouring_entries: 20}
-    tests: {include_failures: true}
-    alternatives: {include_rejected: true}
-  limits: {max_entries: 50, max_tokens: 18000}
+    sessions:
+      neighbouring_entries: 20
+  limits:
+    max_entries: 40
+    max_tokens: 16000
 ```
 
 Profiles are stored project-locally at
@@ -223,7 +229,11 @@ custom profile ID; changing behavior requires a new version.
 
 ## Composition and overrides
 
-Load exact profile/version; expand `extends` in listed order; reject cycles; recursively merge maps; replace scalars/lists; permit list `append`/`remove` only explicitly; apply packet overrides last; validate and return the expanded effective spec. Required clauses cannot be weakened without `allow_required_downgrade: true` plus policy approval. Composition is enabling, not a vertical-slice blocker.
+Load exact profile/version; expand `extends` in listed order; reject cycles; recursively merge maps;
+replace scalars/lists; permit list `append`/`remove` only explicitly; apply packet overrides last; validate
+and return the expanded effective spec. M2 always refuses any composition or override that weakens a
+required clause. There is no downgrade flag or policy-approval bypass. Composition is enabling, not a
+vertical-slice blocker.
 
 ## Deterministic resolution
 
@@ -241,7 +251,7 @@ CLI, MCP, and Trace call one core resolver:
 10. Fingerprint canonical inputs and ordered evidence identities.
 
 ```text
-effective spec + corpus revision + resolver version + policy context
+effective spec + corpus revision + resolver version
     -> identical ordered evidence IDs, content digests, and fingerprint
 ```
 
@@ -287,7 +297,7 @@ reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exa
 - Packs record resolver version, revision, effective-spec fingerprint, and completeness.
 - Each result records its typed kind, stable ID, canonical source path, content digest, selecting clause,
   declared first-hand/reconstructed provenance, topic/path/date/graph reason, and disposition.
-- `preview` returns expanded spec, validation, estimated counts, and policy decisions without persistence.
+- `preview` returns the expanded spec, validation, and estimated counts without persistence.
 - `resolve` returns pack, warnings, fingerprint, and stage timing/counts.
 - Observability never stores prompts, hidden reasoning, secrets, or raw vectors.
 
@@ -310,7 +320,7 @@ reasons, missing clauses, exclusions, and truncation. Humans can reconstruct exa
 | Forbidden scope | Fail closed with redacted reason |
 | Fingerprint mismatch | Reject and re-resolve |
 
-Validation layers: schema, current-corpus/policy resolution, then pack identity/source/digest/fingerprint integrity.
+Validation layers: schema, current-corpus resolution, then pack identity/source/digest/fingerprint integrity.
 
 Evidence Pack v2 is a deliberate replacement for the ephemeral v1 result shape. V1 used a generic `ref`
 field and classified path-selected ADRs as generic Markdown. V2 uses `id` consistently, classifies valid
@@ -320,7 +330,13 @@ v1 consumer re-runs its Retrieval Specification and receives v2. A v2 validator 
 
 ## Security boundaries
 
-Specs are data, never instructions. Never execute evidence; constrain paths to the runtime; intersect paths with Task Packet `allowed_files` and caller permissions; redact secrets; cap entries/tokens/depth/time/provider use; deny network by default; preserve project/tenant boundaries; treat provider records as untrusted evidence; never grant write, shell, merge, or integration authority. Effective scope is the intersection of spec, packet, policy, and caller permissions.
+Specs are data, never instructions. Never execute evidence; constrain retrieval paths to the active runtime;
+redact secrets; cap entries/tokens/depth/time/provider use; deny network by default; preserve project/tenant
+boundaries; treat provider records as untrusted evidence; never grant write, shell, merge, or integration
+authority. Task Dispatch `allowed_files` and `forbidden_files` govern execution/edit scope, not memory reads,
+and `forbidden_files` does not bar a task-scoped source from Evidence Pack materialization. The compiler does
+not load or intersect project policy; any policy/Constitution content a task needs must enter through the
+declared retrieval contract as evidence.
 
 ## MCP surface
 
@@ -371,10 +387,10 @@ Delivered six fixture-backed, versioned profiles, exact project-local lookup, ef
 inline/profile adapter parity, and semantic Task Dispatch profile binding. Existing inline specs remain
 valid; profiles do not alter `memory_search`.
 
-### M3 — composition and policy intersection (enabling, delivered 2026-09-01)
+### M3 — composition and strict runtime scope (enabling, delivered 2026-09-01)
 
-Delivered ordered `extends`, cycle/duplicate detection, explicit list operators, required-clause downgrade
-protection, scope intersection, and structured trace. The Task Packet compiler additionally validates
+Delivered ordered `extends`, cycle/duplicate detection, explicit list operators, unconditional
+required-clause downgrade protection, runtime-local retrieval bounds, and structured trace. The Task Packet compiler additionally validates
 semantic dispatch plus measured binding and materializes each evidence source once.
 
 ### M4 — Trace and Evidence Envelope (enabling)
@@ -389,7 +405,7 @@ After owner contracts: ADR lifecycle/status, annotation actionability, git/PR/te
 flowchart TD
   M0["M0: v1 contract<br>DELIVERED"] --> M1["M1: MCP slice<br>DELIVERED / unblocks use"]
   M1 --> M2["M2: profiles<br>DELIVERED"]
-  M2 --> M3["M3: composition + policy<br>DELIVERED"]
+  M2 --> M3["M3: composition + runtime scope<br>DELIVERED"]
   M1 --> M4["M4: Trace + envelope<br>ENABLING"]
   M3 --> M5["M5: advanced selectors<br>LATER"]
   M4 --> M5

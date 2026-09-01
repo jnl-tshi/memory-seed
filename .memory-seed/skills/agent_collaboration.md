@@ -204,6 +204,10 @@ toward input: the serialized packet itself, fixed instructions, tool/schema desc
 evidence, and any later supplemental fetch. Tool availability never grants additional write, merge,
 integration, network, or memory authority.
 
+Task Dispatch `allowed_files` and `forbidden_files` are execution/edit boundaries. They do not filter
+Retrieval Specification memory reads, and a path in `forbidden_files` may still be materialized as
+task-scoped evidence. Reading evidence never grants permission to edit its source.
+
 #### Orchestrator evidence flow
 
 Before dispatch, the orchestrator:
@@ -232,14 +236,16 @@ compiler ledger. Keep three ledgers distinct:
 - `cost_ledger`: caller-supplied price arithmetic only, explicitly unavailable when prices were not
   supplied.
 
-Do not collapse input, output, and cost into one token or money figure. Actual provider usage, latency,
-and cost are **post-run evidence**, recorded only when the provider or execution surface exposes them;
+Do not collapse input, output, and cost into one token or money figure. The input ledger is the
+**compiler-accounted caller-supplied envelope**, not actual provider input; hidden platform/system/tool
+overhead is unavailable unless the runtime exposes it. Actual provider input/usage, latency, and cost are
+**post-run evidence**, recorded only when the provider or execution surface exposes them;
 otherwise report each as unavailable with the reason. Never infer actual usage from the resolver estimate,
 budget reserve, or price ceiling.
 
 Workers may use the same read tools for a task-scoped gap. They record the missing question, sources
-consulted, tool call, and token cost in their handoff. For every supplemental fetch, debit its actual token
-cost — including fetched evidence content — from the all-inclusive input budget and confirm it was not
+consulted, tool call, and token estimate in their handoff. For every supplemental fetch, debit its estimated
+token cost — including fetched evidence content — from the compiler-accounted caller envelope and confirm it was not
 already materialized. The resolver `token_estimate` remains only the evidence-content component.
 Return `NEEDS_CONTEXT` only when the gap exceeds the budget, objective, or authority — not merely because
 additional context might be useful.

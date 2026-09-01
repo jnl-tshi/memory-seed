@@ -18,7 +18,8 @@ from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.mcp_server import TOOLS, call_tool
 
 BODY = (
-    "### Decision\n\n"
+    "### Decisions\n\n"
+    "#### D1 - Ship the gated append path\n\n"
     "- D: Ship the gated append path.\n"
     "- R: The ungated one skipped every guard.\n\n"
     "### Summary\n\n"

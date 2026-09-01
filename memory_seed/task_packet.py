@@ -996,7 +996,10 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
         )
     return {
         "safety": {
-            "authority": "dispatch_and_binding_intersection",
+            # Execution/write authority only. Retrieval scope is governed by
+            # the Retrieval Specification and resolver's runtime-local bounds;
+            # allowed_files/forbidden_files do not filter memory reads.
+            "authority": "execution_write_dispatch_and_binding_intersection",
             "network": "not_authorized",
             "worker_dispatch": "not_performed",
             "worktree_creation": "forbidden",

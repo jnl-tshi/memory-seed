@@ -41,7 +41,7 @@ class TaskPacketSurfaceTests(unittest.TestCase):
             encoding="utf-8",
         )
         (root / ".memory-seed" / "retrieval-profiles" / "implementation" / "v1.yaml").write_text(
-            "schema: memory-seed/retrieval-profile\nversion: 1\nid: implementation\n"
+            "schema: memory-seed/retrieval-profile\nschema_version: 1\nid: implementation\n"
             "profile_version: 1\nextends: []\nspec:\n"
             "  filters:\n    paths:\n      - docs/evidence.md\n"
             "  output:\n    include_excerpts: true\n"

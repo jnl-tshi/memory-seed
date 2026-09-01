@@ -66,7 +66,7 @@ class RetrievalProfileTests(unittest.TestCase):
     @staticmethod
     def profile(profile_id, spec, *, extends="[]", version=1):
         return (
-            "schema: memory-seed/retrieval-profile\nversion: 1\n"
+            "schema: memory-seed/retrieval-profile\nschema_version: 1\n"
             f"id: {profile_id}\nprofile_version: {version}\nextends: {extends}\nspec:\n{spec}"
         )
 

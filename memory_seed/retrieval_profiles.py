@@ -21,7 +21,9 @@ from .retrieval_spec import SCHEMA, V2_VERSION, normalize_retrieval_spec_v2
 PROFILE_SCHEMA = "memory-seed/retrieval-profile"
 PROFILE_VERSION = 1
 _PROFILE_ID_RE = re.compile(r"[a-z][a-z0-9-]*\Z")
-_PROFILE_KEYS = frozenset({"schema", "version", "id", "profile_version", "extends", "spec"})
+_PROFILE_KEYS = frozenset(
+    {"schema", "schema_version", "id", "profile_version", "extends", "spec"}
+)
 
 
 class RetrievalProfileValidationError(ValueError):
@@ -57,8 +59,11 @@ def normalize_retrieval_profile(profile: Mapping[str, Any]) -> dict[str, Any]:
         _error("$", "is missing required field(s): " + ", ".join(sorted(missing)))
     if profile["schema"] != PROFILE_SCHEMA:
         _error("schema", f"must equal {PROFILE_SCHEMA!r}")
-    if type(profile["version"]) is not int or profile["version"] != PROFILE_VERSION:
-        _error("version", f"must equal integer {PROFILE_VERSION}")
+    if (
+        type(profile["schema_version"]) is not int
+        or profile["schema_version"] != PROFILE_VERSION
+    ):
+        _error("schema_version", f"must equal integer {PROFILE_VERSION}")
     profile_id, profile_version = _identity(
         profile["id"], profile["profile_version"], path="$"
     )
@@ -83,7 +88,7 @@ def normalize_retrieval_profile(profile: Mapping[str, Any]) -> dict[str, Any]:
         _error("spec", "must not be empty")
     return {
         "schema": PROFILE_SCHEMA,
-        "version": PROFILE_VERSION,
+        "schema_version": PROFILE_VERSION,
         "id": profile_id,
         "profile_version": profile_version,
         "extends": extends,

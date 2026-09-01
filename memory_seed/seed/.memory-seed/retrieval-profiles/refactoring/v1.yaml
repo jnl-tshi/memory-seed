@@ -1,5 +1,5 @@
 schema: memory-seed/retrieval-profile
-version: 1
+schema_version: 1
 id: refactoring
 profile_version: 1
 extends: []

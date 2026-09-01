@@ -71,9 +71,9 @@ def semantic_dispatch() -> dict[str, Any]:
     return json.loads((FIXTURE_ROOT / "dispatch.json").read_text(encoding="utf-8"))
 
 
-def expected_assessment() -> dict[str, Any]:
+def worker_environment() -> dict[str, Any]:
     return json.loads(
-        (FIXTURE_ROOT / "expected_assessment.json").read_text(encoding="utf-8")
+        (FIXTURE_ROOT / "worker_environment.json").read_text(encoding="utf-8")
     )
 
 
@@ -92,7 +92,12 @@ def runtime_binding(root: Path) -> dict[str, Any]:
 
 
 def compile_fixture_packet(root: Path) -> dict[str, Any]:
-    return compile_task_packet(semantic_dispatch(), runtime_binding(root), root)
+    return compile_task_packet(
+        semantic_dispatch(),
+        runtime_binding(root),
+        root,
+        environment=worker_environment(),
+    )
 
 
 def export_fixture_packet(output: Path) -> tuple[Path, Path]:

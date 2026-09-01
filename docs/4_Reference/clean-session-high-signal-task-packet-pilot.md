@@ -1,6 +1,6 @@
 # Clean-session high-signal Task Packet pilot
 
-> **Status:** current compiler-backed pilot reference, rerun 2026-09-01. The
+> **Status:** corrected compiler-backed pilot prepared 2026-09-01; clean-worker rerun pending. The
 > versioned fixture is reproducible; each exported packet is derived and ephemeral.
 > The older M1 convention pilot remains below as historical evidence.
 
@@ -31,42 +31,50 @@ The frontier-authored artifact is the minimal semantic dispatch in
 `tests/fixtures/task_packet_pilot/dispatch.json`. It does not duplicate resolved sources or hand-author a
 complete packet. The deterministic compiler combines that dispatch with `implementation:v1`, the measured
 binding of a fresh offline Git fixture, and the pinned corpus revision to reconstruct the complete Task
-Packet. The versioned fixture corpus and expected assessment are committed; the exported packet and fresh
+Packet. The versioned fixture corpus and exact caller-supplied worker environment are committed; the
+recorded worker assessment will be added only after a genuinely clean balanced run. The exported packet and fresh
 fixture checkout are derived, ephemeral output and stay untracked.
 
 Every worker-visible document counts toward input. Resolver `token_estimate` is evidence-only; it is not
 total worker input or actual provider usage. Materialized sources are present once under
-`materialized_evidence` and are not refetched. The input ledger, output/reasoning reserve, and cost ledger
-remain distinct. Actual provider usage, latency, and cost are post-run evidence only; when the execution
-surface does not expose them, the result says unavailable and why. Compilation performs no registry write,
+`materialized_evidence`; the worker contract says not to refetch them. The input ledger is the
+compiler-accounted caller-supplied envelope (serialized packet plus the exact fixed instructions and tool
+manifest), while the output/reasoning reserve and cost ledger remain distinct. It is not actual provider
+input: hidden platform/system/tool overhead and provider total input are unavailable because the runtime did
+not surface them. Actual provider usage, latency, and cost are also post-run evidence only. Compilation performs no registry write,
 worker dispatch, worktree creation, authority expansion, provider/pricing lookup, or network access.
 
+Any recorded assessment is worker self-report evidence. Its no-refetch, supplemental-call, and
+broad-discovery fields are not mechanically replayed proof when tool-call instrumentation is unavailable.
+Regression tests may validate a recorded JSON schema, evidence references, and internal consistency, but
+must not claim execution provenance the harness could not observe.
+
 The fixture compiled to packet fingerprint
-`sha256:3ec963c4d67a3f711cfe82a77e7ec08480e13c60378c906cafed9acc3d907820` at corpus revision
-`git:de283da2d27125fbb252484f338a6b2876216e3f:sha256:ddfb66e8981d6656267e9d5287bea87029c795203bd895675cdd41d42255ce51`.
+`sha256:a4563fba46b31430e9d375e4ddd555c1e85adb4898ac26e0b852f62caeed883a` at corpus revision
+`git:dcc00d65ff1d917a8ba7c59adc5ef1f3d248c1b8:sha256:ddfb66e8981d6656267e9d5287bea87029c795203bd895675cdd41d42255ce51`.
 
 | Compiler/pilot measurement | Result |
 |---|---:|
-| Frontier semantic-dispatch handoff estimate | 580 tokens |
+| Frontier semantic-dispatch handoff estimate | 574 tokens |
 | Resolver evidence estimate / materialized content estimate | 352 / 352 tokens |
-| Serialized complete packet input | 3,249 tokens |
+| Serialized complete packet input | 3,346 tokens |
+| Exact caller fixed instructions | 341 tokens |
+| Stable caller tool manifest | 124 tokens |
 | Supplemental-input reserve | 1,000 tokens |
-| Total input ledger | 4,250 tokens |
+| Total input ledger | 4,811 tokens |
 | Output/reasoning reserve | 2,500 tokens |
-| Total context envelope | 6,750 tokens |
+| Total context envelope | 7,311 tokens |
 | Selected tier / soft cap / status | balanced / 48,000 / within target |
 | Materialized evidence IDs | `mse_packetpilot:d1`, `adr_task_packet_pilot`, `docs/CONSTITUTION.md`, `docs/pilot-support.md` |
 
-A clean balanced-tier worker received only the exact compiled packet path and the bounded Evidence Pack
-assessment contract. It reported three source-linked conclusions; no missing questions, supplemental
-sources, supplemental calls, unsupported assertions, invalid evidence IDs, repeated fetches, or broad
-discovery. All four materialized IDs were checked and valid. The selected tier was `balanced` with a
-48,000-token soft cap. Actual provider usage, provider latency, and provider cost were each unavailable
-because the execution environment did not surface them; no value was inferred from estimates or reserves.
+The corrected packet and exact launch contract are prepared for a genuinely clean `fork_turns: none`
+balanced-tier worker. No rerun outcome is recorded at this checkpoint. Platform overhead and actual
+provider total input/usage, latency, and cost remain unavailable unless the execution surface reports them;
+the compiler-accounted values above are not substitutes.
 
 The offline regression test recompiles the fixture twice and asserts canonical byte identity, exact
-profile/binding use, single-copy materialization, evidence-reference correctness, zero supplemental and
-broad-discovery outcomes, balanced-cap compliance, unavailable cost reasoning when pricing is absent, and
+profile/binding use, nonzero fixed-instruction/tool-manifest accounting, single-copy materialization,
+balanced-cap compliance, unavailable cost reasoning when pricing is absent, and
 absence of registry/dispatch/worktree/network/authority expansion fields.
 
 ## Historical M1 convention pilot
@@ -266,5 +274,6 @@ source-range fetch must still be logged and debited before synthesis.
 The supplied evidence established a read-only inline interface and runtime path
 containment. It did not independently re-prove byte parity, no-write behavior,
 timeouts, corpus-change handling, provider accounting, cache behavior, or proposed
-`allowed_files`/caller-permission, redaction, and network controls. Do not turn
+execution/write `allowed_files`/caller-permission, redaction, and network controls. Those file lists do
+not filter memory reads or prevent task-scoped evidence materialization. Do not turn
 those reported or proposed properties into fresh claims without targeted evidence.

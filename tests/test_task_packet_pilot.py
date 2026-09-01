@@ -12,8 +12,8 @@ from memory_seed.task_packet import (
 from tests.pilot_task_packet_fixture import (
     build_fixture_runtime,
     compile_fixture_packet,
-    expected_assessment,
     semantic_dispatch,
+    worker_environment,
 )
 
 
@@ -46,6 +46,17 @@ class TaskPacketPilotTests(unittest.TestCase):
         )
         self.assertEqual(packet["cost_ledger"]["status"], "unavailable")
         self.assertEqual(packet["cost_ledger"]["reason"], "pricing_not_supplied")
+        self.assertGreater(packet["input_ledger"]["fixed_instruction_tokens"], 0)
+        self.assertGreater(packet["input_ledger"]["tool_schema_input_tokens"], 0)
+        accounted_input = (
+            packet["input_ledger"]["serialized_packet_input_tokens"]
+            + packet["input_ledger"]["fixed_instruction_tokens"]
+            + packet["input_ledger"]["tool_schema_input_tokens"]
+            + packet["input_ledger"]["supplemental_input_reserve_tokens"]
+        )
+        self.assertEqual(packet["input_ledger"]["total_input_tokens"], accounted_input)
+        self.assertTrue(worker_environment()["fixed_instructions"])
+        self.assertTrue(worker_environment()["tool_schemas"])
 
         manifest = packet["evidence_pack"]["evidence"]
         materialized = packet["materialized_evidence"]
@@ -63,32 +74,6 @@ class TaskPacketPilotTests(unittest.TestCase):
             self.assertEqual(
                 canonical.count(json.dumps(item["content"], ensure_ascii=False)), 1
             )
-
-        assessment = expected_assessment()
-        supplemental_ids = set(assessment["supplemental_sources"])
-        for conclusion in assessment["conclusions"]:
-            self.assertTrue(conclusion["evidence_ids"])
-            self.assertTrue(
-                set(conclusion["evidence_ids"]) <= materialized_ids | supplemental_ids
-            )
-        self.assertTrue(assessment["evidence_id_correctness"]["valid"])
-        self.assertEqual(
-            set(assessment["evidence_id_correctness"]["checked_ids"]),
-            materialized_ids,
-        )
-        self.assertEqual(assessment["supplemental_calls"], 0)
-        self.assertEqual(assessment["unsupported_assertions"], [])
-        self.assertEqual(assessment["repeated_fetches"], [])
-        self.assertFalse(assessment["broad_discovery"])
-        self.assertEqual(assessment["selected_tier"], "balanced")
-        self.assertEqual(assessment["soft_cap_tokens"], 48_000)
-        for field in (
-            "actual_provider_usage",
-            "actual_provider_latency",
-            "actual_provider_cost",
-        ):
-            self.assertEqual(assessment[field]["status"], "unavailable")
-            self.assertTrue(assessment[field]["reason"])
 
         forbidden_expansions = {
             "packet_registry",

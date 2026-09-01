@@ -1,9 +1,13 @@
+import contextlib
+import io
+import os
 import shutil
 import tempfile
 import tomllib
 import unittest
 from pathlib import Path
 
+from memory_seed.cli import main as cli_main
 from memory_seed.core import (
     CORE_RETRIEVAL_PROFILES,
     MEMORY_DIR_NAME,
@@ -206,7 +210,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(custom.read_text(encoding="utf-8"), "existing-custom-id\n")
 
-    def test_doctor_warns_when_managed_retrieval_profile_is_malformed(self):
+    def test_doctor_is_unhealthy_when_managed_retrieval_profile_identity_is_wrong(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
         profile = (
@@ -231,7 +235,42 @@ class ProjectLifecycleTests(unittest.TestCase):
             if "Managed retrieval profile implementation:v1 is invalid" in warning
         )
         self.assertIn("identity does not match exact path", warning)
-        self.assertTrue(result.control_plane_ok)
+        self.assertFalse(result.control_plane_ok)
+        self.assertFalse(result.ok)
+
+    def test_doctor_and_cli_are_unhealthy_when_managed_profile_effective_spec_is_invalid(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "max_tokens: 12000", "max_tokens: 0"
+            ),
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+        self.assertFalse(result.control_plane_ok)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("max_tokens" in warning for warning in result.warnings))
+
+        output = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(cwd)
+            with contextlib.redirect_stdout(output):
+                status = cli_main(["doctor"])
+        finally:
+            os.chdir(previous)
+        self.assertEqual(status, 1)
+        self.assertIn("control plane has issues", output.getvalue())
+        self.assertIn("max_tokens", output.getvalue())
 
     def test_init_merges_into_foreign_routing_file_without_force(self):
         # A pre-existing foreign entry-point file (no frontmatter, e.g. a host's

@@ -1219,10 +1219,13 @@ Status phases were folded into the existing evidence architecture. Publishabilit
 architecture remain deferred. A first-class
 [`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) has its M0-M3
 contracts implemented: inline requests and exact immutable project-local profiles resolve deterministically
-through composition, bounded overrides, policy/scope intersection, and Evidence Pack v2. The
+through composition, bounded overrides, runtime-local retrieval bounds, and Evidence Pack v2. Required
+clauses cannot be weakened. Task Dispatch file lists govern execution edits rather than memory reads; the
+compiler does not load or intersect project policy. The
 `memory-seed/task-dispatch` v1 compiler combines semantic dispatch, a measured existing-runtime binding,
 one exact profile version, and the pinned corpus revision into a complete derived Task Packet with
-single-copy materialized evidence and distinct input/output/cost accounting. CLI and read-only MCP adapters
+single-copy materialized evidence and distinct input/output/cost accounting. Its input ledger is the
+compiler-accounted caller-supplied envelope, not provider total input or hidden platform overhead. CLI and read-only MCP adapters
 share the core compiler. Six core v1 profiles seed missing versions without overwriting existing versions
 or custom IDs. Trace/Evidence Envelope integration and advanced selectors remain planned; no registry,
 dispatch engine, authority, provider lookup, or network dependency was added.
