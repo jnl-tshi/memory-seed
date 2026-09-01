@@ -394,16 +394,21 @@ class RetrievalProfileTests(unittest.TestCase):
             return real_guard(root_path, candidate, stage=stage, details=details)
 
         public_calls = (
-            lambda: preview_retrieval_spec(spec, root),
-            lambda: resolve_retrieval_spec(spec, root),
-            lambda: preview_retrieval_input(spec=spec, cwd=root),
-            lambda: resolve_retrieval_input_pack(spec=spec, cwd=root),
+            ("preview_retrieval_spec", lambda: preview_retrieval_spec(spec, root)),
+            ("resolve_retrieval_spec", lambda: resolve_retrieval_spec(spec, root)),
+            ("preview_retrieval_input", lambda: preview_retrieval_input(spec=spec, cwd=root)),
+            ("resolve_retrieval_input_pack", lambda: resolve_retrieval_input_pack(spec=spec, cwd=root)),
         )
         with patch("memory_seed.retrieval._runtime_scoped_candidate_path", side_effect=reject_topic), patch(
             "memory_seed.retrieval.extract_memory_chunks"
         ) as extract:
-            for call in public_calls:
-                with self.subTest(call=call), self.assertRaises(RetrievalSpecResolutionError) as raised:
+            # subTest's label must stay a plain string, not the callable itself - pytest-xdist
+            # reports a subtest result by serializing its parameters back from the worker
+            # process to the controller, and a bare function/lambda can't be pickled for that
+            # trip (execnet.gateway_base.DumpError: can't serialize <class 'function'>). The
+            # test passed either way; only the cross-process report of *which* subtest broke.
+            for name, call in public_calls:
+                with self.subTest(call=name), self.assertRaises(RetrievalSpecResolutionError) as raised:
                     call()
                 self.assertEqual(raised.exception.code, "forbidden_path")
             extract.assert_not_called()
