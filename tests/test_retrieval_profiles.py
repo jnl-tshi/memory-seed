@@ -489,6 +489,14 @@ class RetrievalProfileTests(unittest.TestCase):
         }
         pack = resolve_retrieval_spec(spec, root)
 
+        retained_required = copy.deepcopy(pack)
+        retained_required["effective_spec"]["selectors"]["pinned"][0].pop("required", None)
+        retained_required["effective_spec_fingerprint"] = retrieval_spec_fingerprint(
+            retained_required["effective_spec"]
+        )
+        retained_required["fingerprint"] = _evidence_pack_fingerprint(retained_required)
+        self.assertTrue(validate_evidence_pack(retained_required, root)["valid"])
+
         deleted_required = copy.deepcopy(pack)
         deleted_required["effective_spec"]["selectors"]["pinned"][0].pop("required", None)
         deleted_required["effective_spec_fingerprint"] = retrieval_spec_fingerprint(

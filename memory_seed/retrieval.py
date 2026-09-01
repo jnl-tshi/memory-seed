@@ -2035,7 +2035,7 @@ def validate_evidence_pack(
                 )
             if pin is not None and (
                 item["model_selection_reasons"] != [pin["reason"]]
-                or item["pinned_required"] is not pin["required"]
+                or item["pinned_required"] is not pin.get("required", True)
             ):
                 raise RetrievalSpecResolutionError(
                     "invalid_pack",
