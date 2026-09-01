@@ -7290,18 +7290,40 @@ def _apply_session_fuse_plan(
                 changed=False,
                 issues=[f"{target_rel}: existing diagram blocks are not chronological{existing_note(target_rel)}"],
             )
-        by_id = {record.entry_id: record for record in existing if record.entry_id}
+        # Block identity is (authority identity, heading timestamp) - see the
+        # comment on the planning side (base_sidecars/source_sidecars above).
+        # Keying this dedup check by entry_id alone silently excluded every
+        # adr_id-authored block (entry_id is None for those), so an ADR diagram
+        # could never be recognised as already present: a brand-new diagram-
+        # sidecar file that git's own merge already placed in the working tree
+        # got the identical block appended a second time here, unconditionally,
+        # every fuse. Entry-authored blocks were never affected - entry_id is
+        # never None for those - which is why this only ever showed up on ADR
+        # reviews.
+        def _sidecar_identity(record: _DiagramSidecarRecord) -> tuple[str, str] | None:
+            authority = f"entry:{record.entry_id}" if record.entry_id else (
+                f"adr:{record.adr_id}" if record.adr_id else None
+            )
+            return (authority, record.timestamp or "") if authority else None
+
+        by_identity = {
+            key: record
+            for record in existing
+            if (key := _sidecar_identity(record)) is not None
+        }
         writable_records = list(existing)
         for record in incoming:
-            current = by_id.get(record.entry_id)
+            identity = _sidecar_identity(record)
+            current = by_identity.get(identity) if identity is not None else None
             if current is not None:
                 if current.text == record.text:
-                    already_present.append(record.entry_id or "")
+                    already_present.append(record.entry_id or record.adr_id or "")
                     continue
+                label = f"entry_id {record.entry_id}" if record.entry_id else f"adr_id {record.adr_id}"
                 return SessionFuseResult(
                     changed=False,
                     issues=[
-                        f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"
+                        f"{target_rel}: diagram for {label} already exists with different text"
                         f"{immutable_note(target_rel)}"
                     ],
                 )
