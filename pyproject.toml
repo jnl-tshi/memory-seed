@@ -34,6 +34,11 @@ memory-trace = "memory_trace.cli:main"
 # web-framework-free; `pip install "memory-seed[trace]"` enables the local
 # Memory Trace browser UI and the `memory-trace` command.
 trace = ["fastapi>=0.110", "uvicorn>=0.27"]
+# Test-only. `pytest -n auto` parallelizes the suite across worker processes -
+# measured 10:15 -> 4:07 wall-clock on 16 cores (1412 tests, mostly independent
+# git-subprocess/tempdir integration tests, no single pathological test
+# dominates runtime so distributing them beats optimizing any one of them).
+dev = ["pytest", "pytest-xdist"]
 
 [tool.setuptools]
 packages = ["memory_seed", "memory_trace"]
