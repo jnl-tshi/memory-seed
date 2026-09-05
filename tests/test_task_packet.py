@@ -555,11 +555,29 @@ class TaskPacketTests(unittest.TestCase):
         writing = self.dispatch(write_intent="writing")
         writing["execution"]["allowed_files"].append("docs/new-contract.md")
         writing["execution"]["expected_absent"] = ["docs/new-contract.md"]
-        compile_task_packet(writing, binding, root)
+        writing_packet = compile_task_packet(writing, binding, root)
+        defaults = writing_packet["execution_defaults"]
+        self.assertEqual(defaults["preflight"][0], f"Set-Location -LiteralPath {str(root)!r}")
+        self.assertIn("git branch --show-current", defaults["preflight"])
+        self.assertEqual(defaults["escalated_shell"]["required_location"], str(root))
+        self.assertEqual(defaults["escalated_shell"]["required_branch"], "codex/contracts")
+        self.assertTrue({"base_sha", "final_head_sha", "all_commit_hashes"} <= set(defaults["handoff"]))
         (root / "docs" / "new-contract.md").write_text("created\n", encoding="utf-8")
         with self.assertRaises(TaskPacketValidationError) as caught:
             compile_task_packet(writing, binding, root)
         self.assertEqual(caught.exception.code, "unexpected_existing_path")
+
+        implements = self.dispatch()
+        implements["execution"]["implements"] = ["mse_packet0001:d1"]
+        self.assertEqual(
+            compile_task_packet(implements, self.binding(root), root)["dispatch"]["execution"]["implements"],
+            ["mse_packet0001:d1"],
+        )
+        unresolved = self.dispatch()
+        unresolved["execution"]["implements"] = ["mse_packet0001:d2"]
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(unresolved, self.binding(root), root)
+        self.assertEqual(caught.exception.code, "unresolved_implements")
 
     def test_component_measurements_are_complete_and_fingerprinted(self):
         root = self.make_project()

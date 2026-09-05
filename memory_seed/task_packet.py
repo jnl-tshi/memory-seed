@@ -1316,7 +1316,7 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
     ]
     if writing:
         preflight.insert(
-            0,
+            1,
             f"memory-seed worktree guard --agent {binding['agent_type']} --write-intent",
         )
     return {
