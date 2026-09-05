@@ -2,6 +2,7 @@
   "schema": "memory-seed/task-dispatch",
   "version": 1,
   "objective": "Assess whether the compiled Evidence Pack supplies the complete bounded context for the clean worker contract.",
+  "constitution_refs": [],
   "project_context": {
     "project_type_and_purpose": "Memory Seed is a local-first, Markdown-authoritative project-memory system for file-reading AI agents. It preserves decisions, evidence, and operational context without requiring a hosted service or authoritative derived store.",
     "relevant_subsystem": "The Retrieval Profile, Retrieval Specification v2 resolver, Evidence Pack v2 materializer, and Task Packet v1 compiler reconstruct bounded worker input from explicit semantic dispatch.",
@@ -25,7 +26,16 @@
     ],
     "output_contract": [
       "Report missing questions, supplemental sources and calls, unsupported assertions, evidence-ID correctness, repeated fetches, and whether broad discovery occurred."
-    ]
+    ],
+    "expected_absent": [],
+    "acceptance_observables": [
+      {
+        "name": "evidence-assessment",
+        "command": "check each conclusion against supplied evidence IDs",
+        "expected_exit_code": 0
+      }
+    ],
+    "implements": []
   },
   "retrieval": {
     "profile": "implementation",

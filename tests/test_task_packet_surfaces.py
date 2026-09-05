@@ -43,6 +43,7 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         (root / ".memory-seed" / "retrieval-profiles" / "implementation" / "v1.yaml").write_text(
             "schema: memory-seed/retrieval-profile\nschema_version: 1\nid: implementation\n"
             "profile_version: 1\nextends: []\nspec:\n"
+            "  selectors:\n    path_references: true\n"
             "  filters:\n    paths:\n      - docs/evidence.md\n"
             "  output:\n    include_excerpts: true\n"
             "  limits:\n    max_entries: 20\n    max_tokens: 12000\n",
@@ -67,6 +68,7 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         return {
             "schema": "memory-seed/task-dispatch", "version": 1,
             "objective": "Compile one reconstructable Task Packet.",
+            "constitution_refs": [],
             "project_context": {
                 "project_type_and_purpose": context, "relevant_subsystem": context,
                 "task_fit": context, "downstream_use": context,
@@ -77,6 +79,13 @@ class TaskPacketSurfaceTests(unittest.TestCase):
                 "write_intent": "read-only", "allowed_files": [], "forbidden_files": [],
                 "validation": ["python -m unittest tests.test_task_packet_surfaces"],
                 "output_contract": ["Return one source-linked handoff."],
+                "expected_absent": [],
+                "acceptance_observables": [{
+                    "name": "task-packet-surface-tests",
+                    "command": "python -m unittest tests.test_task_packet_surfaces",
+                    "expected_exit_code": 0,
+                }],
+                "implements": [],
             },
             "retrieval": {"profile": "implementation", "profile_version": 1, "overrides": {}},
             "budget": {"supplemental_input_tokens": 1000, "output_tokens": 2000,

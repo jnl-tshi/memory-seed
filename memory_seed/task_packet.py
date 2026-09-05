@@ -51,6 +51,11 @@ TIER_BANDS: dict[str, dict[str, int]] = {
     "balanced": {"target_tokens": 32_000, "soft_cap_tokens": 48_000, "shard_threshold_tokens": 64_000},
     "frontier": {"target_tokens": 64_000, "soft_cap_tokens": 96_000, "shard_threshold_tokens": 128_000},
 }
+CONSTITUTION_PROJECTION_TARGETS = {
+    "economy": 2_000,
+    "balanced": 4_000,
+    "frontier": 8_000,
+}
 
 _DISPATCH_KEYS = frozenset(
     {
@@ -61,6 +66,7 @@ _DISPATCH_KEYS = frozenset(
         "execution",
         "retrieval",
         "budget",
+        "constitution_refs",
         "memory_update_policy",
         "memory_checkpoints",
     }
@@ -84,6 +90,9 @@ _EXECUTION_KEYS = frozenset(
         "forbidden_files",
         "validation",
         "output_contract",
+        "expected_absent",
+        "acceptance_observables",
+        "implements",
     }
 )
 _RETRIEVAL_KEYS = frozenset({"profile", "profile_version", "overrides"})
@@ -126,6 +135,17 @@ _PRICING_KEYS = frozenset(
 _PROFILE_ID_RE = re.compile(r"[a-z][a-z0-9-]*\Z")
 _SLUG_RE = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _SHA_RE = re.compile(r"[0-9a-fA-F]{40}\Z")
+_DECISION_REF_RE = re.compile(
+    r"(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):d[1-9][0-9]*\Z"
+)
+_CONSTITUTION_REF_RE = re.compile(r"constitution:v\d+#[a-z0-9][a-z0-9-]*\Z")
+_CONSTITUTION_ANCHOR_RE = re.compile(
+    r"<!--\s*constitution-ref:\s*(constitution:v\d+#[a-z0-9-]+)\s*-->"
+)
+_CONSTITUTION_VERSION_RE = re.compile(r"\*\*Version:\*\*\s*([0-9]+(?:\.[0-9]+)*)[^\n]*\*\*RATIFIED")
+_CONSTITUTION_BINDING_RE = re.compile(
+    r"`(constitution:v\d+#[a-z0-9][a-z0-9-]*)`\s*\((governing|supporting)\)"
+)
 _EXACT_SESSION_PATH_RE = re.compile(
     r"\.memory-seed/sessions/[A-Za-z0-9._/-]+\.md\Z", re.IGNORECASE
 )
@@ -316,6 +336,15 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     if type(dispatch["version"]) is not int or dispatch["version"] != TASK_DISPATCH_VERSION:
         _fail("version", f"must equal integer {TASK_DISPATCH_VERSION}")
     objective = _string(dispatch["objective"], "objective")
+    constitution_refs = _string_list(
+        dispatch.get("constitution_refs", []), "constitution_refs"
+    )
+    for index, reference in enumerate(constitution_refs):
+        if _CONSTITUTION_REF_RE.fullmatch(reference) is None:
+            _fail(
+                f"constitution_refs[{index}]",
+                "must use a stable 'constitution:vN#slug' anchor",
+            )
 
     context_in = _mapping(dispatch["project_context"], "project_context")
     _exact_keys(
@@ -361,7 +390,21 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         execution_in,
         "execution",
         _EXECUTION_KEYS,
-        required=_EXECUTION_KEYS,
+        required=frozenset(
+            {
+                "role",
+                "persona",
+                "capability_tier",
+                "write_intent",
+                "allowed_files",
+                "forbidden_files",
+                "validation",
+                "output_contract",
+                "expected_absent",
+                "acceptance_observables",
+                "implements",
+            }
+        ),
     )
     role = _string(execution_in["role"], "execution.role")
     if role not in {"worker", "validator", "researcher"}:
@@ -390,6 +433,56 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         )
     if write_intent == "writing" and not allowed_files:
         _fail("execution.allowed_files", "writing dispatches require at least one allowed file")
+    expected_absent = _scope_list(
+        execution_in["expected_absent"], "execution.expected_absent"
+    )
+    expected_absent_identities = {
+        _canonical_scope_identity(item) for item in expected_absent
+    }
+    missing_creation_authority = sorted(expected_absent_identities - allowed_identities)
+    if missing_creation_authority:
+        _fail(
+            "execution.expected_absent",
+            "must also be named exactly in execution.allowed_files",
+            details={"missing_allowed_files": missing_creation_authority},
+        )
+    observables_in = execution_in["acceptance_observables"]
+    if not isinstance(observables_in, list) or not observables_in:
+        _fail(
+            "execution.acceptance_observables",
+            "must contain at least one directly testable observable",
+        )
+    observables: list[dict[str, Any]] = []
+    observable_names: set[str] = set()
+    for index, observable_in in enumerate(observables_in):
+        observable_path = f"execution.acceptance_observables[{index}]"
+        observable = _mapping(observable_in, observable_path)
+        _exact_keys(
+            observable,
+            observable_path,
+            frozenset({"name", "command", "expected_exit_code"}),
+            required=frozenset({"name", "command", "expected_exit_code"}),
+        )
+        name = _string(observable["name"], f"{observable_path}.name")
+        command = _string(observable["command"], f"{observable_path}.command")
+        exit_code = _nonnegative_int(
+            observable["expected_exit_code"],
+            f"{observable_path}.expected_exit_code",
+        )
+        assert name is not None and command is not None
+        if name in observable_names:
+            _fail("execution.acceptance_observables", "must not contain duplicate names")
+        observable_names.add(name)
+        observables.append(
+            {"name": name, "command": command, "expected_exit_code": exit_code}
+        )
+    implements = _string_list(execution_in["implements"], "execution.implements")
+    for index, reference in enumerate(implements):
+        if _DECISION_REF_RE.fullmatch(reference) is None:
+            _fail(
+                f"execution.implements[{index}]",
+                "must use an exact '<entry-id>:dN' decision identity",
+            )
     execution = {
         "role": role,
         "persona": persona,
@@ -401,6 +494,9 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "output_contract": _string_list(
             execution_in["output_contract"], "execution.output_contract", nonempty=True
         ),
+        "expected_absent": expected_absent,
+        "acceptance_observables": observables,
+        "implements": implements,
     }
 
     retrieval_in = _mapping(dispatch["retrieval"], "retrieval")
@@ -528,6 +624,7 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "schema": TASK_DISPATCH_SCHEMA,
         "version": TASK_DISPATCH_VERSION,
         "objective": objective,
+        "constitution_refs": constitution_refs,
         "project_context": context,
         "execution": execution,
         "retrieval": retrieval,
@@ -868,11 +965,23 @@ def assess_context_budget(
             stage="budget",
             details={"total_context_tokens": total, **band},
         )
+    component_measurements = {
+        name: {
+            "tokens": value,
+            "percentage_of_context_envelope": (
+                # Fixed-width text keeps the ledger's self-accounting bytes
+                # stable while still exposing an unambiguous percentage.
+                f"{(value * 100 / total if total else 0):07.3f}%"
+            ),
+        }
+        for name, value in components.items()
+    }
     return {
         "estimator": TOKEN_ESTIMATOR,
         "tier": tier,
         "band": band,
         **components,
+        "component_measurements": component_measurements,
         "total_input_tokens": total_input,
         "total_context_envelope_tokens": total,
         "status": status,
@@ -1004,11 +1113,204 @@ def materialize_evidence_pack(
     return materialized
 
 
+def _content_digest(content: str) -> str:
+    return "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _constitution_clauses(
+    constitution: Mapping[str, Any],
+) -> tuple[str, str, list[dict[str, Any]]]:
+    """Parse complete, anchor-delimited constitutional clauses from packet evidence.
+
+    The packet compiler deliberately projects only from its already-materialized
+    evidence.  It does not reread the Constitution or manufacture excerpts from
+    a second authority path.  An anchor owns every line through the line before
+    the next anchor, so a selected clause is always complete.
+    """
+    content = str(constitution["content"])
+    source = str(constitution["source"])
+    lines = content.splitlines()
+    anchors = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := _CONSTITUTION_ANCHOR_RE.search(line)) is not None
+    ]
+    version_match = _CONSTITUTION_VERSION_RE.search(content)
+    ratified_version = version_match.group(1) if version_match else "unknown"
+    full_digest = _content_digest(content)
+    clauses: list[dict[str, Any]] = []
+    for ordinal, (start, reference) in enumerate(anchors):
+        end = anchors[ordinal + 1][0] if ordinal + 1 < len(anchors) else len(lines)
+        # A following section heading belongs to the clause whose anchor comes
+        # after that heading, not to this clause.  This matters for markers
+        # placed immediately below their headings and keeps line ranges honest.
+        for candidate_index in range(start + 1, end):
+            if lines[candidate_index].startswith("#"):
+                end = candidate_index
+                break
+        heading = ""
+        for candidate in reversed(lines[: start + 1]):
+            if candidate.startswith("#"):
+                heading = candidate.strip()
+                break
+        clause_content = "\n".join(lines[start:end])
+        clauses.append(
+            {
+                "ref": reference,
+                "path": source,
+                "ratified_version": ratified_version,
+                "heading": heading or "(unheaded constitutional clause)",
+                "line_range": [start + 1, max(start + 1, end)],
+                "full_document_digest": full_digest,
+                "clause_digest": _content_digest(clause_content),
+                "full_document_reference": {
+                    "path": source,
+                    "line_range": [1, max(1, len(lines))],
+                    "content_digest": full_digest,
+                },
+                "content": clause_content,
+            }
+        )
+    return content, ratified_version, clauses
+
+
+def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
+    text = "\n".join(
+        [
+            str(dispatch["objective"]),
+            *(
+                str(value)
+                for value in dispatch["project_context"].values()
+                if not isinstance(value, list)
+            ),
+            *dispatch["project_context"]["non_goals"],
+            *(item["name"] for item in dispatch["execution"]["acceptance_observables"]),
+            *(item["command"] for item in dispatch["execution"]["acceptance_observables"]),
+        ]
+    ).casefold()
+    return {word for word in re.findall(r"[a-z][a-z0-9_-]*", text) if len(word) >= 4}
+
+
+def project_constitution(
+    dispatch: Mapping[str, Any], materialized: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Return bounded, complete governing evidence or an explicit full fallback."""
+    constitution_items = [item for item in materialized if item.get("kind") == "constitution"]
+    if len(constitution_items) != 1:
+        _fail(
+            "materialized_evidence",
+            "must contain exactly one required Constitution before projection",
+            code="invalid_constitution_projection",
+            stage="materialization",
+        )
+    constitution = constitution_items[0]
+    content, ratified_version, clauses = _constitution_clauses(constitution)
+    source = str(constitution["source"])
+    full_digest = _content_digest(content)
+    target = CONSTITUTION_PROJECTION_TARGETS[dispatch["execution"]["capability_tier"]]
+    clauses_by_ref = {clause["ref"]: clause for clause in clauses}
+    explicit_refs = list(dispatch["constitution_refs"])
+    adr_refs: list[tuple[str, str]] = []
+    for item in materialized:
+        if item.get("kind") != "adr":
+            continue
+        for reference, role in _CONSTITUTION_BINDING_RE.findall(str(item["content"])):
+            adr_refs.append((reference, f"selected ADR {item['id']} {role} binding"))
+
+    selected: list[dict[str, Any]] = []
+    if explicit_refs:
+        missing = sorted(set(explicit_refs) - set(clauses_by_ref))
+        if missing:
+            _fail(
+                "constitution_refs",
+                "names anchor(s) absent from the supplied Constitution",
+                code="invalid_constitution_projection",
+                stage="materialization",
+                details={"missing_refs": missing, "source": source},
+            )
+        for reference in explicit_refs:
+            clause = dict(clauses_by_ref[reference])
+            clause["selection_reason"] = "explicit dispatch Constitution reference"
+            selected.append(clause)
+        selection_mode = "explicit_dispatch_refs"
+    elif adr_refs:
+        for reference, reason in adr_refs:
+            clause = clauses_by_ref.get(reference)
+            if clause is None:
+                continue
+            if any(existing["ref"] == reference for existing in selected):
+                continue
+            selected_clause = dict(clause)
+            selected_clause["selection_reason"] = reason
+            selected.append(selected_clause)
+        selection_mode = "selected_adr_refs"
+    if not selected and not explicit_refs:
+        terms = _constitution_ranking_terms(dispatch)
+        ranked = sorted(
+            (
+                (len(terms & set(re.findall(r"[a-z][a-z0-9_-]*", (clause["heading"] + "\n" + clause["content"]).casefold()))), clause)
+                for clause in clauses
+            ),
+            key=lambda item: (-item[0], item[1]["ref"]),
+        )
+        for score, clause in ranked:
+            if score == 0:
+                break
+            projected_tokens = sum(estimate_tokens(item["content"]) for item in selected)
+            clause_tokens = estimate_tokens(clause["content"])
+            if selected and projected_tokens + clause_tokens > target:
+                break
+            selected_clause = dict(clause)
+            selected_clause["selection_reason"] = f"ranked whole-clause lexical score {score}"
+            selected.append(selected_clause)
+        selection_mode = "ranked_whole_clauses"
+
+    if selected:
+        content_tokens = sum(estimate_tokens(item["content"]) for item in selected)
+        return {
+            "mode": "anchored_clauses",
+            "selection_mode": selection_mode,
+            "target_tokens": target,
+            "content_tokens": content_tokens,
+            "over_target": content_tokens > target,
+            "clauses": selected,
+        }
+
+    return {
+        "mode": "full_document_fallback",
+        "selection_mode": selection_mode,
+        "target_tokens": target,
+        "content_tokens": estimate_tokens(content),
+        "over_target": estimate_tokens(content) > target,
+        "fallback_reason": (
+            "Constitution anchors were unavailable or no ranked whole clause met the confidence threshold; "
+            "the complete governing document is supplied without truncation."
+        ),
+        "full_document": {
+            "path": source,
+            "ratified_version": ratified_version,
+            "heading": str(content.splitlines()[0]) if content.splitlines() else "Constitution",
+            "line_range": [1, max(1, len(content.splitlines()))],
+            "full_document_digest": full_digest,
+            "clause_digest": full_digest,
+            "selection_reason": "explicit complete-document fallback",
+            "full_document_reference": {
+                "path": source,
+                "line_range": [1, max(1, len(content.splitlines()))],
+                "content_digest": full_digest,
+            },
+            "content": content,
+        },
+    }
+
+
 def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
     writing = dispatch["execution"]["write_intent"] == "writing"
     preflight = [
+        f"Set-Location -LiteralPath {binding['worktree']!r}",
         "pwd",
         "git rev-parse --show-toplevel",
+        "git branch --show-current",
         "git rev-parse HEAD",
         "git status --short",
     ]
@@ -1038,11 +1340,26 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "status",
             "summary",
             "files_changed",
-            "commit_range_and_hashes",
+            "base_sha",
+            "final_head_sha",
+            "all_commit_hashes",
             "validation_results",
             "known_risks_or_conflicts",
             "supplemental_context_debits",
         ],
+        "scope_blocker_check": {
+            "required": "name the required file and compare it with dispatch.execution.allowed_files",
+            "allowed_files": list(dispatch["execution"]["allowed_files"]),
+        },
+        "escalated_shell": {
+            "required_location": binding["worktree"],
+            "required_branch": binding["working_branch"],
+            "verification": [
+                f"Set-Location -LiteralPath {binding['worktree']!r}",
+                "git rev-parse --show-toplevel",
+                "git branch --show-current",
+            ],
+        },
         "conflict_escalation": [
             "authority_or_scope_conflict",
             "required_evidence_gap",
@@ -1098,6 +1415,21 @@ def compile_task_packet(
     )
     normalized_environment = normalize_environment(environment)
 
+    root = Path(normalized_binding["worktree"])
+    existing_expected_absent = [
+        path
+        for path in normalized_dispatch["execution"]["expected_absent"]
+        if (root / path).exists()
+    ]
+    if existing_expected_absent:
+        _fail(
+            "execution.expected_absent",
+            "must name paths that are absent from the measured worktree",
+            code="unexpected_existing_path",
+            stage="binding",
+            details={"existing_paths": existing_expected_absent},
+        )
+
     retrieval = normalized_dispatch["retrieval"]
     effective_spec = load_retrieval_profile(
         retrieval["profile"],
@@ -1132,7 +1464,7 @@ def compile_task_packet(
             code="invalid_evidence_pack",
             stage="resolution",
         )
-    materialized = materialize_evidence_pack(evidence_pack, cwd)
+    materialized_all = materialize_evidence_pack(evidence_pack, cwd)
     if any(item.get("excerpt") is not None for item in evidence_pack["evidence"]):
         _fail(
             "evidence_pack.evidence",
@@ -1140,6 +1472,26 @@ def compile_task_packet(
             code="duplicate_evidence_content",
             stage="materialization",
         )
+    selected_decisions = {
+        str(item["id"])
+        for item in materialized_all
+        if item.get("kind") == "decision"
+    }
+    missing_implements = sorted(
+        set(normalized_dispatch["execution"]["implements"]) - selected_decisions
+    )
+    if missing_implements:
+        _fail(
+            "execution.implements",
+            "must name exact decision evidence selected for this packet",
+            code="unresolved_implements",
+            stage="materialization",
+            details={"missing_decisions": missing_implements},
+        )
+    constitution_projection = project_constitution(normalized_dispatch, materialized_all)
+    materialized = [
+        item for item in materialized_all if item.get("kind") != "constitution"
+    ]
 
     fixed_tokens = estimate_tokens("\n".join(normalized_environment["fixed_instructions"]))
     tool_tokens = estimate_tokens(normalized_environment["tool_schemas"])
@@ -1158,6 +1510,7 @@ def compile_task_packet(
         },
         "evidence_pack": evidence_pack,
         "materialized_evidence": materialized,
+        "constitution_projection": constitution_projection,
         "execution_defaults": _execution_defaults(normalized_dispatch, normalized_binding),
         "input_ledger": {},
         "cost_ledger": {},

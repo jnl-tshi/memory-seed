@@ -24,6 +24,7 @@ from memory_seed.task_packet import (
     materialize_evidence_pack,
     normalize_runtime_binding,
     normalize_task_dispatch,
+    project_constitution,
 )
 
 
@@ -57,6 +58,7 @@ class TaskPacketTests(unittest.TestCase):
             "schema: memory-seed/retrieval-profile\n"
             "schema_version: 1\nid: implementation\nprofile_version: 1\nextends: []\n"
             "spec:\n"
+            "  selectors:\n    path_references: true\n"
             "  filters:\n    paths:\n      - docs/evidence.md\n"
             "  output:\n    include_excerpts: true\n"
             "  limits:\n    max_entries: 20\n    max_tokens: 12000\n",
@@ -86,6 +88,7 @@ class TaskPacketTests(unittest.TestCase):
             "schema": "memory-seed/task-dispatch",
             "version": 1,
             "objective": "Compile one reconstructable packet.",
+            "constitution_refs": [],
             "project_context": {
                 "project_type_and_purpose": context_piece,
                 "relevant_subsystem": context_piece,
@@ -102,6 +105,15 @@ class TaskPacketTests(unittest.TestCase):
                 "forbidden_files": [".memory-seed/policy.md"],
                 "validation": ["python -m unittest tests.test_task_packet"],
                 "output_contract": ["Return a source-linked handoff."],
+                "expected_absent": [],
+                "acceptance_observables": [
+                    {
+                        "name": "task-packet-tests",
+                        "command": "python -m unittest tests.test_task_packet",
+                        "expected_exit_code": 0,
+                    }
+                ],
+                "implements": [],
             },
             "retrieval": {
                 "profile": "implementation",
@@ -455,6 +467,120 @@ class TaskPacketTests(unittest.TestCase):
             first["input_ledger"]["serialized_packet_input_tokens"],
         )
         self.assertNotIn("generated_at", first_json)
+
+    def test_constitution_projection_prefers_explicit_anchors_and_never_truncates(self):
+        root = self.make_project()
+        constitution = root / "docs" / "CONSTITUTION.md"
+        constitution.write_text(
+            "# Constitution\n\n## Authority\n\n"
+            "<!-- constitution-ref: constitution:v1#markdown-authority -->\n"
+            "Markdown is authoritative. This complete clause is deliberately long enough to prove projection.\n\n"
+            "## Safety\n\n"
+            "<!-- constitution-ref: constitution:v1#local-first -->\n"
+            "The runtime remains local-first and bounded.\n",
+            encoding="utf-8",
+        )
+        dispatch = self.dispatch()
+        dispatch["constitution_refs"] = ["constitution:v1#markdown-authority"]
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        projection = packet["constitution_projection"]
+        self.assertEqual(projection["mode"], "anchored_clauses")
+        self.assertEqual(projection["selection_mode"], "explicit_dispatch_refs")
+        clause = projection["clauses"][0]
+        self.assertEqual(clause["ref"], "constitution:v1#markdown-authority")
+        self.assertEqual(clause["path"], "docs/CONSTITUTION.md")
+        self.assertEqual(clause["line_range"], [5, 7])
+        self.assertEqual(clause["selection_reason"], "explicit dispatch Constitution reference")
+        self.assertRegex(clause["full_document_digest"], r"^sha256:[0-9a-f]{64}$")
+        self.assertRegex(clause["clause_digest"], r"^sha256:[0-9a-f]{64}$")
+        self.assertIn("Markdown is authoritative", clause["content"])
+        self.assertFalse(any(item["kind"] == "constitution" for item in packet["materialized_evidence"]))
+
+        missing = self.dispatch()
+        missing["constitution_refs"] = ["constitution:v1#missing"]
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(missing, self.binding(root), root)
+        self.assertEqual(caught.exception.code, "invalid_constitution_projection")
+
+    def test_constitution_projection_uses_adr_refs_then_explicit_full_fallback(self):
+        dispatch = normalize_task_dispatch(self.dispatch())
+        constitution = {
+            "id": "docs/CONSTITUTION.md",
+            "kind": "constitution",
+            "source": "docs/CONSTITUTION.md",
+            "content": (
+                "# Constitution\n\n## Authority\n\n"
+                "<!-- constitution-ref: constitution:v1#authority -->\n"
+                "Authority clause.\n"
+            ),
+        }
+        adr = {
+            "id": "adr_authority",
+            "kind": "adr",
+            "source": ".memory-seed/decisions/adr_authority.md",
+            "content": "### Constitution\n\n- `constitution:v1#authority` (governing)\n",
+        }
+        adr_projection = project_constitution(dispatch, [constitution, adr])
+        self.assertEqual(adr_projection["selection_mode"], "selected_adr_refs")
+        self.assertEqual(adr_projection["clauses"][0]["ref"], "constitution:v1#authority")
+
+        fallback = project_constitution(
+            dispatch,
+            [{**constitution, "content": "# Constitution\n\nNo stable anchors yet.\n"}],
+        )
+        self.assertEqual(fallback["mode"], "full_document_fallback")
+        self.assertIn("No stable anchors", fallback["full_document"]["content"])
+
+    def test_execution_contracts_validate_creation_acceptance_and_implementation(self):
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["expected_absent"] = ["docs/new-contract.md"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "allowed_files"):
+            normalize_task_dispatch(dispatch)
+        dispatch["execution"]["allowed_files"].append("docs/new-contract.md")
+        normalized = normalize_task_dispatch(dispatch)
+        self.assertEqual(normalized["execution"]["expected_absent"], ["docs/new-contract.md"])
+
+        invalid_observable = self.dispatch()
+        invalid_observable["execution"]["acceptance_observables"] = [{"name": "x"}]
+        with self.assertRaisesRegex(TaskPacketValidationError, "acceptance_observables"):
+            normalize_task_dispatch(invalid_observable)
+        invalid_implements = self.dispatch()
+        invalid_implements["execution"]["implements"] = ["mse_packet0001"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "exact .*decision"):
+            normalize_task_dispatch(invalid_implements)
+
+        root = self.make_project()
+        self.git(root, "checkout", "-b", "codex/contracts")
+        binding = self.binding(root, writing=True)
+        writing = self.dispatch(write_intent="writing")
+        writing["execution"]["allowed_files"].append("docs/new-contract.md")
+        writing["execution"]["expected_absent"] = ["docs/new-contract.md"]
+        compile_task_packet(writing, binding, root)
+        (root / "docs" / "new-contract.md").write_text("created\n", encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(writing, binding, root)
+        self.assertEqual(caught.exception.code, "unexpected_existing_path")
+
+    def test_component_measurements_are_complete_and_fingerprinted(self):
+        root = self.make_project()
+        first_dispatch = self.dispatch()
+        second_dispatch = self.dispatch()
+        second_dispatch["execution"]["acceptance_observables"][0]["command"] = "python -m unittest changed"
+        first = compile_task_packet(first_dispatch, self.binding(root), root)
+        second = compile_task_packet(second_dispatch, self.binding(root), root)
+        self.assertNotEqual(first["dispatch_fingerprint"], second["dispatch_fingerprint"])
+        measurements = first["input_ledger"]["component_measurements"]
+        self.assertEqual(
+            set(measurements),
+            {
+                "serialized_packet_input_tokens",
+                "fixed_instruction_tokens",
+                "tool_schema_input_tokens",
+                "supplemental_input_reserve_tokens",
+                "output_reasoning_reserve_tokens",
+            },
+        )
+        self.assertTrue(all("tokens" in item and "percentage_of_context_envelope" in item for item in measurements.values()))
 
     def test_materialization_rejects_tampered_and_stale_packs(self):
         root = self.make_project()
