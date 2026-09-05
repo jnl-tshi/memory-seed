@@ -10,7 +10,7 @@
 - CLI `provenance show`, `bind`, and `check` share one validation path with MCP `memory_decision_provenance` and `memory_decision_provenance_bind`.
 - Bindings are append-only Markdown JSON events containing only validated reference data; projections are generated transiently from Git with 0–20 context lines (default 3).
 - Runtime records select the owning sidecar. Retired and detached owners cannot append; descendant runtime writes are refused from a root surface while explicitly selected runtimes remain readable.
-- ESR reports provenance sidecar/reference evidence and temporal-lineage status. It does not claim Git commit clocks prove calendar time, and it will not modify `.gitignore` to publish a derived cache.
+- ESR reports provenance sidecar/reference evidence and temporal-lineage classifications. The required cache path is explicitly ignored; Git commit clocks still do not prove calendar time.
 
 ## Exact tests
 
@@ -22,9 +22,20 @@ git diff --check
 ## API assumptions and concerns
 
 - The fixed provenance engine is the sole schema/append-only authority; adapters only transport validated records.
-- A temporal cache is refreshed only when `.memory-seed/.temporal-lineage.json` is already ignored. ESR reports `cache-unignored` otherwise, rather than extending an unscoped tracked-file policy.
+- `.memory-seed/.temporal-lineage.json` is now explicitly ignored as required by the accepted ESR observable. ESR emits reachable-order, claimed-timestamp relation, and calendar-evidence classifications without network witnesses.
 - No network witness is consulted. ESR labels Git-based ordering separately from independently witnessed calendar-time evidence.
 
 ## Task Packet reflection
 
 The packet's explicit decision refs correctly constrained the work to public adapters and ESR aggregation. The allowlist required the temporal-cache integration to remain non-invasive: refusing an unignored cache is safer than silently editing `.gitignore`, while still exposing the required prerequisite.
+
+## Round-one reviewer fix receipt
+
+- Measured nested-runtime topology now controls active-pod write authority. A root cannot mint a writable pod identity by supplying a record, while explicit descendant and retired inspection works through both CLI runtime files and MCP runtime objects.
+- Append-only evidence is now a Git-history prefix audit. Missing baseline evidence is `unverifiable`; deleted, reordered, malformed, or historically rewritten event streams are `violated`, never `true` by assertion.
+- The approved cache ignore declaration was added, and ESR now publishes temporal classifications rather than only cache status.
+- Tests cover hostile real nested runtime ownership, missing decision refs, unavailable Git, event deletion and cross-kind reordering, CLI parity, and cache-backed ESR classification output.
+
+### Updated reflection
+
+The review exposed that schema validation is not authority validation and that a parsed event list is not append-only proof. The fix keeps both guarantees at the surface boundary: filesystem topology authorizes ownership and Git anchors event order, while the engine remains the sole source of binding schema and projection semantics.

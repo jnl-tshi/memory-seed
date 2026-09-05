@@ -15,6 +15,7 @@ build/
 .memory-seed/.file-touch-stamp
 .memory-seed/.retrieval-log.jsonl
 .memory-seed/.retrieval-attention.json
+.memory-seed/.temporal-lineage.json
 .memory-seed/backups/
 
 # Demo sub-project build artifacts
