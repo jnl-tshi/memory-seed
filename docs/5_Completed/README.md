@@ -82,6 +82,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [multi-user-deep-research-report.md](multi-user-deep-research-report.md) | — | — | — |
 | [multi-user-session-memory-proposal.md](multi-user-session-memory-proposal.md) | — | — | — |
 | [operating-mode-variables-proposal.md](operating-mode-variables-proposal.md) | P2 | — | completed |
+| [outcome-level-composition-constitutional-amendment.md](outcome-level-composition-constitutional-amendment.md) | — | — | — |
 | [persona-usage-deactivation-esr-proposal.md](persona-usage-deactivation-esr-proposal.md) | — | — | — |
 | [ponytail-implementation.md](ponytail-implementation.md) | — | — | — |
 | [proactive-history-retrieval-discipline-proposal.md](proactive-history-retrieval-discipline-proposal.md) | — | — | — |
