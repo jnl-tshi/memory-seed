@@ -1399,6 +1399,8 @@ _COMMIT_CADENCE_HIGH = {
 }
 _TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
 _TASK_PACKET_ACTIVATION_VERSION = 1
+_TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
+_TASK_PACKET_ACTIVATION_RECEIPT_VERSION = 1
 _FULL_SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
 _CADENCE_ENTRY_ADD_RE = re.compile(r"^\+##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.+$")
 _CADENCE_NUMBERED_DECISION_ADD_RE = re.compile(r"^\+####\s+D[1-9][0-9]*\s*[-–]\s*.+$")
@@ -1439,6 +1441,37 @@ def _packet_fingerprint_is_valid(packet: Mapping[str, Any]) -> bool:
     return secrets.compare_digest(fingerprint, expected)
 
 
+def _activation_receipt_matches(packet: Mapping[str, Any], receipt: object) -> bool:
+    """Check the deterministic activation receipt before trusting packet state.
+
+    This is intentionally not a security signature: a malicious repository
+    writer can alter local Git metadata. It ensures ordinary callers cannot
+    turn arbitrary config or skeletal JSON into provenance trailers/cadence
+    authority without the complete compiler-shaped packet activation record.
+    """
+    if not isinstance(receipt, Mapping):
+        return False
+    dispatch = packet.get("dispatch")
+    binding = packet.get("runtime_binding")
+    evidence_pack = packet.get("evidence_pack")
+    execution = dispatch.get("execution") if isinstance(dispatch, Mapping) else None
+    if not isinstance(binding, Mapping) or not isinstance(evidence_pack, Mapping) or not isinstance(execution, Mapping):
+        return False
+    expected = {
+        "schema": _TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA,
+        "version": _TASK_PACKET_ACTIVATION_RECEIPT_VERSION,
+        "compiler": "memory_seed.task_packet.compile_task_packet",
+        "activation": "memory_seed.task_packet.activate_task_packet",
+        "packet_fingerprint": packet.get("fingerprint"),
+        "dispatch_fingerprint": packet.get("dispatch_fingerprint"),
+        "evidence_pack_fingerprint": evidence_pack.get("fingerprint"),
+        "runtime_binding": dict(binding),
+        "objective": dispatch.get("objective"),
+        "implements": list(execution.get("implements", ())) if isinstance(execution.get("implements"), list) else None,
+    }
+    return dict(receipt) == expected
+
+
 def _activated_packet_base_sha(root: Path) -> str | None:
     """Verified packet base for this exact worktree/branch, if activated."""
     code, branch = _git_text(root, ("branch", "--show-current"))
@@ -1463,6 +1496,8 @@ def _activated_packet_base_sha(root: Path) -> str | None:
         or packet.get("packet_version") != 1
         or not _packet_fingerprint_is_valid(packet)
     ):
+        return None
+    if not _activation_receipt_matches(packet, payload.get("receipt")):
         return None
     dispatch = packet.get("dispatch")
     execution = dispatch.get("execution") if isinstance(dispatch, dict) else None

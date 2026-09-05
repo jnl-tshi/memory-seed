@@ -681,7 +681,11 @@ class TaskPacketTests(unittest.TestCase):
         history = Path(first["activation_history"])
         self.assertTrue(artifact.is_file())
         self.assertTrue(history.is_file())
-        self.assertEqual(json.loads(artifact.read_text(encoding="utf-8"))["packet"]["fingerprint"], packet["fingerprint"])
+        artifact_payload = json.loads(artifact.read_text(encoding="utf-8"))
+        self.assertEqual(artifact_payload["packet"]["fingerprint"], packet["fingerprint"])
+        self.assertEqual(artifact_payload["receipt"]["packet_fingerprint"], packet["fingerprint"])
+        self.assertEqual(artifact_payload["receipt"]["dispatch_fingerprint"], packet["dispatch_fingerprint"])
+        self.assertEqual(artifact_payload["receipt"]["evidence_pack_fingerprint"], packet["evidence_pack"]["fingerprint"])
         self.assertIn("activation", packet["execution_defaults"])
         self.assertIn("cadence", packet["execution_defaults"])
         first_history = history.read_text(encoding="utf-8")
@@ -727,6 +731,36 @@ class TaskPacketTests(unittest.TestCase):
             binding_update_reason="Expanded packet scope for the evidence fixture.",
         )
         self.assertTrue(scoped["binding_updated"])
+
+    def test_activation_rejects_unvalidated_runtime_binding_fields(self):
+        root = self.make_project()
+        self.git(root, "checkout", "-b", "codex/activation-binding")
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+
+        invalid_values = {
+            "owner": "Not A Slug",
+            "agent_type": "Not A Slug",
+            "integration_artifact": "untracked",
+            "base_branch": "codex/missing-base",
+            "base_sha": "0" * 40,
+            "expected_directory": str(root.parent),
+            "working_branch": "main",
+            "worktree": str(root.parent),
+        }
+        for field, value in invalid_values.items():
+            with self.subTest(field=field):
+                invalid = copy.deepcopy(packet)
+                invalid["runtime_binding"][field] = value
+                identity = dict(invalid)
+                identity.pop("fingerprint", None)
+                invalid["fingerprint"] = "sha256:" + hashlib.sha256(
+                    json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
+                with self.assertRaises(TaskPacketValidationError) as caught:
+                    activate_task_packet(invalid, root)
+                self.assertEqual(caught.exception.code, "binding_mismatch")
 
     def test_packet_activation_uses_the_measured_stacked_base_for_cadence(self):
         root = self.make_project()
