@@ -146,6 +146,50 @@ class BranchStatus:
 
 
 @dataclass(frozen=True)
+class CommitCadence:
+    """Measured checkpoint pressure for the current task branch.
+
+    The signal is deliberately multi-dimensional: a branch can be healthy with
+    a broad code change, or with several small memory decisions, but not with
+    accumulating evidence across several dimensions.  It is a warning surface,
+    never an automatic integration gate.
+    """
+
+    available: bool
+    base_ref: str | None
+    target_ref: str | None
+    entries: int = 0
+    decisions: int = 0
+    files: int = 0
+    churn: int = 0
+    moderate_signals: tuple[str, ...] = ()
+    high_signals: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    recommendation: str = "Cadence measurements are unavailable."
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "available": self.available,
+            "base_ref": self.base_ref,
+            "target_ref": self.target_ref,
+            "metrics": {
+                "entries": self.entries,
+                "decisions": self.decisions,
+                "files": self.files,
+                "churn": self.churn,
+            },
+            "thresholds": {
+                "moderate": dict(_COMMIT_CADENCE_MODERATE),
+                "high": dict(_COMMIT_CADENCE_HIGH),
+            },
+            "moderate_signals": list(self.moderate_signals),
+            "high_signals": list(self.high_signals),
+            "warnings": list(self.warnings),
+            "recommendation": self.recommendation,
+        }
+
+
+@dataclass(frozen=True)
 class WorktreeGuardConfig:
     root_write_policy: str
     unmanaged_write_policy: str
@@ -171,6 +215,7 @@ class WorktreeGuardStatus:
     unmanaged_write_policy: str
     recommended_next_action: str
     warnings: tuple[str, ...] = ()
+    cadence: CommitCadence | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -191,6 +236,7 @@ class WorktreeGuardStatus:
             "unmanaged_write_policy": self.unmanaged_write_policy,
             "recommended_next_action": self.recommended_next_action,
             "warnings": list(self.warnings),
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
         }
 
 
@@ -454,7 +500,21 @@ class SessionMergeBranchResult:
     worktree_cleanup_status: str | None = None
     worktree_cleanup_detail: str | None = None
     worktree_cleanup_attempts: int = 0
+    cadence: CommitCadence | None = None
+    cadence_warnings: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
+
+    def integration_preview_contract(self) -> dict[str, Any]:
+        """Stable core payload adapters must surface for a dry-run handoff."""
+        return {
+            "planned_entries": list(self.planned_entries),
+            "planned_sidecars": list(self.planned_sidecars),
+            "planned_link_sidecars": list(self.planned_link_sidecars),
+            "planned_topic_sidecars": list(self.planned_topic_sidecars),
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
+            "cadence_warnings": list(self.cadence_warnings),
+            "issues": list(self.issues),
+        }
 
 
 @dataclass(frozen=True)
@@ -1325,6 +1385,358 @@ def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
     return proc.returncode, proc.stdout.strip()
 
 
+_COMMIT_CADENCE_MODERATE = {
+    "entries": 3,
+    "decisions": 5,
+    "files": 8,
+    "churn": 300,
+}
+_COMMIT_CADENCE_HIGH = {
+    "entries": 6,
+    "decisions": 10,
+    "files": 16,
+    "churn": 750,
+}
+_TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
+_TASK_PACKET_ACTIVATION_VERSION = 1
+_TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
+_TASK_PACKET_ACTIVATION_RECEIPT_VERSION = 1
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
+_CADENCE_ENTRY_ADD_RE = re.compile(r"^\+##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.+$")
+_CADENCE_NUMBERED_DECISION_ADD_RE = re.compile(r"^\+####\s+D[1-9][0-9]*\s*[-–]\s*.+$")
+_CADENCE_SINGULAR_DECISION_ADD_RE = re.compile(r"^\+###\s+Decision\s*$", re.IGNORECASE)
+
+
+def _task_packet_activation_paths(root: Path, branch: str) -> tuple[Path, Path] | None:
+    """Worktree-local packet artifact and append-only receipt paths.
+
+    The Git directory is deliberately worktree-local, not the user's global
+    config and not the repository's common configuration.  The deterministic
+    branch digest keeps another branch from selecting this branch's packet.
+    """
+    code, git_dir_raw = _git_text(root, ("rev-parse", "--git-dir"))
+    if code != 0 or not git_dir_raw:
+        return None
+    git_dir = Path(git_dir_raw)
+    if not git_dir.is_absolute():
+        git_dir = root / git_dir
+    token = hashlib.sha256(branch.encode("utf-8")).hexdigest()
+    directory = git_dir.resolve() / "memory-seed" / "task-packets"
+    return directory / f"{token}.json", directory / f"{token}.jsonl"
+
+
+def _packet_fingerprint_is_valid(packet: Mapping[str, Any]) -> bool:
+    fingerprint = packet.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint.startswith("sha256:"):
+        return False
+    identity = dict(packet)
+    identity.pop("fingerprint", None)
+    try:
+        rendered = json.dumps(
+            identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+    except (TypeError, ValueError):
+        return False
+    expected = "sha256:" + hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(fingerprint, expected)
+
+
+def _activation_receipt_matches(packet: Mapping[str, Any], receipt: object) -> bool:
+    """Check the deterministic activation receipt before trusting packet state.
+
+    This is intentionally not a security signature: a malicious repository
+    writer can alter local Git metadata. It ensures ordinary callers cannot
+    turn arbitrary config or skeletal JSON into provenance trailers/cadence
+    authority without the complete compiler-shaped packet activation record.
+    """
+    if not isinstance(receipt, Mapping):
+        return False
+    dispatch = packet.get("dispatch")
+    binding = packet.get("runtime_binding")
+    evidence_pack = packet.get("evidence_pack")
+    execution = dispatch.get("execution") if isinstance(dispatch, Mapping) else None
+    if not isinstance(binding, Mapping) or not isinstance(evidence_pack, Mapping) or not isinstance(execution, Mapping):
+        return False
+    expected = {
+        "schema": _TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA,
+        "version": _TASK_PACKET_ACTIVATION_RECEIPT_VERSION,
+        "compiler": "memory_seed.task_packet.compile_task_packet",
+        "activation": "memory_seed.task_packet.activate_task_packet",
+        "packet_fingerprint": packet.get("fingerprint"),
+        "dispatch_fingerprint": packet.get("dispatch_fingerprint"),
+        "evidence_pack_fingerprint": evidence_pack.get("fingerprint"),
+        "runtime_binding": dict(binding),
+        "objective": dispatch.get("objective"),
+        "implements": list(execution.get("implements", ())) if isinstance(execution.get("implements"), list) else None,
+    }
+    return dict(receipt) == expected
+
+
+def _activated_packet_base_sha(root: Path) -> str | None:
+    """Verified packet base for this exact worktree/branch, if activated."""
+    code, branch = _git_text(root, ("branch", "--show-current"))
+    if code != 0 or not branch:
+        return None
+    paths = _task_packet_activation_paths(root, branch)
+    if paths is None:
+        return None
+    artifact, _ = paths
+    try:
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != _TASK_PACKET_ACTIVATION_SCHEMA:
+        return None
+    if payload.get("version") != _TASK_PACKET_ACTIVATION_VERSION:
+        return None
+    packet = payload.get("packet")
+    if (
+        not isinstance(packet, dict)
+        or packet.get("packet_schema") != "memory-seed/task-packet"
+        or packet.get("packet_version") != 1
+        or not _packet_fingerprint_is_valid(packet)
+    ):
+        return None
+    if not _activation_receipt_matches(packet, payload.get("receipt")):
+        return None
+    dispatch = packet.get("dispatch")
+    execution = dispatch.get("execution") if isinstance(dispatch, dict) else None
+    if not isinstance(execution, dict) or execution.get("write_intent") != "writing":
+        return None
+    binding = packet.get("runtime_binding")
+    if not isinstance(binding, dict):
+        return None
+    base_sha = binding.get("base_sha")
+    worktree = binding.get("worktree")
+    if not isinstance(base_sha, str) or _FULL_SHA_RE.fullmatch(base_sha.lower()) is None:
+        return None
+    if binding.get("working_branch") != branch or not isinstance(worktree, str):
+        return None
+    try:
+        same_worktree = os.path.normcase(os.path.realpath(worktree)) == os.path.normcase(os.path.realpath(root))
+    except OSError:
+        return None
+    if not same_worktree:
+        return None
+    # The measured SHA, not the mutable branch name, is the packet's cadence
+    # baseline.  Reject a stale or fabricated artifact rather than quietly
+    # falling back to main/master and measuring the wrong stack.
+    if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
+        return None
+    return base_sha.lower()
+
+
+def _cadence_base_ref(root: Path) -> str | None:
+    """Return the local integration ref without consulting remotes or history."""
+    for candidate in ("main", "master"):
+        code, _ = _git_text(root, ("show-ref", "--verify", "--quiet", f"refs/heads/{candidate}"))
+        if code == 0:
+            return candidate
+    return None
+
+
+def _is_cadence_product_path(relative_path: str) -> bool:
+    """Whether a changed path represents product work rather than control state."""
+    normalized = relative_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = normalized.casefold()
+    control_prefixes = (
+        ".memory-seed/",
+        ".agents/",
+        ".superpowers/",
+        ".codex/",
+        ".claude/",
+        ".gemini/",
+        ".cursor/",
+    )
+    control_files = {"agents.md", "claude.md", "gemini.md"}
+    return not normalized.startswith(control_prefixes) and normalized not in control_files
+
+
+def commit_cadence(
+    cwd: str | Path = ".",
+    *,
+    base_ref: str | None = None,
+    target_ref: str = "HEAD",
+) -> CommitCadence:
+    """Measure branch-local checkpoint pressure without searching commit history.
+
+    The comparison is a direct Git tree diff.  For normal work it includes the
+    working tree relative to ``main``/``master``; an integration preview passes
+    its source branch explicitly.  A high signal in any one dimension or two
+    moderate signals recommends a checkpoint.
+    """
+    root = Path(cwd).resolve()
+    code, top = _git_text(root, ("rev-parse", "--show-toplevel"))
+    if code != 0 or not top:
+        return CommitCadence(
+            available=False,
+            base_ref=base_ref,
+            target_ref=target_ref,
+            recommendation="Cadence measurements require a Git worktree.",
+        )
+    root = Path(top)
+    # A verified active Task Packet is the authority for a packet-bound
+    # worktree.  Falling back to main/master retains useful diagnostics for
+    # ordinary repositories with no activated packet.
+    base = base_ref or _activated_packet_base_sha(root) or _cadence_base_ref(root)
+    if base is None:
+        return CommitCadence(
+            available=False,
+            base_ref=None,
+            target_ref=target_ref,
+            recommendation="Cadence measurements need a local main or master branch.",
+        )
+    if _git_text(root, ("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"))[0] != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence base does not resolve to a commit.",
+        )
+    if _git_text(root, ("rev-parse", "--verify", "--quiet", f"{target_ref}^{{commit}}"))[0] != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence target does not resolve to a commit.",
+        )
+
+    code, comparison_base = _git_text(root, ("merge-base", base, target_ref))
+    if code != 0 or not comparison_base:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence merge base could not be measured.",
+        )
+
+    # A one-tree diff deliberately includes both committed branch work and the
+    # current index/worktree.  An integration preview supplies an explicit
+    # source branch, which keeps the measurement read-only and branch-exact.
+    range_args = (comparison_base,) if target_ref == "HEAD" else (comparison_base, target_ref)
+    diff_args = ("diff", "--no-ext-diff", "--unified=0", *range_args)
+    code, patch = _git_text(root, diff_args)
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence diff could not be measured.",
+        )
+    code, changed = _git_text(root, ("diff", "--no-ext-diff", "--name-only", *range_args))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence file count could not be measured.",
+        )
+    code, numstat = _git_text(root, ("diff", "--no-ext-diff", "--numstat", *range_args))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence churn could not be measured.",
+        )
+
+    code, untracked = _git_text(root, ("ls-files", "--others", "--exclude-standard"))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence untracked-file count could not be measured.",
+        )
+
+    # ``git diff <base>`` cannot see untracked files.  They are real unchecked
+    # work, so count their file/churn/text metrics directly rather than asking a
+    # caller to stage them merely to obtain a warning.
+    patch_lines = patch.splitlines()
+    changed_paths = {
+        line for line in changed.splitlines()
+        if line.strip() and _is_cadence_product_path(line)
+    }
+    for relative in (line for line in untracked.splitlines() if line.strip()):
+        candidate = root / relative
+        if not candidate.is_file():
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        # Authored session entries and decisions are memory evidence even
+        # though the session file itself is not product-file/churn pressure.
+        patch_lines.extend("+" + line for line in text.splitlines())
+        if _is_cadence_product_path(relative):
+            changed_paths.add(relative)
+
+    entries = sum(1 for line in patch_lines if _CADENCE_ENTRY_ADD_RE.match(line))
+    decisions = sum(
+        1
+        for line in patch_lines
+        if _CADENCE_NUMBERED_DECISION_ADD_RE.match(line)
+        or _CADENCE_SINGULAR_DECISION_ADD_RE.match(line)
+    )
+    files = len(changed_paths)
+    churn = 0
+    for line in numstat.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) < 3 or not _is_cadence_product_path(parts[2]):
+            continue
+        if parts[0].isdigit():
+            churn += int(parts[0])
+        if parts[1].isdigit():
+            churn += int(parts[1])
+    for relative in untracked.splitlines():
+        candidate = root / relative
+        if not candidate.is_file() or not _is_cadence_product_path(relative):
+            continue
+        try:
+            churn += len(candidate.read_text(encoding="utf-8").splitlines())
+        except (OSError, UnicodeDecodeError):
+            # A binary/unreadable untracked file still contributes its file
+            # signal; churn remains a conservative text-only measurement.
+            continue
+
+    metrics = {"entries": entries, "decisions": decisions, "files": files, "churn": churn}
+    moderate = tuple(
+        f"{name}={metrics[name]} (moderate threshold {_COMMIT_CADENCE_MODERATE[name]})"
+        for name in _COMMIT_CADENCE_MODERATE
+        if metrics[name] >= _COMMIT_CADENCE_MODERATE[name]
+    )
+    high = tuple(
+        f"{name}={metrics[name]} (high threshold {_COMMIT_CADENCE_HIGH[name]})"
+        for name in _COMMIT_CADENCE_HIGH
+        if metrics[name] >= _COMMIT_CADENCE_HIGH[name]
+    )
+    if high or len(moderate) >= 2:
+        detail = "; ".join(high or moderate)
+        warnings = (f"Checkpoint cadence warning: {detail}. Commit or split this work before it grows further.",)
+        recommendation = "Create a tested checkpoint before continuing broad work."
+    elif moderate:
+        warnings = (f"Checkpoint cadence watch: {moderate[0]}.",)
+        recommendation = "Plan a checkpoint soon; another moderate dimension triggers a warning."
+    else:
+        warnings = ()
+        recommendation = "Cadence is within the ordinary checkpoint range."
+    return CommitCadence(
+        available=True,
+        base_ref=base,
+        target_ref=target_ref,
+        entries=entries,
+        decisions=decisions,
+        files=files,
+        churn=churn,
+        moderate_signals=moderate,
+        high_signals=high,
+        warnings=warnings,
+        recommendation=recommendation,
+    )
+
+
 def branch_status(cwd: str | Path = ".") -> BranchStatus:
     """Read-only Git branch posture check for feature-branch guardrails."""
     root = Path(cwd).resolve()
@@ -1648,6 +2060,7 @@ def worktree_guard(
     _, head = _git_text(worktree_path, ("rev-parse", "HEAD"))
     _, status_out = _git_text(worktree_path, ("status", "--short"))
     dirty = bool(status_out.strip())
+    cadence = commit_cadence(worktree_path)
 
     actual_owner = _namespace_owner(repo_root, worktree_path, config.namespaces)
     if _casefold_parts(worktree_path) == _casefold_parts(repo_root):
@@ -1701,6 +2114,7 @@ def worktree_guard(
         severity = "block"
         recommendation = "Move into a configured worktree before editing."
 
+    warnings.extend(cadence.warnings)
     ok = safe_to_write if write_intent else severity != "block"
     return WorktreeGuardStatus(
         ok=ok,
@@ -1720,6 +2134,7 @@ def worktree_guard(
         unmanaged_write_policy=config.unmanaged_write_policy,
         recommended_next_action=recommendation,
         warnings=tuple(warnings),
+        cadence=cadence,
     )
 
 
@@ -7731,6 +8146,7 @@ def session_merge_branch(
         return SessionMergeBranchResult(committed=False, issues=list(preview.issues))
 
     source_worktree, source_worktree_issue = _source_branch_worktree(root, branch)
+    cadence = commit_cadence(root, base_ref="HEAD", target_ref=branch)
     result = SessionMergeBranchResult(
         committed=False,
         planned_entries=list(preview.planned_entries),
@@ -7742,6 +8158,8 @@ def session_merge_branch(
         source_worktree=str(source_worktree) if source_worktree is not None else None,
         worktree_cleanup_status="planned" if source_worktree is not None else None,
         worktree_cleanup_detail=source_worktree_issue,
+        cadence=cadence,
+        cadence_warnings=list(cadence.warnings),
     )
     if dry_run:
         return result
@@ -8623,17 +9041,16 @@ SEED_FILES = [
 # Non-Windows installs use this portable shell delegator; Windows installs use
 # an absolute-Python wrapper from _git_prepare_commit_msg_shim().
 _GIT_PREPARE_COMMIT_MSG_SHIM = """#!/bin/sh
-# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
-# staged session entries. Delegates to the repo-tracked script; never blocks.
+# Installed by memory-seed (hooks install): stamps Memory-Entry and
+# Memory-Implements trailers. Delegates to the repo-tracked script.
 root="$(git rev-parse --show-toplevel)" || exit 0
 script="$root/.memory-seed/hooks/prepare-commit-msg.py"
 [ -f "$script" ] || exit 0
 if command -v python3 >/dev/null 2>&1; then
-  python3 "$script" "$@" || exit 0
+  python3 "$script" "$@"
 else
-  python "$script" "$@" || exit 0
+  python "$script" "$@"
 fi
-exit 0
 """
 
 
@@ -8644,8 +9061,8 @@ def _git_prepare_commit_msg_shim() -> str:
     # sessions fail before the shell script starts. An absolute-Python shebang
     # avoids sh/env and delegates to the repo-tracked standalone script.
     return f"""#!{sys.executable}
-# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
-# staged session entries. Delegates to the repo-tracked script; never blocks.
+# Installed by memory-seed (hooks install): stamps Memory-Entry and
+# Memory-Implements trailers. Delegates to the repo-tracked script.
 import runpy
 import subprocess
 import sys
@@ -8675,8 +9092,11 @@ def main():
     try:
         sys.argv = [str(script), *sys.argv[1:]]
         runpy.run_path(str(script), run_name="__main__")
-    except SystemExit:
-        return 0
+    except SystemExit as exc:
+        # The repo-tracked hook reserves a non-zero exit only for an explicit
+        # cadence refusal.  All operational failures are handled by that script
+        # as success, so propagate this one policy decision on Windows too.
+        return exc.code if isinstance(exc.code, int) else 0
     except Exception:
         return 0
     finally:
