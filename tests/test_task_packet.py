@@ -1,12 +1,15 @@
 import copy
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from memory_seed.core import commit_cadence
 from memory_seed.retrieval import (
     RetrievalSpecResolutionError,
     _evidence_pack_fingerprint,
@@ -655,26 +658,43 @@ class TaskPacketTests(unittest.TestCase):
             compile_task_packet(unresolved, self.binding(root), root)
         self.assertEqual(caught.exception.code, "unresolved_implements")
 
-    def test_writing_packet_activation_binds_exact_implements_and_requires_reason_for_scope_change(self):
+    def test_writing_packet_activation_uses_a_packet_artifact_and_preserves_reasoned_history(self):
         root = self.make_project()
         self.git(root, "checkout", "-b", "codex/activation")
         dispatch = self.dispatch(write_intent="writing")
         dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
         packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
 
-        first = activate_task_packet(packet, root)
+        local_config = root / ".git" / "config"
+        before_local = local_config.read_bytes()
+        isolated_global = root / "protected-global.gitconfig"
+        isolated_global.write_text("[user]\n\tname = Protected Global\n", encoding="utf-8")
+        before_global = isolated_global.read_bytes()
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(isolated_global)}, clear=False):
+            first = activate_task_packet(packet, root)
 
         self.assertTrue(first["activated"])
         self.assertEqual(first["implements"], ["mse_packet0001:d1"])
-        key = "branch.codex/activation.memory-seed-task-packet-implements"
-        self.assertEqual(self.git(root, "config", "--local", "--get-all", key), "mse_packet0001:d1")
+        self.assertEqual(local_config.read_bytes(), before_local)
+        self.assertEqual(isolated_global.read_bytes(), before_global)
+        artifact = Path(first["activation_artifact"])
+        history = Path(first["activation_history"])
+        self.assertTrue(artifact.is_file())
+        self.assertTrue(history.is_file())
+        self.assertEqual(json.loads(artifact.read_text(encoding="utf-8"))["packet"]["fingerprint"], packet["fingerprint"])
         self.assertIn("activation", packet["execution_defaults"])
         self.assertIn("cadence", packet["execution_defaults"])
+        first_history = history.read_text(encoding="utf-8")
+        first_artifact = artifact.read_text(encoding="utf-8")
 
-        changed = self.dispatch(write_intent="writing")
-        changed["execution"]["implements"] = ["mse_packet0001:d1"]
-        changed["execution"]["allowed_files"].append("docs/evidence.md")
-        updated_packet = compile_task_packet(changed, self.binding(root, writing=True), root)
+        identical = activate_task_packet(packet, root)
+        self.assertFalse(identical["binding_updated"])
+        self.assertEqual(history.read_text(encoding="utf-8"), first_history)
+        self.assertEqual(artifact.read_text(encoding="utf-8"), first_artifact)
+
+        changed_implements = self.dispatch(write_intent="writing")
+        changed_implements["execution"]["implements"] = []
+        updated_packet = compile_task_packet(changed_implements, self.binding(root, writing=True), root)
         with self.assertRaises(TaskPacketValidationError) as caught:
             activate_task_packet(updated_packet, root)
         self.assertEqual(caught.exception.code, "binding_update_required")
@@ -682,10 +702,54 @@ class TaskPacketTests(unittest.TestCase):
         updated = activate_task_packet(
             updated_packet,
             root,
-            binding_update_reason="Expanded packet scope for the evidence fixture.",
+            binding_update_reason="Removed completed decision attribution from this packet.",
         )
         self.assertTrue(updated["binding_updated"])
-        self.assertIn("Expanded packet scope", updated["binding_update_reason"])
+        self.assertIn("Removed completed", updated["binding_update_reason"])
+        history_after_implements = history.read_text(encoding="utf-8")
+        receipt = json.loads(history_after_implements.splitlines()[-1])
+        self.assertEqual(receipt["changed"], ["implements"])
+        self.assertEqual(receipt["reason"], updated["binding_update_reason"])
+
+        # Repeating the exact replacement cannot erase its historical reason.
+        activate_task_packet(updated_packet, root)
+        self.assertEqual(history.read_text(encoding="utf-8"), history_after_implements)
+
+        changed_scope = self.dispatch(write_intent="writing")
+        changed_scope["execution"]["allowed_files"].append("docs/evidence.md")
+        scoped_packet = compile_task_packet(changed_scope, self.binding(root, writing=True), root)
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            activate_task_packet(scoped_packet, root)
+        self.assertEqual(caught.exception.code, "binding_update_required")
+        scoped = activate_task_packet(
+            scoped_packet,
+            root,
+            binding_update_reason="Expanded packet scope for the evidence fixture.",
+        )
+        self.assertTrue(scoped["binding_updated"])
+
+    def test_packet_activation_uses_the_measured_stacked_base_for_cadence(self):
+        root = self.make_project()
+        self.git(root, "checkout", "-b", "codex/stack-base")
+        (root / "stack-base-only.txt").write_text("base layer\n", encoding="utf-8")
+        self.git(root, "add", "stack-base-only.txt")
+        self.git(root, "commit", "-m", "stack base")
+        stacked_base = self.git(root, "rev-parse", "HEAD")
+        self.git(root, "checkout", "-b", "codex/stacked-cadence")
+
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
+        binding = self.binding(root, writing=True)
+        binding["base_branch"] = "codex/stack-base"
+        binding["base_sha"] = stacked_base
+        packet = compile_task_packet(dispatch, binding, root)
+        activate_task_packet(packet, root)
+        (root / "product-change.txt").write_text("top layer\n", encoding="utf-8")
+
+        cadence = commit_cadence(root)
+
+        self.assertEqual(cadence.base_ref, stacked_base)
+        self.assertEqual((cadence.files, cadence.churn), (1, 1))
 
     def test_component_measurements_are_complete_and_fingerprinted(self):
         root = self.make_project()

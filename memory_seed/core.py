@@ -504,6 +504,18 @@ class SessionMergeBranchResult:
     cadence_warnings: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
 
+    def integration_preview_contract(self) -> dict[str, Any]:
+        """Stable core payload adapters must surface for a dry-run handoff."""
+        return {
+            "planned_entries": list(self.planned_entries),
+            "planned_sidecars": list(self.planned_sidecars),
+            "planned_link_sidecars": list(self.planned_link_sidecars),
+            "planned_topic_sidecars": list(self.planned_topic_sidecars),
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
+            "cadence_warnings": list(self.cadence_warnings),
+            "issues": list(self.issues),
+        }
+
 
 @dataclass(frozen=True)
 class _SessionFusePlan:
@@ -1385,9 +1397,98 @@ _COMMIT_CADENCE_HIGH = {
     "files": 16,
     "churn": 750,
 }
+_TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
+_TASK_PACKET_ACTIVATION_VERSION = 1
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
 _CADENCE_ENTRY_ADD_RE = re.compile(r"^\+##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.+$")
 _CADENCE_NUMBERED_DECISION_ADD_RE = re.compile(r"^\+####\s+D[1-9][0-9]*\s*[-–]\s*.+$")
 _CADENCE_SINGULAR_DECISION_ADD_RE = re.compile(r"^\+###\s+Decision\s*$", re.IGNORECASE)
+
+
+def _task_packet_activation_paths(root: Path, branch: str) -> tuple[Path, Path] | None:
+    """Worktree-local packet artifact and append-only receipt paths.
+
+    The Git directory is deliberately worktree-local, not the user's global
+    config and not the repository's common configuration.  The deterministic
+    branch digest keeps another branch from selecting this branch's packet.
+    """
+    code, git_dir_raw = _git_text(root, ("rev-parse", "--git-dir"))
+    if code != 0 or not git_dir_raw:
+        return None
+    git_dir = Path(git_dir_raw)
+    if not git_dir.is_absolute():
+        git_dir = root / git_dir
+    token = hashlib.sha256(branch.encode("utf-8")).hexdigest()
+    directory = git_dir.resolve() / "memory-seed" / "task-packets"
+    return directory / f"{token}.json", directory / f"{token}.jsonl"
+
+
+def _packet_fingerprint_is_valid(packet: Mapping[str, Any]) -> bool:
+    fingerprint = packet.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint.startswith("sha256:"):
+        return False
+    identity = dict(packet)
+    identity.pop("fingerprint", None)
+    try:
+        rendered = json.dumps(
+            identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+    except (TypeError, ValueError):
+        return False
+    expected = "sha256:" + hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(fingerprint, expected)
+
+
+def _activated_packet_base_sha(root: Path) -> str | None:
+    """Verified packet base for this exact worktree/branch, if activated."""
+    code, branch = _git_text(root, ("branch", "--show-current"))
+    if code != 0 or not branch:
+        return None
+    paths = _task_packet_activation_paths(root, branch)
+    if paths is None:
+        return None
+    artifact, _ = paths
+    try:
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != _TASK_PACKET_ACTIVATION_SCHEMA:
+        return None
+    if payload.get("version") != _TASK_PACKET_ACTIVATION_VERSION:
+        return None
+    packet = payload.get("packet")
+    if (
+        not isinstance(packet, dict)
+        or packet.get("packet_schema") != "memory-seed/task-packet"
+        or packet.get("packet_version") != 1
+        or not _packet_fingerprint_is_valid(packet)
+    ):
+        return None
+    dispatch = packet.get("dispatch")
+    execution = dispatch.get("execution") if isinstance(dispatch, dict) else None
+    if not isinstance(execution, dict) or execution.get("write_intent") != "writing":
+        return None
+    binding = packet.get("runtime_binding")
+    if not isinstance(binding, dict):
+        return None
+    base_sha = binding.get("base_sha")
+    worktree = binding.get("worktree")
+    if not isinstance(base_sha, str) or _FULL_SHA_RE.fullmatch(base_sha.lower()) is None:
+        return None
+    if binding.get("working_branch") != branch or not isinstance(worktree, str):
+        return None
+    try:
+        same_worktree = os.path.normcase(os.path.realpath(worktree)) == os.path.normcase(os.path.realpath(root))
+    except OSError:
+        return None
+    if not same_worktree:
+        return None
+    # The measured SHA, not the mutable branch name, is the packet's cadence
+    # baseline.  Reject a stale or fabricated artifact rather than quietly
+    # falling back to main/master and measuring the wrong stack.
+    if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
+        return None
+    return base_sha.lower()
 
 
 def _cadence_base_ref(root: Path) -> str | None:
@@ -1397,6 +1498,25 @@ def _cadence_base_ref(root: Path) -> str | None:
         if code == 0:
             return candidate
     return None
+
+
+def _is_cadence_product_path(relative_path: str) -> bool:
+    """Whether a changed path represents product work rather than control state."""
+    normalized = relative_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = normalized.casefold()
+    control_prefixes = (
+        ".memory-seed/",
+        ".agents/",
+        ".superpowers/",
+        ".codex/",
+        ".claude/",
+        ".gemini/",
+        ".cursor/",
+    )
+    control_files = {"agents.md", "claude.md", "gemini.md"}
+    return not normalized.startswith(control_prefixes) and normalized not in control_files
 
 
 def commit_cadence(
@@ -1422,7 +1542,10 @@ def commit_cadence(
             recommendation="Cadence measurements require a Git worktree.",
         )
     root = Path(top)
-    base = base_ref or _cadence_base_ref(root)
+    # A verified active Task Packet is the authority for a packet-bound
+    # worktree.  Falling back to main/master retains useful diagnostics for
+    # ordinary repositories with no activated packet.
+    base = base_ref or _activated_packet_base_sha(root) or _cadence_base_ref(root)
     if base is None:
         return CommitCadence(
             available=False,
@@ -1497,17 +1620,23 @@ def commit_cadence(
     # work, so count their file/churn/text metrics directly rather than asking a
     # caller to stage them merely to obtain a warning.
     patch_lines = patch.splitlines()
-    changed_paths = {line for line in changed.splitlines() if line.strip()}
+    changed_paths = {
+        line for line in changed.splitlines()
+        if line.strip() and _is_cadence_product_path(line)
+    }
     for relative in (line for line in untracked.splitlines() if line.strip()):
         candidate = root / relative
         if not candidate.is_file():
             continue
-        changed_paths.add(relative)
         try:
             text = candidate.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        # Authored session entries and decisions are memory evidence even
+        # though the session file itself is not product-file/churn pressure.
         patch_lines.extend("+" + line for line in text.splitlines())
+        if _is_cadence_product_path(relative):
+            changed_paths.add(relative)
 
     entries = sum(1 for line in patch_lines if _CADENCE_ENTRY_ADD_RE.match(line))
     decisions = sum(
@@ -1520,7 +1649,7 @@ def commit_cadence(
     churn = 0
     for line in numstat.splitlines():
         parts = line.split("\t", 2)
-        if len(parts) < 2:
+        if len(parts) < 3 or not _is_cadence_product_path(parts[2]):
             continue
         if parts[0].isdigit():
             churn += int(parts[0])
@@ -1528,7 +1657,7 @@ def commit_cadence(
             churn += int(parts[1])
     for relative in untracked.splitlines():
         candidate = root / relative
-        if not candidate.is_file():
+        if not candidate.is_file() or not _is_cadence_product_path(relative):
             continue
         try:
             churn += len(candidate.read_text(encoding="utf-8").splitlines())

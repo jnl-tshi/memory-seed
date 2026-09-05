@@ -82,3 +82,88 @@ project/memory/governance reads were necessary and read-only:
 4. Brief read-only checks of the excluded CLI/MCP adapter locations — only to
    confirm that packet activation could remain an internal API and avoid an
    out-of-scope adapter edit; no code or tests there were changed.
+
+## Independent-review correction — pending checkpoint
+
+This section supersedes the earlier local-configuration description of
+activation. The correction is deliberately append-only so the first
+implementation claim remains auditable.
+
+### Corrected activation boundary
+
+- Activation never reads or writes `git config`: not local, global, system, or
+  worktree configuration. It does not alter Git identity, credentials,
+  aliases, or general Git behavior.
+- The only activation state is a full canonical Task Packet in the exact
+  worktree Git directory, selected by a digest of the active branch name. A
+  nearby append-only JSONL receipt records every actual replacement.
+- The managed hook ignores editable configuration values. Before stamping
+  `Memory-Implements`, it verifies the packet fingerprint, packet identity,
+  writing intent, exact branch and canonical worktree, an ancestor base SHA,
+  selected materialized decision evidence, and that every staged path remains
+  in the packet allowlist. Invalid or missing artifacts fail closed for
+  implementation attribution while normal commits remain usable.
+- Replacing scope, runtime binding, or `implements` requires a nonblank reason
+  of at least twelve characters. The replacement receipt retains that reason;
+  repeating an identical activation leaves both artifact and receipt history
+  intact rather than clearing prior evidence.
+
+### Cadence corrections
+
+- `.memory-seed/`, `.AGENTS/`, agent-worktree/control directories, and routing
+  files are excluded from cadence **file** and **churn** dimensions. Session
+  text still contributes to authored-entry and decision dimensions.
+- Packet compilation measures cadence from its explicit measured `base_sha`.
+  After activation, `commit_cadence()` uses that same verified packet base
+  before considering `main`/`master`; a stacked-base regression proves the
+  base layer is not counted as task work.
+- The hook's ten-record limit now counts every newly authored record before
+  trailer deduplication. Duplicate authored records cannot evade the cap;
+  emitted trailers remain deduplicated without truncating attribution.
+
+### Adapter handoff / allowlist conflict
+
+`SessionMergeBranchResult.integration_preview_contract()` is now the stable
+core payload that includes `cadence` and `cadence_warnings`. The current Task
+Packet explicitly forbids the downstream adapter files, so this worker did not
+edit them. The surfaces track must update these exact files:
+
+- `memory_seed/cli.py`: render the core integration-preview contract's cadence
+  and warnings for the session-merge dry-run output.
+- `memory_seed/mcp_server.py`: serialize those same fields in the session-merge
+  MCP result.
+
+Those required paths are outside `dispatch.execution.allowed_files` and named
+in `forbidden_files`; a follow-up packet must own the adapter and its tests.
+
+### Review-fix validation
+
+- `tests/test_hooks.py`: config-only activation fails closed; a
+  fingerprint-verified artifact stamps only packet refs; duplicate authored
+  records trip the cap.
+- `tests/test_task_packet.py`: no local or isolated-global config content is
+  modified; receipt reason preservation, idempotence, and stacked-base cadence
+  are covered.
+- `tests/test_commit_cadence.py` and `tests/test_session_merge.py`: control
+  paths do not count as product files/churn and the core contract carries
+  cadence to adapters.
+
+The exact required validation after these corrections was:
+
+- `python -X utf8 -m pytest -q tests/test_hooks.py tests/test_task_packet.py tests/test_situate.py tests/test_session_merge.py tests/test_commit_cadence.py`
+  — **49 passed, 84 subtests passed in 92.66s**.
+- `git diff --check` — passed before the correction checkpoint.
+
+The containing checkpoint's SHA is supplied by the mandatory final worker
+handoff because a committed report cannot self-contain its own Git object ID.
+The implementation commits before that self-reference boundary are
+`254b86b4684aeefd62a6a6dab3098d7fc2963568` and the correction checkpoint
+recorded in that handoff.
+
+### Supplemental-context debit for this correction
+
+No broad orientation, memory, policy, Constitution, or external source was
+loaded. The only supplemental project reads were the packet-allowed core,
+activation, hook, and five named test files needed to reproduce the review
+findings. The additional boundary (no global Git settings) came directly from
+the assigned user clarification, not from a project-memory hop.

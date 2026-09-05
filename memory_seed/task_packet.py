@@ -20,13 +20,12 @@ import hashlib
 import json
 import math
 import re
-import subprocess
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Sequence
 
-from .core import _git_text, commit_cadence, resolve_runtime
+from .core import _git_text, _task_packet_activation_paths, commit_cadence, resolve_runtime
 from .retrieval import (
     EVIDENCE_PACK_SCHEMA,
     EVIDENCE_PACK_VERSION,
@@ -1354,7 +1353,7 @@ def project_constitution(
 
 def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
     writing = dispatch["execution"]["write_intent"] == "writing"
-    cadence = commit_cadence(binding["worktree"])
+    cadence = commit_cadence(binding["worktree"], base_ref=binding["base_sha"])
     preflight = [
         f"Set-Location -LiteralPath {binding['worktree']!r}",
         "pwd",
@@ -1406,7 +1405,7 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "api": "memory_seed.task_packet.activate_task_packet",
             "implements": list(dispatch["execution"]["implements"]),
             "scope_update": "requires a non-empty, explicit binding_update_reason",
-            "storage": "branch-scoped local Git configuration",
+            "storage": "fingerprint-verified, worktree-local Git activation artifact",
         },
         "cadence": cadence.to_dict(),
         "escalated_shell": {
@@ -1456,75 +1455,62 @@ def canonical_task_packet_json(packet: Mapping[str, Any]) -> str:
     return canonical_json(packet)
 
 
-def _packet_config_key(branch: str, field: str) -> str:
-    return f"branch.{branch}.memory-seed-task-packet-{field}"
+def _activation_binding(packet_binding: Mapping[str, Any], cwd: str | Path) -> dict[str, Any]:
+    """Measure an existing packet binding without requiring its base branch to stand still.
+
+    A task branch can itself be named as ``base_branch`` and naturally advance
+    after the first checkpoint.  The immutable base SHA is the activation
+    authority: it must remain an ancestor of the current worktree HEAD.
+    """
+    binding = _mapping(packet_binding, "packet.runtime_binding")
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root.resolve()
+    measured_root = Path(_git_required(root, ("rev-parse", "--show-toplevel"), label="activation worktree")).resolve()
+    branch = _git_required(root, ("rev-parse", "--abbrev-ref", "HEAD"), label="activation branch")
+    if branch == "HEAD":
+        _fail("packet.runtime_binding.working_branch", "must not activate from detached HEAD", code="binding_mismatch", stage="activation")
+    worktree = Path(str(_string(binding.get("worktree"), "packet.runtime_binding.worktree"))).resolve()
+    expected = Path(str(_string(binding.get("expected_directory"), "packet.runtime_binding.expected_directory"))).resolve()
+    working_branch = _string(binding.get("working_branch"), "packet.runtime_binding.working_branch")
+    base_sha = _string(binding.get("base_sha"), "packet.runtime_binding.base_sha")
+    base_branch = _string(binding.get("base_branch"), "packet.runtime_binding.base_branch")
+    assert working_branch is not None and base_sha is not None and base_branch is not None
+    if _SHA_RE.fullmatch(base_sha) is None:
+        _fail("packet.runtime_binding.base_sha", "must be a full 40-character Git SHA", code="binding_mismatch", stage="activation")
+    if measured_root != root or worktree != measured_root or expected != measured_root or working_branch != branch:
+        _fail("packet.runtime_binding", "does not match the measured activation worktree and branch", code="binding_mismatch", stage="activation")
+    if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
+        _fail("packet.runtime_binding.base_sha", "must remain an ancestor of the activation HEAD", code="binding_mismatch", stage="activation")
+    return {
+        "base_branch": base_branch,
+        "base_sha": base_sha.lower(),
+        "working_branch": branch,
+        "worktree": str(worktree),
+        "expected_directory": str(expected),
+    }
 
 
-def _git_config_values(root: Path, key: str) -> list[str]:
+def _read_activation_artifact(path: Path) -> Mapping[str, Any] | None:
     try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), "config", "--local", "--get-all", key],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
-        _fail(
-            "activation",
-            "could not read branch-scoped packet activation",
-            code="activation_io",
-            stage="activation",
-            details={"error": exc.__class__.__name__},
-        )
-    if proc.returncode == 1:
-        return []
-    if proc.returncode != 0:
-        _fail(
-            "activation",
-            "could not read branch-scoped packet activation",
-            code="activation_io",
-            stage="activation",
-            details={"stderr": proc.stderr.strip()},
-        )
-    return [line for line in proc.stdout.splitlines() if line]
-
-
-def _replace_git_config_values(root: Path, key: str, values: Sequence[str]) -> None:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    if payload.get("schema") != "memory-seed/task-packet-activation" or payload.get("version") != 1:
+        return None
+    packet = payload.get("packet")
+    if not isinstance(packet, Mapping):
+        return None
     try:
-        # A missing key is expected on first activation.  Clear before adding so
-        # a changed packet cannot leave stale decision attribution behind.
-        subprocess.run(
-            ["git", "-C", str(root), "config", "--local", "--unset-all", key],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=15,
-        )
-        for value in values:
-            proc = subprocess.run(
-                ["git", "-C", str(root), "config", "--local", "--add", key, value],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                timeout=15,
-            )
-            if proc.returncode != 0:
-                _fail(
-                    "activation",
-                    "could not persist branch-scoped packet activation",
-                    code="activation_io",
-                    stage="activation",
-                    details={"key": key, "stderr": proc.stderr.strip()},
-                )
-    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
-        _fail(
-            "activation",
-            "could not persist branch-scoped packet activation",
-            code="activation_io",
-            stage="activation",
-            details={"key": key, "error": exc.__class__.__name__},
-        )
+        canonical_task_packet_json(packet)
+        normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
+        binding = _mapping(packet.get("runtime_binding"), "packet.runtime_binding")
+        if any(not isinstance(binding.get(key), str) for key in ("base_branch", "base_sha", "working_branch", "worktree")):
+            return None
+    except TaskPacketValidationError:
+        return None
+    return payload
 
 
 def activate_task_packet(
@@ -1535,11 +1521,11 @@ def activate_task_packet(
 ) -> dict[str, Any]:
     """Activate a compiled writing packet for its bound Git branch.
 
-    Activation deliberately writes no project files and searches no history. It
-    records only the packet's exact decision refs in branch-scoped local Git
-    configuration, which the managed commit hook reads directly.  Rebinding a
-    previously activated branch to a changed scope or worktree/base requires a
-    durable reason in that same local activation record.
+    Activation deliberately writes no project files, Git configuration, or
+    global Git state. It stores the complete fingerprint-verified packet in the
+    bound worktree's Git directory and appends replacement receipts beside it.
+    The managed hook can therefore verify branch, worktree, base SHA, scope,
+    selected evidence, and exact refs before it writes provenance trailers.
     """
     packet = _mapping(packet, "packet")
     canonical_task_packet_json(packet)
@@ -1558,18 +1544,7 @@ def activate_task_packet(
             code="activation_read_only",
             stage="activation",
         )
-    binding = normalize_runtime_binding(
-        _mapping(packet.get("runtime_binding"), "packet.runtime_binding"),
-        write_intent="writing",
-        cwd=cwd,
-    )
-    if binding != packet["runtime_binding"]:
-        _fail(
-            "packet.runtime_binding",
-            "does not match the measured activation worktree",
-            code="binding_mismatch",
-            stage="activation",
-        )
+    binding = _activation_binding(_mapping(packet.get("runtime_binding"), "packet.runtime_binding"), cwd)
     branch = binding["working_branch"]
     assert branch is not None
     root = Path(binding["worktree"])
@@ -1588,38 +1563,76 @@ def activate_task_packet(
             "worktree": binding["worktree"],
         }
     )
-    existing_scope = _git_config_values(root, _packet_config_key(branch, "scope"))
-    existing_binding = _git_config_values(root, _packet_config_key(branch, "binding"))
-    binding_changed = bool(existing_scope or existing_binding) and (
-        existing_scope != [scope] or existing_binding != [binding_identity]
-    )
     reason = (binding_update_reason or "").strip()
-    if binding_changed and len(reason) < 12:
+    paths = _task_packet_activation_paths(root, branch)
+    if paths is None:
+        _fail("activation", "requires a Git worktree-local activation directory", code="activation_io", stage="activation")
+    artifact_path, history_path = paths
+    previous = _read_activation_artifact(artifact_path)
+    previous_packet = previous.get("packet") if previous is not None else None
+    previous_dispatch = (
+        normalize_task_dispatch(previous_packet["dispatch"])
+        if isinstance(previous_packet, Mapping) and isinstance(previous_packet.get("dispatch"), Mapping)
+        else None
+    )
+    previous_scope = canonical_json({
+        "allowed_files": previous_dispatch["execution"]["allowed_files"],
+        "forbidden_files": previous_dispatch["execution"]["forbidden_files"],
+        "expected_absent": previous_dispatch["execution"]["expected_absent"],
+    }) if previous_dispatch is not None else None
+    previous_binding = canonical_json({
+        key: previous_packet["runtime_binding"][key]
+        for key in ("base_branch", "base_sha", "working_branch", "worktree")
+    }) if isinstance(previous_packet, Mapping) else None
+    implements = list(dispatch["execution"]["implements"])
+    previous_implements = list(previous_dispatch["execution"]["implements"]) if previous_dispatch is not None else None
+    changed = previous is not None and (
+        previous_scope != scope or previous_binding != binding_identity or previous_implements != implements
+    )
+    if changed and len(reason) < 12:
         _fail(
             "binding_update_reason",
-            "a changed activation scope or binding requires an explicit reason of at least 12 characters",
+            "a changed activation scope, binding, or implements list requires an explicit reason of at least 12 characters",
             code="binding_update_required",
             stage="activation",
         )
-
-    implements = list(dispatch["execution"]["implements"])
-    _replace_git_config_values(root, _packet_config_key(branch, "implements"), implements)
-    _replace_git_config_values(root, _packet_config_key(branch, "scope"), [scope])
-    _replace_git_config_values(root, _packet_config_key(branch, "binding"), [binding_identity])
-    _replace_git_config_values(root, _packet_config_key(branch, "fingerprint"), [str(packet["fingerprint"])])
-    _replace_git_config_values(
-        root,
-        _packet_config_key(branch, "binding-update-reason"),
-        [reason] if binding_changed else [],
-    )
+    if previous is None or changed:
+        payload = {
+            "schema": "memory-seed/task-packet-activation",
+            "version": 1,
+            "packet": packet,
+        }
+        try:
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = artifact_path.with_suffix(".tmp")
+            temporary.write_text(canonical_json(payload) + "\n", encoding="utf-8")
+            temporary.replace(artifact_path)
+            receipt = {
+                "from_fingerprint": previous_packet.get("fingerprint") if isinstance(previous_packet, Mapping) else None,
+                "to_fingerprint": packet["fingerprint"],
+                "changed": [
+                    name for name, did_change in (
+                        ("scope", previous is not None and previous_scope != scope),
+                        ("binding", previous is not None and previous_binding != binding_identity),
+                        ("implements", previous is not None and previous_implements != implements),
+                    ) if did_change
+                ],
+                "reason": reason or None,
+            }
+            with history_path.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(canonical_json(receipt) + "\n")
+        except OSError as exc:
+            _fail("activation", "could not persist the worktree-local packet artifact", code="activation_io", stage="activation", details={"error": exc.__class__.__name__})
     return {
         "activated": True,
         "branch": branch,
         "worktree": str(root),
         "packet_fingerprint": packet["fingerprint"],
         "implements": implements,
-        "binding_updated": binding_changed,
-        "binding_update_reason": reason if binding_changed else None,
+        "binding_updated": changed,
+        "binding_update_reason": reason if changed else None,
+        "activation_artifact": str(artifact_path),
+        "activation_history": str(history_path),
     }
 
 

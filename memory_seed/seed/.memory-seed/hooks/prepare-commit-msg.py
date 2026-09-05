@@ -10,9 +10,10 @@ construction: it scans the staged diff for newly added `entry_id:` lines
 under the session tree and appends one trailer per new id, deduplicated
 against trailers already present in the message.
 
-An active Task Packet stores exact decision bindings in branch-local Git
-configuration.  This hook reads that activation directly; it never searches
-history to reconstruct a decision binding.
+An active Task Packet stores a full, fingerprint-verified activation artifact
+inside this worktree's Git directory. This hook verifies that artifact against
+the current branch, worktree, base SHA, selected evidence, and staged scope; a
+Git configuration value alone can never activate decision attribution.
 
 Standalone by design (no memory_seed import): git invokes it through the
 `.git/hooks/prepare-commit-msg` shim that `memory-seed init` (or
@@ -21,9 +22,14 @@ ordinary commit with more than ten newly authored entries is refused unless the
 message records a durable, live-approved `Memory-Bulk-Reason:` trailer.
 """
 
+import hashlib
+import json
+import os
 import re
+import secrets
 import subprocess
 import sys
+from pathlib import Path
 
 # Both id generations plus the wider lowercase ids other agents author
 # (mirrors memory_seed.core._TRAILER_ENTRY_ID_RE; kept in sync by the
@@ -38,6 +44,10 @@ MAX_ORDINARY_NEW_ENTRIES = 10
 
 
 def staged_entry_ids() -> list[str]:
+    return list(dict.fromkeys(staged_entry_records()))
+
+
+def staged_entry_records() -> list[str]:
     # Restricted to session trees (root and nested subproject runtimes): the
     # control-plane repo's own test fixtures also contain entry_id: lines and
     # must never be stamped.
@@ -71,43 +81,117 @@ def staged_entry_ids() -> list[str]:
     )
     if proc.returncode != 0:
         return []
-    ids: list[str] = []
+    records: list[str] = []
     for line in proc.stdout.splitlines():
         match = _ENTRY_ID_RE.match(line)
-        if match and match.group(1) not in ids:
-            ids.append(match.group(1))
-    return ids
+        if match:
+            records.append(match.group(1))
+    return records
+
+
+def _canonical_json(payload) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+def _activation_artifact(root: Path, branch: str) -> Path | None:
+    git_dir = subprocess.run(
+        ["git", "rev-parse", "--git-dir"], capture_output=True, text=True, timeout=10
+    )
+    if git_dir.returncode != 0 or not git_dir.stdout.strip():
+        return None
+    directory = Path(git_dir.stdout.strip())
+    if not directory.is_absolute():
+        directory = root / directory
+    token = hashlib.sha256(branch.encode("utf-8")).hexdigest()
+    return directory.resolve() / "memory-seed" / "task-packets" / f"{token}.json"
+
+
+def _valid_activated_packet(packet: object, root: Path, branch: str) -> list[str]:
+    if not isinstance(packet, dict):
+        return []
+    fingerprint = packet.get("fingerprint")
+    identity = dict(packet)
+    identity.pop("fingerprint", None)
+    try:
+        expected = "sha256:" + hashlib.sha256(_canonical_json(identity).encode("utf-8")).hexdigest()
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(fingerprint, str) or not secrets.compare_digest(fingerprint, expected):
+        return []
+    dispatch = packet.get("dispatch")
+    binding = packet.get("runtime_binding")
+    evidence = packet.get("materialized_evidence")
+    if not isinstance(dispatch, dict) or not isinstance(binding, dict) or not isinstance(evidence, list):
+        return []
+    execution = dispatch.get("execution")
+    if not isinstance(execution, dict) or execution.get("write_intent") != "writing":
+        return []
+    implements = execution.get("implements")
+    allowed_files = execution.get("allowed_files")
+    if not isinstance(implements, list) or not isinstance(allowed_files, list):
+        return []
+    if binding.get("working_branch") != branch or not isinstance(binding.get("worktree"), str):
+        return []
+    if os.path.normcase(os.path.realpath(binding["worktree"])) != os.path.normcase(os.path.realpath(root)):
+        return []
+    base_sha = binding.get("base_sha")
+    if not isinstance(base_sha, str) or re.fullmatch(r"[0-9a-f]{40}", base_sha.lower()) is None:
+        return []
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", base_sha, "HEAD"], capture_output=True, text=True, timeout=10
+    )
+    if ancestor.returncode != 0:
+        return []
+    selected = {item.get("id") for item in evidence if isinstance(item, dict) and item.get("kind") == "decision"}
+    refs: list[str] = []
+    for reference in implements:
+        if not isinstance(reference, str) or _IMPLEMENTS_REF_RE.fullmatch(reference) is None:
+            return []
+        if reference not in selected:
+            return []
+        if reference not in refs:
+            refs.append(reference)
+    changed = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True, timeout=10
+    )
+    if changed.returncode != 0:
+        return []
+    allowed = set(allowed_files)
+    if any(path and path not in allowed for path in changed.stdout.splitlines()):
+        return []
+    return refs
 
 
 def active_packet_implements() -> list[str]:
-    """Exact refs activated for this branch, read without traversing history."""
+    """Verify an exact packet artifact; config values alone can never activate."""
     branch = subprocess.run(
         ["git", "branch", "--show-current"], capture_output=True, text=True, timeout=10
     )
     if branch.returncode != 0 or not branch.stdout.strip():
         return []
-    key = f"branch.{branch.stdout.strip()}.memory-seed-task-packet-implements"
-    configured = subprocess.run(
-        ["git", "config", "--local", "--get-all", key],
-        capture_output=True,
-        text=True,
-        timeout=10,
+    root = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=10
     )
-    if configured.returncode != 0:
+    if root.returncode != 0 or not root.stdout.strip():
         return []
-    refs: list[str] = []
-    for value in configured.stdout.splitlines():
-        reference = value.strip()
-        if _IMPLEMENTS_REF_RE.fullmatch(reference) and reference not in refs:
-            refs.append(reference)
-    return refs
+    artifact = _activation_artifact(Path(root.stdout.strip()), branch.stdout.strip())
+    if artifact is None:
+        return []
+    try:
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, dict) or payload.get("schema") != "memory-seed/task-packet-activation" or payload.get("version") != 1:
+        return []
+    return _valid_activated_packet(payload.get("packet"), Path(root.stdout.strip()), branch.stdout.strip())
 
 
 def main() -> int:
     if len(sys.argv) < 2:
         return 0
     msg_path = sys.argv[1]
-    ids = staged_entry_ids()
+    records = staged_entry_records()
+    ids = list(dict.fromkeys(records))
     implements = active_packet_implements()
     if not ids and not implements:
         return 0
@@ -116,7 +200,7 @@ def main() -> int:
             message = handle.read()
     except OSError:
         return 0
-    if len(ids) > MAX_ORDINARY_NEW_ENTRIES and _BULK_REASON_RE.search(message) is None:
+    if len(records) > MAX_ORDINARY_NEW_ENTRIES and _BULK_REASON_RE.search(message) is None:
         print(
             "Refusing commit: it carries more than 10 newly authored Memory-Entry records. "
             "Obtain live approval and record it as `Memory-Bulk-Reason: <reason>` in the commit message.",

@@ -57,7 +57,7 @@ class SessionMergeCadenceTests(unittest.TestCase):
 
     def test_dry_run_exposes_high_file_cadence_before_integration(self) -> None:
         self.write_session("2026-09-05", "mse_0000000000000002", "codex/merge-cadence")
-        for index in range(15):
+        for index in range(16):
             (self.root / f"change-{index}.txt").write_text("branch work\n", encoding="utf-8")
         self.git("add", "-A")
         self.git("commit", "-m", "feature work")
@@ -71,6 +71,9 @@ class SessionMergeCadenceTests(unittest.TestCase):
         self.assertIsNotNone(preview.cadence)
         self.assertIn("files=16 (high threshold 16)", preview.cadence.high_signals)
         self.assertTrue(preview.cadence_warnings)
+        contract = preview.integration_preview_contract()
+        self.assertEqual(contract["cadence"], preview.cadence.to_dict())
+        self.assertEqual(contract["cadence_warnings"], preview.cadence_warnings)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,11 @@ class CommitCadenceTests(unittest.TestCase):
         cadence = commit_cadence(self.root)
         guard = worktree_guard(self.root, agent_type="codex", write_intent=True)
 
-        self.assertEqual((cadence.entries, cadence.decisions, cadence.files), (3, 5, 8))
+        # Memory/control-plane files still contribute authored-entry and
+        # decision pressure, but must not inflate product-file or churn
+        # pressure. Seven ordinary files plus this session is therefore seven.
+        self.assertEqual((cadence.entries, cadence.decisions, cadence.files), (3, 5, 7))
+        self.assertEqual(cadence.churn, 7)
         self.assertGreaterEqual(len(cadence.moderate_signals), 2)
         self.assertTrue(cadence.warnings)
         self.assertEqual(guard.cadence, cadence)
