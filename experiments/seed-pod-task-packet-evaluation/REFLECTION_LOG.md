@@ -174,3 +174,23 @@ All four after packets were complete, had no resolver warnings, retained the sam
 The hardened packets preserve authority and task coverage while removing 93.2–95.6% of the formerly materialized Constitution payload. Explicit path-reference selection makes the non-expanding policy-file behavior inspectable in the effective spec rather than an undocumented resolver default; explicit opt-in remains covered by the resolver proof. Expected creations and acceptance commands are now actionable execution contracts, and replaying stale bindings fails before a worker can write in the wrong worktree.
 
 No compiler or Seed Pod source was changed. The remaining limitation is methodological: this cycle proves compilation precision and surface behavior, not whether a new clean worker makes fewer implementation mistakes. A later worker trial should measure that independently.
+
+### Cycle-two component ledger and packet matrix
+
+The hardened ledger is fixed-width against each compiled packet's context envelope. Baselines used the legacy ledger and therefore do not have comparable per-component percentages.
+
+| Packet | Serialized | Fixed | Tool | Supplemental | Output |
+|---|---:|---:|---:|---:|---:|
+| Kernel | 8,736 (044.262%) | 0 (000.000%) | 1 (000.005%) | 6,000 (030.400%) | 5,000 (025.333%) |
+| Documentation | 8,688 (053.666%) | 0 (000.000%) | 1 (000.006%) | 4,000 (024.708%) | 3,500 (021.620%) |
+| Fixtures | 8,901 (049.721%) | 0 (000.000%) | 1 (000.006%) | 5,000 (027.930%) | 4,000 (022.344%) |
+| Surfaces | 8,980 (048.590%) | 0 (000.000%) | 1 (000.005%) | 5,000 (027.055%) | 4,500 (024.349%) |
+
+| Packet | Expected context and compiled projection | Evidence used | Self-sufficiency / instruction compliance | Provenance disposition |
+|---|---|---|---|---|
+| Kernel | Root-centered P0 kernel; projection retained two Seed Pod decisions, identity/scoping ADRs, and exact plan/spec paths; three explicit clauses replaced full Constitution | 7 records / 11,397 tokens; `authority`, `provenance`, `integration-mode` | Compiler self-sufficiency: PASS; stale binding rejected, upgraded binding passed; clean-worker behavior: N/A, not measured | All claims trace to saved baseline, frozen dispatch/binding, materialized evidence, or replay fingerprint `fe61…1c63c` |
+| Documentation | P0 status/docs; retained two decisions, authority/scoping ADRs, and exact plan/spec paths; three explicit clauses | 7 / 11,269; `authority`, `minimal-context`, `control-plane-precedence` | Compiler self-sufficiency: PASS; expected-absent/observable contracts present; clean-worker behavior: N/A, not measured | Materialized sources and stable replay fingerprint `f86e…f9b5` support the record |
+| Fixtures | Governed-pod versus independent-root fixtures; retained two decisions, authority/scoping ADRs, and plan/spec paths; three explicit clauses | 7 / 11,269; `authority`, `provenance`, `minimal-context` | Compiler self-sufficiency: PASS; creation/validation intent explicit; clean-worker behavior: N/A, not measured | Materialized sources and stable replay fingerprint `a0d3…cc57` support the record |
+| Surfaces | CLI/MCP/situate/ESR P0 contracts; retained two decisions, identity/scoping ADRs, and plan/spec paths; three explicit clauses | 7 / 11,397; `authority`, `provenance`, `minimal-context` | Compiler self-sufficiency: PASS; CLI/MCP parity covered by proof suite; clean-worker behavior: N/A, not measured | Materialized sources and stable replay fingerprint `d770…9da2` support the record |
+
+“N/A, not measured” is deliberate: cycle two did not dispatch a clean worker or make implementation changes, so worker reconstruction quality, worker instruction compliance, and implementation correctness cannot be inferred from deterministic compilation or test-surface parity. The matrix records compiler-level self-sufficiency and provenance only.

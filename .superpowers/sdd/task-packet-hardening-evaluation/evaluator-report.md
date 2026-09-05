@@ -7,7 +7,8 @@
 - Evaluation worktree/branch: `C:\Users\johnn\OneDrive\Documents\2nd Brain\Foundry\memory seed\.codex\worktrees\task-packet-hardening-evaluation` / `codex/experiment/task-packet-hardening-evaluation`
 - Base HEAD: `53a35e4e6df6610ca2fb829b6d4eeea66df62c7f`
 - Frozen Seed Pod runtime used for replay: `b7e623bfe42120c3a1970d8d5ee6478461f62398` on `codex/feature/seed-pods`
-- Final HEAD: recorded after this report is committed.
+- Evaluated-content HEAD: `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f`
+- Evaluated range: `53a35e4e6df6610ca2fb829b6d4eeea66df62c7f..ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f`
 
 ## Scope-blocker check
 
@@ -68,7 +69,7 @@ Evidence count/token totals were unchanged: core/surfaces 7 / 11,397 and documen
 | Four copied dispatches replayed against their original copied bindings | EXPECTED FAIL: `binding_mismatch` named former track worktree versus measured frozen source worktree |
 | Four upgraded copies replayed with `compile_task_packet(...)` twice each | PASS: all complete, no warnings, byte-identical canonical JSON/fingerprint per packet |
 | `python -X utf8 -m pytest -q tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_retrieval_spec.py tests/test_retrieval_spec_resolver.py tests/test_task_packet_pilot.py` | PASS: 60 passed, 105 subtests passed in 50.16s |
-| `git diff --check` | pending final authored-output check |
+| `git diff --check` | PASS after the evaluation artifacts were authored and again at the fix-round preflight; no whitespace errors |
 
 The proof suite exercises exact path-reference opt-in (including reference expansion only with `true`), full/uncertain Constitution fallback, complete whole-clause selection and ordering above target, digest validation, stable canonical fingerprints, expected-absent and `implements` enforcement, and byte-equivalent CLI/MCP task-packet preview/compile behavior.
 
@@ -80,4 +81,10 @@ Two limits remain. First, the old four saved packets did not themselves filter `
 
 ## Commit record
 
-The evaluator will add the final commit SHA here after committing the authorized files.
+The initial evaluation produced one commit in the evaluated range:
+
+| Commit | Subject | Role |
+|---|---|---|
+| `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f` | `docs: record hardened task packet evaluation` | evaluated content: frozen-input copies, second-cycle reflection, and evaluator report |
+
+The fix-round receipt below records subsequent receipt commits separately from this evaluated-content head, so it does not retroactively claim that a receipt commit was part of the evaluated compiler result.
