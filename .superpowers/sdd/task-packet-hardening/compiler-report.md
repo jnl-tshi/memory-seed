@@ -62,3 +62,36 @@ Evidence actually used was the materialized Task Packet evidence (including Cons
 Authority fidelity was maintained: every changed file is in the packet allowlist; forbidden plan, Constitution, provenance, Seed Pod, policy, core, and hook files were untouched. The worktree command context was explicit; no network call, packet-registry write, worktree creation, release, push, merge, or provenance implementation occurred.
 
 The packet was effective enough to complete the work without a blocker. Its full Constitution payload was intentionally more than the worker needed, and that excess directly demonstrated the hardening target. The approved plan defined the required semantics but not the concrete JSON shapes for `constitution_refs`, `selectors.path_references`, or `acceptance_observables`; the implementation selected small, strict, deterministic schemas and pinned them with focused tests. A future compiler packet would be more implementation-ready if it materialized field-schema examples or acceptance vectors for new contracts, while retaining the current governing evidence and scope precision.
+
+## Fix round 1 — independent review response
+
+Status: **DONE**
+
+- Fix base: `148887984021e5ca4930ba30498c528a85fdd645`
+- Final implementation HEAD: `e05156a991abcc90c281e3cce43df8601ee0ab9d`
+- Implementation commit: `e05156a991abcc90c281e3cce43df8601ee0ab9d` — Fail closed on Task Packet governing evidence
+
+### Findings resolved
+
+1. Ranked relevant clauses are no longer cut off at the projection target. Every established ranked clause is included, and `governing_overage` records the target excess. The multi-clause economy regression proves all three relevant clauses remain present above target.
+2. Any selected ADR binding whose anchor is absent now fails closed with `missing_adr_bindings` records containing `adr_id`, `role`, and `missing_anchor`. Valid-plus-missing and missing-only regressions both prove refusal.
+3. Writing preflight now emits `python -X utf8 -m memory_seed.cli worktree guard --agent <agent> --write-intent` after explicit `Set-Location`; the regression asserts the exact checkout-local command.
+4. Constitution projection now requires explicit ratified numeric Version metadata and rejects anchors whose `vN` major does not match that ratified version. Unratified, malformed-version, and incompatible-anchor regressions cover the failure path.
+
+Changed files in this round:
+
+- `memory_seed/task_packet.py`
+- `tests/test_task_packet.py`
+- `tests/test_task_packet_surfaces.py`
+- `tests/fixtures/task_packet_pilot/runtime/docs/CONSTITUTION.md`
+- `.superpowers/sdd/task-packet-hardening/compiler-report.md`
+
+Validation:
+
+1. `python -X utf8 -m pytest -q tests/test_task_packet.py` — **26 passed, 84 subtests passed** (39.20s).
+2. `python -X utf8 -m pytest -q tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_retrieval_spec.py tests/test_retrieval_spec_resolver.py tests/test_task_packet_pilot.py` — **60 passed, 105 subtests passed** (54.11s).
+3. `git diff --check` — passed before the implementation commit and again before this report receipt.
+
+### Decision and reflection delta
+
+The user clarification is now enforced directly: the orchestrator defines decision/ADR relevance, ADR heads define governing clauses, and relevance never yields a target-truncated governing set. Targets are observability only. The independent review exposed that the original packet's word “complete” was not captured by a target-bound ranking implementation, and that the global guard text was not safe in a worktree. The revision adds explicit fail-closed and overage test vectors; no extra governance/history evidence or scope expansion was required.
