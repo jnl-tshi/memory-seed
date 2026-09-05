@@ -65,3 +65,14 @@ Ledgers now carry their exact runtime ownership. Packet activation requires that
 ### Fix-round reflection
 
 No additional governance or history retrieval was needed to resolve the review: the direct review request supplied the required corrections. Reading the authorized session append target is an **appropriate task-scoped authority check**; contract and test inspection remains **expected implementation inspection**. There is no plan contradiction or scope blocker.
+
+## Fix round 2 — raw append authorization
+
+`validate_append_only_update` now checks append authorization against the existing normalized ledger runtime whenever the candidate extends bindings or replacements. Retired pods and detached former roots can still validate unchanged historical metadata and serve reads, but raw candidate binding appends and raw candidate replacement appends now fail with the same owner-state codes as the convenience append path.
+
+### Fix-round validation
+
+- `python -X utf8 -m pytest -q tests/test_provenance.py` — 11 passed, 18 subtests passed in 0.18s.
+- `git diff --check` — passed before checkpoint/report append; rerun before commit.
+
+No additional governance/history retrieval, plan contradiction, or scope blocker occurred.

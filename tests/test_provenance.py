@@ -256,6 +256,38 @@ class ProvenanceContractTests(unittest.TestCase):
                         reason_decision_ref="mse_72c6knzvhwzss39j:d1",
                     )
 
+    def test_append_only_update_refuses_raw_retired_and_detached_appends(self):
+        for runtime, expected_code in (
+            (self.runtime(kind="pod", owner_id="retired-pod", state="retired"), "retired_owner"),
+            (self.runtime(kind="detached-former-root", owner_id="former-root", state="detached"), "detached_owner"),
+        ):
+            with self.subTest(owner=runtime["owner"], change="binding"):
+                previous = self.ledger(runtime=runtime)
+                successor = self.binding(hunk=self.hunk(new_start=5))
+                candidate = {**previous, "bindings": [*previous["bindings"], successor]}
+                result = validate_append_only_update(previous, candidate)
+                self.assertFalse(result.ok)
+                self.assertEqual(result.issues[0].code, expected_code)
+            with self.subTest(owner=runtime["owner"], change="replacement"):
+                previous = self.ledger(runtime=runtime)
+                successor = self.binding(hunk=self.hunk(new_start=5))
+                replacement = build_replacement(
+                    replaces=previous["bindings"][0]["binding_id"], replacement=successor,
+                    reason="corrected-reference", reason_decision_ref="mse_72c6knzvhwzss39j:d1",
+                )
+                candidate = {
+                    **previous,
+                    "bindings": [*previous["bindings"], successor],
+                    "replacements": [replacement],
+                }
+                result = validate_append_only_update(previous, candidate)
+                self.assertFalse(result.ok)
+                self.assertEqual(result.issues[0].code, expected_code)
+            with self.subTest(owner=runtime["owner"], change="unchanged"):
+                previous = self.ledger(runtime=runtime)
+                self.assertTrue(validate_ledger(previous).ok)
+                self.assertTrue(validate_append_only_update(previous, previous).ok)
+
     def test_activation_requires_owned_active_exact_many_to_many_bindings(self):
         first = self.binding()
         second = self.binding(hunk=self.hunk(new_start=5))

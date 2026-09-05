@@ -711,6 +711,14 @@ def validate_append_only_update(
             _fail("candidate.bindings", "must retain every existing binding in order", code="not_append_only")
         if after_replacements[: len(before_replacements)] != before_replacements:
             _fail("candidate.replacements", "must retain every existing replacement in order", code="not_append_only")
+        if (
+            len(after_bindings) > len(before_bindings)
+            or len(after_replacements) > len(before_replacements)
+        ):
+            authorization = authorize_runtime_operation(before["runtime"], operation="append")
+            if not authorization.ok:
+                issue = authorization.issues[0]
+                _fail(issue.path, issue.message, code=issue.code)
         return ProvenanceValidationResult(after)
     except ProvenanceValidationError as error:
         return ProvenanceValidationResult(None, (error.to_issue(),))
