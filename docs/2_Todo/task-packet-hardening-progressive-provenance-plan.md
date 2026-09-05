@@ -51,6 +51,7 @@ acceptance_criteria:
 - Persist only append-only binding references: decision, commit/parent, file, old/new blob IDs, hunk fingerprints/ranges/context hints, authorship, and replacement link. Never persist code blocks, patches, or generated snapshots.
 - CLI and MCP `provenance show` generate verified before/after projections from Git with three context lines by default and a bounded 0-20 override. Add parity `bind` and read-only `check` surfaces plus ESR reporting.
 - The decision's runtime owns its sidecar. Pods write their own bindings; roots navigate active descendants explicitly; retired pods are read-only; detached former roots retain metadata only.
+- Add a gitignored, rebuildable temporal-lineage analytics JSON beside retrieval-attention state. Cache each decision's source digest, claimed timestamp, first-introducing commit, ancestry/checkpoint evidence, verification classification, and last checked Git head. ESR reuses unchanged records, processes new or changed decisions incrementally, and invalidates affected results when cached ancestry is no longer reachable. Git ancestry proves ordering; commit dates remain user-controlled; only an independently witnessed checkpoint may claim calendar-time verification.
 
 ## Commit cadence
 
@@ -63,5 +64,5 @@ acceptance_criteria:
 - Preserve the measured baseline: 87.9% one-entry trailer commits; controlled exact changed-path coverage 75.8%; fully unique file attribution 54.0%; five historical 167-520 trailer outliers followed by a maximum of 14.
 - Test complete clause projection, exact/opt-in path semantics, budget composition, new dispatch fields, fingerprints, CLI/MCP parity, and clean-context packet reconstruction.
 - Test many-to-many commit/file/hunk provenance, projections without stored code, tamper/missing-Git/correction cases, root/pod lifecycle boundaries, cadence thresholds, and bulk-sidecar negative controls.
+- Test temporal-lineage cold rebuild, incremental reuse, new/changed decision processing, cache corruption, rewritten ancestry invalidation, backdated/future-dated claims, unwitnessed history, and independently witnessed checkpoint classification without requiring network access.
 - Continue `experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md` with expected versus compiled versus used evidence, token composition, extra-hop classification, authority fidelity, self-sufficiency, instruction compliance, provenance, scope accuracy, and follow-on compiler recommendations.
-
