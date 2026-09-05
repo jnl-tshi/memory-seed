@@ -1,0 +1,10 @@
+{
+  "owner": "seed-pods-core",
+  "agent_type": "codex",
+  "base_branch": "codex/feature/seed-pods",
+  "base_sha": "b7e623bfe42120c3a1970d8d5ee6478461f62398",
+  "working_branch": "codex/feature/seed-pods",
+  "worktree": "C:\\Users\\johnn\\OneDrive\\Documents\\2nd Brain\\Foundry\\memory seed\\.codex\\worktrees\\seed-pods",
+  "expected_directory": "C:\\Users\\johnn\\OneDrive\\Documents\\2nd Brain\\Foundry\\memory seed\\.codex\\worktrees\\seed-pods",
+  "integration_artifact": "branch"
+}

@@ -1,0 +1,102 @@
+{
+  "schema": "memory-seed/task-dispatch",
+  "version": 1,
+  "constitution_refs": [
+    "constitution:v1#authority",
+    "constitution:v1#provenance",
+    "constitution:v1#minimal-context"
+  ],
+  "objective": "Repair the Seed Pod fixture regressions and make the maintained demo plus standalone independent-root fixtures accurately exercise P0 boundaries. Add fixture-focused tests and report product-code failures without editing production modules.",
+  "project_context": {
+    "project_type_and_purpose": "Memory Seed is a local-first Markdown authority for file-reading agents. Seed Pods need maintained examples that distinguish governed pods from explicit independent roots.",
+    "relevant_subsystem": "The checkpoint converted demo to a .memory-seed-pod manifest and marked a strong-context fixture as an independent root. Earlier full-suite work exposed two fixture regressions.",
+    "task_fit": "This branch owns fixture data and fixture-facing tests. Classify stale expectations, incomplete topology, and product defects; fix only the first two and report product defects.",
+    "downstream_use": "The orchestrator will combine the evidence with kernel and adapter work, then run serial and parallel suites before seeking landing authority.",
+    "non_goals": [
+      "Do not edit production modules, governance documents, root policy or index; implement P1; merge; push; release; or mask a product defect by weakening assertions."
+    ]
+  },
+  "execution": {
+    "role": "worker",
+    "persona": "none",
+    "capability_tier": "balanced",
+    "write_intent": "writing",
+    "allowed_files": [
+      "demo/.memory-seed-pod/pod.yaml",
+      "tests/fixtures/context_derivation_strong_context_v2/runtime/.memory-seed/project.yaml",
+      "tests/test_context_derivation_strategies.py",
+      "tests/test_semantic_cache.py",
+      "tests/test_integration_mode.py",
+      "tests/test_mcp_session_append.py",
+      "tests/test_seed_pod_fixtures.py",
+      ".memory-seed/sessions/2026-09/2026-09-05.md",
+      ".superpowers/sdd/seed-pods-p0/fixtures-report.md"
+    ],
+    "forbidden_files": [
+      "memory_seed/core.py",
+      "memory_seed/cli.py",
+      "memory_seed/mcp_server.py",
+      "memory_seed/situate.py",
+      "memory_seed/esr.py",
+      ".memory-seed/index.md",
+      ".memory-seed/policy.md",
+      "docs/CONSTITUTION.md",
+      "docs/2_Todo/seed-pod-runtime-governance-implementation-plan.md",
+      "docs/3_Spec/draft/seed-pod-runtime-boundary-spec.md"
+    ],
+    "validation": [
+      "python -X utf8 -m pytest -q tests/test_context_derivation_strategies.py tests/test_semantic_cache.py tests/test_integration_mode.py tests/test_mcp_session_append.py tests/test_seed_pod_fixtures.py",
+      "python -X utf8 -m memory_seed.cli docs check",
+      "git diff --check"
+    ],
+    "output_contract": [
+      "Write .superpowers/sdd/seed-pods-p0/fixtures-report.md with status, base/head SHAs, commits, changed files, commands and outcomes, classified regressions, and any exact product-code blocker.",
+      "Prove maintained demo and standalone independent-root fixture intent without weakening existing assertions or modifying production code.",
+      "Include a packet-effectiveness assessment covering authority fidelity, useful and irrelevant evidence, all extra retrieval hops, missing or stale context, instruction compliance, and compiler/dispatch recommendations."
+    ],
+    "expected_absent": [
+      "tests/fixtures/context_derivation_strong_context_v2/runtime/.memory-seed/project.yaml",
+      "tests/test_seed_pod_fixtures.py",
+      ".superpowers/sdd/seed-pods-p0/fixtures-report.md"
+    ],
+    "acceptance_observables": [
+      {"name": "fixture-regressions", "command": "python -X utf8 -m pytest -q tests/test_context_derivation_strategies.py tests/test_semantic_cache.py tests/test_integration_mode.py tests/test_mcp_session_append.py tests/test_seed_pod_fixtures.py", "expected_exit_code": 0},
+      {"name": "clean-diff", "command": "git diff --check", "expected_exit_code": 0}
+    ],
+    "implements": ["mse_ynyx8kn8wx8stfvm:d1"]
+  },
+  "retrieval": {
+    "profile": "implementation",
+    "profile_version": 1,
+    "overrides": {
+      "required": {"constitution": true, "related_decisions": {"depth": 2}},
+      "selectors": {
+        "path_references": false,
+        "pinned": [
+          {"kind": "decision", "id": "mse_ynyx8kn8wx8stfvm:d1", "reason": "Defines the fixture and validation outcomes claimed at the checkpoint.", "required": true},
+          {"kind": "decision", "id": "mse_z29mmqx2tgbn3wvr:d1", "reason": "Defines the runtime-boundary behavior fixtures must represent.", "required": true},
+          {"kind": "adr", "id": "adr_subproject_scoping", "reason": "Governs governed-versus-independent nested runtime fixtures.", "required": true},
+          {"kind": "adr", "id": "adr_control_file_authority", "reason": "Keeps fixture expectations aligned with the authority hierarchy.", "required": true}
+        ]
+      },
+      "filters": {
+        "paths": [
+          "docs/2_Todo/seed-pod-runtime-governance-implementation-plan.md",
+          "docs/3_Spec/draft/seed-pod-runtime-boundary-spec.md"
+        ],
+        "topics": []
+      },
+      "optional": {"sessions": {"neighbouring_entries": 2}},
+      "limits": {"max_entries": 20, "max_tokens": 18000},
+      "output": {"include_resolution_trace": true, "include_excerpts": false}
+    }
+  },
+  "budget": {"supplemental_input_tokens": 5000, "output_tokens": 4000, "over_soft_cap": "fail", "over_soft_cap_reason": null},
+  "memory_update_policy": "worker_checkpoint",
+  "memory_checkpoints": {
+    "names": ["seed-pod-fixture-verification-first-hand-decisions"],
+    "session_paths": [".memory-seed/sessions/2026-09/2026-09-05.md"],
+    "branch_local_only": true,
+    "guarded_append": true
+  }
+}
