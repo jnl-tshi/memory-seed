@@ -98,3 +98,17 @@ The fix-round receipt below records subsequent receipt commits separately from t
 - Validation before the substantive fix commit: `git diff --check` PASS; all four scratch dispatch JSON files passed `python -m json.tool`.
 
 The final handoff must name the separate administrative receipt head alongside the two commits above. It is not a new compiler evaluation and it makes no claim beyond recording this exact receipt.
+
+## Fix round 2 pre-commit receipt
+
+The evaluated substantive range remains `53a35e4e6df6610ca2fb829b6d4eeea66df62c7f..ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f`. The prior administrative receipt is `fa23627b207bb3a60372bbcfc2ecdd3c95009fe1` (`docs: append evaluation fix receipt`), whose parent substantive record is `15ebf3c680bb1fd1c9a3d522736b33df9e592fb3` (`docs: complete task packet evaluation record`).
+
+Every evaluation-record commit preceding this fix round is therefore:
+
+| Commit | Subject | Disposition |
+|---|---|---|
+| `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f` | `docs: record hardened task packet evaluation` | original evaluated content |
+| `15ebf3c680bb1fd1c9a3d522736b33df9e592fb3` | `docs: complete task packet evaluation record` | substantive record completion |
+| `fa23627b207bb3a60372bbcfc2ecdd3c95009fe1` | `docs: append evaluation fix receipt` | prior administrative receipt |
+
+This round adds the missing taxonomy-based dispositions directly to the reflection and changes no compiler, tests, memory control files, or Seed Pod work. The actual new branch head is necessarily reported by the post-commit handoff, rather than inserted as a self-referential future hash in this file.
