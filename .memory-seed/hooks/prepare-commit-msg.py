@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Git prepare-commit-msg hook: stamp Memory-Entry trailers automatically.
+"""Git prepare-commit-msg hook: stamp provenance trailers automatically.
 
 `session merge-branch` stamps one `Memory-Entry: <entry_id>` trailer per
 fused session entry, but ordinary commits that carry entries only get the
@@ -10,10 +10,15 @@ construction: it scans the staged diff for newly added `entry_id:` lines
 under the session tree and appends one trailer per new id, deduplicated
 against trailers already present in the message.
 
+An active Task Packet stores exact decision bindings in branch-local Git
+configuration.  This hook reads that activation directly; it never searches
+history to reconstruct a decision binding.
+
 Standalone by design (no memory_seed import): git invokes it through the
 `.git/hooks/prepare-commit-msg` shim that `memory-seed init` (or
-`memory-seed hooks install`) writes. It NEVER fails the commit - any error
-exits 0 so a broken hook cannot block work.
+`memory-seed hooks install`) writes. Operational errors fail open, but an
+ordinary commit with more than ten newly authored entries is refused unless the
+message records a durable, live-approved `Memory-Bulk-Reason:` trailer.
 """
 
 import re
@@ -25,6 +30,11 @@ import sys
 # hook-contract test in the control-plane repo).
 _ENTRY_ID_RE = re.compile(r"^\+entry_id:\s*((?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}))\s*$")
 _TRAILER_RE = re.compile(r"^Memory-Entry:\s*(\S+)\s*$", re.MULTILINE)
+_IMPLEMENTS_REF_RE = re.compile(r"(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):d[1-9][0-9]*\Z")
+_IMPLEMENTS_TRAILER_RE = re.compile(r"^Memory-Implements:\s*(\S+)\s*$", re.MULTILINE)
+_BULK_REASON_RE = re.compile(r"^Memory-Bulk-Reason:\s*\S.+$", re.MULTILINE)
+_TRAILER_LINE_RE = re.compile(r"[A-Za-z][A-Za-z0-9-]*: ")
+MAX_ORDINARY_NEW_ENTRIES = 10
 
 
 def staged_entry_ids() -> list[str]:
@@ -69,23 +79,60 @@ def staged_entry_ids() -> list[str]:
     return ids
 
 
+def active_packet_implements() -> list[str]:
+    """Exact refs activated for this branch, read without traversing history."""
+    branch = subprocess.run(
+        ["git", "branch", "--show-current"], capture_output=True, text=True, timeout=10
+    )
+    if branch.returncode != 0 or not branch.stdout.strip():
+        return []
+    key = f"branch.{branch.stdout.strip()}.memory-seed-task-packet-implements"
+    configured = subprocess.run(
+        ["git", "config", "--local", "--get-all", key],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if configured.returncode != 0:
+        return []
+    refs: list[str] = []
+    for value in configured.stdout.splitlines():
+        reference = value.strip()
+        if _IMPLEMENTS_REF_RE.fullmatch(reference) and reference not in refs:
+            refs.append(reference)
+    return refs
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         return 0
     msg_path = sys.argv[1]
     ids = staged_entry_ids()
-    if not ids:
+    implements = active_packet_implements()
+    if not ids and not implements:
         return 0
     try:
         with open(msg_path, "r", encoding="utf-8") as handle:
             message = handle.read()
     except OSError:
         return 0
-    existing = set(_TRAILER_RE.findall(message))
-    missing = [entry_id for entry_id in ids if entry_id not in existing]
-    if not missing:
+    if len(ids) > MAX_ORDINARY_NEW_ENTRIES and _BULK_REASON_RE.search(message) is None:
+        print(
+            "Refusing commit: it carries more than 10 newly authored Memory-Entry records. "
+            "Obtain live approval and record it as `Memory-Bulk-Reason: <reason>` in the commit message.",
+            file=sys.stderr,
+        )
+        return 1
+    existing_entries = set(_TRAILER_RE.findall(message))
+    existing_implements = set(_IMPLEMENTS_TRAILER_RE.findall(message))
+    missing_entries = [entry_id for entry_id in ids if entry_id not in existing_entries]
+    missing_implements = [reference for reference in implements if reference not in existing_implements]
+    if not missing_entries and not missing_implements:
         return 0
-    trailer_block = "\n".join(f"Memory-Entry: {entry_id}" for entry_id in missing)
+    trailer_block = "\n".join(
+        [*(f"Memory-Entry: {entry_id}" for entry_id in missing_entries),
+         *(f"Memory-Implements: {reference}" for reference in missing_implements)]
+    )
     body = message.rstrip("\n")
     if not body:
         message = trailer_block + "\n"
@@ -97,7 +144,7 @@ def main() -> int:
         # final contiguous block - silently dropping every earlier Memory-Entry,
         # including a merge's own branch entry. Separate with a blank line only
         # when the message ends in prose, so the trailers still form a block.
-        joiner = "\n" if re.match(r"[A-Za-z][A-Za-z0-9-]*: ", last_line) else "\n\n"
+        joiner = "\n" if _TRAILER_LINE_RE.match(last_line) else "\n\n"
         message = body + joiner + trailer_block + "\n"
     try:
         with open(msg_path, "w", encoding="utf-8", newline="\n") as handle:
@@ -111,5 +158,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception:
-        # Never block a commit on hook failure.
+        # Only the deliberate cadence refusal above blocks a commit.
         sys.exit(0)

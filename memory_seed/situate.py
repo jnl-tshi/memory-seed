@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from .core import (
+    CommitCadence,
     iter_session_documents,
     read_integration_mode,
     read_merge_trigger,
@@ -87,6 +88,7 @@ class SituateReport:
     local_version: str | None = None
     changelog_unreleased: bool | None = None
     is_memory_seed_repo: bool = False
+    cadence: CommitCadence | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -140,6 +142,7 @@ class SituateReport:
                 "changelog_unreleased": self.changelog_unreleased,
                 "is_memory_seed_repo": self.is_memory_seed_repo,
             },
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
         }
 
 
@@ -313,6 +316,7 @@ def situate_report(cwd: str | Path = ".", *, explicit_user: str | None = None) -
     report.checkout_classification = guard.classification
     report.checkout_path = str(guard.worktree_path) if guard.worktree_path else None
     report.repo_root = str(guard.repo_root) if guard.repo_root else None
+    report.cadence = guard.cadence
     report.integration_mode = read_integration_mode(root)
     report.merge_trigger = read_merge_trigger(root)
     (
@@ -376,6 +380,24 @@ def format_situate_report(report: SituateReport) -> str:
         lines.append(f"- branch: {report.branch or 'detached'}  ({state})")
         if report.ahead is not None and report.ahead_ref:
             lines.append(f"- {report.ahead} commit(s) ahead of {report.ahead_ref}")
+    lines.append("")
+
+    lines.append("## Checkpoint cadence")
+    if report.cadence is None or not report.cadence.available:
+        lines.append(
+            "Cadence measurements are unavailable: "
+            f"{report.cadence.recommendation if report.cadence else 'no Git worktree.'}"
+        )
+    else:
+        metrics = report.cadence
+        lines.append(
+            "- branch delta: "
+            f"{metrics.entries} entries / {metrics.decisions} decisions / "
+            f"{metrics.files} files / {metrics.churn} lines of churn"
+        )
+        for warning in metrics.warnings:
+            lines.append(f"- {warning}")
+        lines.append(f"- {metrics.recommendation}")
     lines.append("")
 
     lines.append("## Integration mode")

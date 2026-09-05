@@ -16,6 +16,7 @@ from memory_seed.retrieval_profiles import load_retrieval_profile
 from memory_seed.task_packet import (
     TASK_PACKET_SCHEMA,
     TaskPacketValidationError,
+    activate_task_packet,
     assess_context_budget,
     calculate_cost_ledger,
     canonical_task_packet_json,
@@ -653,6 +654,38 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaises(TaskPacketValidationError) as caught:
             compile_task_packet(unresolved, self.binding(root), root)
         self.assertEqual(caught.exception.code, "unresolved_implements")
+
+    def test_writing_packet_activation_binds_exact_implements_and_requires_reason_for_scope_change(self):
+        root = self.make_project()
+        self.git(root, "checkout", "-b", "codex/activation")
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+
+        first = activate_task_packet(packet, root)
+
+        self.assertTrue(first["activated"])
+        self.assertEqual(first["implements"], ["mse_packet0001:d1"])
+        key = "branch.codex/activation.memory-seed-task-packet-implements"
+        self.assertEqual(self.git(root, "config", "--local", "--get-all", key), "mse_packet0001:d1")
+        self.assertIn("activation", packet["execution_defaults"])
+        self.assertIn("cadence", packet["execution_defaults"])
+
+        changed = self.dispatch(write_intent="writing")
+        changed["execution"]["implements"] = ["mse_packet0001:d1"]
+        changed["execution"]["allowed_files"].append("docs/evidence.md")
+        updated_packet = compile_task_packet(changed, self.binding(root, writing=True), root)
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            activate_task_packet(updated_packet, root)
+        self.assertEqual(caught.exception.code, "binding_update_required")
+
+        updated = activate_task_packet(
+            updated_packet,
+            root,
+            binding_update_reason="Expanded packet scope for the evidence fixture.",
+        )
+        self.assertTrue(updated["binding_updated"])
+        self.assertIn("Expanded packet scope", updated["binding_update_reason"])
 
     def test_component_measurements_are_complete_and_fingerprinted(self):
         root = self.make_project()

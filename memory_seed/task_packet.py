@@ -20,12 +20,13 @@ import hashlib
 import json
 import math
 import re
+import subprocess
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Sequence
 
-from .core import _git_text, resolve_runtime
+from .core import _git_text, commit_cadence, resolve_runtime
 from .retrieval import (
     EVIDENCE_PACK_SCHEMA,
     EVIDENCE_PACK_VERSION,
@@ -1353,6 +1354,7 @@ def project_constitution(
 
 def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
     writing = dispatch["execution"]["write_intent"] == "writing"
+    cadence = commit_cadence(binding["worktree"])
     preflight = [
         f"Set-Location -LiteralPath {binding['worktree']!r}",
         "pwd",
@@ -1399,6 +1401,14 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "required": "name the required file and compare it with dispatch.execution.allowed_files",
             "allowed_files": list(dispatch["execution"]["allowed_files"]),
         },
+        "activation": {
+            "required": writing,
+            "api": "memory_seed.task_packet.activate_task_packet",
+            "implements": list(dispatch["execution"]["implements"]),
+            "scope_update": "requires a non-empty, explicit binding_update_reason",
+            "storage": "branch-scoped local Git configuration",
+        },
+        "cadence": cadence.to_dict(),
         "escalated_shell": {
             "required_location": binding["worktree"],
             "required_branch": binding["working_branch"],
@@ -1444,6 +1454,173 @@ def canonical_task_packet_json(packet: Mapping[str, Any]) -> str:
             stage="serialization",
         )
     return canonical_json(packet)
+
+
+def _packet_config_key(branch: str, field: str) -> str:
+    return f"branch.{branch}.memory-seed-task-packet-{field}"
+
+
+def _git_config_values(root: Path, key: str) -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "config", "--local", "--get-all", key],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        _fail(
+            "activation",
+            "could not read branch-scoped packet activation",
+            code="activation_io",
+            stage="activation",
+            details={"error": exc.__class__.__name__},
+        )
+    if proc.returncode == 1:
+        return []
+    if proc.returncode != 0:
+        _fail(
+            "activation",
+            "could not read branch-scoped packet activation",
+            code="activation_io",
+            stage="activation",
+            details={"stderr": proc.stderr.strip()},
+        )
+    return [line for line in proc.stdout.splitlines() if line]
+
+
+def _replace_git_config_values(root: Path, key: str, values: Sequence[str]) -> None:
+    try:
+        # A missing key is expected on first activation.  Clear before adding so
+        # a changed packet cannot leave stale decision attribution behind.
+        subprocess.run(
+            ["git", "-C", str(root), "config", "--local", "--unset-all", key],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+        )
+        for value in values:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "config", "--local", "--add", key, value],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=15,
+            )
+            if proc.returncode != 0:
+                _fail(
+                    "activation",
+                    "could not persist branch-scoped packet activation",
+                    code="activation_io",
+                    stage="activation",
+                    details={"key": key, "stderr": proc.stderr.strip()},
+                )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        _fail(
+            "activation",
+            "could not persist branch-scoped packet activation",
+            code="activation_io",
+            stage="activation",
+            details={"key": key, "error": exc.__class__.__name__},
+        )
+
+
+def activate_task_packet(
+    packet: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    binding_update_reason: str | None = None,
+) -> dict[str, Any]:
+    """Activate a compiled writing packet for its bound Git branch.
+
+    Activation deliberately writes no project files and searches no history. It
+    records only the packet's exact decision refs in branch-scoped local Git
+    configuration, which the managed commit hook reads directly.  Rebinding a
+    previously activated branch to a changed scope or worktree/base requires a
+    durable reason in that same local activation record.
+    """
+    packet = _mapping(packet, "packet")
+    canonical_task_packet_json(packet)
+    dispatch = normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
+    if packet.get("dispatch_fingerprint") != task_dispatch_fingerprint(dispatch):
+        _fail(
+            "packet.dispatch_fingerprint",
+            "does not match the normalized dispatch",
+            code="fingerprint_mismatch",
+            stage="activation",
+        )
+    if dispatch["execution"]["write_intent"] != "writing":
+        _fail(
+            "packet.dispatch.execution.write_intent",
+            "read-only packets cannot activate commit attribution",
+            code="activation_read_only",
+            stage="activation",
+        )
+    binding = normalize_runtime_binding(
+        _mapping(packet.get("runtime_binding"), "packet.runtime_binding"),
+        write_intent="writing",
+        cwd=cwd,
+    )
+    if binding != packet["runtime_binding"]:
+        _fail(
+            "packet.runtime_binding",
+            "does not match the measured activation worktree",
+            code="binding_mismatch",
+            stage="activation",
+        )
+    branch = binding["working_branch"]
+    assert branch is not None
+    root = Path(binding["worktree"])
+    scope = canonical_json(
+        {
+            "allowed_files": dispatch["execution"]["allowed_files"],
+            "forbidden_files": dispatch["execution"]["forbidden_files"],
+            "expected_absent": dispatch["execution"]["expected_absent"],
+        }
+    )
+    binding_identity = canonical_json(
+        {
+            "base_branch": binding["base_branch"],
+            "base_sha": binding["base_sha"],
+            "working_branch": branch,
+            "worktree": binding["worktree"],
+        }
+    )
+    existing_scope = _git_config_values(root, _packet_config_key(branch, "scope"))
+    existing_binding = _git_config_values(root, _packet_config_key(branch, "binding"))
+    binding_changed = bool(existing_scope or existing_binding) and (
+        existing_scope != [scope] or existing_binding != [binding_identity]
+    )
+    reason = (binding_update_reason or "").strip()
+    if binding_changed and len(reason) < 12:
+        _fail(
+            "binding_update_reason",
+            "a changed activation scope or binding requires an explicit reason of at least 12 characters",
+            code="binding_update_required",
+            stage="activation",
+        )
+
+    implements = list(dispatch["execution"]["implements"])
+    _replace_git_config_values(root, _packet_config_key(branch, "implements"), implements)
+    _replace_git_config_values(root, _packet_config_key(branch, "scope"), [scope])
+    _replace_git_config_values(root, _packet_config_key(branch, "binding"), [binding_identity])
+    _replace_git_config_values(root, _packet_config_key(branch, "fingerprint"), [str(packet["fingerprint"])])
+    _replace_git_config_values(
+        root,
+        _packet_config_key(branch, "binding-update-reason"),
+        [reason] if binding_changed else [],
+    )
+    return {
+        "activated": True,
+        "branch": branch,
+        "worktree": str(root),
+        "packet_fingerprint": packet["fingerprint"],
+        "implements": implements,
+        "binding_updated": binding_changed,
+        "binding_update_reason": reason if binding_changed else None,
+    }
 
 
 def compile_task_packet(
