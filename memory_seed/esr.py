@@ -144,6 +144,8 @@ class EsrReport:
     # never creates an ADR, attaches a member, or moves an authoritative head.
     adr_sweep_candidates: list[dict[str, Any]] = field(default_factory=list)
     corpus_cache: dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)
+    temporal_lineage: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -158,6 +160,8 @@ class EsrReport:
             "topic_attribution_gaps": self.topic_attribution_gaps,
             "proposed_topics": self.proposed_topics,
             "oldest_topic_attribution_gap": self.oldest_topic_attribution_gap,
+            "provenance": self.provenance,
+            "temporal_lineage": self.temporal_lineage,
             "worktrees": {
                 "available": self.worktrees_available,
                 "entries": [
@@ -946,6 +950,48 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     snapshot = inspection.snapshot
     report.corpus_cache = inspection.to_dict()
 
+    # These are advisory checks.  Sidecars are independently validated and a
+    # failed projection must never make ordinary ESR unrelatedly destructive.
+    try:
+        from .cli import provenance_audit_all
+
+        report.provenance = provenance_audit_all(cwd)
+    except Exception as exc:  # noqa: BLE001 - ESR reports failures, it does not hide them
+        report.provenance = {"ok": False, "sidecars": [], "error": str(exc)}
+
+    try:
+        import hashlib
+
+        from .semantic_cache import extract_memory_chunks
+        from .temporal_lineage import GITIGNORE_ENTRY, refresh_temporal_lineage
+
+        decisions: list[dict[str, Any]] = []
+        for chunk in extract_memory_chunks(cwd, granularity="decision"):
+            if not chunk.entry_datetime or not chunk.chunk_id:
+                continue
+            decisions.append({
+                "decision_ref": chunk.chunk_id,
+                "source_digest": "sha256:" + hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+                "claimed_timestamp": chunk.entry_datetime.isoformat(),
+                "source_path": chunk.source_path,
+                "needle": chunk.text,
+            })
+        ignore = root / ".gitignore"
+        ignored = ignore.is_file() and GITIGNORE_ENTRY in ignore.read_text(encoding="utf-8").splitlines()
+        if ignored:
+            report.temporal_lineage = refresh_temporal_lineage(root, decisions)
+        else:
+            # The cache is derived but must be ignored before it is published.
+            # ESR cannot silently change an unscoped .gitignore, so it reports
+            # the exact prerequisite instead of creating a tracked artifact.
+            report.temporal_lineage = {
+                "git_available": None, "cache_status": "cache-unignored",
+                "cache_published": False, "decisions": {}, "recomputed": [item["decision_ref"] for item in decisions],
+                "instruction": f"add {GITIGNORE_ENTRY} to .gitignore before temporal cache publication",
+            }
+    except Exception as exc:  # noqa: BLE001 - this is an audit surface
+        report.temporal_lineage = {"git_available": False, "cache_status": "unavailable", "error": str(exc), "decisions": {}}
+
     links = check_session_links(cwd=cwd, snapshot=snapshot)
     report.integrity_ok = links.ok
     report.integrity_issues = [
@@ -1105,6 +1151,24 @@ def format_esr_report(report: EsrReport) -> str:
             lines.append("- live source reconstruction used; persistent cache was not trusted")
     else:
         lines.append("missing — no cache inspection available")
+    lines.append("")
+
+    lines.append("## Progressive provenance")
+    provenance = report.provenance
+    if provenance.get("ok", True):
+        lines.append(f"OK — {provenance.get('sidecar_count', 0)} sidecar(s) audited.")
+    else:
+        lines.append("ATTENTION — append-only or Git reference evidence needs review.")
+        for sidecar in provenance.get("sidecars", []):
+            if not sidecar.get("ok"):
+                lines.append(f"- {sidecar.get('path')}: {sidecar.get('error', 'unverified reference')}")
+    temporal = report.temporal_lineage
+    lines.append(
+        f"Temporal lineage: {temporal.get('cache_status', 'not-run')}"
+        + (f"; recomputed {len(temporal.get('recomputed', []))}" if isinstance(temporal.get('recomputed'), list) else "")
+    )
+    if temporal.get("instruction"):
+        lines.append(f"- {temporal['instruction']}")
     lines.append("")
 
     lines.append("## Semantic ranking")

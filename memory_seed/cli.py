@@ -9,6 +9,7 @@ import sys
 import tempfile
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any, Mapping
 
 from . import processes as process_tools
 from .core import (
@@ -67,6 +68,211 @@ def _read_json_object(path_text: str, *, label: str) -> dict:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object")
     return value
+
+
+# Provenance is deliberately persisted as a sequence of Markdown blocks rather
+# than one mutable JSON document.  The validation contract owns meaning; this
+# thin adapter owns only append-only transport and public-surface parity.
+_PROVENANCE_EVENT_RE = re.compile(
+    r"<!-- memory-seed-provenance:(runtime|binding|replacement) -->\s*```json\s*(.*?)\s*```",
+    re.DOTALL,
+)
+
+
+def _provenance_event(kind: str, value: Mapping[str, Any]) -> str:
+    return (
+        f"<!-- memory-seed-provenance:{kind} -->\n"
+        "```json\n"
+        + json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False)
+        + "\n```\n"
+    )
+
+
+def _provenance_runtime(cwd: str | Path, owner: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Construct one explicit local runtime record; callers cannot write a descendant."""
+
+    from .provenance import build_runtime_ownership, normalize_runtime_ownership
+
+    if owner is not None:
+        return normalize_runtime_ownership(owner)
+    return build_runtime_ownership(
+        runtime_path=".", owner_kind="runtime", owner_id="root", owner_state="active"
+    )
+
+
+def _provenance_sidecar(cwd: str | Path, runtime: Mapping[str, Any]) -> Path:
+    return resolve_runtime(cwd).workspace_root / str(runtime["sidecar_path"])
+
+
+def _read_provenance_ledger(cwd: str | Path, runtime: Mapping[str, Any]) -> tuple[dict[str, Any], Path, list[str]]:
+    """Read a complete event stream, refusing malformed or cross-runtime history."""
+
+    from .provenance import build_ledger, normalize_ledger
+
+    path = _provenance_sidecar(cwd, runtime)
+    if not path.exists():
+        return build_ledger(runtime=runtime), path, []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"provenance sidecar is unreadable: {exc}") from exc
+    events = list(_PROVENANCE_EVENT_RE.finditer(text))
+    if not events:
+        raise ValueError("provenance sidecar has no recognized append-only events")
+    declared_runtime: dict[str, Any] | None = None
+    bindings: list[dict[str, Any]] = []
+    replacements: list[dict[str, Any]] = []
+    problems: list[str] = []
+    for index, match in enumerate(events, start=1):
+        kind, raw = match.groups()
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"provenance event {index} is not valid JSON: {exc.msg}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(f"provenance event {index} must contain a JSON object")
+        if kind == "runtime":
+            if declared_runtime is not None:
+                problems.append("more than one runtime event")
+            declared_runtime = payload
+        elif kind == "binding":
+            bindings.append(payload)
+        else:
+            replacements.append(payload)
+    if declared_runtime is None:
+        raise ValueError("provenance sidecar is missing its initial runtime event")
+    ledger = normalize_ledger({
+        "schema": "memory-seed/provenance-ledger", "version": 1,
+        "runtime": declared_runtime, "bindings": bindings, "replacements": replacements,
+    })
+    if ledger["runtime"] != dict(runtime):
+        problems.append("sidecar runtime does not match the explicitly selected runtime")
+    if problems:
+        raise ValueError("provenance sidecar is tampered: " + "; ".join(problems))
+    return ledger, path, []
+
+
+def _provenance_decision(cwd: str | Path, decision_ref: str) -> dict[str, Any]:
+    """Return first-hand decision text plus a small D/R projection when present."""
+
+    import hashlib
+
+    from .semantic_cache import extract_memory_chunks
+
+    for chunk in extract_memory_chunks(cwd, granularity="decision"):
+        if chunk.chunk_id != decision_ref:
+            continue
+        lines = chunk.text.splitlines()
+        decision = next((line[4:].strip() for line in lines if line.startswith("- D:")), chunk.title)
+        reason = next((line[4:].strip() for line in lines if line.startswith("- R:")), None)
+        return {
+            "ref": decision_ref, "decision": decision, "reason": reason,
+            "source_path": chunk.source_path,
+            "source_digest": "sha256:" + hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            "claimed_timestamp": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
+        }
+    return {"ref": decision_ref, "decision": None, "reason": None, "source_path": None, "source_digest": None, "claimed_timestamp": None}
+
+
+def provenance_surface(
+    action: str, *, cwd: str | Path = ".", decision_ref: str | None = None,
+    binding: Mapping[str, Any] | None = None, owner: Mapping[str, Any] | None = None,
+    context_lines: int = 3, apply: bool = False,
+) -> dict[str, Any]:
+    """Shared CLI/MCP provenance adapter with one validation and write path."""
+
+    from .provenance import (
+        authorize_runtime_operation, build_ledger, normalize_binding,
+        project_ledger, validate_append_only_update,
+    )
+    from .provenance_git import GitUnavailableError, project_binding, verify_binding
+
+    if type(context_lines) is not int or not 0 <= context_lines <= 20:
+        raise ValueError("context_lines must be an integer from 0 through 20")
+    runtime = _provenance_runtime(cwd, owner)
+    ledger, path, _ = _read_provenance_ledger(cwd, runtime)
+    if action == "bind":
+        if binding is None:
+            raise ValueError("binding is required")
+        if runtime["runtime_path"] != ".":
+            raise ValueError("a root may inspect a descendant runtime but cannot append to its sidecar")
+        normalized = normalize_binding(binding)
+        authorization = authorize_runtime_operation(runtime, operation="append")
+        if not authorization.ok:
+            raise ValueError(authorization.issues[0].message)
+        candidate = build_ledger(
+            runtime=runtime, bindings=[*ledger["bindings"], normalized], replacements=ledger["replacements"],
+        )
+        checked = validate_append_only_update(ledger, candidate)
+        if not checked.ok:
+            raise ValueError(checked.issues[0].message)
+        payload = {
+            "ok": True, "action": "bind", "dry_run": not apply, "written": False,
+            "path": str(path), "binding": normalized, "runtime": runtime,
+        }
+        if apply:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            prefix = "" if path.exists() and path.stat().st_size else _provenance_event("runtime", runtime)
+            with path.open("a", encoding="utf-8", newline="\n") as stream:
+                stream.write(prefix + _provenance_event("binding", normalized))
+            payload["written"] = True
+        return payload
+    if action == "check":
+        verification: list[dict[str, Any]] = []
+        for item in ledger["bindings"]:
+            try:
+                result = verify_binding(item, cwd)
+            except GitUnavailableError as exc:
+                result = {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}
+            verification.append({"binding_id": item["binding_id"], **result})
+        return {
+            "ok": all(row.get("verified") for row in verification) if verification else True,
+            "action": "check", "path": str(path), "ledger": project_ledger(ledger),
+            "append_only": True, "reference_audit": verification,
+        }
+    if action != "show":
+        raise ValueError("action must be 'show', 'bind', or 'check'")
+    if not isinstance(decision_ref, str) or not decision_ref.strip():
+        raise ValueError("decision_ref is required")
+    decision_ref = decision_ref.strip()
+    decision = _provenance_decision(cwd, decision_ref)
+    rows: list[dict[str, Any]] = []
+    for item in ledger["bindings"]:
+        if item["decision_ref"] != decision_ref:
+            continue
+        try:
+            rows.append(project_binding(item, cwd, before=context_lines, after=context_lines, decision=decision, reason=decision["reason"]))
+        except GitUnavailableError as exc:
+            rows.append({"binding_id": item["binding_id"], "decision_ref": decision_ref, "decision": decision, "reason": decision["reason"], "code_available": False, "verification": {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}, "hunks": []})
+    return {"ok": True, "action": "show", "path": str(path), "runtime": runtime, "decision": decision, "context_lines": context_lines, "projections": rows, "code_available": any(row.get("code_available") for row in rows)}
+
+
+def provenance_audit_all(cwd: str | Path = ".") -> dict[str, Any]:
+    """Audit every discoverable sidecar without granting cross-runtime writes."""
+
+    root = resolve_runtime(cwd).workspace_root
+    directory = root / ".memory-seed" / "provenance"
+    paths = [directory / "bindings.md"]
+    if directory.is_dir():
+        paths.extend(sorted(directory.glob("pods/*.md")))
+        paths.extend(sorted(directory.glob("detached-roots/*.md")))
+    audits: list[dict[str, Any]] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        try:
+            events = list(_PROVENANCE_EVENT_RE.finditer(path.read_text(encoding="utf-8")))
+            if not events or events[0].group(1) != "runtime":
+                raise ValueError("missing initial runtime event")
+            runtime = json.loads(events[0].group(2))
+            result = provenance_surface("check", cwd=root, owner=runtime)
+            audits.append({"path": str(path), **result})
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+            audits.append({"path": str(path), "ok": False, "append_only": False, "reference_audit": [], "error": str(exc)})
+    return {
+        "ok": all(item["ok"] for item in audits), "sidecars": audits,
+        "sidecar_count": len(audits),
+    }
 
 
 def _atomic_export_json(path_text: str, payload: str, *, overwrite: bool) -> None:
@@ -876,6 +1082,22 @@ def main(argv: list[str] | None = None) -> int:
         "repair",
         help="install or refresh Memory Seed-managed trailer hooks without overwriting foreign hooks",
     )
+
+    provenance_parser = subparsers.add_parser(
+        "provenance",
+        help="inspect, append, and audit reference-only decision-to-Git provenance",
+    )
+    provenance_sub = provenance_parser.add_subparsers(dest="provenance_command", required=True)
+    provenance_show = provenance_sub.add_parser("show", help="show verified temporary before/after code projections")
+    provenance_show.add_argument("decision_ref", help="exact <entry_id>:dN decision reference")
+    provenance_show.add_argument("--context-lines", type=int, default=3, help="Git context lines per side, 0-20 (default: 3)")
+    provenance_show.add_argument("--json", action="store_true", help="emit machine-readable output")
+    provenance_bind = provenance_sub.add_parser("bind", help="append one validated binding reference")
+    provenance_bind.add_argument("--binding-file", required=True, help="UTF-8 JSON binding object; use - for stdin")
+    provenance_bind.add_argument("--apply", action="store_true", help="append after validation; default is a dry run")
+    provenance_bind.add_argument("--json", action="store_true", help="emit machine-readable output")
+    provenance_check = provenance_sub.add_parser("check", help="audit append-only sidecar and Git references")
+    provenance_check.add_argument("--json", action="store_true", help="emit machine-readable output")
 
     esr_parser = subparsers.add_parser(
         "esr",
@@ -2863,6 +3085,37 @@ def main(argv: list[str] | None = None) -> int:
             for action in actions:
                 print(action)
             return 0
+
+    if args.command == "provenance":
+        try:
+            if args.provenance_command == "bind":
+                payload = provenance_surface(
+                    "bind", cwd=Path(".").resolve(),
+                    binding=_read_json_object(args.binding_file, label="binding"), apply=args.apply,
+                )
+            elif args.provenance_command == "show":
+                payload = provenance_surface(
+                    "show", cwd=Path(".").resolve(), decision_ref=args.decision_ref,
+                    context_lines=args.context_lines,
+                )
+            else:
+                payload = provenance_surface("check", cwd=Path(".").resolve())
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"provenance {args.provenance_command} refused: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        elif args.provenance_command == "bind":
+            print(("Appended" if payload["written"] else "Would append") + f" {payload['binding']['binding_id']} to {payload['path']}")
+        elif args.provenance_command == "show":
+            print(f"{payload['decision_ref'] if 'decision_ref' in payload else payload['decision']['ref']}: {len(payload['projections'])} binding(s); code available: {payload['code_available']}")
+            if payload["decision"]["reason"]:
+                print(f"Reason: {payload['decision']['reason']}")
+        else:
+            print("Provenance references OK" if payload["ok"] else "Provenance references need attention")
+            for row in payload["reference_audit"]:
+                print(f"  {row['binding_id']}: {row.get('evidence_state', 'available')}")
+        return 0 if payload["ok"] else 1
 
     if args.command == "esr":
         from .esr import esr_report, format_esr_report

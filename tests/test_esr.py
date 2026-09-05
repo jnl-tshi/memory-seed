@@ -706,6 +706,8 @@ class ToDictCompletenessTests(unittest.TestCase):
         "adr_head_reviews": ("adr_head_reviews",),
         "adr_sweep_candidates": ("adr_sweep_candidates",),
         "corpus_cache": ("corpus_cache",),
+        "provenance": ("provenance",),
+        "temporal_lineage": ("temporal_lineage",),
     }
 
     # Fields whose to_dict() representation is a transform of the raw
@@ -785,6 +787,8 @@ class ToDictCompletenessTests(unittest.TestCase):
                 "recommendation": {"action": "review-for-adr-promotion"},
             }],
             corpus_cache={"health": "current"},
+            provenance={"ok": True},
+            temporal_lineage={"cache_status": "available"},
         )
 
         payload = report.to_dict()
