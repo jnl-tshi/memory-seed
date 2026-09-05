@@ -38,7 +38,8 @@ class TaskPacketTests(unittest.TestCase):
         )
         (root / "docs").mkdir()
         (root / "docs" / "CONSTITUTION.md").write_text(
-            "# Constitution\n\n## Invariant\n\nMarkdown is authoritative.\n",
+            "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+            "## Invariant\n\nMarkdown is authoritative.\n",
             encoding="utf-8",
         )
         (root / "docs" / "evidence.md").write_text(
@@ -472,7 +473,8 @@ class TaskPacketTests(unittest.TestCase):
         root = self.make_project()
         constitution = root / "docs" / "CONSTITUTION.md"
         constitution.write_text(
-            "# Constitution\n\n## Authority\n\n"
+            "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+            "## Authority\n\n"
             "<!-- constitution-ref: constitution:v1#markdown-authority -->\n"
             "Markdown is authoritative. This complete clause is deliberately long enough to prove projection.\n\n"
             "## Safety\n\n"
@@ -489,7 +491,7 @@ class TaskPacketTests(unittest.TestCase):
         clause = projection["clauses"][0]
         self.assertEqual(clause["ref"], "constitution:v1#markdown-authority")
         self.assertEqual(clause["path"], "docs/CONSTITUTION.md")
-        self.assertEqual(clause["line_range"], [5, 7])
+        self.assertEqual(clause["line_range"], [7, 9])
         self.assertEqual(clause["selection_reason"], "explicit dispatch Constitution reference")
         self.assertRegex(clause["full_document_digest"], r"^sha256:[0-9a-f]{64}$")
         self.assertRegex(clause["clause_digest"], r"^sha256:[0-9a-f]{64}$")
@@ -509,7 +511,8 @@ class TaskPacketTests(unittest.TestCase):
             "kind": "constitution",
             "source": "docs/CONSTITUTION.md",
             "content": (
-                "# Constitution\n\n## Authority\n\n"
+                "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+                "## Authority\n\n"
                 "<!-- constitution-ref: constitution:v1#authority -->\n"
                 "Authority clause.\n"
             ),
@@ -526,10 +529,78 @@ class TaskPacketTests(unittest.TestCase):
 
         fallback = project_constitution(
             dispatch,
-            [{**constitution, "content": "# Constitution\n\nNo stable anchors yet.\n"}],
+            [{
+                **constitution,
+                "content": "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\nNo stable anchors yet.\n",
+            }],
         )
         self.assertEqual(fallback["mode"], "full_document_fallback")
         self.assertIn("No stable anchors", fallback["full_document"]["content"])
+
+    def test_constitution_projection_keeps_all_ranked_clauses_above_target(self):
+        dispatch = normalize_task_dispatch(self.dispatch(tier="economy"))
+        body = "grounded " * 500
+        constitution = {
+            "id": "docs/CONSTITUTION.md",
+            "kind": "constitution",
+            "source": "docs/CONSTITUTION.md",
+            "content": (
+                "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+                "<!-- constitution-ref: constitution:v1#first -->\n" + body + "\n"
+                "<!-- constitution-ref: constitution:v1#second -->\n" + body + "\n"
+                "<!-- constitution-ref: constitution:v1#third -->\n" + body + "\n"
+            ),
+        }
+        projection = project_constitution(dispatch, [constitution])
+        self.assertEqual(projection["selection_mode"], "ranked_whole_clauses")
+        self.assertEqual([item["ref"] for item in projection["clauses"]], [
+            "constitution:v1#first",
+            "constitution:v1#second",
+            "constitution:v1#third",
+        ])
+        self.assertTrue(projection["over_target"])
+        self.assertEqual(projection["governing_overage"]["status"], "over_target")
+        self.assertGreater(projection["governing_overage"]["tokens"], 0)
+
+    def test_constitution_projection_refuses_missing_adr_bindings_and_unratified_documents(self):
+        dispatch = normalize_task_dispatch(self.dispatch())
+        constitution = {
+            "id": "docs/CONSTITUTION.md",
+            "kind": "constitution",
+            "source": "docs/CONSTITUTION.md",
+            "content": (
+                "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+                "<!-- constitution-ref: constitution:v1#authority -->\nAuthority clause.\n"
+            ),
+        }
+        for label, content, expected in (
+            (
+                "valid-plus-missing",
+                "- `constitution:v1#authority` (governing)\n- `constitution:v1#missing` (supporting)\n",
+                {"adr_id": "adr_mixed", "role": "supporting", "missing_anchor": "constitution:v1#missing"},
+            ),
+            (
+                "missing-only",
+                "- `constitution:v1#missing` (governing)\n",
+                {"adr_id": "adr_missing", "role": "governing", "missing_anchor": "constitution:v1#missing"},
+            ),
+        ):
+            with self.subTest(label=label):
+                adr_id = expected["adr_id"]
+                adr = {"id": adr_id, "kind": "adr", "source": f".memory-seed/decisions/{adr_id}.md", "content": content}
+                with self.assertRaises(TaskPacketValidationError) as caught:
+                    project_constitution(dispatch, [constitution, adr])
+                self.assertEqual(caught.exception.code, "invalid_constitution_projection")
+                self.assertIn(expected, caught.exception.details["missing_adr_bindings"])
+
+        for label, content in (
+            ("unratified", "# Constitution\n\n<!-- constitution-ref: constitution:v1#authority -->\nAuthority.\n"),
+            ("invalid-version", "# Constitution\n\n**Version:** unknown — **RATIFIED**\n"),
+            ("incompatible-anchor", "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n<!-- constitution-ref: constitution:v2#authority -->\nAuthority.\n"),
+        ):
+            with self.subTest(label=label), self.assertRaises(TaskPacketValidationError) as caught:
+                project_constitution(dispatch, [{**constitution, "content": content}])
+            self.assertEqual(caught.exception.code, "invalid_constitution_projection")
 
     def test_execution_contracts_validate_creation_acceptance_and_implementation(self):
         dispatch = self.dispatch(write_intent="writing")
@@ -558,6 +629,10 @@ class TaskPacketTests(unittest.TestCase):
         writing_packet = compile_task_packet(writing, binding, root)
         defaults = writing_packet["execution_defaults"]
         self.assertEqual(defaults["preflight"][0], f"Set-Location -LiteralPath {str(root)!r}")
+        self.assertEqual(
+            defaults["preflight"][1],
+            "python -X utf8 -m memory_seed.cli worktree guard --agent codex --write-intent",
+        )
         self.assertIn("git branch --show-current", defaults["preflight"])
         self.assertEqual(defaults["escalated_shell"]["required_location"], str(root))
         self.assertEqual(defaults["escalated_shell"]["required_branch"], "codex/contracts")

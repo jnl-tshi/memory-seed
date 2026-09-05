@@ -27,7 +27,8 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         (root / ".memory-seed" / "retrieval-profiles" / "implementation").mkdir(parents=True)
         (root / "docs").mkdir()
         (root / "docs" / "CONSTITUTION.md").write_text(
-            "# Constitution\n\n## Invariant\n\nMarkdown is authoritative.\n",
+            "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-09-05**\n\n"
+            "## Invariant\n\nMarkdown is authoritative.\n",
             encoding="utf-8",
         )
         (root / "docs" / "evidence.md").write_text("# Evidence\n\nCanonical source.\n", encoding="utf-8")

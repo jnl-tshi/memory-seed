@@ -1136,7 +1136,34 @@ def _constitution_clauses(
         if (match := _CONSTITUTION_ANCHOR_RE.search(line)) is not None
     ]
     version_match = _CONSTITUTION_VERSION_RE.search(content)
-    ratified_version = version_match.group(1) if version_match else "unknown"
+    if version_match is None:
+        _fail(
+            "evidence_pack.evidence",
+            "Constitution projection requires explicit ratified Version metadata",
+            code="invalid_constitution_projection",
+            stage="materialization",
+            details={"source": source},
+        )
+    ratified_version = version_match.group(1)
+    expected_anchor_version = f"constitution:v{ratified_version.split('.', 1)[0]}#"
+    incompatible_anchors = sorted(
+        reference
+        for _index, reference in anchors
+        if not reference.startswith(expected_anchor_version)
+    )
+    if incompatible_anchors:
+        _fail(
+            "evidence_pack.evidence",
+            "Constitution anchors must use the ratified Version's major identity",
+            code="invalid_constitution_projection",
+            stage="materialization",
+            details={
+                "source": source,
+                "ratified_version": ratified_version,
+                "expected_anchor_prefix": expected_anchor_version,
+                "incompatible_anchors": incompatible_anchors,
+            },
+        )
     full_digest = _content_digest(content)
     clauses: list[dict[str, Any]] = []
     for ordinal, (start, reference) in enumerate(anchors):
@@ -1210,12 +1237,12 @@ def project_constitution(
     target = CONSTITUTION_PROJECTION_TARGETS[dispatch["execution"]["capability_tier"]]
     clauses_by_ref = {clause["ref"]: clause for clause in clauses}
     explicit_refs = list(dispatch["constitution_refs"])
-    adr_refs: list[tuple[str, str]] = []
+    adr_refs: list[tuple[str, str, str]] = []
     for item in materialized:
         if item.get("kind") != "adr":
             continue
         for reference, role in _CONSTITUTION_BINDING_RE.findall(str(item["content"])):
-            adr_refs.append((reference, f"selected ADR {item['id']} {role} binding"))
+            adr_refs.append((reference, str(item["id"]), role))
 
     selected: list[dict[str, Any]] = []
     if explicit_refs:
@@ -1234,14 +1261,28 @@ def project_constitution(
             selected.append(clause)
         selection_mode = "explicit_dispatch_refs"
     elif adr_refs:
-        for reference, reason in adr_refs:
+        missing_adr_refs = [
+            {"adr_id": adr_id, "role": role, "missing_anchor": reference}
+            for reference, adr_id, role in adr_refs
+            if reference not in clauses_by_ref
+        ]
+        if missing_adr_refs:
+            _fail(
+                "materialized_evidence",
+                "selected ADR Constitution binding names an anchor absent from the supplied Constitution",
+                code="invalid_constitution_projection",
+                stage="materialization",
+                details={"missing_adr_bindings": missing_adr_refs, "source": source},
+            )
+        for reference, adr_id, role in adr_refs:
             clause = clauses_by_ref.get(reference)
-            if clause is None:
-                continue
+            assert clause is not None
             if any(existing["ref"] == reference for existing in selected):
                 continue
             selected_clause = dict(clause)
-            selected_clause["selection_reason"] = reason
+            selected_clause["selection_reason"] = (
+                f"selected ADR {adr_id} {role} binding"
+            )
             selected.append(selected_clause)
         selection_mode = "selected_adr_refs"
     if not selected and not explicit_refs:
@@ -1256,10 +1297,6 @@ def project_constitution(
         for score, clause in ranked:
             if score == 0:
                 break
-            projected_tokens = sum(estimate_tokens(item["content"]) for item in selected)
-            clause_tokens = estimate_tokens(clause["content"])
-            if selected and projected_tokens + clause_tokens > target:
-                break
             selected_clause = dict(clause)
             selected_clause["selection_reason"] = f"ranked whole-clause lexical score {score}"
             selected.append(selected_clause)
@@ -1273,6 +1310,10 @@ def project_constitution(
             "target_tokens": target,
             "content_tokens": content_tokens,
             "over_target": content_tokens > target,
+            "governing_overage": {
+                "status": "over_target" if content_tokens > target else "within_target",
+                "tokens": max(0, content_tokens - target),
+            },
             "clauses": selected,
         }
 
@@ -1282,6 +1323,12 @@ def project_constitution(
         "target_tokens": target,
         "content_tokens": estimate_tokens(content),
         "over_target": estimate_tokens(content) > target,
+        "governing_overage": {
+            "status": (
+                "over_target" if estimate_tokens(content) > target else "within_target"
+            ),
+            "tokens": max(0, estimate_tokens(content) - target),
+        },
         "fallback_reason": (
             "Constitution anchors were unavailable or no ranked whole clause met the confidence threshold; "
             "the complete governing document is supplied without truncation."
@@ -1317,7 +1364,8 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
     if writing:
         preflight.insert(
             1,
-            f"memory-seed worktree guard --agent {binding['agent_type']} --write-intent",
+            "python -X utf8 -m memory_seed.cli worktree guard "
+            f"--agent {binding['agent_type']} --write-intent",
         )
     return {
         "safety": {
