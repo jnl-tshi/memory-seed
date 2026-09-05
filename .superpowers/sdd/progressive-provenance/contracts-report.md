@@ -7,9 +7,9 @@ Complete: the shared serialized, reference-only contract foundation is implement
 ## Git receipt
 
 - Base HEAD: `37a58b2f2d62e8a0e8bdf28a129eb4bce792f1b4`
-- Implementation/checkpoint HEAD: `3af13c6a2d082d10b26566ff7957a54d8aaec063`
+- Implementation/checkpoint HEAD: `3af13c6a418ac19b750598e4b5e9325deb8b0c68`
 - Final HEAD: supplied in the handoff after this report-bearing commit. A committed file cannot contain its own Git object ID without changing that ID.
-- Commits: `3af13c6a2d082d10b26566ff7957a54d8aaec063` (`Add progressive provenance contracts`) plus this report commit, whose exact hash is listed in the handoff.
+- Commits: `3af13c6a418ac19b750598e4b5e9325deb8b0c68` (`Add progressive provenance contracts`), `22b41db14a35a2dbad3ab4d501edd95b68fef077` (`Record provenance contract handoff`), and this correction/report commit, whose exact hash is listed in the handoff.
 
 ## Files changed
 
