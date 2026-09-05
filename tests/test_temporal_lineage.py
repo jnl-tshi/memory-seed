@@ -9,7 +9,9 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
+from memory_seed import temporal_lineage
 from memory_seed.temporal_lineage import (
     TEMPORAL_LINEAGE_SCHEMA,
     refresh_temporal_lineage,
@@ -49,7 +51,7 @@ class TemporalLineageTests(unittest.TestCase):
             "source_path": ".memory-seed/sessions/entry.md",
         }
 
-    def test_cold_then_incremental_reuse_and_checkpoint_classification(self):
+    def test_checkpoint_is_only_an_upper_bound_without_claim_attestation(self):
         repo = self.make_repo()
         introduced = self.commit(repo, ".memory-seed/sessions/entry.md", "#### D1\n" + DECISION + "\n")
         first = refresh_temporal_lineage(
@@ -61,22 +63,60 @@ class TemporalLineageTests(unittest.TestCase):
         record = first["decisions"][DECISION]
         self.assertEqual(record["first_introducing_commit"], introduced)
         self.assertEqual(record["relative_order"], "verified-reachable-order")
-        self.assertEqual(record["calendar_time"], "independently-witnessed")
+        self.assertEqual(record["calendar_time"], "upper-bound-only")
+        self.assertEqual(record["trusted_checkpoint_evidence"][0]["relationship"], "exists-no-later-than")
+        self.assertEqual(record["claimed_timestamp_evidence"], [])
         self.assertEqual(record["claimed_timestamp_relation"], "backdated-relative-to-commit-clock")
         self.assertTrue(temporal_lineage_cache_path(repo).exists())
+        self.assertEqual(first["cache_ignore_status"], "registered")
+        self.assertIn(".memory-seed/.temporal-lineage.json", (repo / ".gitignore").read_text(encoding="utf-8"))
 
-        self.commit(repo, "unrelated.txt", "later\n")
-        second = refresh_temporal_lineage(
+        direct = refresh_temporal_lineage(
             repo,
             [self.decision()],
-            trusted_checkpoints=[{"commit": introduced, "witnessed_at": "2026-01-01T00:00:00+00:00"}],
+            trusted_checkpoints=[{
+                "commit": introduced,
+                "witnessed_at": "2026-01-01T00:00:00+00:00",
+                "evidence_kind": "claimed-timestamp-attestation",
+                "attested_claimed_timestamp": "2000-01-01T00:00:00+00:00",
+            }],
         )
+        self.assertEqual(direct["decisions"][DECISION]["calendar_time"], "independently-witnessed")
+        self.assertEqual(len(direct["decisions"][DECISION]["claimed_timestamp_evidence"]), 1)
+
+    def test_incremental_changed_decision_searches_only_cached_head_delta(self):
+        repo = self.make_repo()
+        introduced = self.commit(repo, ".memory-seed/sessions/entry.md", DECISION + "\n")
+        refresh_temporal_lineage(repo, [self.decision()])
+        changed_head = self.commit(repo, ".memory-seed/sessions/entry.md", DECISION + "\nchanged\n")
+        original = temporal_lineage._first_introducing_commit
+        with mock.patch.object(temporal_lineage, "_first_introducing_commit", wraps=original) as scan:
+            result = refresh_temporal_lineage(repo, [self.decision(digest="sha256:" + "2" * 64)])
+        self.assertEqual(result["recomputed"], [DECISION])
+        self.assertEqual(result["decisions"][DECISION]["first_introducing_commit"], introduced)
+        self.assertEqual(result["decisions"][DECISION]["history_scope"], "git-delta")
+        self.assertEqual(scan.call_args.kwargs["revision"], f"{introduced}..{changed_head}")
+
+    def test_incremental_reuse_needs_no_history_scan(self):
+        repo = self.make_repo()
+        introduced = self.commit(repo, ".memory-seed/sessions/entry.md", "#### D1\n" + DECISION + "\n")
+        refresh_temporal_lineage(repo, [self.decision()])
+        self.commit(repo, "unrelated.txt", "later\n")
+        with mock.patch.object(temporal_lineage, "_first_introducing_commit", side_effect=AssertionError("unexpected scan")):
+            second = refresh_temporal_lineage(repo, [self.decision()])
         self.assertEqual(second["reused"], [DECISION])
         self.assertEqual(second["recomputed"], [])
 
-        changed = refresh_temporal_lineage(repo, [self.decision(digest="sha256:" + "2" * 64)])
-        self.assertEqual(changed["recomputed"], [DECISION])
-        self.assertEqual(changed["decisions"][DECISION]["calendar_time"], "unwitnessed")
+    def test_unignored_cache_is_not_published(self):
+        repo = self.make_repo()
+        self.commit(repo, ".memory-seed/sessions/entry.md", DECISION + "\n")
+        path = repo / ".memory-seed" / "refused.json"
+        with mock.patch.object(temporal_lineage, "_ensure_ignored", return_value=(False, "ignore-registration-failed")):
+            result = refresh_temporal_lineage(repo, [self.decision()], cache_path=path)
+        self.assertFalse(result["cache_published"])
+        self.assertEqual(result["cache_status"], "cache-unignored")
+        self.assertEqual(result["cache_ignore_status"], "ignore-registration-failed")
+        self.assertFalse(path.exists())
 
     def test_rewritten_ancestry_and_future_claim_invalidate_and_rebuild(self):
         repo = self.make_repo()

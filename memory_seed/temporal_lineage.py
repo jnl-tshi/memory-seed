@@ -104,10 +104,15 @@ def _commit_timestamp(cwd: str | Path, commit: str) -> datetime | None:
     return _parse_timestamp(raw)
 
 
-def _first_introducing_commit(cwd: str | Path, decision: Mapping[str, Any]) -> str | None:
-    """Find the earliest reachable commit containing the decision's exact needle."""
+def _first_introducing_commit(
+    cwd: str | Path,
+    decision: Mapping[str, Any],
+    *,
+    revision: str = "HEAD",
+) -> str | None:
+    """Find the first matching commit in one explicit Git history scope."""
 
-    args = ["rev-list", "--reverse", "HEAD"]
+    args = ["rev-list", "--reverse", revision]
     if decision["source_path"]:
         args.extend(["--", decision["source_path"]])
     commits = _git(cwd, *args).decode("ascii", "strict").splitlines()
@@ -143,8 +148,15 @@ def _checkpoint_records(
             continue
         commit = item.get("commit")
         witnessed = item.get("witnessed_at", item.get("timestamp"))
+        attested = item.get("attested_claimed_timestamp")
+        evidence_kind = item.get("evidence_kind")
         if isinstance(commit, str) and isinstance(witnessed, str) and _parse_timestamp(witnessed) is not None:
-            normalized.append({"commit": commit, "witnessed_at": _iso(_parse_timestamp(witnessed)) or ""})
+            record = {"commit": commit, "witnessed_at": _iso(_parse_timestamp(witnessed)) or ""}
+            if isinstance(attested, str) and _parse_timestamp(attested) is not None:
+                record["attested_claimed_timestamp"] = _iso(_parse_timestamp(attested)) or ""
+            if isinstance(evidence_kind, str) and evidence_kind:
+                record["evidence_kind"] = evidence_kind
+            normalized.append(record)
     return sorted(normalized, key=lambda item: (item["witnessed_at"], item["commit"]))
 
 
@@ -181,33 +193,89 @@ def _classify(
         claim_relation = "postdated-relative-to-commit-clock"
     else:
         claim_relation = "same-as-commit-clock"
-    witnesses = [
-        dict(checkpoint)
+    upper_bounds = [
+        {
+            "commit": checkpoint["commit"],
+            "witnessed_at": checkpoint["witnessed_at"],
+            "relationship": "exists-no-later-than",
+        }
         for checkpoint in checkpoints
         if first_commit is not None and _is_ancestor(cwd, first_commit, checkpoint["commit"])
     ]
-    calendar = "independently-witnessed" if witnesses else "unwitnessed"
+    claimed_time_witnesses = [
+        {
+            "commit": checkpoint["commit"],
+            "witnessed_at": checkpoint["witnessed_at"],
+            "evidence_kind": checkpoint["evidence_kind"],
+            "attested_claimed_timestamp": checkpoint["attested_claimed_timestamp"],
+        }
+        for checkpoint in checkpoints
+        if first_commit is not None
+        and _is_ancestor(cwd, first_commit, checkpoint["commit"])
+        and checkpoint.get("evidence_kind") == "claimed-timestamp-attestation"
+        and checkpoint.get("attested_claimed_timestamp") == decision["claimed_timestamp"]
+    ]
+    # A descendant checkpoint alone only says the decision existed by the
+    # checkpoint's externally observed time. It cannot prove when it was first
+    # written. Exact calendar-time proof needs an explicit attestation bound to
+    # this claim, rather than an inference from ancestry or a Git clock.
+    calendar = (
+        "independently-witnessed"
+        if claimed_time_witnesses
+        else "upper-bound-only" if upper_bounds else "unwitnessed"
+    )
     return {
         "first_introducing_commit": first_commit,
         "commit_timestamp": _iso(commit_time),
         "relative_order": relative,
         "claimed_timestamp_relation": claim_relation,
         "calendar_time": calendar,
-        "trusted_checkpoint_evidence": witnesses,
+        "trusted_checkpoint_evidence": upper_bounds,
+        "claimed_timestamp_evidence": claimed_time_witnesses,
     }
 
 
-def _ensure_ignored(cwd: Path) -> None:
-    """Make the derived cache disposable when it is first published."""
+def _relative_cache_path(cwd: Path, path: Path) -> str | None:
+    try:
+        return path.resolve().relative_to(cwd.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def _cache_is_ignored(cwd: Path, ignore_target: str) -> bool:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(cwd), "check-ignore", "-q", "--no-index", "--", ignore_target],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    except OSError:
+        return False
+    return completed.returncode == 0
+
+
+def _ensure_ignored(cwd: Path, path: Path) -> tuple[bool, str]:
+    """Ensure and verify that Git ignores the derived cache before publication."""
+
+    ignore_target = _relative_cache_path(cwd, path)
+    if ignore_target is None:
+        # An explicit cache outside the worktree is not a Git candidate. This
+        # escape hatch is useful for diagnostics while the normal default stays
+        # beside attention analytics and must pass the check below.
+        return True, "outside-worktree"
+    if _cache_is_ignored(cwd, ignore_target):
+        return True, "already-ignored"
 
     try:
         from .core import _ensure_gitignore_entry
 
-        _ensure_gitignore_entry(cwd, GITIGNORE_ENTRY)
+        _ensure_gitignore_entry(cwd, ignore_target)
     except Exception:
-        # The cache remains derived even when a repository is read-only. Its
-        # publication must never change the verification result.
-        return
+        return False, "ignore-registration-failed"
+    if _cache_is_ignored(cwd, ignore_target):
+        return True, "registered"
+    return False, "cache-unignored"
 
 
 def _write_cache(path: Path, payload: Mapping[str, Any]) -> bool:
@@ -255,11 +323,13 @@ def refresh_temporal_lineage(
         }
     head = git_head(root)
     cached, cache_status = _load_cache(path)
-    reachable = bool(cached and _head_reachable(root, cached["head"], head))
+    cached_head = cached.get("head") if cached else None
+    reachable = bool(cached_head and _head_reachable(root, cached_head, head))
     invalidated = bool(cached and not reachable)
     if invalidated:
         cache_status = "rewritten-ancestry"
         cached = None
+        cached_head = None
     checkpoints = _checkpoint_records(trusted_checkpoints)
     checkpoint_fingerprint = _checkpoint_fingerprint(checkpoints)
     moment = now.astimezone(timezone.utc) if now and now.tzinfo else (now.replace(tzinfo=timezone.utc) if now else datetime.now(timezone.utc))
@@ -269,22 +339,42 @@ def refresh_temporal_lineage(
     recomputed: list[str] = []
     for item in source:
         previous = prior.get(item["decision_ref"])
-        same_source = isinstance(previous, Mapping) and all(
+        source_unchanged = isinstance(previous, Mapping) and all(
             previous.get(key) == item[key] for key in ("source_digest", "claimed_timestamp", "source_path")
-        ) and cached.get("checkpoint_fingerprint") == checkpoint_fingerprint
+        )
+        same_source = source_unchanged and cached.get("checkpoint_fingerprint") == checkpoint_fingerprint
         if same_source:
             record = dict(previous)
             record["last_checked_git_head"] = head
             output[item["decision_ref"]] = record
             reused.append(item["decision_ref"])
             continue
-        classification = _classify(root, item, _first_introducing_commit(root, item), checkpoints, moment)
+        if cached_head is None:
+            # Cold rebuilds and history rewrites are the only full-history
+            # traversal modes. A rewrite discarded the old cache above.
+            first_commit = _first_introducing_commit(root, item)
+            history_scope = "full-history"
+        elif source_unchanged:
+            # A timestamp or checkpoint-evidence change needs reclassification,
+            # not another history scan; the cached first introduction remains
+            # valid because the source identity did not change.
+            first_commit = previous.get("first_introducing_commit")
+            history_scope = "cached-result"
+        else:
+            # On an ordinary reachable-head refresh, search only Git delta. If
+            # this decision already existed in the cache, preserve its earlier
+            # first introduction after observing the changed delta.
+            observed = _first_introducing_commit(root, item, revision=f"{cached_head}..{head}")
+            first_commit = previous.get("first_introducing_commit") if isinstance(previous, Mapping) else observed
+            first_commit = first_commit or observed
+            history_scope = "git-delta"
         output[item["decision_ref"]] = {
             "source_digest": item["source_digest"],
             "claimed_timestamp": item["claimed_timestamp"],
             "source_path": item["source_path"],
             "last_checked_git_head": head,
-            **classification,
+            "history_scope": history_scope,
+            **_classify(root, item, first_commit, checkpoints, moment),
         }
         recomputed.append(item["decision_ref"])
     payload = {
@@ -294,13 +384,25 @@ def refresh_temporal_lineage(
         "checkpoint_fingerprint": checkpoint_fingerprint,
         "decisions": output,
     }
-    _ensure_ignored(root)
+    ignored, ignore_status = _ensure_ignored(root, path)
+    if not ignored:
+        return {
+            **payload,
+            "git_available": True,
+            "cache_status": "cache-unignored",
+            "cache_published": False,
+            "cache_ignore_status": ignore_status,
+            "reused": reused,
+            "recomputed": recomputed,
+            "invalidated": invalidated,
+        }
     published = _write_cache(path, payload)
     return {
         **payload,
         "git_available": True,
         "cache_status": cache_status,
         "cache_published": published,
+        "cache_ignore_status": ignore_status,
         "reused": reused,
         "recomputed": recomputed,
         "invalidated": invalidated,
