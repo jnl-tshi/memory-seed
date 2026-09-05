@@ -23,6 +23,16 @@ default_behavior:
   inherited_parent_skills: apply_when_not_disabled_or_overridden_locally
 
 skills:
+  - skill: project_process_health.md
+    required: true
+    load_when:
+      - the app or local development environment becomes unexpectedly slow
+      - a long-running local command, export, test, or subprocess appears stalled
+      - the project process-health hook reports suspicious subprocesses
+      - checking for stale subprocesses before or after parallel local work
+    do_not_load_when:
+      - no local process-health concern exists
+
   - skill: code_search.md
     required: true
     load_when:

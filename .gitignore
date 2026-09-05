@@ -13,6 +13,7 @@ build/
 .memory-seed/.identity-offer-stamp
 .memory-seed/.session-log-check-state
 .memory-seed/.file-touch-stamp
+.memory-seed/.project-process-health-state.json
 .memory-seed/.retrieval-log.jsonl
 .memory-seed/.retrieval-attention.json
 .memory-seed/backups/
