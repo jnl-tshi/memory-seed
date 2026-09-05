@@ -48,3 +48,20 @@ Supplemental governance/history hops, using the approved reflection taxonomy:
 - `experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md` — **appropriate task-scoped authority check**: read only to obtain the packet-required supplemental-hop taxonomy for this report.
 
 Direct source and test inspection was **expected implementation inspection**, not a governance/history retrieval. No compiler omission, stale compiled content, unclear dispatch instruction, or unjustified broad discovery was found.
+
+## Fix round 1 — independent review response
+
+The original hunk-context choice is superseded by this narrower contract: a binding now records a validated authorship record (`first-hand` or `reconstructed` plus compact actor kind/ID), and a hunk identity commits to commit, parent, file, ranges, and a SHA-256 digest of exact Git unified-diff hunk-body bytes. The byte preimage/canonicalization is declared in `PATCH_BYTES_SCHEMA` and `PATCH_BYTES_CANONICALIZATION`; no patch bytes are stored. V1 context hints are always null, so a future adapter must derive any compact locator rather than storing source text.
+
+Ledgers now carry their exact runtime ownership. Packet activation requires that owned ledger, accepts many active bindings per packet decision, rejects arbitrary/unowned/replaced bindings, and requires its selected decision set to exactly equal the packet's implements. The runtime contract now distinguishes active root/pod owners, retired pods, and `detached-former-root` metadata-only records; reads remain valid for all while appending/activation rejects retired and detached owners. Replacements carry both a bounded reason code and an exact decision reference owning the correction rationale.
+
+`project_ledger` exposes an adapter-supplied evidence state (`unverified`, `available`, `git-unavailable`, `missing-git-object`, or `projection-unavailable`) without performing Git work itself.
+
+### Fix-round validation
+
+- `python -X utf8 -m pytest -q tests/test_provenance.py` — 10 passed, 12 subtests passed in 0.16s.
+- `git diff --check` — passed before checkpoint/report append; rerun before commit.
+
+### Fix-round reflection
+
+No additional governance or history retrieval was needed to resolve the review: the direct review request supplied the required corrections. Reading the authorized session append target is an **appropriate task-scoped authority check**; contract and test inspection remains **expected implementation inspection**. There is no plan contradiction or scope blocker.
