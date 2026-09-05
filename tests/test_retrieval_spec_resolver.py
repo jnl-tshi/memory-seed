@@ -373,6 +373,33 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             validate_evidence_pack(wrong_identity, root)
         self.assertEqual(invalid_identity.exception.code, "invalid_pack")
 
+    def test_path_metadata_references_require_explicit_v2_opt_in(self):
+        root = self.make_project()
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec.update(
+            {
+                "version": 2,
+                "filters": {"topics": [], "paths": ["memory_seed/core.py"]},
+                "selectors": {"pinned": [], "path_references": False},
+            }
+        )
+        with self.assertRaises(RetrievalSpecResolutionError) as no_reference_expansion:
+            resolve_retrieval_spec(spec, root)
+        self.assertEqual(no_reference_expansion.exception.code, "missing_required")
+
+        spec["selectors"]["path_references"] = True
+        with_references = resolve_retrieval_spec(spec, root)
+        self.assertTrue(
+            any(
+                "canonical session file evidence" in reason
+                for item in with_references["evidence"]
+                for reason in item.get("reasons", [])
+            )
+        )
+        self.assertTrue(
+            next(stage for stage in with_references["resolution_trace"] if stage["stage"] == "path_filters")["path_references"]
+        )
+
     def test_invalid_markdown_in_decisions_directory_fails_as_invalid_adr(self):
         root = self.make_project()
         path = root / ".memory-seed" / "decisions" / "not-an-adr.md"

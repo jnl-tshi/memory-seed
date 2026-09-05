@@ -107,9 +107,10 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 52 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 53 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
+- **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced select…
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
 - **P1** [excerpt-fallback-defect.md](2_Todo/excerpt-fallback-defect.md) — None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires.

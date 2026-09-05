@@ -9,6 +9,7 @@ from memory_seed.retrieval_spec import (
     canonical_retrieval_spec_json,
     classify_missing_clause,
     normalize_retrieval_spec,
+    normalize_retrieval_spec_v2,
     retrieval_spec_fingerprint,
 )
 
@@ -88,6 +89,19 @@ class RetrievalSpecTests(unittest.TestCase):
         normalized = normalize_retrieval_spec(spec)
         self.assertEqual(normalized["filters"]["topics"], ["session-fuse", "worktree-integration"])
         self.assertEqual(normalized["optional"]["sessions"], {"neighbouring_entries": 15})
+
+    def test_v2_path_references_are_an_explicit_opt_in_selector(self):
+        v2 = {**VALID, "version": 2, "selectors": {"pinned": []}}
+        normalized = normalize_retrieval_spec_v2(v2)
+        self.assertFalse(normalized["selectors"]["path_references"])
+        opted_in = normalize_retrieval_spec_v2(
+            {**v2, "selectors": {"pinned": [], "path_references": True}}
+        )
+        self.assertTrue(opted_in["selectors"]["path_references"])
+        with self.assertRaisesRegex(RetrievalSpecValidationError, "boolean"):
+            normalize_retrieval_spec_v2(
+                {**v2, "selectors": {"pinned": [], "path_references": "yes"}}
+            )
 
 
 if __name__ == "__main__":

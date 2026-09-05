@@ -343,7 +343,7 @@ _PROFILE_BASE_SPEC: dict[str, Any] = {
     "limits": {"max_entries": 40, "max_tokens": 16000},
     "on_missing": {"required": "fail", "optional": "report"},
     "output": {"include_resolution_trace": False, "include_excerpts": False},
-    "selectors": {"pinned": []},
+    "selectors": {"pinned": [], "path_references": False},
 }
 
 
