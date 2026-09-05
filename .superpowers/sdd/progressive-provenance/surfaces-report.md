@@ -39,3 +39,13 @@ The packet's explicit decision refs correctly constrained the work to public ada
 ### Updated reflection
 
 The review exposed that schema validation is not authority validation and that a parsed event list is not append-only proof. The fix keeps both guarantees at the surface boundary: filesystem topology authorizes ownership and Git anchors event order, while the engine remains the sole source of binding schema and projection semantics.
+
+## Round-two reviewer fix receipt
+
+- `_git_sidecar_baseline` now uses the shared Git-unavailable semantics. CLI `provenance check` and MCP `memory_decision_provenance_check` return a complete structured payload with `append_only.status: unverifiable` and `anchor: git-unavailable` instead of raising when Git cannot be launched or no repository is available.
+- `memory_esr` now explicitly promises the actual boundary: it never repairs authoritative memory, but may update rebuildable ignored temporal-lineage and other derived cache state.
+- Direct tests cover both unavailable-Git checks and the MCP tool-list contract.
+
+### Updated reflection
+
+An audit surface needs a vocabulary for absent evidence, not merely true and false. Making Git unavailability explicit preserves usable reference-audit output. Likewise, cache refresh is a legitimate derived write only when callers can distinguish it from an authoritative-memory repair.

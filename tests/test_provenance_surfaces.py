@@ -94,6 +94,21 @@ class ProvenanceSurfaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "0 through 20"):
             call_tool("memory_decision_provenance", {"cwd": str(self.root), "decision_ref": DECISION, "context_lines": 21})
 
+    def test_cli_and_mcp_check_report_unavailable_git_without_raising(self) -> None:
+        provenance_surface("bind", cwd=self.root, binding=self.binding, apply=True)
+        nowhere = Path(tempfile.mkdtemp(prefix="memory-seed-provenance-no-git-"))
+        self.addCleanup(lambda: shutil.rmtree(nowhere, ignore_errors=True))
+        shutil.copytree(self.root / ".memory-seed", nowhere / ".memory-seed")
+
+        cli = provenance_surface("check", cwd=nowhere)
+        mcp = call_tool("memory_decision_provenance_check", {"cwd": str(nowhere)})
+
+        for result in (cli, mcp):
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["append_only"]["status"], "unverifiable")
+            self.assertEqual(result["append_only"]["anchor"], "git-unavailable")
+            self.assertEqual(result["reference_audit"][0]["evidence_state"], "git-unavailable")
+
 
 class MeasuredProvenanceTopologyTests(unittest.TestCase):
     def setUp(self) -> None:

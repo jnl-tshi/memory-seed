@@ -1379,6 +1379,10 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("memory_topics_list", listed_names)
         self.assertIn("memory_topic_inspect", listed_names)
         self.assertIn("memory_topics_check", listed_names)
+        self.assertIn("memory_decision_provenance_check", listed_names)
+        esr_tool = next(tool for tool in listed["result"]["tools"] if tool["name"] == "memory_esr")
+        self.assertIn("may incrementally refresh", esr_tool["description"])
+        self.assertIn("never repairs authoritative memory", esr_tool["description"])
         self.assertEqual(called["id"], 2)
         content = called["result"]["content"][0]
         self.assertEqual(content["type"], "text")

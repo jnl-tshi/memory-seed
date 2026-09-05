@@ -376,7 +376,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "memory_esr",
-        "description": "Return the complete structured End-of-Session Report, including read-only corpus-cache inspection. Equivalent to `esr --json`; it never repairs or publishes cache state.",
+        "description": "Return the complete structured End-of-Session Report. Equivalent to `esr --json`; it never repairs authoritative memory, but may incrementally refresh the rebuildable ignored temporal-lineage cache and other derived cache state.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -411,6 +411,18 @@ TOOLS: list[dict[str, Any]] = [
                 "apply": {"type": "boolean", "default": False},
             },
             "required": ["binding"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_decision_provenance_check",
+        "description": "Audit one runtime-owned provenance sidecar and its Git reference evidence. Read-only; unavailable Git is reported as unverifiable rather than raised.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "runtime": {"type": "object", "description": "Explicit measured runtime record for descendant or retired inspection."},
+            },
+            "additionalProperties": False,
         },
     },
     {
@@ -1033,6 +1045,15 @@ def call_tool(
             "bind", cwd=_cwd(args), binding=binding, owner=runtime,
             apply=_optional_bool(args, "apply", default=False),
         )
+
+    if name == "memory_decision_provenance_check":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"cwd", "runtime"})
+        runtime = args.get("runtime")
+        if runtime is not None and not isinstance(runtime, Mapping):
+            raise ValueError("runtime must be an object")
+        return provenance_surface("check", cwd=_cwd(args), owner=runtime)
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
