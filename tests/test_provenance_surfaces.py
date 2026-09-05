@@ -89,4 +89,3 @@ class ProvenanceSurfaceTests(unittest.TestCase):
             provenance_surface("show", cwd=self.root, decision_ref=DECISION, context_lines=21)
         with self.assertRaisesRegex(ValueError, "0 through 20"):
             call_tool("memory_decision_provenance", {"cwd": str(self.root), "decision_ref": DECISION, "context_lines": 21})
-
