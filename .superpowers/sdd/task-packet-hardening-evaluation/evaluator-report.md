@@ -88,3 +88,13 @@ The initial evaluation produced one commit in the evaluated range:
 | `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f` | `docs: record hardened task packet evaluation` | evaluated content: frozen-input copies, second-cycle reflection, and evaluator report |
 
 The fix-round receipt below records subsequent receipt commits separately from this evaluated-content head, so it does not retroactively claim that a receipt commit was part of the evaluated compiler result.
+
+## Fix round 1 receipt
+
+- Fix base: `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f`
+- Evaluated-content range: `53a35e4e6df6610ca2fb829b6d4eeea66df62c7f..ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f`
+- Final substantive fix commit: `15ebf3c680bb1fd1c9a3d522736b33df9e592fb3` (`docs: complete task packet evaluation record`)
+- Commit coverage: `ebdd61f7cc2b7f062bf8a8ca0aba78fe43379a3f` is the original evaluated content; `15ebf3c680bb1fd1c9a3d522736b33df9e592fb3` completes the missing receipt, component ledger, and per-packet matrix. The commit that records this receipt is intentionally a separate administrative receipt head and does not change the evaluated compiler result.
+- Validation before the substantive fix commit: `git diff --check` PASS; all four scratch dispatch JSON files passed `python -m json.tool`.
+
+The final handoff must name the separate administrative receipt head alongside the two commits above. It is not a new compiler evaluation and it makes no claim beyond recording this exact receipt.
