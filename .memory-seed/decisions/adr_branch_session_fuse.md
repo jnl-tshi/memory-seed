@@ -40,6 +40,7 @@ Founded from the control file; implements the structural session merge capabilit
 ### Awaiting review
 
 - `mse_9c151e4gbkkv1w5v:d1` - memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram...
+- `mse_mjn0hcfh3vkvm715:d1` - Extend inherited-entry admission to recursively receipted aggregate carriers.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -127,3 +128,33 @@ Rests on the session decision that instituted it: "Git can merge text and preser
 #### Impact
 
 Founded from .memory-seed/index.md#L153; this revision moves the concern off that control-file line onto mse_9c151e4gbkkv1w5v:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-proposed - 2026-09-06T16:59:00
+
+```json
+{
+  "decision_ref": "mse_mjn0hcfh3vkvm715:d1",
+  "event_id": "adre_e7caebb98b50cd38a072",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_9c151e4gbkkv1w5v:d1",
+      "relation_assertion": "link:mse_mjn0hcfh3vkvm715:d1:evolves:mse_9c151e4gbkkv1w5v:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_mjn0hcfh3vkvm715"
+}
+```
+
+#### Decision
+
+Extend inherited-entry admission to recursively receipted aggregate carriers.
+
+#### Reason
+
+The accepted refinement preserves branch authorship while requiring bounded exact Git evidence at every carrier merge.
+
+#### Impact
+
+A foreign-attributed entry may traverse aggregate carriers only when each bounded first-parent segment has a unique two-parent merge with one exact final receipt and byte-continuous record.

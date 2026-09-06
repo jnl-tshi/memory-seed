@@ -6,6 +6,7 @@ from pathlib import Path
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    session_merge_branch,
 )
 
 
@@ -43,6 +44,23 @@ class CliHelpTests(unittest.TestCase):
             capture_output=True,
         )
         subprocess.run(["git", "-C", str(cwd), "branch", "-M", "main"], check=True, capture_output=True)
+
+    def _git_commit_all(self, cwd, message):
+        import subprocess
+
+        subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(cwd), "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "-m", message],
+            check=True,
+            capture_output=True,
+        )
+
+    @staticmethod
+    def _session_entry(timestamp, entry_id, branch):
+        return (
+            f"## {timestamp} - entry\n\n```yaml\nentry_id: {entry_id}\nuser_initials: JNL\n"
+            f"agent_type: codex\nproject_path: .\nsubproject_path: null\nbranch: {branch}\n```\n\n### Decision\n\n- D: test\n- R: test\n\n"
+        )
 
     def test_help_command_lists_all_commands(self):
         code, out = self._run(["help"])
@@ -685,6 +703,52 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Would migrate: 2026-06-21.md -> 2026-06/2026-06-21.md", out)
         self.assertIn("No files changed.", out)
+
+    @pytest.mark.integration
+    def test_session_fuse_cli_accepts_and_refuses_transitive_provenance(self):
+        import os
+        import subprocess
+
+        cwd = Path.cwd()
+        project = self.make_project()
+        sessions = project / MEMORY_DIR_NAME / "sessions" / "2026-07"
+        sessions.mkdir(parents=True)
+        log = sessions / "2026-07-11.md"
+        log.write_text(self._session_entry("2026-07-11 09:00", "mse_" + "a" * 16, "main"), encoding="utf-8")
+        self._git_repo_with_commit(project)
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "switch", "-c", "child"], check=True, capture_output=True)
+            log.write_text(log.read_text(encoding="utf-8") + self._session_entry("2026-07-11 10:00", "mse_" + "b" * 16, "child"), encoding="utf-8")
+            self._git_commit_all(project, "child entry")
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "-c", "aggregate"], check=True, capture_output=True)
+            first_hop = session_merge_branch(cwd=project, branch="child")
+            self.assertTrue(first_hop.committed, first_hop.issues)
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+
+            code, out = self._run(["session", "fuse", "--branch", "aggregate"])
+            self.assertEqual(code, 0)
+            self.assertIn("Would import: mse_bbbbbbbbbbbbbbbb", out)
+
+            # A copied entry uses the same CLI adapter but has no carrier.
+            subprocess.run(["git", "switch", "-c", "copied"], check=True, capture_output=True)
+            log.write_text(log.read_text(encoding="utf-8") + self._session_entry("2026-07-11 10:00", "mse_" + "b" * 16, "child"), encoding="utf-8")
+            self._git_commit_all(project, "copy child entry")
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            import contextlib
+            import io
+            from memory_seed.cli import main
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = main(["session", "fuse", "--branch", "copied"])
+            out = stderr.getvalue()
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 1)
+        self.assertIn("unique receipted ancestor merge", out)
 
     @pytest.mark.integration
     def test_session_fuse_cli_dry_run_reports_imports(self):

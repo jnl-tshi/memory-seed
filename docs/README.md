@@ -111,6 +111,7 @@ Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbo
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
+- **P0** [transitive-session-fusion-refinement-plan.md](2_Todo/transitive-session-fusion-refinement-plan.md) — Re-review this evidence contract before any implementation change is staged.
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced select…
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
 - **P1** [excerpt-fallback-defect.md](2_Todo/excerpt-fallback-defect.md) — None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires.
