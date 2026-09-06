@@ -157,3 +157,54 @@ class MeasuredProvenanceTopologyTests(unittest.TestCase):
         check = provenance_surface("check", cwd=self.root, owner=self.runtime)
         self.assertEqual(check["append_only"]["status"], "violated")
         self.assertFalse(provenance_audit_all(self.root)["ok"])
+
+    def test_cli_runtime_file_matches_mcp_descendant_and_retired_reads(self) -> None:
+        from memory_seed.cli import main
+
+        provenance_surface("bind", cwd=self.pod, binding=self.binding, owner=self.runtime, apply=True)
+        active = self.root / "active-runtime.json"
+        retired = self.root / "retired-runtime.json"
+        active.write_text(json.dumps(self.runtime), encoding="utf-8")
+        retired.write_text(json.dumps(build_runtime_ownership(
+            runtime_path="former-pod", owner_kind="pod", owner_id="former-pod", owner_state="retired",
+        )), encoding="utf-8")
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(self.root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["provenance", "show", "mse_dcba4321:d1", "--runtime-file", str(active), "--json"]), 0)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["provenance", "check", "--runtime-file", str(retired), "--json"]), 0)
+        finally:
+            os.chdir(old_cwd)
+
+    def test_committed_cross_kind_event_reordering_is_not_verified(self) -> None:
+        from memory_seed.cli import _provenance_event
+        from memory_seed.provenance import build_replacement
+
+        applied = provenance_surface("bind", cwd=self.pod, binding=self.binding, owner=self.runtime, apply=True)
+        sidecar = Path(applied["path"])
+        self.git("add", sidecar.relative_to(self.root).as_posix())
+        self.git("commit", "-q", "-m", "first event")
+        older = derive_commit_bindings(
+            self.root, self.git("rev-parse", "HEAD~2"), [{"decision_ref": "mse_dcba4321:d1", "files": ["pkg/example.py"]}],
+            authorship=AUTHORSHIP,
+        )["bindings"][0]
+        replacement = build_replacement(
+            replaces=self.binding["binding_id"], replacement=older,
+            reason="corrected-reference", reason_decision_ref="mse_dcba4321:d1",
+        )
+        binding_event = _provenance_event("binding", older)
+        replacement_event = _provenance_event("replacement", replacement)
+        with sidecar.open("a", encoding="utf-8") as stream:
+            stream.write(binding_event + replacement_event)
+        self.git("add", sidecar.relative_to(self.root).as_posix())
+        self.git("commit", "-q", "-m", "second and replacement events")
+        text = sidecar.read_text(encoding="utf-8")
+        self.assertTrue(text.endswith(binding_event + replacement_event))
+        sidecar.write_text(text[: -len(binding_event + replacement_event)] + replacement_event + binding_event, encoding="utf-8")
+        self.git("add", sidecar.relative_to(self.root).as_posix())
+        self.git("commit", "-q", "-m", "reordered events")
+        check = provenance_surface("check", cwd=self.root, owner=self.runtime)
+        self.assertFalse(check["ok"])
+        self.assertEqual(check["append_only"]["anchor"], "git-history-prefix")

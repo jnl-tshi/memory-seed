@@ -198,7 +198,11 @@ def _git_sidecar_baseline(root: Path, path: Path) -> dict[str, Any]:
         return {"text": None, "status": "unverifiable", "anchor": "git-unavailable", "detail": str(exc)}
     if completed.returncode:
         return {"text": None, "status": "unverifiable", "anchor": "no-committed-sidecar"}
-    return {"text": completed.stdout.decode("utf-8", "strict"), "status": "available", "anchor": "git-head-prefix"}
+    try:
+        text = completed.stdout.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-baseline-unreadable", "detail": str(exc)}
+    return {"text": text, "status": "available", "anchor": "git-head-prefix"}
 
 
 def _append_only_status(root: Path, path: Path) -> dict[str, Any]:
