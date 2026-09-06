@@ -107,9 +107,10 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 54 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 56 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
+- **P0** [seed-pod-p0-reconciliation-plan.md](2_Todo/seed-pod-p0-reconciliation-plan.md) — Independently review this reconciliation plan before staging any Seed Pod P0 implementation work.
 - **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
 - **P0** [transitive-session-fusion-refinement-plan.md](2_Todo/transitive-session-fusion-refinement-plan.md) — Re-review this evidence contract before any implementation change is staged.
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced select…
