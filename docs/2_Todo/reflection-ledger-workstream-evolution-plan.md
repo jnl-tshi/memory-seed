@@ -81,8 +81,8 @@ New boards live at one canonical path:
 ```
 
 `ledger.md` has a frozen canonical header with `schema`, `version`, `workstream_id`, `working_branch`,
-`base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, and `id_salt`. State and
-phase are derived from the
+`base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`,
+`retention_approval_key_id`, and `id_salt`. State and phase are derived from the
 validated ordered blocks; they are not mutable header fields. Normal operation has append-only dated blocks.
 The only sanctioned non-append rewrite is the compare-and-swap expiry compaction specified in the frozen v2
 annex below. Every block contains:
@@ -162,7 +162,7 @@ integration order and durable receipts, never by copying another branch's ledger
 | Canonical UTF-8/NFC/LF parser/renderer and structured diagnostics | Retain | The same byte-stable, fail-closed boundary protects a single ledger. |
 | Conclusion-first record shape, local relationships, divergent-head view | Retain, simplified to ledger blocks | They directly support review without manufacturing consensus. |
 | Git-admitted receipt resolution, chain close validation, retention from `closed_at`, and per-chain expiry | Retain | They implement Constitution 1.12 and survive temporary-detail removal. |
-| Early unpromoted expiry approval verification | Retain | The user-gated exception remains necessary. The trust-anchor mechanics are reviewed separately for proportionate implementation. |
+| Early unpromoted expiry approval verification | Retain; adapt its Ed25519 host-signing and Git-admission mechanics for v2 retention extensions | Arbitrary caller text must not authorise either early disposal or longer retention. |
 | `ReflectionManifest` roster, participant seal, reservation seed, report/fragment IDs and paths | Retire for new boards; retain readers | A single branch needs no participant allocation or pre-dispatch pair. |
 | Worker reports paired with fragments and report-provenance admission | Simplify | A record carries measured evidence/commit references directly; optional handoff reports remain Task Packet artifacts, not ledger authority. |
 | Per-participant fragment ownership and source-branch fuse | Retire for new boards; retain `v1` compatibility fuse | They solve concurrent same-plan writers, which the new design disallows. |
@@ -207,7 +207,7 @@ authoritative.
 | Surface | Required evolution |
 | --- | --- |
 | Core | Add a versioned single-ledger parser, canonical append planner, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
-| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; append owns time/identity/head lookup. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
+| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init accepts only retention 7, 14, or 30 and verifies an admitted host approval for 14/30; append owns time/identity/head lookup. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
 | MCP | Add parity read operations for ledger and board views and a guarded append/close path that calls the same core planner/validator. Return identical rendered bytes and `{code, path, message, details}` errors. No MCP merge, arbitrary file write, or bypass of early-expiry approval. |
 | ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, and per-chain expiry candidates. It must distinguish v1 fragment boards from new workstream ledgers. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
@@ -237,7 +237,7 @@ rewritten.
 | Dependencies | A real dependency resolves first from an active ledger then from its durable receipt after expiry. | Similar-topic link without dependency reason, wrong digest, self-dependency, missing target, expired target without receipt, and dependency-as-parent refuse. |
 | Board view | Multiple active ledgers produce a labelled, sorted, read-only combined projection, including malformed candidates as diagnostics. | A board command that omits a malformed active candidate, emits a winner, writes a ledger, fuses records, or promotes a decision fails/refuses. |
 | Promotion and receipts | Many chains to one decision and one chain to several decisions resolve from ordinary sessions alone. | Temporary path reference, missing member coverage, conflicting duplicate receipt, bad decision locator, malformed digest, and receipt from an uncommitted session blob refuse. |
-| Close and expiry | Validated reviewed chains close independently and expire at that chain's `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, wrong retention deadline, unapproved retention extension, early promoted cleanup, forged approval, and cleanup of a dependency target still required by an open chain refuse. |
+| Close and expiry | Validated reviewed chains close independently and expire at that chain's `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, a retention value outside 7/14/30, missing/forged/replayed/expired or Git-unadmitted extension approval, early promoted cleanup, and cleanup of a dependency target still required by an open chain refuse. |
 | Compatibility | Existing `tests/test_reflection_ledger.py` v1 fixtures still parse, view, close, expire, and fuse. | A v2 writer pointed at a v1 board, v1 fuse pointed at v2 data, or mixed family directory refuses. |
 | Surface parity | CLI and MCP return the same valid result, rendered bytes, and diagnostics for shared fixtures. | One surface accepting an invalid append or bypassing phase/approval validation fails parity tests. |
 
@@ -312,9 +312,87 @@ This is the normative v2 contract; it controls over earlier illustrative text. I
 | Discriminator | v2 front matter is exactly `schema: memory-seed/reflection-workstream-ledger` and `version: 2`; v1 remains `memory-seed/reflection-plan` at version 1. Absent, duplicate, mixed, or unsupported forms are malformed, never inferred. |
 | Path | The only active v2 path is `.memory-seed/reflections/active/<workstream_id>/ledger.md`; its directory contains no `manifest.yaml`. v2 commands reject v1 paths and conversely. |
 | Bytes | UTF-8 without BOM, Unicode NFC, LF only, no trailing whitespace, exactly one final LF. YAML has two-space indentation and the exact field order below. Digests are lowercase `sha256:` plus 64 hex. |
-| Header order | `schema`, `version`, `workstream_id`, `working_branch`, `base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, `id_salt`. No other header field is accepted. `base_sha` is 40 lowercase hex; every timestamp is UTC RFC 3339 in `YYYY-MM-DDTHH:MM:SSZ` form; `id_salt` is 64 lowercase hex from OS entropy. Header bytes never change. State and phase derive per chain from validated blocks. |
-| Retention | `reflection_retention_days` is integer `7` by default. Any value greater than `7` requires `retention_extension_receipt`, a non-empty verified live-user approval receipt bound to this `workstream_id`, `working_branch`, and requested day count; at `7` the receipt is literal `null`. No other day count is valid. |
+| Header order | `schema`, `version`, `workstream_id`, `working_branch`, `base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, `retention_approval_key_id`, `id_salt`. No other header field is accepted. `base_sha` is 40 lowercase hex; every timestamp is UTC RFC 3339 in `YYYY-MM-DDTHH:MM:SSZ` form; `id_salt` is 64 lowercase hex from OS entropy. Header bytes never change. State and phase derive per chain from validated blocks. |
+| Retention | `reflection_retention_days` is exactly integer `7`, `14`, or `30`. At `7`, `retention_extension_receipt` and `retention_approval_key_id` are literal `null`. At `14` or `30`, both are required and must pass the admitted host-approval contract below. No other value, caller string, or environment variable is an authority. |
 | Digests | Ledger digest is `sha256(LEDGER_DOMAIN || canonical_ledger_bytes)` and detail digest is `sha256(DETAIL_DOMAIN || canonical_record_block_bytes)`. `LEDGER_DOMAIN` is ASCII `memory-seed/reflection-workstream-ledger/v2/ledger` plus NUL; `DETAIL_DOMAIN` substitutes `detail` for `ledger`. |
+
+### Retention extension approval — admitted host contract
+
+The v2 extension gate normatively reuses the landed v1 model: an Ed25519 private key stays with the approving
+host; the repository receives only canonical signed bytes; and a verifier trusts the key only through a
+Git-admitted immutable anchor. This retention-setting approval is distinct from the existing v1 early-expiry
+approval; neither form can substitute for the other.
+
+The v2 trust anchor is `.memory-seed/reflections/trust/retention-approval.yaml` as it exists at the ledger's
+immutable `base_sha`. It is a Git-admitted UTF-8/NFC/LF document with this exact YAML mapping and no extra
+keys:
+
+```yaml
+schema: memory-seed/reflection-retention-approval-trust
+version: 1
+key_id: <stable-token>
+public_key: ed25519:<32-byte-lowercase-hex>
+```
+
+`reflection ledger init` derives `base_sha` from the workstream's protected integration base; it accepts no
+caller-provided base SHA. The base must already be reachable from that protected integration history, so a
+feature branch cannot introduce its own trust anchor. Init resolves that exact anchor blob from `base_sha`; for
+a 14- or 30-day header its `retention_approval_key_id` must equal `key_id`. It accepts no public key from CLI,
+MCP, task packet, or working-tree file. The verifier uses the anchor's `public_key`, the landed RFC 8032
+Ed25519 verifier, and no agent callback or private key.
+
+The approval is embedded as one canonical fenced YAML payload under `### Reflection retention approval` in a
+normal Memory Seed session entry. Its only legal location is `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`;
+`session_path` and `entry_id` below locate that entry. Before ledger init, the entry must be committed in
+reachable Git history. The immutable header's `retention_extension_receipt` is an ordered mapping:
+`session_path`, `entry_id`, `commit`, `blob`, `nonce`. `commit` and `blob` are full lowercase Git object IDs
+for the committed session file; `blob` must be the exact object at `commit:session_path`. At 7 days the field
+is literal `null`.
+
+The signed v2 payload has this exact ordered YAML mapping and no extra keys. The signature covers canonical
+UTF-8 bytes of every field through `entry_id`, excluding only `signature`:
+
+```yaml
+schema: memory-seed/reflection-retention-approval
+version: 2
+key_id: <stable-token>
+workstream_id: <rwl_...>
+working_branch: <exact-origin-branch-or-trusted-rebind-target>
+retention_days: 14|30
+scope: ledger
+chain_id: null
+base_sha: <40-lowercase-hex>
+nonce: <64-lowercase-hex>
+approved_at: <UTC-RFC3339-seconds>
+expires_at: <UTC-RFC3339-seconds>
+reason: <non-empty-text>
+session_path: .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
+entry_id: <mse_...>
+signature: ed25519:<64-byte-lowercase-hex>
+```
+
+`scope` is literal `ledger` and `chain_id` is literal `null`: the immutable header supplies one retention
+setting for all chains, so the relevant identity is the workstream/ledger origin rather than an individual
+chain. `nonce` is host-generated entropy and never caller supplied. `expires_at` must be after `approved_at`
+and at most 24 hours later. `working_branch` must exactly equal the immutable header's `working_branch`; after
+a valid trusted rebind, the verifier may instead accept exactly that rebind's validated target branch, never a
+separately supplied name. This binds the approval to workstream ID, branch ownership, requested period, and
+base commit without creating a header/digest circularity.
+
+Admission succeeds only when canonical payload bytes parse and re-render identically; schema/version, field
+types, allowed period, timestamps, nonce, and signature syntax are valid; the signature verifies under the
+`base_sha` trust anchor and matching key ID; `now < expires_at`; all signed workstream/branch/base/period
+fields equal the proposed header or verified rebind; the cited committed session entry passes normal session
+parsing and contains that exact signed payload; `commit` is reachable from the init checkout; and `blob` equals
+the session-file object at that commit. The verifier scans Git-admitted v2 headers and rejects a nonce or exact
+receipt locator already bound by another ledger; the originating session may of course contain the payload once before the first
+ledger is initialised. A successful init reserves that approval for one immutable header.
+
+Any missing anchor, untrusted key, noncanonical payload, malformed locator, wrong object binding, unreachable
+commit, absent or changed session block, bad signature, expired approval, branch/base/workstream/period
+mismatch, or replay returns a structured `retention-approval` failure and writes no ledger. A raw
+`--retention-days`, `--approval`, MCP field, environment value, copied signed text, or agent assertion cannot
+bypass these checks.
 
 The ID domain is ASCII `memory-seed/reflection-workstream-ledger/v2` plus NUL. For each ID,
 `frame = ID_DOMAIN || hex_decode(id_salt) || components`, where each component is
@@ -450,9 +528,12 @@ unpromoted-chain constraints and emits the same pre/post receipt.
 
 The architecture freeze is satisfied; implementation performs verification-only against it. Golden tests must
 prove all vectors and field order. Parser tests reject every forbidden discriminator, header field, byte rule,
-ID/digest, transition, dependency fallback, collision, and rebind form. Integration tests prove pre-merge
-close/expiry refusal, trusted-token rebind, arbitrary rebind refusal, stale append after compaction, and the
-expiry Git-blob/non-erasure disclosure. Board tests prove malformed candidates are reported and non-zero. The
-v1 suite remains unchanged. The normal v2 path is accepted only with one active authority file, one guarded
+ID/digest, transition, dependency fallback, collision, and rebind form. Retention tests prove 7 accepts no
+extension receipt, 14/30 require the exact host-signed schema, and every other value refuses; they cover a
+wrong anchor/key, bad signature, expired payload, wrong branch/base/workstream/days, changed session text,
+unreachable commit, wrong blob, and nonce/locator replay. Integration tests prove pre-merge close/expiry
+refusal, trusted-token rebind, arbitrary rebind refusal, stale append after compaction, and the expiry
+Git-blob/non-erasure disclosure. Board tests prove malformed candidates are reported and non-zero. The v1
+suite remains unchanged. The normal v2 path is accepted only with one active authority file, one guarded
 append, zero participant reservations, and zero v2 fuse operations; every exception is counted and justified
 as v1 reader/receipt compatibility, never hidden v2 coordination.
