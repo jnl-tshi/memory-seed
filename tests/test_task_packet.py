@@ -37,6 +37,7 @@ class TaskPacketTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
         (root / ".memory-seed" / "sessions").mkdir(parents=True)
+        (root / ".memory-seed" / "skills").mkdir(parents=True)
         (root / ".memory-seed" / "retrieval-profiles" / "implementation").mkdir(
             parents=True
         )
@@ -48,6 +49,14 @@ class TaskPacketTests(unittest.TestCase):
         )
         (root / "docs" / "evidence.md").write_text(
             "# Evidence\n\nUse exact canonical slices.\n",
+            encoding="utf-8",
+        )
+        (root / ".memory-seed" / "agent-rules.md").write_text(
+            "# Active agent rules\n\nGovern every worker.\n",
+            encoding="utf-8",
+        )
+        (root / ".memory-seed" / "skills" / "session_logging.md").write_text(
+            "# Active session logging\n\nUse the guarded writer.\n",
             encoding="utf-8",
         )
         (root / ".memory-seed" / "sessions" / "2026-08-01.md").write_text(
@@ -473,6 +482,92 @@ class TaskPacketTests(unittest.TestCase):
         )
         self.assertNotIn("generated_at", first_json)
 
+    def test_every_packet_materializes_exact_active_agent_rules_baseline(self):
+        root = self.make_project()
+        source = root / ".memory-seed" / "agent-rules.md"
+        raw = b"# Active agent rules\r\n\r\nExact active bytes.\r\n"
+        source.write_bytes(raw)
+
+        packet = compile_task_packet(self.dispatch(), self.binding(root), root)
+        baseline = packet["worker_baseline"]
+        agent_rules = baseline["sources"]["agent_rules"]
+
+        self.assertEqual(agent_rules["source"], ".memory-seed/agent-rules.md")
+        self.assertEqual(agent_rules["content"].encode("utf-8"), raw)
+        self.assertEqual(agent_rules["byte_count"], len(raw))
+        self.assertEqual(agent_rules["token_estimate"], estimate_tokens(raw))
+        self.assertEqual(
+            agent_rules["content_digest"],
+            "sha256:" + hashlib.sha256(raw).hexdigest(),
+        )
+        self.assertIsNone(baseline["sources"]["session_logging"])
+        self.assertTrue(baseline["fingerprint"].startswith("sha256:"))
+
+    def test_session_logging_baseline_follows_checkpoint_or_session_write_authority(self):
+        root = self.make_project()
+        session_path = ".memory-seed/sessions/2026-09/2026-09-06.md"
+        checkpoint = self.dispatch(write_intent="writing")
+        checkpoint["memory_update_policy"] = "worker_checkpoint"
+        checkpoint["memory_checkpoints"] = {
+            "names": ["implementation-complete"],
+            "session_paths": [session_path],
+            "branch_local_only": True,
+            "guarded_append": True,
+        }
+        checkpoint["execution"]["allowed_files"].append(session_path)
+        checkpoint_packet = compile_task_packet(checkpoint, self.binding(root, writing=True), root)
+        checkpoint_logging = checkpoint_packet["worker_baseline"]["sources"]["session_logging"]
+        self.assertIsNotNone(checkpoint_logging)
+        self.assertEqual(
+            checkpoint_logging["content"],
+            (root / ".memory-seed" / "skills" / "session_logging.md").read_bytes().decode("utf-8"),
+        )
+
+        session_writable = self.dispatch(write_intent="writing")
+        session_writable["execution"]["allowed_files"].append(session_path)
+        writable_packet = compile_task_packet(session_writable, self.binding(root, writing=True), root)
+        self.assertIsNotNone(writable_packet["worker_baseline"]["sources"]["session_logging"])
+
+        ordinary_packet = compile_task_packet(self.dispatch(), self.binding(root), root)
+        self.assertIsNone(ordinary_packet["worker_baseline"]["sources"]["session_logging"])
+
+        instructions = checkpoint_packet["execution_defaults"]["session_logging"]
+        self.assertTrue(instructions["delegated"])
+        self.assertIn("memory_session_append", instructions["append_requirement"])
+        self.assertIn("python -X utf8 -m memory_seed.cli session append", instructions["append_requirement"])
+        self.assertIn("omit timestamp", instructions["clock_ownership"])
+        self.assertIn("Direct Markdown session edits are forbidden.", instructions["prohibitions"])
+        self.assertIn("Explicit timestamps are forbidden.", instructions["prohibitions"])
+        self.assertIn("narrowly scoped repair/backfill exception", instructions["repair_backfill_exception"])
+
+    def test_baseline_sources_change_packet_and_baseline_fingerprints(self):
+        root = self.make_project()
+        first = compile_task_packet(self.dispatch(), self.binding(root), root)
+        agent_rules = root / ".memory-seed" / "agent-rules.md"
+        agent_rules.write_text("# Active agent rules\n\nChanged baseline.\n", encoding="utf-8")
+        second = compile_task_packet(self.dispatch(), self.binding(root), root)
+        self.assertNotEqual(first["worker_baseline"]["fingerprint"], second["worker_baseline"]["fingerprint"])
+        self.assertNotEqual(first["fingerprint"], second["fingerprint"])
+
+    def test_missing_required_worker_baseline_fails_clearly(self):
+        root = self.make_project()
+        (root / ".memory-seed" / "agent-rules.md").unlink()
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(self.dispatch(), self.binding(root), root)
+        self.assertEqual(caught.exception.code, "missing_worker_baseline")
+        self.assertIn("agent-rules", caught.exception.path)
+
+        root = self.make_project()
+        (root / ".memory-seed" / "skills" / "session_logging.md").unlink()
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["allowed_files"].append(
+            ".memory-seed/sessions/2026-09/2026-09-06.md"
+        )
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        self.assertEqual(caught.exception.code, "missing_worker_baseline")
+        self.assertIn("session_logging", caught.exception.path)
+
     def test_constitution_projection_prefers_explicit_anchors_and_never_truncates(self):
         root = self.make_project()
         constitution = root / "docs" / "CONSTITUTION.md"
@@ -802,9 +897,15 @@ class TaskPacketTests(unittest.TestCase):
                 "tool_schema_input_tokens",
                 "supplemental_input_reserve_tokens",
                 "output_reasoning_reserve_tokens",
+                "materialized_agent_rules_tokens",
+                "materialized_session_logging_tokens",
             },
         )
         self.assertTrue(all("tokens" in item and "percentage_of_context_envelope" in item for item in measurements.values()))
+        self.assertEqual(
+            measurements["materialized_agent_rules_tokens"]["accounting_scope"],
+            "subset_of_serialized_packet_input_tokens",
+        )
 
     def test_materialization_rejects_tampered_and_stale_packs(self):
         root = self.make_project()

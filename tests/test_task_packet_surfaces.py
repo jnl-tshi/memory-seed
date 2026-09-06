@@ -24,6 +24,7 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-surfaces-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
         (root / ".memory-seed" / "sessions").mkdir(parents=True)
+        (root / ".memory-seed" / "skills").mkdir(parents=True)
         (root / ".memory-seed" / "retrieval-profiles" / "implementation").mkdir(parents=True)
         (root / "docs").mkdir()
         (root / "docs" / "CONSTITUTION.md").write_text(
@@ -32,6 +33,12 @@ class TaskPacketSurfaceTests(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "docs" / "evidence.md").write_text("# Evidence\n\nCanonical source.\n", encoding="utf-8")
+        (root / ".memory-seed" / "agent-rules.md").write_text(
+            "# Active agent rules\n\nGovern every worker.\n", encoding="utf-8"
+        )
+        (root / ".memory-seed" / "skills" / "session_logging.md").write_text(
+            "# Active session logging\n\nUse the guarded writer.\n", encoding="utf-8"
+        )
         (root / ".memory-seed" / "sessions" / "2026-08-01.md").write_text(
             "## 2026-08-01 09:00 - Packet decision\n\n"
             "```yaml\nentry_id: mse_surface0001\nuser_initials: JN\nagent_type: codex\n"
@@ -149,13 +156,13 @@ class TaskPacketSurfaceTests(unittest.TestCase):
             "per_million_input": 1, "per_million_cached_input": 0.5,
             "per_million_output": 5, "tool_cost": 0,
         }
-        expected = canonical_task_packet_json(
-            compile_task_packet(dispatch, binding, root, environment=environment, pricing=pricing)
-        )
         dispatch_file, binding_file = self.write_inputs(root)
         environment_file, pricing_file = root / "environment.json", root / "pricing.json"
         environment_file.write_text(json.dumps(environment), encoding="utf-8")
         pricing_file.write_text(json.dumps(pricing), encoding="utf-8")
+        expected = canonical_task_packet_json(
+            compile_task_packet(dispatch, binding, root, environment=environment, pricing=pricing)
+        )
         before = self.snapshot(root)
         for command in ("preview", "compile"):
             with self.subTest(surface=f"cli-{command}"):
@@ -203,11 +210,14 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn("output already exists", stderr)
         self.assertEqual(output.read_text(encoding="utf-8"), "preserve")
+        expected_after_output_exists = canonical_task_packet_json(
+            compile_task_packet(self.dispatch(), self.binding(root), root)
+        )
         code, stdout, stderr = self.cli([*args, "--overwrite"])
         self.assertEqual((code, stdout, stderr), (0, "", ""))
         self.assertEqual(
             output.read_text(encoding="utf-8"),
-            expected,
+            expected_after_output_exists,
         )
         self.assertFalse(list(root.glob(".packet.json.*.tmp")))
 

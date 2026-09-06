@@ -47,7 +47,7 @@ _SLUG_RE = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _TASK_PACKET_KEYS = {
     "packet_schema", "packet_version", "dispatch", "dispatch_fingerprint",
     "runtime_binding", "retrieval_profile", "evidence_pack",
-    "materialized_evidence", "constitution_projection", "execution_defaults",
+    "materialized_evidence", "worker_baseline", "constitution_projection", "execution_defaults",
     "input_ledger", "cost_ledger", "fingerprint",
 }
 _DISPATCH_KEYS = {
@@ -166,6 +166,44 @@ def _evidence_pack_fingerprint(pack: dict) -> str | None:
     return _fingerprint(identity)
 
 
+def _valid_worker_baseline(baseline: object, dispatch: dict) -> bool:
+    """Mirror the packet's embedded-baseline integrity checks without source rereads."""
+    if not isinstance(baseline, dict) or set(baseline) != {"sources", "fingerprint"}:
+        return False
+    sources = baseline.get("sources")
+    if not isinstance(sources, dict) or set(sources) != {"agent_rules", "session_logging"}:
+        return False
+    session_required = (
+        dispatch.get("memory_update_policy") == "worker_checkpoint"
+        or any(
+            isinstance(path, str)
+            and path.replace("\\", "/").casefold().startswith(".memory-seed/sessions/")
+            for path in dispatch.get("execution", {}).get("allowed_files", [])
+        )
+    )
+    for name, expected_source, required in (
+        ("agent_rules", ".memory-seed/agent-rules.md", True),
+        ("session_logging", ".memory-seed/skills/session_logging.md", session_required),
+    ):
+        item = sources.get(name)
+        if item is None:
+            if required:
+                return False
+            continue
+        if not isinstance(item, dict) or set(item) != {"source", "byte_count", "token_estimate", "content_digest", "content"}:
+            return False
+        content = item.get("content")
+        if item.get("source") != expected_source or not isinstance(content, str):
+            return False
+        payload = content.encode("utf-8")
+        if item.get("byte_count") != len(payload) or item.get("token_estimate") != (len(payload) + 3) // 4:
+            return False
+        if item.get("content_digest") != "sha256:" + hashlib.sha256(payload).hexdigest():
+            return False
+    expected = _fingerprint(sources)
+    return isinstance(expected, str) and secrets.compare_digest(baseline.get("fingerprint", ""), expected)
+
+
 def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str], list[str]] | None:
     """Return packet refs/scope only for a full compiler activation receipt.
 
@@ -188,6 +226,7 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     binding = packet.get("runtime_binding")
     evidence_pack = packet.get("evidence_pack")
     evidence = packet.get("materialized_evidence")
+    worker_baseline = packet.get("worker_baseline")
     if (
         not isinstance(dispatch, dict)
         or set(dispatch) != _DISPATCH_KEYS
@@ -195,6 +234,7 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
         or set(binding) != _BINDING_KEYS
         or not isinstance(evidence_pack, dict)
         or not isinstance(evidence, list)
+        or not _valid_worker_baseline(worker_baseline, dispatch)
     ):
         return None
     if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") != 1:

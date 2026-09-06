@@ -215,3 +215,18 @@ No row is classified as compiler omission, stale compiled content, unclear dispa
 - Remedy: the clean repair worktree reconstructed the reviewed code/test commits from the original range while excluding the invalid session entries and disposable report; it read the missing governance routes before edits.
 - Repair: the three milestones were appended only through `python -X utf8 -m memory_seed.cli session append`, with new canonical IDs and explicit author-time estimates (00:23, 00:44, 00:51 Europe/London). Each record declares that its timestamp is commit-derived rather than direct wall-clock evidence.
 - Follow-up: worker packets that delegate checkpoint logging should make the required agent-rules and session-logging baseline explicit, and validation should surface future-dated session timestamps before handoff.
+
+## Baseline-governance correction — Ada future-timestamp incident
+
+- Ada's clean worker packet omitted the active session-writing contract, so the worker manually edited a
+  session entry and supplied a future timestamp instead of letting the canonical append writer own the
+  clock. That was an instruction-completeness failure, not a reason to relax append-only validation.
+- The compiler now gives every worker the complete active `.memory-seed/agent-rules.md`; checkpoint and
+  session-writable packets additionally receive the complete active
+  `.memory-seed/skills/session_logging.md`. Their execution defaults require `memory_session_append` or
+  checkout-local `python -X utf8 -m memory_seed.cli session append`, require automatic clock ownership,
+  and forbid direct Markdown session edits and explicit timestamps unless a dispatch grants a narrowly
+  scoped repair/backfill exception.
+- This makes the governance source bytes, digest, baseline fingerprint, and token share visible in the
+  packet itself. A changed baseline changes the compiled packet fingerprint, preventing a clean worker
+  from silently receiving stale or absent session-authoring governance.
