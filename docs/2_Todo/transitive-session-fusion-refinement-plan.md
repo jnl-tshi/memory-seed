@@ -50,7 +50,12 @@ foreign-attributed entry is inherited only if **every** condition below holds.
    the merge result contains that same exact record. Octopus merges are refused,
    rather than selecting an arbitrary non-first parent, and repeated qualifying
    merges are refused as ambiguous.
-5. Parse Git's final contiguous trailer block and require exactly one valid
+5. From that qualifying merge through the aggregate source tip, every tree on
+   the aggregate's first-parent chain must contain exactly one record for the
+   entry ID with byte-identical text. Deletion, absence, mutation, and a later
+   byte-identical re-add all break continuity: a receipt proves one admission,
+   not a licence to reconstruct the record later.
+6. Parse Git's final contiguous trailer block and require exactly one valid
    `Memory-Entry: <entry_id>` trailer for this entry. Missing, malformed,
    duplicated, or non-final-block trailers are not a receipt. The merge
    topology plus this immutable trailer is the durable prior fuse/merge evidence.
@@ -91,6 +96,7 @@ MCP parity, not merely a core-unit substitute.
 | Three-hop child → aggregate A → aggregate B → base | One inherited record can transit successive verified aggregate merges without branch-by-branch replay. |
 | Sidecar preservation | Diagram, link, and topic sidecars retain existing parent, timestamp, append-only, and malformed/orphan rejection behavior. |
 | Copied or reintroduced record | A copied child block or a record reintroduced after its receipt fails before merge. |
+| Direct delete / direct re-add | Deleting the inherited record on the aggregate and re-adding the same bytes in a later aggregate commit fails the first-parent continuity check. |
 | Tampered record | Body/YAML/branch mutation fails byte-exact proof and never lands. |
 | Common-ancestry false receipt | A valid old receipt outside `merge-base(base, source)..source` cannot authorize the source. |
 | Unrelated parent/ref | A parent not descended from the resolved child ref, a SHA/tag/remote ref, and a deleted/renamed child name fail with actionable recovery guidance. |
