@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Protocol, Sequence
 import json
 import re
 import subprocess
@@ -275,7 +275,14 @@ def _as_utc(value: str) -> datetime:
 def _relative_path(value: Any, path: str, field_name: str) -> str:
     value = _text(value, path, field_name)
     candidate = PurePosixPath(value)
-    if candidate.is_absolute() or ".." in candidate.parts or "\\" in value or value.startswith("."):
+    if (
+        candidate.is_absolute()
+        or ".." in candidate.parts
+        or "\\" in value
+        or value.startswith(".")
+        or value != candidate.as_posix()
+        or "//" in value
+    ):
         _fail("path", path, "path must be a clean relative POSIX path", field=field_name, value=value)
     return value
 
@@ -842,10 +849,45 @@ def validate_relationships(fragments: Iterable[ReflectionFragment], manifest: Re
         visit(identifier)
 
 
-def live_heads(fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest | None = None) -> dict[str, tuple[ReflectionRecord, ...]]:
+def validate_admitted_fragments(
+    fragments: Iterable[ReflectionFragment],
+    reports: Iterable[ReflectionReport],
+    manifest: ReflectionManifest,
+    *,
+    branch: str | None = None,
+) -> tuple[ReflectionFragment, ...]:
+    """Validate the admission boundary used by projections and closure.
+
+    A relationship graph alone is not an admission check: the same structurally
+    plausible fragment can have a forged owner, sequence, report, or record ID.
+    """
+    fragments = tuple(fragments)
+    reports_by_id: dict[str, ReflectionReport] = {}
+    for report in reports:
+        existing = reports_by_id.get(report.report_id)
+        if existing is not None and existing != report:
+            _fail("report-collision", "<reports>", "conflicting reports share an ID", report_id=report.report_id)
+        reports_by_id[report.report_id] = report
+    for fragment in fragments:
+        report = reports_by_id.get(fragment.report_id)
+        if report is None:
+            _fail("report-provenance", fragment.fragment_id, "fragment has no admitted report", report_id=fragment.report_id)
+        validate_fragment(fragment, manifest, report, branch=branch)
+    validate_relationships(fragments, manifest)
+    return fragments
+
+
+def live_heads(
+    fragments: Iterable[ReflectionFragment],
+    manifest: ReflectionManifest | None = None,
+    *,
+    reports: Iterable[ReflectionReport] | None = None,
+) -> dict[str, tuple[ReflectionRecord, ...]]:
     fragments = tuple(fragments)
     if manifest is not None:
-        validate_relationships(fragments, manifest)
+        if reports is None:
+            _fail("admission", "<view>", "manifest-backed live-head projection requires admitted reports")
+        validate_admitted_fragments(fragments, reports, manifest)
     index = _record_index(fragments)
     heads = set(index)
     for record_id_value, (_fragment, record) in index.items():
@@ -858,13 +900,15 @@ def live_heads(fragments: Iterable[ReflectionFragment], manifest: ReflectionMani
     return {chain: tuple(sorted(records, key=lambda item: (item.created_at, item.record_id))) for chain, records in grouped.items()}
 
 
-def common_view(fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest | None = None, *, plan_id: str | None = None,
+def common_view(fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest | None = None, *, reports: Iterable[ReflectionReport] | None = None, plan_id: str | None = None,
                 area: str | None = None, activity: str | None = None, topic: str | None = None,
                 related_decision: str | None = None, chain: str | None = None, responds_to: str | None = None,
                 transitive: bool = False) -> tuple[ReflectionRecord, ...]:
     fragments = tuple(fragments)
     if manifest is not None:
-        validate_relationships(fragments, manifest)
+        if reports is None:
+            _fail("admission", "<view>", "manifest-backed common view requires admitted reports")
+        validate_admitted_fragments(fragments, reports, manifest)
     index = _record_index(fragments)
     wanted: set[str] | None = None
     if responds_to is not None:
@@ -983,8 +1027,36 @@ class ReflectionChainClose:
     path: str = "closeout.md"
 
 
+def _close_shape(close: ReflectionChainClose, path: str | None = None) -> None:
+    """Validate closeout scalar/list shapes before any temporal or graph work."""
+    close_path = path or close.path
+    _id(close.chain_id, "rlc_", close_path, "chain_id")
+    _timestamp(close.closed_at, close_path, "closed_at")
+    _timestamp(close.expires_at, close_path, "expires_at")
+    if not isinstance(close.retention_days, int) or isinstance(close.retention_days, bool) or close.retention_days < 1:
+        _fail("close", close_path, "retention_days must be a positive integer")
+    for field_name, values, prefix, required in (
+        ("implementer_record_ids", close.implementer_record_ids, "rlr_", True),
+        ("reviewer_record_ids", close.reviewer_record_ids, "rlr_", True),
+        ("orchestrator_record_ids", close.orchestrator_record_ids, "rlr_", True),
+        ("resolved_head_ids", close.resolved_head_ids, "rlr_", False),
+        ("disposed_head_ids", close.disposed_head_ids, "rlr_", False),
+        ("receipt_ids", close.receipt_ids, "rrc_", True),
+    ):
+        if not isinstance(values, tuple) or (required and not values) or len(set(values)) != len(values):
+            _fail("close", close_path, "close record list must be a unique tuple with required coverage", field=field_name)
+        for identifier in values:
+            _id(identifier, prefix, close_path, field_name)
+    _id(close.synthesis_record_id, "rlr_", close_path, "synthesis_record_id")
+    _text(close.validation_receipt, close_path, "validation_receipt")
+    _relative_path(close.path, close_path, "path")
+
+
 def render_closeout(plan_id: str, closes: Iterable[ReflectionChainClose]) -> str:
     closes = tuple(closes)
+    _text(plan_id, "closeout.md", "plan_id")
+    for close in closes:
+        _close_shape(close)
     header = _yaml_mapping([("schema", "memory-seed/reflection-closeout"), ("version", 1), ("plan_id", plan_id)])
     pieces = ["---\n" + header + "---\n"]
     for close in sorted(closes, key=lambda item: (item.chain_id, item.closed_at)):
@@ -1019,12 +1091,14 @@ def parse_closeout(raw: bytes | str, path: str = "closeout.md") -> tuple[str, tu
         for list_key in ("implementer_record_ids", "reviewer_record_ids", "orchestrator_record_ids", "resolved_head_ids", "disposed_head_ids", "receipt_ids"):
             if not isinstance(item[list_key], list) or any(not isinstance(value, str) for value in item[list_key]):
                 _fail("close", path, "close record list field must be a string list", field=list_key)
-        closes.append(ReflectionChainClose(
+        close = ReflectionChainClose(
             _id(item["chain_id"], "rlc_", path, "chain_id"), _timestamp(item["closed_at"], path, "closed_at"), item["retention_days"],
             _timestamp(item["expires_at"], path, "expires_at"), tuple(item["implementer_record_ids"]), tuple(item["reviewer_record_ids"]),
             tuple(item["orchestrator_record_ids"]), _id(item["synthesis_record_id"], "rlr_", path, "synthesis_record_id"),
             tuple(item["resolved_head_ids"]), tuple(item["disposed_head_ids"]), _text(item["validation_receipt"], path, "validation_receipt"), tuple(item["receipt_ids"]), path,
-        ))
+        )
+        _close_shape(close, path)
+        closes.append(close)
     result = (header["plan_id"], tuple(closes))
     if render_closeout(result[0], result[1]) != text:
         _fail("canonical-bytes", path, "closeout is valid but not the canonical rendering")
@@ -1045,13 +1119,16 @@ def validate_chain_close(close: ReflectionChainClose, fragments: Iterable[Reflec
                          receipts: Iterable[ReflectionReceipt]) -> None:
     fragments = tuple(fragments)
     validate_relationships(fragments, manifest)
-    if close.retention_days < 1 or _as_utc(close.expires_at) != _as_utc(close.closed_at) + timedelta(days=close.retention_days):
-        _fail("close", close.path, "expires_at must equal closed_at plus retention_days")
+    _close_shape(close)
+    if close.retention_days != manifest.reflection_retention_days:
+        _fail("retention", close.path, "close retention_days must equal the manifest policy", expected=manifest.reflection_retention_days, actual=close.retention_days)
+    if _as_utc(close.expires_at) != _as_utc(close.closed_at) + timedelta(days=manifest.reflection_retention_days):
+        _fail("close", close.path, "expires_at must equal closed_at plus manifest retention_days")
     index = _record_index(fragments)
     members = {identifier for identifier, (_fragment, record) in index.items() if record.chain_id == close.chain_id}
     if not members:
         _fail("close", close.path, "close record names an unknown chain")
-    heads = {record.record_id for record in live_heads(fragments, manifest).get(close.chain_id, ())}
+    heads = {record.record_id for record in live_heads(fragments).get(close.chain_id, ())}
     resolved = set(close.resolved_head_ids)
     disposed = set(close.disposed_head_ids)
     if resolved & disposed or resolved | disposed != heads:
@@ -1070,9 +1147,34 @@ def validate_chain_close(close: ReflectionChainClose, fragments: Iterable[Reflec
                 _fail("ownership", close.path, "close coverage references a fragment participant absent from manifest", record_id=identifier)
             if participant.role != role:
                 _fail("close", close.path, "role coverage record has wrong participant role", record_id=identifier, role=role)
+
+    def ancestors(identifier: str) -> set[str]:
+        result: set[str] = set()
+        pending = list(index[identifier][1].parents)
+        while pending:
+            current = pending.pop()
+            if current not in result:
+                result.add(current)
+                pending.extend(index[current][1].parents)
+        return result
+
+    for implementer_id in roles["worker"]:
+        if not any(implementer_id in ancestors(reviewer_id) for reviewer_id in roles["validator"]):
+            _fail("close-topology", close.path, "reviewer coverage is not connected to an implementer record", implementer_record_id=implementer_id)
+    for reviewer_id in roles["validator"]:
+        if not any(reviewer_id in ancestors(orchestrator_id) for orchestrator_id in roles["orchestrator"]):
+            _fail("close-topology", close.path, "orchestrator coverage is not connected to reviewer coverage", reviewer_record_id=reviewer_id)
     synthesis = index.get(close.synthesis_record_id)
     if synthesis is None or synthesis[1].chain_id != close.chain_id or synthesis[1].kind not in {"resolution", "closeout", "promotion"}:
         _fail("close", close.path, "close needs an orchestrator synthesis record in its chain")
+    synthesis_participant = participants.get(synthesis[0].participant) if synthesis is not None else None
+    if (
+        synthesis_participant is None
+        or synthesis_participant.role != "orchestrator"
+        or synthesis_participant.participant != manifest.orchestrator["participant"]
+        or close.synthesis_record_id not in roles["orchestrator"]
+    ):
+        _fail("close-topology", close.path, "synthesis must be authored by and declared under the manifest orchestrator")
     receipts_by_id: dict[str, ReflectionReceipt] = {}
     for receipt in receipts:
         existing = receipts_by_id.get(receipt.receipt_id)
@@ -1097,6 +1199,7 @@ def validate_chain_close(close: ReflectionChainClose, fragments: Iterable[Reflec
 def validate_board_close(closes: Iterable[ReflectionChainClose], fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest,
                          receipts: Iterable[ReflectionReceipt]) -> None:
     fragments = tuple(fragments)
+    receipts = tuple(receipts)
     chains = {record.chain_id for _fragment, record in _record_index(fragments).values()}
     by_chain: dict[str, ReflectionChainClose] = {}
     for close in closes:
@@ -1109,28 +1212,33 @@ def validate_board_close(closes: Iterable[ReflectionChainClose], fragments: Iter
         validate_chain_close(close, fragments, manifest, receipts)
 
 
-class LiveUserApproval:
-    """Opaque approval capability intentionally not constructible by agents/API callers."""
-    __slots__ = ("_seal", "chain_id", "member_ids", "approved_at", "reason")
-    _SEAL = object()
+class LiveUserApprovalVerifier(Protocol):
+    """Trusted interactive-host boundary for early reflection expiry.
 
-    def __init__(self, seal: object, chain_id: str, member_ids: Sequence[str], approved_at: str, reason: str) -> None:
-        if seal is not self._SEAL:
-            raise TypeError("live user approvals are minted only by the interactive host")
-        self._seal, self.chain_id, self.member_ids, self.approved_at, self.reason = seal, chain_id, tuple(member_ids), approved_at, reason
+    The kernel neither creates nor accepts a locally self-asserted approval
+    object.  A host-owned verifier must validate an opaque receipt from its
+    live-user interaction surface against this exact deletion request.
+    """
 
-
-def _mint_live_user_approval(chain_id: str, member_ids: Sequence[str], approved_at: str, reason: str) -> LiveUserApproval:
-    """Host-only seam; intentionally private so an agent cannot self-mint approval."""
-    return LiveUserApproval(LiveUserApproval._SEAL, chain_id, member_ids, approved_at, reason)
+    def verify_reflection_expiry(
+        self,
+        approval_receipt: str,
+        *,
+        plan_id: str,
+        chain_id: str,
+        member_record_ids: tuple[str, ...],
+        expires_at: str,
+    ) -> bool: ...
 
 
 def eligible_expiry_paths(closes: Iterable[ReflectionChainClose], fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest,
                           receipts: Iterable[ReflectionReceipt], *, now: datetime, chain: str | None = None,
-                          early: bool = False, approval: LiveUserApproval | None = None) -> tuple[str, ...]:
+                          early: bool = False, approval_receipt: str | None = None,
+                          approval_verifier: LiveUserApprovalVerifier | None = None) -> tuple[str, ...]:
     if now.tzinfo is None:
         _fail("expiry", "closeout.md", "expiry comparison requires timezone-aware now")
     fragments = tuple(fragments)
+    receipts = tuple(receipts)
     close_map = {close.chain_id: close for close in closes}
     if chain is None and early:
         _fail("expiry", "closeout.md", "early expiry requires one exact chain")
@@ -1139,17 +1247,29 @@ def eligible_expiry_paths(closes: Iterable[ReflectionChainClose], fragments: Ite
         _fail("expiry", "closeout.md", "requested chain has no close record", chain=chain)
     eligible: list[str] = []
     for close in candidates:
+        # Early disposal has the same closure/receipt gate as ordinary expiry;
+        # a user can approve deletion, not bypass unresolved coordination work.
+        validate_chain_close(close, fragments, manifest, receipts)
         if early:
-            if approval is None or approval._seal is not LiveUserApproval._SEAL or approval.chain_id != close.chain_id:
-                _fail("live-user-approval", close.path, "early deletion requires unforgeable live-user approval for this chain")
-            member_ids = {record.record_id for _fragment, record in _record_index(fragments).values() if record.chain_id == close.chain_id}
-            if set(approval.member_ids) != member_ids or _as_utc(approval.approved_at) > _as_utc(close.expires_at):
-                _fail("live-user-approval", close.path, "approval does not bind the exact members before expiry")
+            if not isinstance(approval_receipt, str) or not approval_receipt or approval_verifier is None:
+                _fail("live-user-approval", close.path, "early deletion requires a receipt verified by the live interactive host")
+            member_ids = tuple(sorted(record.record_id for _fragment, record in _record_index(fragments).values() if record.chain_id == close.chain_id))
+            try:
+                approved = approval_verifier.verify_reflection_expiry(
+                    approval_receipt,
+                    plan_id=manifest.plan_id,
+                    chain_id=close.chain_id,
+                    member_record_ids=member_ids,
+                    expires_at=close.expires_at,
+                )
+            except Exception as exc:  # Host verification errors are refusals, never a bypass.
+                _fail("live-user-approval", close.path, "interactive-host approval verification failed", reason=str(exc))
+            if approved is not True:
+                _fail("live-user-approval", close.path, "interactive host did not verify approval for this exact chain")
             receipts_by_id = {item.receipt_id: item for item in receipts}
             if any(receipts_by_id[item].disposition == "promoted" for item in close.receipt_ids if item in receipts_by_id):
                 _fail("early-expiry", close.path, "early deletion is limited to unpromoted chains")
         else:
-            validate_chain_close(close, fragments, manifest, receipts)
             if now < _as_utc(close.expires_at):
                 continue
         eligible.append(close.path)
@@ -1169,6 +1289,7 @@ class ReflectionBlob:
 class _ReflectionFusePlan:
     plan_id: str
     source_branch: str
+    base_ref: str
     source_tip: str
     base_tip: str
     manifest_oid: str
@@ -1245,6 +1366,27 @@ def _changed_paths(root: Path, base: str, source: str, family: str) -> list[tupl
     return result
 
 
+def _admitted_fragments_at_commit(root: Path, commit: str, manifest: ReflectionManifest) -> tuple[ReflectionFragment, ...]:
+    """Load every complete reserved pair visible at one immutable Git commit."""
+    reports: list[ReflectionReport] = []
+    fragments: list[ReflectionFragment] = []
+    for participant in manifest.participants:
+        for reservation in participant.reservations:
+            report_path = f"{manifest.active_dir}/{reservation.report_path}"
+            fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
+            report_blob = _tree_blob(root, commit, report_path)
+            fragment_blob = _tree_blob(root, commit, fragment_path)
+            if report_blob is None and fragment_blob is None:
+                continue
+            if report_blob is None or fragment_blob is None:
+                _fail("report-provenance", manifest.active_dir, "admitted reservation must contain both report and fragment", sequence=reservation.sequence)
+            if report_blob.mode != CANONICAL_MODE or fragment_blob.mode != CANONICAL_MODE:
+                _fail("mode", report_path if report_blob.mode != CANONICAL_MODE else fragment_path, "reflection files must be regular mode 100644")
+            reports.append(parse_report(report_blob.content, report_path))
+            fragments.append(parse_fragment(fragment_blob.content, fragment_path))
+    return validate_admitted_fragments(fragments, reports, manifest)
+
+
 def reflection_fuse_preview(cwd: Path | str = ".", *, plan_id: str, branch: str, base: str = "HEAD") -> ReflectionFuseResult:
     root = Path(cwd).resolve()
     source_tip = _commit(root, branch)
@@ -1315,9 +1457,12 @@ def reflection_fuse_preview(cwd: Path | str = ".", *, plan_id: str, branch: str,
             report = parse_report(report_blob.content, report_path)
             fragment = parse_fragment(fragment_blob.content, fragment_path)
             validate_fragment(fragment, manifest, report, branch=branch, path=fragment_path)
-        token_source = "\0".join([plan_id, branch, source_tip, base_tip, manifest_blob.oid] + sorted(blob.oid for blob in additions))
+        # Parse every visible pair, not merely the new pair: a source record may
+        # respond to a base record, and graph validity is an admission property.
+        _admitted_fragments_at_commit(root, source_tip, manifest)
+        token_source = "\0".join([plan_id, branch, base, source_tip, base_tip, manifest_blob.oid] + sorted(blob.oid for blob in additions))
         token = sha256(token_source.encode("utf-8")).hexdigest()
-        plan = _ReflectionFusePlan(plan_id, branch, source_tip, base_tip, manifest_blob.oid, manifest_blob.raw_sha256,
+        plan = _ReflectionFusePlan(plan_id, branch, base, source_tip, base_tip, manifest_blob.oid, manifest_blob.raw_sha256,
                                    tuple(sorted(additions, key=lambda item: item.path)), tuple(sorted(already_present)), token,
                                    datetime.now(timezone.utc))
         return ReflectionFuseResult(bool(additions), plan_id, source_tip, base_tip, manifest_blob.raw_sha256,
@@ -1340,6 +1485,16 @@ def _apply_reflection_fuse_plan(cwd: Path | str, plan: _ReflectionFusePlan, *, p
     current_tip = _commit(root, plan.source_branch)
     if current_tip != plan.source_tip:
         return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("source-tip", "reflection fuse", "source tip changed after preview", {"expected": plan.source_tip, "actual": current_tip})])
+    current_base = _commit(root, plan.base_ref)
+    if current_base != plan.base_tip or _commit(root, "HEAD") != plan.base_tip:
+        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("base-tip", "reflection fuse", "base ref or integration HEAD changed after preview", {"expected": plan.base_tip, "base_ref": plan.base_ref, "actual_base": current_base, "actual_head": _commit(root, "HEAD")})])
+    manifest_path = f"{REFLECTION_ROOT}/{plan.plan_id}/{MANIFEST_NAME}"
+    manifest_blob = _tree_blob(root, current_base, manifest_path)
+    if manifest_blob is None or manifest_blob.oid != plan.manifest_oid or manifest_blob.raw_sha256 != plan.manifest_sha256:
+        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("manifest-toctou", manifest_path, "base manifest identity changed after preview", {})])
+    for blob in plan.additions:
+        if _tree_blob(root, current_base, blob.path) is not None:
+            return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("base-state-toctou", blob.path, "planned addition is no longer absent from the base state", {})])
     written: list[str] = []
     try:
         for blob in plan.additions:

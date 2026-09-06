@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import replace
 from pathlib import Path
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from memory_seed.reflection_ledger import (
     ReflectionRecord,
     ReflectionReport,
     ReflectionReservation,
+    _apply_reflection_fuse_plan,
     canonical_id,
     common_view,
     eligible_expiry_paths,
@@ -88,6 +90,11 @@ def make_fragment(manifest, records, *, participant=KERNEL, branch=BRANCH, track
                               "2026-09-06T12:02:00Z", "Kernel reflection", tuple(records))
 
 
+def reports_for(manifest):
+    return [make_report(manifest, person.participant, branch=person.branch, track=person.track)
+            for person in manifest.participants]
+
+
 def test_ids_match_published_vectors_and_reject_forgery():
     assert reservation_id("rpr_", SEED, PLAN, KERNEL, TRACK, 1, "report") == "rpr_14fyc35b2ze6e1ygw4ft"
     assert reservation_id("rfl_", SEED, PLAN, KERNEL, TRACK, 1, "fragment") == "rfl_14h1h37xrrp19qb9s1kd"
@@ -121,8 +128,9 @@ def test_relationships_keep_divergent_heads_and_select_all_descendants():
     third = make_record(manifest, fragment_id, 3, relationship="challenges", parents=(first.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
     fragment = make_fragment(manifest, [first, second, third])
     validate_relationships([fragment], manifest)
-    assert {record.record_id for record in live_heads([fragment], manifest)[CHAIN]} == {first.record_id, second.record_id, third.record_id}
-    assert {record.record_id for record in common_view([fragment], manifest, responds_to=first.record_id, transitive=True)} == {second.record_id, third.record_id}
+    reports = reports_for(manifest)
+    assert {record.record_id for record in live_heads([fragment], manifest, reports=reports)[CHAIN]} == {first.record_id, second.record_id, third.record_id}
+    assert {record.record_id for record in common_view([fragment], manifest, reports=reports, responds_to=first.record_id, transitive=True)} == {second.record_id, third.record_id}
     bad = make_record(manifest, fragment_id, 2, relationship="orphan", parents=(first.record_id,), created="2026-09-06T12:03:00Z")
     with pytest.raises(ValueError, match="orphan"):
         validate_relationships([make_fragment(manifest, [first, bad])], manifest)
@@ -139,7 +147,7 @@ def test_close_and_expiry_require_independent_coverage_and_closed_at_window():
     worker_fragment = make_fragment(manifest, [worker_record])
     reviewer_record = make_record(manifest, manifest.reservation(reviewer, 1).fragment_id, ordinal=1, relationship="responds", parents=(worker_record.record_id,), created="2026-09-06T12:03:00Z", no_related_thread=False)
     reviewer_fragment = make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification")
-    orch_record = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, ordinal=1, kind="resolution", relationship="responds", parents=(worker_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
+    orch_record = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, ordinal=1, kind="resolution", relationship="responds", parents=(reviewer_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
     orch_fragment = make_fragment(manifest, [orch_record], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration")
     receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker_record.record_id, reviewer_record.record_id, orch_record.record_id),
                                 (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), "Settled.", "already-covered", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
@@ -150,6 +158,77 @@ def test_close_and_expiry_require_independent_coverage_and_closed_at_window():
     assert eligible_expiry_paths([close], [worker_fragment, reviewer_fragment, orch_fragment], manifest, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == ("closeout.md",)
     assert eligible_expiry_paths([close], [worker_fragment, reviewer_fragment, orch_fragment], manifest, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
     assert parse_closeout(render_closeout(PLAN, [close])) == (PLAN, (close,))
+
+
+def test_admissible_views_refuse_missing_reports_forged_fragments_and_path_aliases():
+    manifest = make_manifest()
+    fragment_id = manifest.reservation(KERNEL, 1).fragment_id
+    fragment = make_fragment(manifest, [make_record(manifest, fragment_id)])
+    with pytest.raises(ValueError, match="admitted reports"):
+        common_view([fragment], manifest)
+    forged_record = replace(fragment.records[0], record_id="rlr_0123456789abcdefghjk")
+    with pytest.raises(ValueError, match="does not match deterministic"):
+        common_view([replace(fragment, records=(forged_record,))], manifest, reports=reports_for(manifest))
+    with pytest.raises(ValueError, match="clean relative"):
+        parse_manifest(render_manifest(manifest).replace("reports/kernel/", "reports//kernel/"))
+
+
+def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts():
+    reviewer = "ledger-auditor"
+    manifest = make_manifest(people=(
+        (KERNEL, "worker", BRANCH, TRACK),
+        (reviewer, "validator", "codex/feature/reflection-ledger-audit", "verification"),
+        ("codex-orchestrator", "orchestrator", "codex/feature/reflection-ledger-integration", "integration"),
+    ))
+    worker = make_record(manifest, manifest.reservation(KERNEL, 1).fragment_id)
+    reviewer_record = make_record(manifest, manifest.reservation(reviewer, 1).fragment_id, relationship="responds", parents=(worker.record_id,), created="2026-09-06T12:03:00Z", no_related_thread=False)
+    orchestrator = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution", relationship="responds", parents=(reviewer_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
+    fragments = (
+        make_fragment(manifest, [worker]),
+        make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification"),
+        make_fragment(manifest, [orchestrator], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration"),
+    )
+    receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id),
+                                (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
+    close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,),
+                                 (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
+    with pytest.raises(ValueError, match="manifest policy"):
+        validate_chain_close(replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"), fragments, manifest, [receipt])
+    with pytest.raises(ValueError, match="positive integer"):
+        parse_closeout(render_closeout(PLAN, [close]).replace("retention_days: 7", "retention_days: seven"))
+    unrelated = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution")
+    unrelated_fragment = make_fragment(manifest, [unrelated], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration")
+    unrelated_close = replace(close, orchestrator_record_ids=(unrelated.record_id,), synthesis_record_id=unrelated.record_id,
+                              resolved_head_ids=(worker.record_id, reviewer_record.record_id, unrelated.record_id))
+    with pytest.raises(ValueError, match="not connected to reviewer"):
+        validate_chain_close(unrelated_close, fragments[:2] + (unrelated_fragment,), manifest, [receipt])
+
+
+class RejectingApprovalHost:
+    def verify_reflection_expiry(self, *args, **kwargs):
+        return False
+
+
+def test_early_expiry_needs_host_verification_and_a_valid_complete_close():
+    reviewer = "ledger-auditor"
+    manifest = make_manifest(people=(
+        (KERNEL, "worker", BRANCH, TRACK),
+        (reviewer, "validator", "codex/feature/reflection-ledger-audit", "verification"),
+        ("codex-orchestrator", "orchestrator", "codex/feature/reflection-ledger-integration", "integration"),
+    ))
+    worker = make_record(manifest, manifest.reservation(KERNEL, 1).fragment_id)
+    reviewer_record = make_record(manifest, manifest.reservation(reviewer, 1).fragment_id, relationship="responds", parents=(worker.record_id,), created="2026-09-06T12:03:00Z", no_related_thread=False)
+    orchestrator = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution", relationship="responds", parents=(reviewer_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
+    fragments = (make_fragment(manifest, [worker]), make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification"), make_fragment(manifest, [orchestrator], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration"))
+    receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
+    close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,), (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
+    now = datetime(2026, 9, 7, 12, 6, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="verified by the live interactive host"):
+        eligible_expiry_paths([close], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged")
+    with pytest.raises(ValueError, match="did not verify"):
+        eligible_expiry_paths([close], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged", approval_verifier=RejectingApprovalHost())
+    with pytest.raises(ValueError, match="unavailable durable receipt"):
+        eligible_expiry_paths([replace(close, receipt_ids=("rrc_1123456789abcdefghjk",))], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged", approval_verifier=RejectingApprovalHost())
 
 
 class TestFuse:
@@ -163,6 +242,28 @@ class TestFuse:
         self._git(path, "config", "user.email", "test@example.com")
         self._git(path, "branch", "-M", "main")
         return path
+
+    def _prepared_pair(self, record):
+        cwd = self._project()
+        (cwd / "bootstrap.txt").write_text("base\n", encoding="utf-8")
+        self._git(cwd, "add", "-A")
+        self._git(cwd, "commit", "-qm", "bootstrap")
+        manifest = make_manifest(base_sha=self._git(cwd, "rev-parse", "HEAD").stdout.strip())
+        base = cwd / REFLECTION_ROOT / PLAN
+        base.mkdir(parents=True)
+        (base / "manifest.yaml").write_text(render_manifest(manifest), encoding="utf-8")
+        self._git(cwd, "add", "-A")
+        self._git(cwd, "commit", "-qm", "manifest")
+        self._git(cwd, "switch", "-qc", BRANCH)
+        reservation = manifest.reservation(KERNEL, 1)
+        (base / reservation.report_path).parent.mkdir(parents=True, exist_ok=True)
+        (base / reservation.report_path).write_text(render_report(make_report(manifest)), encoding="utf-8")
+        (base / reservation.fragment_path).parent.mkdir(parents=True, exist_ok=True)
+        (base / reservation.fragment_path).write_text(render_fragment(make_fragment(manifest, [record])), encoding="utf-8")
+        self._git(cwd, "add", "-A")
+        self._git(cwd, "commit", "-qm", "reflection pair")
+        self._git(cwd, "switch", "main")
+        return cwd, manifest
 
     def test_fuse_accepts_only_reserved_canonical_pair(self):
         cwd = self._project()
@@ -190,5 +291,30 @@ class TestFuse:
             result = reflection_fuse(cwd, plan_id=PLAN, branch=BRANCH)
             assert result.issues == []
             assert sorted(result.planned_paths) == sorted([f"{REFLECTION_ROOT}/{PLAN}/{reservation.report_path}", f"{REFLECTION_ROOT}/{PLAN}/{reservation.fragment_path}"])
+        finally:
+            shutil.rmtree(cwd, ignore_errors=True)
+
+    def test_fuse_admission_rejects_a_dangling_parent(self):
+        manifest = make_manifest()
+        record = make_record(manifest, manifest.reservation(KERNEL, 1).fragment_id, relationship="responds", parents=("rlr_0123456789abcdefghjk",), no_related_thread=False)
+        cwd, _manifest = self._prepared_pair(record)
+        try:
+            result = reflection_fuse(cwd, plan_id=PLAN, branch=BRANCH)
+            assert result.issues and result.issues[0].code == "dangling-parent"
+        finally:
+            shutil.rmtree(cwd, ignore_errors=True)
+
+    def test_internal_apply_rechecks_base_tip_and_manifest_state(self):
+        manifest = make_manifest()
+        record = make_record(manifest, manifest.reservation(KERNEL, 1).fragment_id)
+        cwd, _manifest = self._prepared_pair(record)
+        try:
+            preview = reflection_fuse(cwd, plan_id=PLAN, branch=BRANCH)
+            assert preview.issues == [] and preview._plan is not None
+            (cwd / "base-toctou.txt").write_text("changed\n", encoding="utf-8")
+            self._git(cwd, "add", "-A")
+            self._git(cwd, "commit", "-qm", "advance base")
+            applied = _apply_reflection_fuse_plan(cwd, preview._plan, preview_token=preview.preview_token)
+            assert applied.issues and applied.issues[0].code == "base-tip"
         finally:
             shutil.rmtree(cwd, ignore_errors=True)
