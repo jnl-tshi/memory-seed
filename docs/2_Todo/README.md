@@ -4,6 +4,7 @@
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [task-packet-hardening-progressive-provenance-plan.md](task-packet-hardening-progressive-provenance-plan.md) | P0 | — | Harden and independently review Task Packet compilation, then dogfood the improved packets whil… |
+| [transitive-session-fusion-refinement-plan.md](transitive-session-fusion-refinement-plan.md) | P0 | independent plan review approval | Re-review this evidence contract before any implementation change is staged. |
 | [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence E… |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [excerpt-fallback-defect.md](excerpt-fallback-defect.md) | P1 | — | None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the f… |
