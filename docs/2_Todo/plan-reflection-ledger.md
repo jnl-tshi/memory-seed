@@ -102,27 +102,32 @@ Implementation extends the compiler's mandatory materialized evidence and input 
 line range, and token estimate separately, and cost/token accounting includes those components before budget
 enforcement. Tests cover clean worker inclusion, session-path/checkpoint inclusion, missing files, direct-edit
 and timestamp-override refusal, explicit repair/backfill authorization behavior, token-budget accounting, and
-unchanged lazy orientation. Ada's observed clean packet omitted agent rules/session-logging and accepted a
-future timestamp; the Auditor must record that as a source-linked risk finding and tests must include it as a
-negative fixture. The Surface/packet track owns compiler and task-packet test changes for this
+unchanged lazy orientation. The immutable timestamp evidence is
+`.memory-seed/sessions/2026-07/2026-07-18.md` decision `mse_6pj7hkwwp5va9jaq:d1`: it proves authored future
+timestamps, not packet context. The alleged Ada packet omission is **orchestrator-observed, unverified**
+until the compiler correction captures a committed input dispatch, binding, materialized-evidence receipt,
+and output report that show omitted full agent-rules/session_logging. The Auditor records those separately;
+tests use the future-timestamp decision only for clock behavior and a newly captured fixture for packet
+contents. The Surface/packet track owns compiler and task-packet test changes for this
 cross-cutting packet contract; it must not duplicate Kernel or integration reflection tests.
 
 ## Plan family, storage, and lifecycle
 
 The canonical family is distinct from `sessions/` and starts in its permanent archive location; later closure
-does not delete or move evidence:
+does not delete or move evidence. The following names are a **deterministic planning vector**, not a live
+manifest or pre-dispatch authority:
 
 ```text
 .memory-seed/reflections/archive/reflection-ledger-v1/
   manifest.yaml
-  reports/ledger-kernel/rpr_01KERNELLEDGER0000001.md
-  fragments/kernel/ledger-kernel/001-rfl_01KERNELLEDGER000001.md
-  reports/ledger-surfaces/rpr_01SURFACELEDGER0000001.md
-  fragments/surfaces/ledger-surfaces/001-rfl_01SURFACELEDGER00001.md
-  reports/ledger-auditor/rpr_01AUDITLEDGER00000001.md
-  fragments/verification/ledger-auditor/001-rfl_01AUDITLEDGER000001.md
-  reports/codex-orchestrator/rpr_01ORCHLEDGER00000001.md
-  fragments/integration/codex-orchestrator/001-rfl_01ORCHLEDGER000001.md
+  reports/ledger-kernel/rpr_14fyc35b2ze6e1ygw4ft.md
+  fragments/kernel/ledger-kernel/001-rfl_14h1h37xrrp19qb9s1kd.md
+  reports/ledger-surfaces/rpr_1dpbhdmzfa851rd1zpem.md
+  fragments/surfaces/ledger-surfaces/001-rfl_0nd1t66xbshxx7rnth8w.md
+  reports/ledger-auditor/rpr_08xgwfza8t5v5x2jg537.md
+  fragments/verification/ledger-auditor/001-rfl_0bxzy7ezgekptyqgpv12.md
+  reports/codex-orchestrator/rpr_14t6r8y0wmsnt0dthw68.md
+  fragments/integration/codex-orchestrator/001-rfl_0efanjnv9sxj2hxarpbk.md
   seal.md
 ```
 
@@ -132,11 +137,34 @@ to stdout; a guarded explicit output path is a disposable derived export. JSON i
 or export only.
 
 `reflection init` is orchestrator-only and runs only after the Kernel parser/fuse lands. It generates a
-256-bit `reservation_seed`, creates canonical `manifest.yaml`, validates it, and commits it before Task
-Packet compilation. IDs are `prefix + Crockford(base32(SHA-256(seed || plan_id || participant || sequence ||
-slot))[0:20])`; they never depend on prose, timestamps, report bytes, or branch tips. Each literal tuple
-`(participant, branch, track, sequence, report_id, fragment_id, report_path, fragment_path)` is committed in
-the manifest, so Task Packets have no content-derived path cycle.
+cryptographically random 256-bit `reservation_seed`, creates canonical `manifest.yaml`, validates it, and
+commits it before Task Packet compilation. It writes the literal tuple `(participant, branch, track,
+sequence, report_id, fragment_id, report_path, fragment_path)` into that manifest, so Task Packets have no
+content-derived path cycle.
+
+The executable `sha256-crockford-v1` canonicalization is: UTF-8 encode each tuple component; prepend the
+literal domain `memory-seed/reflection-reservation/v1\0` and the 32 seed bytes; append each component as its
+four-byte big-endian length followed by its bytes; SHA-256; take the first 12 digest bytes; encode with the
+project Crockford alphabet `0123456789abcdefghjkmnpqrstvwxyz`; and require the resulting 20-character
+suffix. Prefix it with `rpr_`, `rfl_`, or `rlr_`. The planning-vector seed is
+`8f2c5e8d4ab1c0ffeeddccbbaa99887766554433221100fedcba9876543210ab`; it is deliberately a published test
+vector, not a seed that `reflection init` may reuse.
+
+```python
+def reservation_id(prefix, seed, plan, participant, track, sequence, slot):
+    frame = b"memory-seed/reflection-reservation/v1\0" + bytes.fromhex(seed)
+    for part in (plan, participant, track, str(sequence), slot):
+        raw = part.encode("utf-8")
+        frame += len(raw).to_bytes(4, "big") + raw
+    return prefix + crockford(sha256(frame).digest()[:12])  # exactly 20 suffix chars
+```
+
+| Participant / slot | Report ID | Fragment ID | First record ID | Suffix validation |
+| --- | --- | --- | --- | --- |
+| `ledger-kernel`, `kernel`, `1` | `rpr_14fyc35b2ze6e1ygw4ft` | `rfl_14h1h37xrrp19qb9s1kd` | `rlr_03p8z1c4c0qf9c0w346k` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| `ledger-surfaces`, `surfaces`, `1` | `rpr_1dpbhdmzfa851rd1zpem` | `rfl_0nd1t66xbshxx7rnth8w` | `rlr_1t984kp772wb6w0ercfc` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| `ledger-auditor`, `verification`, `1` | `rpr_08xgwfza8t5v5x2jg537` | `rfl_0bxzy7ezgekptyqgpv12` | `rlr_1k08tc0rpf66e7tfxeab` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| `codex-orchestrator`, `integration`, `1` | `rpr_14t6r8y0wmsnt0dthw68` | `rfl_0efanjnv9sxj2hxarpbk` | `rlr_0e7pvhvy79d6m0zp5mgh` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
 
 ```yaml
 schema: memory-seed/reflection-plan
@@ -481,7 +509,12 @@ budget: {supplemental_input_tokens: 6000, output_tokens: 5000, over_soft_cap: fa
 memory_update_policy: orchestrator
 ~~~
 
-### B. Surfaces and packet contract (reserved evidence pair)
+### B. Surfaces and packet contract (post-init dispatch form)
+
+This is the pre-init semantic source form. It deliberately does **not** claim a report/fragment path. After
+Kernel merges, `reflection init` commits the live manifest and the dispatch generator injects the two exact
+reservation paths/IDs into `allowed_files` and `expected_absent`, then compiles the resulting dispatch with
+its committed binding/receipt. It is a refusal to compile or assign this track before that point.
 
 ~~~yaml
 schema: memory-seed/task-dispatch
@@ -499,11 +532,11 @@ execution:
   persona: none
   capability_tier: frontier
   write_intent: writing
-  allowed_files: [memory_seed/cli.py, memory_seed/mcp_server.py, memory_seed/task_packet.py, tests/test_reflection_ledger_surfaces.py, tests/test_task_packet.py, .memory-seed/skills/agent_collaboration.md, memory_seed/seed/.memory-seed/skills/agent_collaboration.md, .memory-seed/reflections/archive/reflection-ledger-v1/reports/ledger-surfaces/rpr_01SURFACELEDGER0000001.md, .memory-seed/reflections/archive/reflection-ledger-v1/fragments/surfaces/ledger-surfaces/001-rfl_01SURFACELEDGER00001.md]
+  allowed_files: [memory_seed/cli.py, memory_seed/mcp_server.py, memory_seed/task_packet.py, tests/test_reflection_ledger_surfaces.py, tests/test_task_packet.py, .memory-seed/skills/agent_collaboration.md, memory_seed/seed/.memory-seed/skills/agent_collaboration.md]
   forbidden_files: [AGENTS.md, .memory-seed/agent-rules.md, .memory-seed/index.md, .memory-seed/policy.md, docs/CONSTITUTION.md, tests/test_reflection_ledger.py, tests/test_reflection_ledger_integration.py]
   validation: ["python -X utf8 -m pytest -q tests/test_reflection_ledger_surfaces.py tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_mcp_server.py", "git diff --check"]
-  output_contract: ["Return committed CLI/MCP parity and packet-baseline evidence (full active agent-rules; full session-logging/automatic-clock guard where applicable), plus the two pre-reserved report/fragment paths.", "Do not merge, resolve, promote, or seal."]
-  expected_absent: [tests/test_reflection_ledger_surfaces.py, .memory-seed/reflections/archive/reflection-ledger-v1/reports/ledger-surfaces/rpr_01SURFACELEDGER0000001.md, .memory-seed/reflections/archive/reflection-ledger-v1/fragments/surfaces/ledger-surfaces/001-rfl_01SURFACELEDGER00001.md]
+  output_contract: ["Return committed CLI/MCP parity and packet-baseline evidence (full active agent-rules; full session-logging/automatic-clock guard where applicable).", "After init, use only the generator-injected reserved report/fragment paths; do not merge, resolve, promote, or seal."]
+  expected_absent: [tests/test_reflection_ledger_surfaces.py]
   acceptance_observables:
     - {name: reflection-surface-parity, command: "python -X utf8 -m pytest -q tests/test_reflection_ledger_surfaces.py", expected_exit_code: 0}
     - {name: task-packet-regression, command: "python -X utf8 -m pytest -q tests/test_task_packet.py tests/test_task_packet_surfaces.py", expected_exit_code: 0}
@@ -521,7 +554,12 @@ budget: {supplemental_input_tokens: 5000, output_tokens: 4500, over_soft_cap: fa
 memory_update_policy: orchestrator
 ~~~
 
-### C. Independent auditor (reserved evidence pair, no product edits)
+### C. Independent auditor (pre-init read-only form)
+
+This is intentionally read-only until Kernel + `reflection init` establish a committed live manifest. The
+post-init dispatch generator changes only its evidence scope/intent to the manifest-reserved pair and stores
+the generated dispatch, measured binding, and compiler receipt. No audit participant may claim a reservation
+from the planning vector.
 
 ~~~yaml
 schema: memory-seed/task-dispatch
@@ -531,19 +569,19 @@ constitution_refs: [constitution:v1#append-only, constitution:v1#provenance, con
 project_context:
   project_type_and_purpose: "Memory Seed retains attributable project reasoning as local Markdown while integration tools fail closed on malformed concurrent history."
   relevant_subsystem: "The auditor exercises merged kernel/surfaces, coordinated fuse receipts, session-promotion boundary, and archive seal without owning product code."
-  task_fit: "Cross-worktree collision, post-merge bypass, and Ada's missing-rules/session-logging plus future-timestamp incident require an independent integrated-tree verdict and attributable evidence handoff."
+  task_fit: "Cross-worktree collision, post-merge bypass, the immutable future-timestamp decision mse_6pj7hkwwp5va9jaq:d1, and a separately captured Ada packet-context fixture require an independent verdict."
   downstream_use: "The orchestrator uses the verdict for bounded rework or promotion/seal; the auditor cannot perform either action."
   non_goals: ["Do not edit implementation, tests, control-plane, seed, session, manifest, resolution, promotion, or seal.", "Do not equate packet compilation with implementation correctness."]
 execution:
   role: validator
   persona: none
   capability_tier: frontier
-  write_intent: writing
-  allowed_files: [.memory-seed/reflections/archive/reflection-ledger-v1/reports/ledger-auditor/rpr_01AUDITLEDGER00000001.md, .memory-seed/reflections/archive/reflection-ledger-v1/fragments/verification/ledger-auditor/001-rfl_01AUDITLEDGER000001.md]
+  write_intent: read-only
+  allowed_files: []
   forbidden_files: [AGENTS.md, .memory-seed/agent-rules.md, .memory-seed/index.md, .memory-seed/policy.md, docs/CONSTITUTION.md, memory_seed/reflection_ledger.py, memory_seed/core.py, memory_seed/cli.py, memory_seed/mcp_server.py, tests/test_reflection_ledger.py, tests/test_reflection_ledger_surfaces.py, tests/test_reflection_ledger_integration.py]
   validation: ["python -X utf8 -m pytest -q tests/test_reflection_ledger.py tests/test_reflection_ledger_integration.py tests/test_reflection_ledger_surfaces.py tests/test_session_fuse_and_merge.py tests/test_task_packet.py tests/test_task_packet_surfaces.py", "python -X utf8 -m memory_seed.cli docs check", "python -X utf8 -m memory_seed.cli docs index --check", "git diff --check"]
-  output_contract: ["Return committed PASS, FAIL, or NEEDS_CONTEXT audit evidence at the two reserved paths with exact command results, including Ada's missing full agent-rules/session-logging and future-timestamp finding.", "State separately what was tested, inferred, and still requires live orchestrator action; do not merge, promote, or seal."]
-  expected_absent: [.memory-seed/reflections/archive/reflection-ledger-v1/reports/ledger-auditor/rpr_01AUDITLEDGER00000001.md, .memory-seed/reflections/archive/reflection-ledger-v1/fragments/verification/ledger-auditor/001-rfl_01AUDITLEDGER000001.md]
+  output_contract: ["Return a read-only PASS, FAIL, or NEEDS_CONTEXT pre-init verdict with exact command results; cite mse_6pj7hkwwp5va9jaq:d1 only for future timestamps and require the separately committed Ada packet fixture before asserting missing context.", "State separately what was tested, inferred, and still requires live orchestrator action; do not merge, promote, seal, or claim an evidence path before init."]
+  expected_absent: []
   acceptance_observables:
     - {name: integrated-reflection-suite, command: "python -X utf8 -m pytest -q tests/test_reflection_ledger.py tests/test_reflection_ledger_integration.py tests/test_reflection_ledger_surfaces.py", expected_exit_code: 0}
     - {name: documentation-lifecycle, command: "python -X utf8 -m memory_seed.cli docs check", expected_exit_code: 0}
@@ -561,21 +599,32 @@ budget: {supplemental_input_tokens: 5000, output_tokens: 4500, over_soft_cap: fa
 memory_update_policy: orchestrator
 ~~~
 
-### Measured draft compilation
+### Reproducible pre-work proof and staged compilation
 
-The pre-commit verification must compile all three blocks from this checkout with the compiler-measured
-binding for the target branch/worktree and main base. This table records its exact fingerprints, evidence
-counts, and token ledger. A compile failure blocks the plan; no hand-edited packet is an alternative.
+No Task Packet compile is claimed from this plan revision. The old reported compiles depended on an ephemeral
+worktree binding and (for B/C) paths that cannot exist before Kernel + reflection init; they were removed
+rather than presented as reproducible evidence. The committed-plan pre-work proof is deliberately narrower:
+extract the three fenced Task Dispatch maps and run normalize_task_dispatch() against each. That has no
+binding, generated artifact, or manifest claim. It verifies schema shape and that the pre-init B/C forms cannot
+authorize a reflection path.
 
-| Draft | Result | Dispatch fingerprint | Evidence / tokens |
-| --- | --- | --- | --- |
-| Kernel bootstrap | compiled 2026-09-06 | `sha256:32e0ae2a830b611759c149ba29d0e97e7931ec7f837960ee9296d21d2d8108f6` | 36 materialized; input 31,584; envelope 36,584; within target |
-| Surfaces | compiled 2026-09-06 | `sha256:bf327eaf43fb859bda5a5aa1c6544792b0426573e22c5dede2ba88682f779681` | 9 materialized; input 15,200; envelope 19,700; within target |
-| Auditor | compiled 2026-09-06 | `sha256:51447a6ee022c81ec470b797f9ef87dc7ac643075d6e727f4dcab026745e6292` | 34 materialized; input 29,500; envelope 34,000; within target |
+| Pre-work measurement | Reproducible input | Required result |
+| --- | --- | --- |
+| A Kernel source form | this committed fenced YAML | normalizes; no reflection report/fragment path; no worker reflection record |
+| B Surface source form | this committed fenced YAML | normalizes; no reflection evidence path before init |
+| C Auditor source form | this committed fenced YAML | normalizes read-only with no writable path before init |
+| Reservation vector | fixed seed + executable function above | all eight IDs/paths match the 20-character Crockford table |
 
-The current compiler lacks the planned `baseline_agent_rules` and `session_logging_guard` ledger components;
-these successful compiles are the pre-change baseline, not evidence that the new governance behavior already
-exists. The Surface track must add component-level assertions and remeasure all three drafts after it lands.
+Actual compilation has staged committed inputs and receipts:
+
+1. Kernel: when its worktree/branch is allocated, save the dispatch source, measured runtime-binding JSON,
+   compiler packet/receipt JSON, and verification output under the Kernel handoff artifact directory; record
+   their SHA-256 values in its normal handoff. Do not quote a fingerprint before those files exist.
+2. B/C: only after Kernel merges and reflection init commits a manifest may the dispatch generator read the
+   manifest, inject the exact reservations, save generated dispatch plus measured binding and compiler
+   receipt, then compile. The generator refuses a missing/uncommitted manifest or digest mismatch.
+3. Surface tests add baseline_agent_rules/session_logging_guard component assertions and remeasure token
+   ledgers from those stored receipts. A hand-edited packet or stdout-only claim is not evidence.
 
 ## Migration, compatibility, and explicit non-goals
 
