@@ -64,6 +64,7 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_session_integrate",
         "memory_adr_reviewed",
         "memory_link_retract",
+        "memory_decision_provenance_bind",
     }
 )
 
@@ -191,6 +192,33 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
 
 
 TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "memory_decision_provenance",
+        "description": "Show a decision's validated Git-reference bindings and temporary before/after code projections. Read-only; code is unavailable rather than inferred when Git evidence cannot be resolved.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_ref": {"type": "string", "description": "Exact <entry_id>:dN decision reference."},
+                "cwd": {"type": "string", "default": "."},
+                "context_lines": {"type": "integer", "default": 3, "minimum": 0, "maximum": 20},
+                "runtime": {"type": "object", "description": "Explicit runtime ownership record when inspecting an active descendant or retired metadata."},
+            },
+            "required": ["decision_ref"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_decision_provenance_bind",
+        "description": "Validate and append one reference-only provenance binding to its owning runtime sidecar. Default is a dry run; set apply true to write. Uses the same validation and output shape as CLI provenance bind.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "binding": {"type": "object"}, "cwd": {"type": "string", "default": "."},
+                "runtime": {"type": "object", "description": "The current runtime's owned sidecar; retired and detached owners are read-only."},
+                "apply": {"type": "boolean", "default": False},
+            },
+            "required": ["binding"], "additionalProperties": False,
+        },
+    },
     {
         "name": "memory_retrieval_spec_preview",
         "description": (
@@ -981,6 +1009,30 @@ def call_tool(
             cwd=_cwd(args),
             session_date=session_date.isoformat() if session_date else None,
         ).to_dict()
+
+    if name == "memory_decision_provenance":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"decision_ref", "cwd", "context_lines", "runtime"})
+        return provenance_surface(
+            "show", cwd=_cwd(args), decision_ref=_required_str(args, "decision_ref"),
+            context_lines=args.get("context_lines", 3), owner=args.get("runtime"),
+        )
+
+    if name == "memory_decision_provenance_bind":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"binding", "cwd", "runtime", "apply"})
+        binding = args.get("binding")
+        if not isinstance(binding, Mapping):
+            raise ValueError("binding must be an object")
+        runtime = args.get("runtime")
+        if runtime is not None and not isinstance(runtime, Mapping):
+            raise ValueError("runtime must be an object")
+        return provenance_surface(
+            "bind", cwd=_cwd(args), binding=binding, owner=runtime,
+            apply=_optional_bool(args, "apply", default=False),
+        )
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
