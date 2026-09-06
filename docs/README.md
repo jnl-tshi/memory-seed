@@ -107,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 54 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 56 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
@@ -127,6 +127,7 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [plan-reflection-ledger.md](2_Todo/plan-reflection-ledger.md) — Independently review the ratified chain-expiry, immediate-promotion, embedded-receipt, and active-thread retrieval contract before implemen…
+- **P1** [reflection-ledger-workstream-evolution-plan.md](2_Todo/reflection-ledger-workstream-evolution-plan.md) — Verify implementation work against the frozen v2 contract; do not reopen it without a new architecture decision.
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 - **P1** [storyline-gap-tranche-implementation-plan.md](2_Todo/storyline-gap-tranche-implementation-plan.md) — None — R5, R8, and R13 are reconciled from reviewed implementation evidence.
