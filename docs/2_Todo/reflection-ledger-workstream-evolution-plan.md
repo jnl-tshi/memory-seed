@@ -4,7 +4,7 @@ date: "2026-09-06"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review the single-ledger workstream contract before implementation."
+next_action: "Verify implementation work against the frozen v2 contract; do not reopen it without a new architecture decision."
 source:
   - "docs/2_Todo/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
@@ -22,7 +22,7 @@ dependencies:
   - "Existing guarded session append, ESR, worktree, CLI, and MCP parity mechanisms."
 acceptance_criteria:
   - "A feature workstream has exactly one branch-bound, append-only temporary ledger; planner, implementer, reviewer, and orchestrator append to it sequentially."
-  - "A write refuses a stale branch tip, stale ledger digest, invalid phase successor, malformed append, or a writer not authorised for the current phase."
+  - "A write refuses a stale branch tip, stale ledger digest, invalid target-chain phase successor, malformed append, or a writer not authorised for that chain."
   - "Active cross-workstream inspection is read-only and derived; it never fuses records or makes a combined view authoritative."
   - "Promotion, receipt resolution, closeout, and per-chain expiry preserve the Constitution 1.12 boundary and work after the active ledger is removed."
   - "Old fragment/fuse boards remain readable and verifiable through compatibility readers without conversion."
@@ -60,7 +60,7 @@ one serial branch writer and obscure the actual unit of work: a feature workstre
 The new invariant is small and explicit:
 
 ```text
-one workstream branch -> one active ledger -> one current writer -> append-only records
+one workstream branch -> one active ledger -> one guarded writer at a time -> append-only records
 parallel workstreams  -> separate ledgers -> derived combined inspection only
 durable decision      -> ordinary session + embedded receipt -> temporary chain may expire
 ```
@@ -81,7 +81,8 @@ New boards live at one canonical path:
 ```
 
 `ledger.md` has a frozen canonical header with `schema`, `version`, `workstream_id`, `working_branch`,
-`base_sha`, `created_at`, `reflection_retention_days`, and `id_salt`. State and phase are derived from the
+`base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, and `id_salt`. State and
+phase are derived from the
 validated ordered blocks; they are not mutable header fields. Normal operation has append-only dated blocks.
 The only sanctioned non-append rewrite is the compare-and-swap expiry compaction specified in the frozen v2
 annex below. Every block contains:
@@ -107,17 +108,20 @@ immediately before append. A mismatch refuses with a structured stale-write diag
 It atomically writes only the newly rendered suffix, then returns the new tip/digest/record identity. A caller
 must reload and make any relationship judgment again; it must not mechanically replay stale prose.
 
-The header's phase policy allows the normal loop:
+Each chain's state machine allows the normal loop:
 
 ```text
 plan -> implement -> review -> (implement correction -> review)* -> orchestrate -> close
 ```
 
-Only the role allowed by the current phase can append a phase-advancing record. A planner may start a chain;
+Only the role allowed by the target chain's current phase can append a phase-advancing record. A planner may
+start a root chain after ledger initialization;
 an implementer may add observations, opinions, risks, and corrections; a reviewer may respond, challenge, or
 approve/reject with evidence; and only the orchestrator may resolve, promote, close, rebind, or dispose. The
-same role can add an explanatory non-advancing record only when it owns the current phase. This is an
-authorization and sequence check, not a lock inferred from agent prose.
+same role can add an explanatory non-advancing record only when it owns that target chain's current phase.
+This is an authorization and sequence check, not a lock inferred from agent prose. A ledger can contain
+multiple chains, each with an independent phase, but every append remains globally serialized by the expected
+head/digest compare-and-swap; no two writers can succeed against the same ledger state.
 
 Git/worktree isolation remains the outer guard: an append may run only from the ledger's owned workstream
 branch. Branches are never treated as evidence of a different person's identity.
@@ -184,9 +188,10 @@ sentence conclusion, disposition, record-content digest, local ledger digest, an
 It names no temporary path. The session writer's normal chronology, DRAFT, topics, lifecycle-link, ADR review,
 and branch checks still apply.
 
-A chain closes only after required implementation and independent review coverage, an orchestrator synthesis
-or explicit disposition, every divergent head resolved/disposed, and durable receipt coverage for every member.
-`closed_at` starts the configured retention window; `expires_at` is derived, never caller-selected. Ordinary
+A chain closes only after that chain's required implementation and independent review coverage, an orchestrator
+synthesis or explicit disposition, every one of its divergent heads resolved/disposed, and durable receipt
+coverage for every one of its members. Its own `closed_at` starts the configured retention window; its
+`expires_at` is derived, never caller-selected. Ordinary
 expiry removes only that eligible chain's blocks through the canonical cleanup operation. It refuses an open,
 unreviewed, unelapsed, incomplete, or cross-ledger-dependent chain. Early removal remains limited to an
 unpromoted, otherwise valid chain with a verified live-user approval and durable disposition. A board-wide
@@ -204,7 +209,7 @@ authoritative.
 | Core | Add a versioned single-ledger parser, canonical append planner, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
 | CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; append owns time/identity/head lookup. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
 | MCP | Add parity read operations for ledger and board views and a guarded append/close path that calls the same core planner/validator. Return identical rendered bytes and `{code, path, message, details}` errors. No MCP merge, arbitrary file write, or bypass of early-expiry approval. |
-| ESR | Report workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, and per-chain expiry candidates. It must distinguish v1 fragment boards from new workstream ledgers. |
+| ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, and per-chain expiry candidates. It must distinguish v1 fragment boards from new workstream ledgers. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
 | `session_logging.md` and Seed twin | Specify the compact embedded receipt locator for the new ledger and preserve v1 receipt reading. Do not make a reflection append a session write. |
 | `end_of_turn.md` and Seed twin | Add ESR discovery of a current workstream ledger and promotion/close/expiry review prompts. |
@@ -227,12 +232,12 @@ rewritten.
 | Area | Positive proof | Required negative controls |
 | --- | --- | --- |
 | Ledger identity and append | Canonical init/append produces reproducible bytes, generated IDs, and a conclusion-first block. | Forged ID, manual timestamp, noncanonical bytes, stale ledger digest, stale Git tip, and direct file overwrite all refuse. |
-| Phase ownership | A planner/implementer/reviewer/orchestrator loop, including implementer rework after review, records the permitted successor states. | Wrong role, skipped review, phase regression, concurrent/stale writer, and orchestrator-only action by another role refuse. |
+| Phase ownership | Multiple independent root chains may each complete a planner/implementer/reviewer/orchestrator loop, including implementer rework after review. | Wrong target-chain role, skipped review, phase regression, concurrent/stale writer, and orchestrator-only action by another role refuse. |
 | Chains | Local parent, correction, challenge, combine, and all-head view work. | Cross-ledger parent, orphan without judgment, dangling/cyclic parent, silent derived override, and hidden divergent head refuse. |
 | Dependencies | A real dependency resolves first from an active ledger then from its durable receipt after expiry. | Similar-topic link without dependency reason, wrong digest, self-dependency, missing target, expired target without receipt, and dependency-as-parent refuse. |
 | Board view | Multiple active ledgers produce a labelled, sorted, read-only combined projection, including malformed candidates as diagnostics. | A board command that omits a malformed active candidate, emits a winner, writes a ledger, fuses records, or promotes a decision fails/refuses. |
 | Promotion and receipts | Many chains to one decision and one chain to several decisions resolve from ordinary sessions alone. | Temporary path reference, missing member coverage, conflicting duplicate receipt, bad decision locator, malformed digest, and receipt from an uncommitted session blob refuse. |
-| Close and expiry | Validated reviewed chains close independently and expire at `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, wrong retention deadline, early promoted cleanup, forged approval, and cleanup of a dependency target still required by an open chain refuse. |
+| Close and expiry | Validated reviewed chains close independently and expire at that chain's `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, wrong retention deadline, unapproved retention extension, early promoted cleanup, forged approval, and cleanup of a dependency target still required by an open chain refuse. |
 | Compatibility | Existing `tests/test_reflection_ledger.py` v1 fixtures still parse, view, close, expire, and fuse. | A v2 writer pointed at a v1 board, v1 fuse pointed at v2 data, or mixed family directory refuses. |
 | Surface parity | CLI and MCP return the same valid result, rendered bytes, and diagnostics for shared fixtures. | One surface accepting an invalid append or bypassing phase/approval validation fails parity tests. |
 
@@ -242,9 +247,10 @@ pass; and an independent reviewer confirms that no v2 path reintroduces per-part
 
 ## Delivery sequence and owners
 
-1. **Architecture gate — orchestrator and independent reviewer.** Freeze the v2 schema, phase policy,
-   record/chain vectors, dependency semantics, expiry/dependency interaction, and v1 compatibility boundary.
-   Review before implementation because these are durable format and control-plane choices.
+1. **Architecture gate — satisfied; verification-only.** The orchestrator and independent review have frozen
+   the v2 schema, phase policy, record/chain vectors, dependency semantics, expiry/dependency interaction, and
+   v1 compatibility boundary. Implementation may verify conformance but must not reopen these choices without
+   a new architecture decision and review.
 2. **Core ledger track — one implementation owner.** Add parser/renderer, append etag/phase checks, local
    chain logic, dependency resolver, derived board view, close/expiry adaptation, and v1 routing. Own new
    focused core tests. No CLI/MCP/control-plane edits in this track.
@@ -276,7 +282,7 @@ exception:
 | Per-worker identifiers/paths that must be reserved before work | report ID/path + fragment ID/path (4) | none |
 | Cross-branch reflection integration mechanism | participant fuse plus coordinated merge | none for v2; normal branch integration plus ledger receipt |
 | Authoring round trips before a record can be written | manifest reservation, report, fragment, fuse | one guarded append with expected tip/digest |
-| New-board writer roles that can mutate authority concurrently | multiple reserved participants | exactly one current phase writer |
+| New-board writer roles that can mutate authority concurrently | multiple reserved participants | exactly one CAS-protected append at a time, authorised per target chain |
 | New-board authoritative combined views | one plan common view built from fused fragments | zero; all multi-ledger views are derived |
 
 The target is not fewer safeguards. It is fewer independently coordinated artifacts while preserving canonical
@@ -306,14 +312,17 @@ This is the normative v2 contract; it controls over earlier illustrative text. I
 | Discriminator | v2 front matter is exactly `schema: memory-seed/reflection-workstream-ledger` and `version: 2`; v1 remains `memory-seed/reflection-plan` at version 1. Absent, duplicate, mixed, or unsupported forms are malformed, never inferred. |
 | Path | The only active v2 path is `.memory-seed/reflections/active/<workstream_id>/ledger.md`; its directory contains no `manifest.yaml`. v2 commands reject v1 paths and conversely. |
 | Bytes | UTF-8 without BOM, Unicode NFC, LF only, no trailing whitespace, exactly one final LF. YAML has two-space indentation and the exact field order below. Digests are lowercase `sha256:` plus 64 hex. |
-| Header order | `schema`, `version`, `workstream_id`, `working_branch`, `base_sha`, `created_at`, `reflection_retention_days`, `id_salt`. No other header field is accepted. `base_sha` is 40 lowercase hex; every timestamp is UTC RFC 3339 in `YYYY-MM-DDTHH:MM:SSZ` form; `id_salt` is 64 lowercase hex from OS entropy. Header bytes never change. State and phase derive from validated blocks. |
+| Header order | `schema`, `version`, `workstream_id`, `working_branch`, `base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, `id_salt`. No other header field is accepted. `base_sha` is 40 lowercase hex; every timestamp is UTC RFC 3339 in `YYYY-MM-DDTHH:MM:SSZ` form; `id_salt` is 64 lowercase hex from OS entropy. Header bytes never change. State and phase derive per chain from validated blocks. |
+| Retention | `reflection_retention_days` is integer `7` by default. Any value greater than `7` requires `retention_extension_receipt`, a non-empty verified live-user approval receipt bound to this `workstream_id`, `working_branch`, and requested day count; at `7` the receipt is literal `null`. No other day count is valid. |
 | Digests | Ledger digest is `sha256(LEDGER_DOMAIN || canonical_ledger_bytes)` and detail digest is `sha256(DETAIL_DOMAIN || canonical_record_block_bytes)`. `LEDGER_DOMAIN` is ASCII `memory-seed/reflection-workstream-ledger/v2/ledger` plus NUL; `DETAIL_DOMAIN` substitutes `detail` for `ledger`. |
 
 The ID domain is ASCII `memory-seed/reflection-workstream-ledger/v2` plus NUL. For each ID,
 `frame = ID_DOMAIN || hex_decode(id_salt) || components`, where each component is
-`uint32_be(len(UTF-8(component))) || UTF-8(component)`. SHA-256 the frame, encode the low 100 bits of its
-first 12 bytes as 20 lowercase Crockford Base32 characters (`0123456789abcdefghjkmnpqrstvwxyz`), and prepend
-the prefix. The canonical writer supplies all components.
+`uint32_be(len(UTF-8(component))) || UTF-8(component)`. SHA-256 the frame, interpret the first 12 digest
+bytes as one unsigned 96-bit big-endian integer, then encode that integer as exactly 20 lowercase Crockford
+Base32 characters (`0123456789abcdefghjkmnpqrstvwxyz`), left-padded with zero characters. The canonical
+writer supplies all components. This is a 96-bit procedure: the first four bits of the 20-character encoding
+are zero padding, not additional digest bits.
 
 | ID | Prefix and ordered components |
 | --- | --- |
@@ -333,14 +342,26 @@ ones, receipt ID is `rrc_0hge300ydfdke03v8hfh`. For exact bytes `example\n`, vec
 ### Records, chains, and transitions
 
 Every ordinary block begins `## Record <record_id>` and lists, in order: `record_id`, `created_at`, `role`,
-`from_phase`, `to_phase`, `chain_id`, `parents`, `relationship`, `depends_on`, `source`,
-`related_decisions`, `confidence`, `pre_ledger_digest`, `detail_digest`. Headings are `### Conclusion`,
-`### Reasoning`, then optionally in order `### Assumptions`, `### Alternatives`, `### Evidence`, and
-`### Next step`. Conclusion and reasoning are non-empty. Lists are canonical sorted lists, never scalars.
-`detail_digest` is computed over the canonical whole block with its own value replaced by 64 zeroes.
+`from_phase`, `to_phase`, `closed_at`, `chain_id`, `parents`, `relationship`, `no_related_thread`,
+`depends_on`, `source`, `related_decisions`, `confidence`, `pre_ledger_digest`, `detail_digest`. Headings are
+`### Conclusion`, `### Reasoning`, then optionally in order `### Assumptions`, `### Alternatives`,
+`### Evidence`, and `### Next step`. Conclusion and reasoning are non-empty. Lists are canonical sorted lists,
+never scalars. `detail_digest` is computed over the canonical whole block with its own value replaced by 64
+zeroes.
 
-The derived phase begins `plan`. A block must use precisely one transition below. A non-advancing note has
-equal `from_phase`/`to_phase` and is allowed only to that phase's owner.
+`parents` is a list of local `rlr_` identifiers. `relationship` is exactly one of `no_related_thread`,
+`refines`, `responds`, `challenges`, `corrects`, `combines`, or `orphan`; `orphan` requires an explicit
+judgment in Reasoning. `no_related_thread` is a required JSON/YAML boolean: it is `true` only for a root
+record with `parents: []` and relationship `no_related_thread`; it is `false` for every non-root record and
+forbids that relationship. A root is legal after ledger initialization at any time and creates a new chain;
+it does not inherit another chain's phase. `closed_at` is literal `null` except on an
+`orchestrate -> closed` record, where it is a UTC timestamp exactly equal to `created_at`. Thus chain phase,
+closure, retention, and expiry are all per-chain, not ledger-wide.
+
+Each newly created root chain begins in phase `plan`. A block must use precisely one transition below for its
+own `chain_id`. A non-advancing note has equal `from_phase`/`to_phase` and is allowed only to that chain
+phase's owner. Different chains may be at different phases, but a successful append still serializes the
+whole ledger through one expected-head/digest compare-and-swap.
 
 | From | To | Role | Rule |
 | --- | --- | --- | --- |
@@ -350,9 +371,10 @@ equal `from_phase`/`to_phase` and is allowed only to that phase's owner.
 | `review` | `orchestrate` | reviewer | Approved review handoff. |
 | `orchestrate` | `closed` | orchestrator | Post-merge receipt/disposition only. |
 
-No transition skips review or regresses except `review -> implement`; `closed` accepts no ordinary append.
-The first record has no parents and requires `no_related_thread`. Every later parent is local and validated.
-A chain is created from the first record, cannot be renamed, and is never reconstructed from a board.
+No transition skips review or regresses except `review -> implement`; a closed chain accepts no ordinary
+append. A root has no parents and requires `no_related_thread`; every later parent is local to its own chain
+and validated. A ledger begins with zero chains. Each root record creates one new chain; that chain cannot be
+renamed, merged across ledgers, or reconstructed from a board.
 
 ### Dependencies, board visibility, and branch collision
 
@@ -361,8 +383,8 @@ A chain is created from the first record, cannot be renamed, and is never recons
 `session_path`, `entry_id`, `decision_id`, `receipt_id`, `receipt_digest`. The fallback identifies a normal,
 committed session receipt for that exact workstream/record/detail digest. An active dependency that could
 outlive its target must include a fallback at append time; append-only records are never patched later.
-Target closeout refuses a still-open dependent without verified fallback. Resolution prefers the active record
-then the verified receipt; a dependency is never a parent or imported detail.
+Target-chain closeout refuses a still-open dependent without verified fallback. Resolution prefers the active
+record then the verified receipt; a dependency is never a parent or imported detail.
 
 `reflection board view --active` scans every immediate directory under `reflections/active`, including a
 directory that cannot parse. Each output item has `path`, status `valid`/`malformed`/`unsupported`, raw file
@@ -396,17 +418,21 @@ Trusted integration appends `## Rebind <record_id>` before closeout with this ex
 ordinary record ID framing and zero-substitution detail digest, has no parents/transition, and changes the
 effective owner only after validation. The immutable header remains origin evidence.
 
-Post-merge closeout appends the guarded Memory Seed decision and embedded receipt, then the
+Post-merge closeout appends the guarded Memory Seed decision and embedded receipt, then one target chain's
 `orchestrate -> closed` block in that integration checkout. It requires trusted rebind, integrated source tip,
-complete review/disposition, resolved heads, and durable member receipts. The receipt states origin branch,
-integration branch/commit, pre-close digest, and closed IDs. A source checkout cannot manufacture it.
+that chain's complete review/disposition, resolved heads, and durable member receipts. The receipt states
+origin branch, integration branch/commit, pre-close digest, and that chain's closed IDs. A source checkout
+cannot manufacture it.
 
 ### Safe expiry and compaction
 
 Expiry replaces only complete eligible chain blocks; it never changes durable sessions, header bytes, retained
 blocks, v1 data, or a whole board. Preview reads current HEAD and canonical bytes and returns `expected_head`,
-`pre_ledger_digest`, sorted `removed_chain_ids`, sorted `removed_record_ids`, and exact
-`post_ledger_digest` made from byte-identical header plus retained blocks. It appends no cleanup block.
+`pre_ledger_digest`, sorted `removed_chain_ids`, sorted `removed_record_ids`, exact `post_ledger_digest`, and
+the fixed disclosure `git_blobs_remain: true`, `privacy_grade_erasure: false`. Thus every preview states that
+Git history/blob retention may preserve removed data and that expiry is lifecycle cleanup, not privacy-grade
+erasure. The resulting expiry result and durable cleanup receipt repeat the same disclosure. Post bytes are
+the byte-identical header plus retained blocks. It appends no cleanup block.
 
 Apply compare-and-swaps only if HEAD and bytes still equal preview. In the same trusted integration change, a
 normal session cleanup receipt lists in order: `workstream_id`, `removed_chain_ids`, `removed_record_ids`,
@@ -422,10 +448,11 @@ unpromoted-chain constraints and emits the same pre/post receipt.
 
 ### Gates and reduction proof
 
-Before implementation, golden tests must prove all vectors and field order. Parser tests reject every forbidden
-discriminator, header field, byte rule, ID/digest, transition, dependency fallback, collision, and rebind form.
-Integration tests prove pre-merge close/expiry refusal, trusted-token rebind, arbitrary rebind refusal, and
-stale append after compaction. Board tests prove malformed candidates are reported and non-zero. The v1 suite
-remains unchanged. The normal v2 path is accepted only with one active authority file, one guarded append,
-zero participant reservations, and zero v2 fuse operations; every exception is counted and justified as v1
-reader/receipt compatibility, never hidden v2 coordination.
+The architecture freeze is satisfied; implementation performs verification-only against it. Golden tests must
+prove all vectors and field order. Parser tests reject every forbidden discriminator, header field, byte rule,
+ID/digest, transition, dependency fallback, collision, and rebind form. Integration tests prove pre-merge
+close/expiry refusal, trusted-token rebind, arbitrary rebind refusal, stale append after compaction, and the
+expiry Git-blob/non-erasure disclosure. Board tests prove malformed candidates are reported and non-zero. The
+v1 suite remains unchanged. The normal v2 path is accepted only with one active authority file, one guarded
+append, zero participant reservations, and zero v2 fuse operations; every exception is counted and justified
+as v1 reader/receipt compatibility, never hidden v2 coordination.
