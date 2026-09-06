@@ -207,7 +207,7 @@ authoritative.
 | Surface | Required evolution |
 | --- | --- |
 | Core | Add a versioned single-ledger parser, canonical append planner, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
-| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init accepts only retention 7, 14, or 30 and verifies an admitted host approval for 14/30; append owns time/identity/head lookup. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
+| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7; append owns time/identity/head lookup. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
 | MCP | Add parity read operations for ledger and board views and a guarded append/close path that calls the same core planner/validator. Return identical rendered bytes and `{code, path, message, details}` errors. No MCP merge, arbitrary file write, or bypass of early-expiry approval. |
 | ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, and per-chain expiry candidates. It must distinguish v1 fragment boards from new workstream ledgers. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
@@ -341,58 +341,112 @@ a 14- or 30-day header its `retention_approval_key_id` must equal `key_id`. It a
 MCP, task packet, or working-tree file. The verifier uses the anchor's `public_key`, the landed RFC 8032
 Ed25519 verifier, and no agent callback or private key.
 
-The approval is embedded as one canonical fenced YAML payload under `### Reflection retention approval` in a
-normal Memory Seed session entry. Its only legal location is `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`;
-`session_path` and `entry_id` below locate that entry. Before ledger init, the entry must be committed in
-reachable Git history. The immutable header's `retention_extension_receipt` is an ordered mapping:
-`session_path`, `entry_id`, `commit`, `blob`, `nonce`. `commit` and `blob` are full lowercase Git object IDs
-for the committed session file; `blob` must be the exact object at `commit:session_path`. At 7 days the field
-is literal `null`.
+For 14/30, the only entry point is a canonical host-owned retention preflight. It derives the protected base
+and current branch, mints the OS-random `id_salt` and `nonce`, takes the host clock's `created_at`, computes
+the workstream ID with the frozen 96-bit ID procedure, and selects the requested period. It has no caller
+parameters for `id_salt`, `created_at`, `workstream_id`, branch, base, nonce, approval timestamps, or session
+identity. The host first obtains the normal session writer's planned `session_path`/`entry_id`, then persists
+this exact candidate as one canonical fenced YAML block under `### Reflection retention preflight` in that
+normal Memory Seed session entry. The entry is committed before the host signs anything.
 
-The signed v2 payload has this exact ordered YAML mapping and no extra keys. The signature covers canonical
-UTF-8 bytes of every field through `entry_id`, excluding only `signature`:
+The persisted preflight has this exact ordered YAML mapping and no extra keys:
 
 ```yaml
-schema: memory-seed/reflection-retention-approval
+schema: memory-seed/reflection-retention-preflight
 version: 2
 key_id: <stable-token>
-workstream_id: <rwl_...>
-working_branch: <exact-origin-branch-or-trusted-rebind-target>
+id_domain: memory-seed/reflection-workstream-ledger/v2
+id_kind: workstream
+workstream_id: <computed-rwl_...>
+working_branch: <exact-origin-branch>
+base_sha: <40-lowercase-hex>
+id_salt: <64-lowercase-hex>
+created_at: <UTC-RFC3339-seconds>
 retention_days: 14|30
 scope: ledger
 chain_id: null
-base_sha: <40-lowercase-hex>
 nonce: <64-lowercase-hex>
 approved_at: <UTC-RFC3339-seconds>
 expires_at: <UTC-RFC3339-seconds>
 reason: <non-empty-text>
 session_path: .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
 entry_id: <mse_...>
+```
+
+`id_domain`, `id_kind`, `id_salt`, `working_branch`, `base_sha`, and `created_at` are every workstream-ID
+preimage element; the verifier recomputes `workstream_id` from them and rejects any mismatch. `scope` is
+literal `ledger` and `chain_id` literal `null`: one immutable header supplies retention for all chains. The
+host mints `nonce`, `approved_at`, and `expires_at` before the approval signature; expiry is after approval
+and at most 24 hours later. The planned path/entry must equal the entry actually persisted by the normal
+session writer.
+
+After that session entry is committed, the host reloads it from Git, resolves its `commit` and exact `blob`,
+and signs this canonical v2 payload. It has the preflight fields plus the complete admitted locator; no caller
+may render, complete, or recompute it. The signature covers canonical UTF-8 bytes through `blob`, excluding
+only `signature`:
+
+```yaml
+schema: memory-seed/reflection-retention-approval
+version: 2
+key_id: <stable-token>
+id_domain: memory-seed/reflection-workstream-ledger/v2
+id_kind: workstream
+workstream_id: <computed-rwl_...>
+working_branch: <exact-immutable-origin-branch>
+base_sha: <40-lowercase-hex>
+id_salt: <64-lowercase-hex>
+created_at: <UTC-RFC3339-seconds>
+retention_days: 14|30
+scope: ledger
+chain_id: null
+nonce: <64-lowercase-hex>
+approved_at: <UTC-RFC3339-seconds>
+expires_at: <UTC-RFC3339-seconds>
+reason: <non-empty-text>
+session_path: .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
+entry_id: <mse_...>
+commit: <full-lowercase-git-commit-oid>
+blob: <full-lowercase-git-blob-oid>
 signature: ed25519:<64-byte-lowercase-hex>
 ```
 
-`scope` is literal `ledger` and `chain_id` is literal `null`: the immutable header supplies one retention
-setting for all chains, so the relevant identity is the workstream/ledger origin rather than an individual
-chain. `nonce` is host-generated entropy and never caller supplied. `expires_at` must be after `approved_at`
-and at most 24 hours later. `working_branch` must exactly equal the immutable header's `working_branch`; after
-a valid trusted rebind, the verifier may instead accept exactly that rebind's validated target branch, never a
-separately supplied name. This binds the approval to workstream ID, branch ownership, requested period, and
-base commit without creating a header/digest circularity.
+The immutable header's `retention_extension_receipt` is an ordered mapping: `nonce`, `session_path`,
+`entry_id`, `commit`, `blob`, `signature`. Every one of those fields, plus all candidate preimages and
+bindings, must equal the signed payload; `retention_approval_key_id` equals its `key_id`. `commit` and `blob`
+name the preflight session file (`blob == object_at(commit, session_path)`). At 7 days the receipt and key ID
+are literal `null` and no preflight, signature, or trust-anchor lookup occurs.
 
-Admission succeeds only when canonical payload bytes parse and re-render identically; schema/version, field
-types, allowed period, timestamps, nonce, and signature syntax are valid; the signature verifies under the
-`base_sha` trust anchor and matching key ID; `now < expires_at`; all signed workstream/branch/base/period
-fields equal the proposed header or verified rebind; the cited committed session entry passes normal session
-parsing and contains that exact signed payload; `commit` is reachable from the init checkout; and `blob` equals
-the session-file object at that commit. The verifier scans Git-admitted v2 headers and rejects a nonce or exact
-receipt locator already bound by another ledger; the originating session may of course contain the payload once before the first
-ledger is initialised. A successful init reserves that approval for one immutable header.
+The signed branch must exactly equal the immutable header's origin `working_branch`. After a valid trusted
+rebind, a verifier may operate only on that rebind's validated target branch; the signed origin binding remains
+unchanged and no caller-supplied branch is accepted. This binds the approval to workstream identity, every ID
+preimage, ownership, period, and committed locator without creating a header/digest circularity.
 
-Any missing anchor, untrusted key, noncanonical payload, malformed locator, wrong object binding, unreachable
-commit, absent or changed session block, bad signature, expired approval, branch/base/workstream/period
-mismatch, or replay returns a structured `retention-approval` failure and writes no ledger. A raw
-`--retention-days`, `--approval`, MCP field, environment value, copied signed text, or agent assertion cannot
-bypass these checks.
+For 14/30, init accepts only an opaque host-issued preflight handle. It reloads the preflight session from the
+committed locator and asks the host for the matching signed payload; it accepts no candidate values, rendered
+approval, signature, or preimage from CLI/MCP/task-packet callers and never recomputes a replacement candidate.
+Admission succeeds only when payload and persisted preflight both parse/re-render canonically; their common
+fields are byte-for-byte equal; schema/version, types, allowed period, timestamps, nonce, and signature syntax
+are valid; the frozen workstream-ID algorithm recomputes the payload ID; the signature verifies under the
+`base_sha` trust anchor and matching key ID; `now < expires_at`; every signed ID preimage, workstream ID,
+branch/base/period/scope binding, and header receipt field equals its required header value; any post-rebind
+checkout is the exact verified target; the cited committed session entry passes normal session parsing and
+contains the exact preflight; `commit` is reachable from the init checkout; and `blob` equals the session-file
+object at that commit.
+
+The exact nonce replay identity is `(schema, version, key_id, nonce)` from the signed approval. The exact
+locator replay identity is `(session_path, entry_id, commit, blob)`. The verifier scans Git-admitted v2 headers
+and refuses if either identity is already bound by another immutable ledger header; the preflight session's
+single original occurrence is not itself consumption. A successful init reserves both identities for exactly
+one header. Any missing anchor, untrusted key, noncanonical/mismatched preflight or payload, malformed locator,
+wrong object binding, unreachable commit, changed session block, bad signature, expired approval, candidate or
+header binding mismatch, or either replay returns structured `retention-approval` and writes no ledger. A raw
+`--retention-days`, `--approval`, `--id-salt`, `--created-at`, `--workstream-id`, MCP field, environment value,
+copied signed text, or agent assertion cannot bypass these checks.
+
+The normal seven-day path needs no extension approval: the canonical init writer mints `id_salt` and
+`created_at`, derives branch/base and computes `workstream_id` inside its one guarded init transaction, then
+renders `retention_extension_receipt: null` and `retention_approval_key_id: null`. It accepts no caller
+preimage material and does no preflight/session/host-signature/trust-anchor lookup.
 
 The ID domain is ASCII `memory-seed/reflection-workstream-ledger/v2` plus NUL. For each ID,
 `frame = ID_DOMAIN || hex_decode(id_salt) || components`, where each component is
@@ -529,11 +583,12 @@ unpromoted-chain constraints and emits the same pre/post receipt.
 The architecture freeze is satisfied; implementation performs verification-only against it. Golden tests must
 prove all vectors and field order. Parser tests reject every forbidden discriminator, header field, byte rule,
 ID/digest, transition, dependency fallback, collision, and rebind form. Retention tests prove 7 accepts no
-extension receipt, 14/30 require the exact host-signed schema, and every other value refuses; they cover a
-wrong anchor/key, bad signature, expired payload, wrong branch/base/workstream/days, changed session text,
-unreachable commit, wrong blob, and nonce/locator replay. Integration tests prove pre-merge close/expiry
-refusal, trusted-token rebind, arbitrary rebind refusal, stale append after compaction, and the expiry
-Git-blob/non-erasure disclosure. Board tests prove malformed candidates are reported and non-zero. The v1
-suite remains unchanged. The normal v2 path is accepted only with one active authority file, one guarded
-append, zero participant reservations, and zero v2 fuse operations; every exception is counted and justified
-as v1 reader/receipt compatibility, never hidden v2 coordination.
+extension receipt or preflight, 14/30 reload an exact host-owned committed preflight and require the matching
+host-signed schema, and every other value refuses; they cover caller-supplied/recomputed candidate fields,
+wrong anchor/key, bad signature, expired payload, any ID-preimage/header mismatch, changed session text,
+unreachable commit, wrong blob, and both exact nonce and locator replay identities. Integration tests prove
+pre-merge close/expiry refusal, trusted-token rebind, arbitrary rebind refusal, stale append after compaction,
+and the expiry Git-blob/non-erasure disclosure. Board tests prove malformed candidates are reported and
+non-zero. The v1 suite remains unchanged. The normal v2 path is accepted only with one active authority file,
+one guarded append, zero participant reservations, and zero v2 fuse operations; every exception is counted and
+justified as v1 reader/receipt compatibility, never hidden v2 coordination.
