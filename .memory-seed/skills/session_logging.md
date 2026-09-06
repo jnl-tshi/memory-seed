@@ -171,6 +171,12 @@ The session file is strictly append-only and must stay in ascending time order.
 
 DRAFT is the baseline decision-record format for session entries. A DRAFT decision record is the default whenever a turn produced a decision or durable change.
 
+Write DRAFT records with **simple technical precision**: be concise but precise, use plain language by
+default, and define a necessary technical term when its meaning may not be shared. Preserve the constraints,
+reasoning, uncertainty, and distinctions needed to understand or challenge the decision; brevity must never
+erase meaning. Remove repetition, ornamental jargon, and implementation detail that does not explain the
+decision or its validation.
+
 - D = Decision
 - R = Reason
 - A = Alternatives considered or rejected
