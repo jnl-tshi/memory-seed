@@ -40,22 +40,28 @@ foreign-attributed entry is inherited only if **every** condition below holds.
 2. Compute the evidence window from
    `merge-base(base, source)..source`. No receipt before the current source's
    divergence from the target may explain an entry the target does not contain.
-3. Require exactly one source record, one resolved-child record, and one merge
-   result record for the entry ID. Each must have byte-identical full entry text
+3. Require exactly one source record and one resolved-child record for the
+   entry ID. Every inspected record has byte-identical full entry text
    (including the original child `branch:` value); any duplicate or modified
    record fails closed.
-4. In that window find exactly one qualifying **two-parent** merge commit. Its
-   first parent contains no record for the ID; its sole non-first parent is
-   reachable from the resolved child branch and contains the one exact record;
-   the merge result contains that same exact record. Octopus merges are refused,
-   rather than selecting an arbitrary non-first parent, and repeated qualifying
-   merges are refused as ambiguous.
-5. From that qualifying merge through the aggregate source tip, every tree on
-   the aggregate's first-parent chain must contain exactly one record for the
-   entry ID with byte-identical text. Deletion, absence, mutation, and a later
-   byte-identical re-add all break continuity: a receipt proves one admission,
-   not a licence to reconstruct the record later.
-6. Parse Git's final contiguous trailer block and require exactly one valid
+4. Prove carriage recursively, from the aggregate source toward the resolved
+   child branch. On each aggregate workstream's own first-parent segment, find
+   one **two-parent carrier merge** whose first parent has no record, whose sole
+   non-first parent has one exact record, and whose merge result has one exact
+   record. The merge must carry the receipt described below. From that merge to
+   its segment tip, every first-parent tree has exactly one byte-identical
+   record. Deletion, absence, mutation, and a later byte-identical re-add break
+   that segment: a receipt proves one admission, not a licence to reconstruct
+   the record later.
+5. The carrier's non-first parent is either the resolved child branch's exact
+   record or an already-proven aggregate carrier. Recursing through that parent
+   permits child → aggregate A → aggregate B → base without relabelling, while
+   preserving a distinct receipted carrier merge at every hop. A missing,
+   competing, cyclic, or multiply qualifying carrier path is ambiguous and
+   fails closed. Octopus merges are refused rather than selecting an arbitrary
+   non-first parent.
+6. Parse every carrier merge's final contiguous trailer block and require
+   exactly one valid
    `Memory-Entry: <entry_id>` trailer for this entry. Missing, malformed,
    duplicated, or non-final-block trailers are not a receipt. The merge
    topology plus this immutable trailer is the durable prior fuse/merge evidence.
@@ -93,7 +99,7 @@ MCP parity, not merely a core-unit substitute.
 | Case | Required proof or refusal |
 |---|---|
 | Two-hop child → aggregate → base | Exact entry, diagram/link/topic sidecars, original child `branch:`, byte preservation, chronological final target, and idempotent re-preview. |
-| Three-hop child → aggregate A → aggregate B → base | One inherited record can transit successive verified aggregate merges without branch-by-branch replay. |
+| Three-hop child → aggregate A → aggregate B → base | A real carrier merge into aggregate B recursively traverses aggregate A's receipted segment, then lands the original record without branch-by-branch replay. |
 | Sidecar preservation | Diagram, link, and topic sidecars retain existing parent, timestamp, append-only, and malformed/orphan rejection behavior. |
 | Copied or reintroduced record | A copied child block or a record reintroduced after its receipt fails before merge. |
 | Direct delete / direct re-add | Deleting the inherited record on the aggregate and re-adding the same bytes in a later aggregate commit fails the first-parent continuity check. |
