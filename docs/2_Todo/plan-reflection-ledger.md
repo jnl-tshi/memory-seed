@@ -142,29 +142,51 @@ commits it before Task Packet compilation. It writes the literal tuple `(partici
 sequence, report_id, fragment_id, report_path, fragment_path)` into that manifest, so Task Packets have no
 content-derived path cycle.
 
-The executable `sha256-crockford-v1` canonicalization is: UTF-8 encode each tuple component; prepend the
-literal domain `memory-seed/reflection-reservation/v1\0` and the 32 seed bytes; append each component as its
-four-byte big-endian length followed by its bytes; SHA-256; take the first 12 digest bytes; encode with the
-project Crockford alphabet `0123456789abcdefghjkmnpqrstvwxyz`; and require the resulting 20-character
-suffix. Prefix it with `rpr_`, `rfl_`, or `rlr_`. The planning-vector seed is
-`8f2c5e8d4ab1c0ffeeddccbbaa99887766554433221100fedcba9876543210ab`; it is deliberately a published test
-vector, not a seed that `reflection init` may reuse.
+The executable sha256-crockford-v1 canonicalization is: UTF-8 encode each component; prepend the literal
+domain memory-seed/reflection-reservation/v1\0 and the 32 seed bytes; append each component as its four-byte
+big-endian length followed by its bytes; SHA-256; take the first 12 digest bytes; encode with the project
+Crockford alphabet 0123456789abcdefghjkmnpqrstvwxyz; and require the resulting 20-character suffix. Prefix
+it with rpr_, rfl_, or rlr_. The planning-vector seed is
+8f2c5e8d4ab1c0ffeeddccbbaa99887766554433221100fedcba9876543210ab; it is a published test vector, not a
+seed that reflection init may reuse.
 
-```python
-def reservation_id(prefix, seed, plan, participant, track, sequence, slot):
+~~~python
+CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz"
+
+def crockford(raw):
+    if len(raw) != 12:
+        raise ValueError("ID digest must be exactly 12 bytes")
+    number = int.from_bytes(raw, "big")
+    return "".join(CROCKFORD[(number >> (5 * shift)) & 31] for shift in range(19, -1, -1))
+
+def canonical_id(prefix, seed, *parts):
     frame = b"memory-seed/reflection-reservation/v1\0" + bytes.fromhex(seed)
-    for part in (plan, participant, track, str(sequence), slot):
+    for part in parts:
         raw = part.encode("utf-8")
         frame += len(raw).to_bytes(4, "big") + raw
     return prefix + crockford(sha256(frame).digest()[:12])  # exactly 20 suffix chars
-```
 
-| Participant / slot | Report ID | Fragment ID | First record ID | Suffix validation |
-| --- | --- | --- | --- | --- |
-| `ledger-kernel`, `kernel`, `1` | `rpr_14fyc35b2ze6e1ygw4ft` | `rfl_14h1h37xrrp19qb9s1kd` | `rlr_03p8z1c4c0qf9c0w346k` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
-| `ledger-surfaces`, `surfaces`, `1` | `rpr_1dpbhdmzfa851rd1zpem` | `rfl_0nd1t66xbshxx7rnth8w` | `rlr_1t984kp772wb6w0ercfc` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
-| `ledger-auditor`, `verification`, `1` | `rpr_08xgwfza8t5v5x2jg537` | `rfl_0bxzy7ezgekptyqgpv12` | `rlr_1k08tc0rpf66e7tfxeab` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
-| `codex-orchestrator`, `integration`, `1` | `rpr_14t6r8y0wmsnt0dthw68` | `rfl_0efanjnv9sxj2hxarpbk` | `rlr_0e7pvhvy79d6m0zp5mgh` | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+def reservation_id(prefix, seed, plan, participant, track, sequence, slot):
+    return canonical_id(prefix, seed, plan, participant, track, str(sequence), slot)
+
+def record_id(seed, fragment_id, ordinal):
+    if ordinal < 1 or ordinal > 9999:
+        raise ValueError("record ordinal must be 1..9999")
+    slot = f"record:{ordinal:04d}"  # exact slot input, e.g. record:0001
+    return canonical_id("rlr_", seed, "reflection-record-v1", fragment_id, slot)
+~~~
+
+record_id is deliberately not another participant reservation: it binds the already reserved fragment_id and
+an ordinal. The display form is only rlr_<20-crockford>; ordinal stays a separate canonical record field, so
+no -01 suffix is appended to the ID. The second-record vectors prove ordinal changes the exact slot rather
+than rewriting a first record.
+
+| Participant / slot | Report ID | Fragment ID | record:0001 ID | record:0002 golden ID | Suffix validation |
+| --- | --- | --- | --- | --- | --- |
+| ledger-kernel, kernel, 1 | rpr_14fyc35b2ze6e1ygw4ft | rfl_14h1h37xrrp19qb9s1kd | rlr_1an0dh39bsnjxfnpqtqh | rlr_0v66ws242aeshw23ppwr | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| ledger-surfaces, surfaces, 1 | rpr_1dpbhdmzfa851rd1zpem | rfl_0nd1t66xbshxx7rnth8w | rlr_16fs0ft3dwctpcgtx9wb | rlr_0gvzqfath1krwcaq9k9n | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| ledger-auditor, verification, 1 | rpr_08xgwfza8t5v5x2jg537 | rfl_0bxzy7ezgekptyqgpv12 | rlr_0mekt438381w6av338xz | rlr_1r9bdzc11bk83b9x8f0e | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
+| codex-orchestrator, integration, 1 | rpr_14t6r8y0wmsnt0dthw68 | rfl_0efanjnv9sxj2hxarpbk | rlr_04jaq3n1997v9vgqz0k0 | rlr_05qsdkcrkkz5ndayph7p | all suffixes are 20 chars, lower-case Crockford; no I/L/O/U |
 
 ```yaml
 schema: memory-seed/reflection-plan
@@ -290,7 +312,8 @@ base_sha: <manifest base SHA>
 ### R1 - Separate the temporary parser from session discovery
 
 ```yaml
-record_id: rlr_<manifest-derived-id>-01
+record_id: rlr_<20-crockford>
+ordinal: 1
 kind: opinion
 subject: parser-boundary
 confidence: medium
@@ -464,10 +487,13 @@ git diff --check
 
 ## Task Dispatch drafts
 
-These are semantic Task Dispatch v1 drafts, not hand-authored complete packets. They contain no path/ID
-placeholder: the exact reflection artifacts are pre-reserved before compilation. The selected pins deliberately
+These are semantic Task Dispatch v1 source forms, not already compiled packets. A is usable during the
+serialized Kernel bootstrap and intentionally authorizes no reflection record. B and C are pre-init forms:
+they contain no manifest-reserved reflection path and must not be compiled, dispatched, or described as bound
+until Kernel has merged and reflection init has committed the live manifest. Only then does the dispatch
+generator inject exact reserved paths/IDs and save a measured binding plus compiler receipt. The selected pins
 ground the session-fuse and one-step merge contract; topics supply neighbouring context without depending on
-this plan's mutable text. Each draft below was compiled against a measured binding in the verification step.
+this plan's mutable text.
 
 ### A. Kernel bootstrap (no ledger record)
 
