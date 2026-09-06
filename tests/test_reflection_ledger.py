@@ -13,6 +13,7 @@ from memory_seed.reflection_ledger import (
     REFLECTION_ROOT,
     ReflectionChainClose,
     ReflectionFragment,
+    LiveUserExpiryApproval,
     ReflectionManifest,
     ReflectionParticipant,
     ReflectionReceipt,
@@ -20,6 +21,7 @@ from memory_seed.reflection_ledger import (
     ReflectionReport,
     ReflectionReservation,
     _apply_reflection_fuse_plan,
+    admit_reflection_documents,
     canonical_id,
     common_view,
     eligible_expiry_paths,
@@ -95,6 +97,24 @@ def reports_for(manifest):
             for person in manifest.participants]
 
 
+def admitted_for(manifest, fragments):
+    documents = {}
+    for fragment in fragments:
+        reservation = manifest.reservation(fragment.participant, fragment.sequence)
+        documents[f"{manifest.active_dir}/{reservation.report_path}"] = render_report(
+            make_report(manifest, fragment.participant, branch=fragment.working_branch, track=fragment.track)
+        )
+        documents[f"{manifest.active_dir}/{reservation.fragment_path}"] = render_fragment(fragment)
+    return admit_reflection_documents(manifest, documents)
+
+
+def admitted_close(manifest, close):
+    plan_id, closes = parse_closeout(render_closeout(manifest.plan_id, [close]))
+    assert plan_id == manifest.plan_id
+    assert len(closes) == 1
+    return closes[0]
+
+
 def test_ids_match_published_vectors_and_reject_forgery():
     assert reservation_id("rpr_", SEED, PLAN, KERNEL, TRACK, 1, "report") == "rpr_14fyc35b2ze6e1ygw4ft"
     assert reservation_id("rfl_", SEED, PLAN, KERNEL, TRACK, 1, "fragment") == "rfl_14h1h37xrrp19qb9s1kd"
@@ -154,9 +174,11 @@ def test_close_and_expiry_require_independent_coverage_and_closed_at_window():
     assert parse_receipt(render_receipt(receipt)) == receipt
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker_record.record_id,), (reviewer_record.record_id,),
                                  (orch_record.record_id,), orch_record.record_id, (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), (), "validation:ok", (receipt.receipt_id,), "closeout.md")
-    validate_chain_close(close, [worker_fragment, reviewer_fragment, orch_fragment], manifest, [receipt])
-    assert eligible_expiry_paths([close], [worker_fragment, reviewer_fragment, orch_fragment], manifest, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == ("closeout.md",)
-    assert eligible_expiry_paths([close], [worker_fragment, reviewer_fragment, orch_fragment], manifest, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
+    admitted = admitted_for(manifest, [worker_fragment, reviewer_fragment, orch_fragment])
+    close = admitted_close(manifest, close)
+    validate_chain_close(close, admitted, manifest, [receipt])
+    assert eligible_expiry_paths([close], admitted, manifest, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == ("closeout.md",)
+    assert eligible_expiry_paths([close], admitted, manifest, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
     assert parse_closeout(render_closeout(PLAN, [close])) == (PLAN, (close,))
 
 
@@ -192,8 +214,20 @@ def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts():
                                 (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,),
                                  (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
+    admitted = admitted_for(manifest, fragments)
+    with pytest.raises(ValueError, match="canonically parsed closeout"):
+        validate_chain_close(close, admitted, manifest, [receipt])
+    close = admitted_close(manifest, close)
+    with pytest.raises(ValueError, match="canonically admitted reflection documents"):
+        validate_chain_close(close, fragments, manifest, [receipt])
+    forged_record = replace(worker, conclusion="Agent supplied a different conclusion.")
+    forged_documents = replace(admitted, fragments=(replace(fragments[0], records=(forged_record,)),) + fragments[1:])
+    with pytest.raises(ValueError, match="differ from their canonical bytes"):
+        validate_chain_close(close, forged_documents, manifest, [receipt])
     with pytest.raises(ValueError, match="manifest policy"):
-        validate_chain_close(replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"), fragments, manifest, [receipt])
+        validate_chain_close(admitted_close(manifest, replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z")), admitted, manifest, [receipt])
+    with pytest.raises(ValueError, match="differs from its admitted canonical bytes"):
+        validate_chain_close(replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"), admitted, manifest, [receipt])
     with pytest.raises(ValueError, match="positive integer"):
         parse_closeout(render_closeout(PLAN, [close]).replace("retention_days: 7", "retention_days: seven"))
     unrelated = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution")
@@ -201,12 +235,12 @@ def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts():
     unrelated_close = replace(close, orchestrator_record_ids=(unrelated.record_id,), synthesis_record_id=unrelated.record_id,
                               resolved_head_ids=(worker.record_id, reviewer_record.record_id, unrelated.record_id))
     with pytest.raises(ValueError, match="not connected to reviewer"):
-        validate_chain_close(unrelated_close, fragments[:2] + (unrelated_fragment,), manifest, [receipt])
+        validate_chain_close(admitted_close(manifest, unrelated_close), admitted_for(manifest, fragments[:2] + (unrelated_fragment,)), manifest, [receipt])
 
 
-class RejectingApprovalHost:
+class AlwaysTrueAgentVerifier:
     def verify_reflection_expiry(self, *args, **kwargs):
-        return False
+        return True
 
 
 def test_early_expiry_needs_host_verification_and_a_valid_complete_close():
@@ -222,13 +256,17 @@ def test_early_expiry_needs_host_verification_and_a_valid_complete_close():
     fragments = (make_fragment(manifest, [worker]), make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification"), make_fragment(manifest, [orchestrator], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration"))
     receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,), (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
+    admitted = admitted_for(manifest, fragments)
+    close = admitted_close(manifest, close)
     now = datetime(2026, 9, 7, 12, 6, tzinfo=timezone.utc)
-    with pytest.raises(ValueError, match="verified by the live interactive host"):
-        eligible_expiry_paths([close], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged")
-    with pytest.raises(ValueError, match="did not verify"):
-        eligible_expiry_paths([close], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged", approval_verifier=RejectingApprovalHost())
+    with pytest.raises(ValueError, match="sealed trusted-host approval"):
+        eligible_expiry_paths([close], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True)
+    with pytest.raises(ValueError, match="sealed trusted-host approval"):
+        eligible_expiry_paths([close], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True, approval=AlwaysTrueAgentVerifier())
+    with pytest.raises(TypeError, match="issued only by the trusted"):
+        LiveUserExpiryApproval(object(), "agent-forged", PLAN, CHAIN, (worker.record_id,), close.expires_at)
     with pytest.raises(ValueError, match="unavailable durable receipt"):
-        eligible_expiry_paths([replace(close, receipt_ids=("rrc_1123456789abcdefghjk",))], fragments, manifest, [receipt], now=now, chain=CHAIN, early=True, approval_receipt="agent-forged", approval_verifier=RejectingApprovalHost())
+        eligible_expiry_paths([admitted_close(manifest, replace(close, receipt_ids=("rrc_1123456789abcdefghjk",)))], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True)
 
 
 class TestFuse:
