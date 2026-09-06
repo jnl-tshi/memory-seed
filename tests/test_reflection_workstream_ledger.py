@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -7,18 +8,26 @@ import pytest
 from memory_seed.reflection_ledger import (
     ReflectionValidationError,
     RetentionApproval,
+    RetentionApprovalAdmission,
     RetentionApprovalTrust,
     RetentionExtensionReceipt,
     RetentionPreflight,
     RetentionPreflightVerifier,
+    AdmittedWorkstreamReceipt,
+    WorkstreamReceiptVerifier,
+    TrustedIntegrationWitness,
+    EarlyExpiryApproval,
+    EarlyExpiryApprovalVerifier,
     TrustedRebindVerifier,
     WorkstreamAppendRequest,
     WorkstreamDependency,
     WorkstreamDependencyReceipt,
     WorkstreamLedgerHeader,
+    WorkstreamLedger,
     WorkstreamReceipt,
     apply_trusted_rebind,
     guarded_append_workstream_ledger,
+    guarded_apply_trusted_rebind,
     guarded_init_workstream_ledger,
     initialize_workstream_ledger,
     parse_retention_approval,
@@ -31,6 +40,7 @@ from memory_seed.reflection_ledger import (
     render_retention_approval,
     render_retention_preflight,
     render_workstream_ledger,
+    render_workstream_record,
     reflection_ledger_family,
     resolve_workstream_dependency,
     validate_retention_approval_admission,
@@ -44,6 +54,7 @@ from memory_seed.reflection_ledger import (
     workstream_ledger_path,
     workstream_receipt_id,
     workstream_record_id,
+    validate_workstream_ledger,
 )
 
 
@@ -119,6 +130,20 @@ def receipt_for(ledger, record):
     )
 
 
+class AdmitReceipts(WorkstreamReceiptVerifier):
+    def verify(self, admitted):
+        return admitted.commit == HEAD and admitted.blob == "e" * 40
+
+
+class AcceptEarlyExpiry(EarlyExpiryApprovalVerifier):
+    def verify(self, approval):
+        return approval.disposition == "user-approved-disposal"
+
+
+def admitted_receipt_for(ledger, record):
+    return AdmittedWorkstreamReceipt(receipt_for(ledger, record), HEAD, "e" * 40)
+
+
 def test_v2_ids_and_domain_digests_match_frozen_vectors():
     workstream = workstream_id(SALT, "codex/feature/example", BASE, "2026-09-06T12:00:00Z")
     assert workstream == "rwl_1j3nf0zkee6vx8zgg4v3"
@@ -169,10 +194,11 @@ def test_dependency_prefers_active_exact_record_then_receipt_and_refuses_self_or
     target, target_chain = open_chain()
     target_record = target.records[-1]
     receipt = receipt_for(target, target_record)
+    admitted = AdmittedWorkstreamReceipt(receipt, HEAD, "e" * 40)
     dependency = WorkstreamDependency(target.header.workstream_id, target_record.record_id, target_record.detail_digest,
                                      "real API ordering", receipt.dependency_locator())
     assert resolve_workstream_dependency(dependency, source_workstream_id="rwl_00000000000000000000", active_ledgers=(target,)).source == "active-ledger"
-    assert resolve_workstream_dependency(dependency, source_workstream_id="rwl_00000000000000000000", durable_receipts=(receipt,)).source == "durable-receipt"
+    assert resolve_workstream_dependency(dependency, source_workstream_id="rwl_00000000000000000000", durable_receipts=(admitted,), receipt_verifier=AdmitReceipts()).source == "durable-receipt"
     with pytest.raises(ReflectionValidationError, match="itself"):
         resolve_workstream_dependency(dependency, source_workstream_id=target.header.workstream_id)
     bad = WorkstreamDependency(target.header.workstream_id, target_record.record_id, "sha256:" + "0" * 64, "reason", None)
@@ -184,17 +210,27 @@ class AcceptRebind(TrustedRebindVerifier):
     def verify(self, token, *, integration_commit, current_target_tip):
         return integration_commit == INTEGRATION and current_target_tip == INTEGRATION
 
+    def admit_witness(self, token, rebind, *, integration_commit):
+        return TrustedIntegrationWitness(rebind.record_id and token.workstream_id, rebind.record_id, rebind.from_branch,
+                                         rebind.to_branch, rebind.source_tip, rebind.target_pre_merge_tip,
+                                         integration_commit, rebind.pre_ledger_digest)
+
+    def verify_witness(self, witness):
+        return witness.integration_commit == INTEGRATION and witness.target_branch == "main"
+
 
 def test_rebind_close_and_per_chain_expiry_keep_other_chain_active():
     ledger, chain = open_chain()
     ledger = append(ledger, "implementer", chain, parents=(ledger.records[-1].record_id,), now=START + timedelta(minutes=3))
     ledger = append(ledger, "reviewer", chain, parents=(ledger.records[-1].record_id,), to_phase="orchestrate", now=START + timedelta(minutes=4))
     token = preview_trusted_rebind(ledger, source_tip=HEAD, target_branch="main", target_pre_merge_tip=TARGET, token_factory=lambda: "opaque-token")
-    ledger = apply_trusted_rebind(ledger, token, integration_commit=INTEGRATION, current_target_tip=INTEGRATION,
+    rebind = apply_trusted_rebind(ledger, token, integration_commit=INTEGRATION, current_target_tip=INTEGRATION,
                                   verifier=AcceptRebind(), reason="normal integration", clock=fixed_clock(START + timedelta(minutes=5)))
-    preclose_receipts = [receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    ledger = rebind.ledger
+    preclose_receipts = [admitted_receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
     ledger = plan_workstream_chain_close(
-        ledger, chain_id=chain, receipts=preclose_receipts, expected_head=INTEGRATION, actual_head=INTEGRATION,
+        ledger, chain_id=chain, receipts=preclose_receipts, receipt_verifier=AdmitReceipts(),
+        integration_witness=rebind.witness, integration_verifier=AcceptRebind(), expected_head=INTEGRATION, actual_head=INTEGRATION,
         pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)), branch="main",
         conclusion="closed", reasoning="reviewed and promoted", source="test", confidence="high",
         clock=fixed_clock(START + timedelta(minutes=6)),
@@ -203,16 +239,26 @@ def test_rebind_close_and_per_chain_expiry_keep_other_chain_active():
     ledger = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
                     now=START + timedelta(minutes=7))
     other_chain = ledger.records[-1].chain_id
-    receipts = [receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    receipts = [admitted_receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    early = EarlyExpiryApproval(ledger.header.workstream_id, chain, ".memory-seed/sessions/2026-09/2026-09-06.md",
+                                "mse_0123456789abcdef", "D1", HEAD, "e" * 40, "user-approved-disposal")
+    with pytest.raises(ReflectionValidationError, match="promoted"):
+        preview_workstream_expiry(
+            ledger, expected_head=INTEGRATION, chain_ids=(chain,), now=START, receipts=receipts,
+            receipt_verifier=AdmitReceipts(), integration_witness=rebind.witness, integration_verifier=AcceptRebind(),
+            early_approval=early, early_approval_verifier=AcceptEarlyExpiry(),
+        )
     preview = preview_workstream_expiry(
         ledger, expected_head=INTEGRATION, chain_ids=(chain,), now=START + timedelta(days=8), receipts=receipts,
+        receipt_verifier=AdmitReceipts(), integration_witness=rebind.witness, integration_verifier=AcceptRebind(),
     )
     assert preview.git_blobs_remain is True and preview.privacy_grade_erasure is False
     assert all(record.chain_id != chain for record in preview.post_ledger.records)
     assert any(record.chain_id == other_chain for record in preview.post_ledger.records)
     with pytest.raises(ReflectionValidationError, match="branch tip"):
         from memory_seed.reflection_ledger import apply_workstream_expiry
-        apply_workstream_expiry(ledger, preview, actual_head=HEAD)
+        apply_workstream_expiry(ledger, preview, actual_head=HEAD, integration_witness=rebind.witness,
+                                integration_verifier=AcceptRebind())
 
 
 def test_board_includes_malformed_candidate_and_guarded_filesystem_writes(tmp_path):
@@ -259,21 +305,88 @@ def test_retention_preflight_and_admission_reject_replay_without_caller_candidat
 class FixedExtendedRetention(RetentionPreflightVerifier):
     def admit(self, handle, *, working_branch, base_sha, now):
         assert handle == "host-owned-handle"
-        return RetentionApproval(
+        approval = RetentionApproval(
             RetentionPreflight("key-a", workstream_id(SALT, working_branch, base_sha, "2026-09-06T12:00:00Z"),
                                working_branch, base_sha, SALT, "2026-09-06T12:00:00Z", 30, "2" * 64,
                                "2026-09-06T12:01:00Z", "2026-09-06T12:02:00Z", "approved",
                                ".memory-seed/sessions/2026-09/2026-09-06.md", "mse_0123456789abcdef"),
             HEAD, "e" * 40, "ed25519:" + "0" * 128,
         )
+        trust = RetentionApprovalTrust("key-a", "ed25519:" + "0" * 64)
+        return RetentionApprovalAdmission(approval, trust, lambda base: trust,
+                                          lambda *_: True, lambda _: True, lambda *_: "e" * 40)
 
 
 def test_extended_init_accepts_only_host_owned_preflight_hook():
-    ledger = initialize_workstream_ledger(
-        working_branch="codex/feature/example", base_sha=BASE, retention_days=30,
-        clock=fixed_clock(START), retention_preflight_handle="host-owned-handle", retention_verifier=FixedExtendedRetention(),
-    )
-    assert ledger.header.reflection_retention_days == 30
-    assert ledger.header.retention_extension_receipt is not None
+    with pytest.raises(ReflectionValidationError, match="signature"):
+        initialize_workstream_ledger(
+            working_branch="codex/feature/example", base_sha=BASE, retention_days=30,
+            clock=fixed_clock(START), retention_preflight_handle="host-owned-handle", retention_verifier=FixedExtendedRetention(),
+        )
     with pytest.raises(ReflectionValidationError, match="requires a host"):
         initialize_workstream_ledger(working_branch="codex/feature/example", base_sha=BASE, retention_days=14)
+
+
+def test_parser_recomputes_exact_predecessor_digest_for_canonical_forgery():
+    ledger = make_ledger()
+    record = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True).records[-1]
+    forged_pre = "sha256:" + "1" * 64
+    forged_id = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, record.created_at, forged_pre)
+    forged_chain = workstream_chain_id(ledger.header.id_salt, ledger.header.workstream_id, forged_id)
+    draft = replace(record, record_id=forged_id, chain_id=forged_chain, pre_ledger_digest=forged_pre, detail_digest="sha256:" + "0" * 64)
+    forged = replace(draft, detail_digest=workstream_detail_digest(render_workstream_record(draft, zero_detail_digest=True)))
+    with pytest.raises(ReflectionValidationError, match="preceding canonical"):
+        validate_workstream_ledger(WorkstreamLedger(ledger.header, (forged,)))
+
+
+def test_append_resolves_dependencies_before_writing_and_never_falls_back_while_target_is_active():
+    target, _chain = open_chain()
+    target_record = target.records[-1]
+    fallback = admitted_receipt_for(target, target_record).receipt.dependency_locator()
+    missing = WorkstreamDependency(target.header.workstream_id, "rlr_00000000000000000000", target_record.detail_digest,
+                                  "must precede this work", fallback)
+    source = make_ledger("codex/feature/source")
+    request = WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high", depends_on=(missing,))
+    with pytest.raises(ReflectionValidationError, match="active dependency target is missing"):
+        plan_workstream_append(source, request, expected_head=HEAD, actual_head=HEAD,
+                               pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(source)),
+                               branch=source.header.working_branch, active_ledgers=(target,),
+                               durable_receipts=(admitted_receipt_for(target, target_record),), receipt_verifier=AdmitReceipts())
+
+
+def test_close_requires_verifier_admitted_witness_and_session_admitted_receipts():
+    ledger, chain = open_chain()
+    ledger = append(ledger, "implementer", chain, parents=(ledger.records[-1].record_id,), now=START + timedelta(minutes=3))
+    ledger = append(ledger, "reviewer", chain, parents=(ledger.records[-1].record_id,), to_phase="orchestrate", now=START + timedelta(minutes=4))
+    verifier = AcceptRebind()
+    token = preview_trusted_rebind(ledger, source_tip=HEAD, target_branch="main", target_pre_merge_tip=TARGET, token_factory=lambda: "opaque-token")
+    rebind = apply_trusted_rebind(ledger, token, integration_commit=INTEGRATION, current_target_tip=INTEGRATION,
+                                  verifier=verifier, reason="normal integration", clock=fixed_clock(START + timedelta(minutes=5)))
+    raw_receipts = [receipt_for(rebind.ledger, record) for record in rebind.ledger.records if record.chain_id == chain]
+    with pytest.raises(ReflectionValidationError, match="Git/session-admitted"):
+        plan_workstream_chain_close(rebind.ledger, chain_id=chain, receipts=raw_receipts, receipt_verifier=AdmitReceipts(),
+                                    integration_witness=rebind.witness, integration_verifier=verifier, expected_head=INTEGRATION,
+                                    actual_head=INTEGRATION, pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(rebind.ledger)),
+                                    branch="main", conclusion="closed", reasoning="reviewed", source="test", confidence="high")
+    forged = replace(rebind.witness, integration_commit=HEAD)
+    receipts = [admitted_receipt_for(rebind.ledger, record) for record in rebind.ledger.records if record.chain_id == chain]
+    with pytest.raises(ReflectionValidationError, match="not admitted|does not exactly"):
+        plan_workstream_chain_close(rebind.ledger, chain_id=chain, receipts=receipts, receipt_verifier=AdmitReceipts(),
+                                    integration_witness=forged, integration_verifier=verifier, expected_head=INTEGRATION,
+                                    actual_head=INTEGRATION, pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(rebind.ledger)),
+                                    branch="main", conclusion="closed", reasoning="reviewed", source="test", confidence="high")
+
+
+def test_guarded_append_refuses_a_second_effective_branch_owner(tmp_path):
+    _path, ledger = guarded_init_workstream_ledger(tmp_path, expected_head=HEAD, actual_head=HEAD,
+                                                    working_branch="codex/feature/example", base_sha=BASE,
+                                                    clock=fixed_clock(START), entropy=lambda _: bytes.fromhex(SALT))
+    duplicate = tmp_path / ".memory-seed" / "reflections" / "active" / "copy"
+    duplicate.mkdir(parents=True)
+    (duplicate / "ledger.md").write_text(render_workstream_ledger(ledger), encoding="utf-8")
+    request = WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high")
+    with pytest.raises(ReflectionValidationError, match="ambiguous"):
+        guarded_append_workstream_ledger(tmp_path, workstream_id=ledger.header.workstream_id, request=request,
+                                         expected_head=HEAD, actual_head=HEAD,
+                                         pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)),
+                                         branch=ledger.header.working_branch)

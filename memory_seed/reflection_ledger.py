@@ -2545,7 +2545,7 @@ def workstream_chain_phase(ledger: WorkstreamLedger, chain_id: str) -> str:
     return records[-1].to_phase
 
 
-def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md") -> None:
+def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md", *, verify_predecessors: bool = True) -> None:
     """Validate all v2 invariants that can be established from ledger bytes alone."""
     # Header construction is deliberately repeated so direct dataclass use cannot
     # evade schema, frozen preimage, or retention checks.
@@ -2556,6 +2556,12 @@ def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md"
     effective_branch = ledger.header.working_branch
     for ordinal, entry in enumerate(ledger.entries):
         entry_path = f"{path}#{ordinal + 1}"
+        if verify_predecessors:
+            preceding = WorkstreamLedger(ledger.header, ledger.entries[:ordinal])
+            expected_predecessor = workstream_ledger_digest(render_workstream_ledger(preceding))
+            if entry.pre_ledger_digest != expected_predecessor:
+                _fail("pre-ledger-digest", entry_path, "entry does not bind the exact preceding canonical ledger bytes",
+                      expected=expected_predecessor, actual=entry.pre_ledger_digest)
         if entry.record_id in seen_ids:
             _fail("id-collision", entry_path, "record IDs must be unique", record_id=entry.record_id)
         seen_ids.add(entry.record_id)
@@ -2655,10 +2661,23 @@ class RetentionApproval:
     signature: str
 
 
+@dataclass(frozen=True)
+class RetentionApprovalAdmission:
+    """Host/Git facts required before an extended-retention header can exist."""
+
+    approval: RetentionApproval
+    trust: "RetentionApprovalTrust"
+    trust_anchor_at_base: Callable[[str], "RetentionApprovalTrust"]
+    session_contains_preflight: Callable[[RetentionPreflight, str, str], bool]
+    commit_is_reachable: Callable[[str], bool]
+    object_at: Callable[[str, str], str | None]
+    admitted_headers: tuple[WorkstreamLedgerHeader, ...] = ()
+
+
 class RetentionPreflightVerifier:
     """Adapter contract for the host-owned, Git-admitted 14/30-day flow."""
 
-    def admit(self, handle: object, *, working_branch: str, base_sha: str, now: datetime) -> RetentionApproval:
+    def admit(self, handle: object, *, working_branch: str, base_sha: str, now: datetime) -> RetentionApprovalAdmission:
         raise NotImplementedError
 
 
@@ -2710,7 +2729,12 @@ def initialize_workstream_ledger(*, working_branch: str, base_sha: str, retentio
     else:
         if retention_preflight_handle is None or retention_verifier is None:
             _fail("retention-approval", "ledger init", "extended retention requires a host-issued preflight handle")
-        approval = retention_verifier.admit(retention_preflight_handle, working_branch=working_branch, base_sha=base_sha, now=now)
+        admission = retention_verifier.admit(retention_preflight_handle, working_branch=working_branch, base_sha=base_sha, now=now)
+        if not isinstance(admission, RetentionApprovalAdmission):
+            _fail("retention-approval", "ledger init", "host must return a concrete retained-approval admission")
+        if admission.trust_anchor_at_base(base_sha) != admission.trust:
+            _fail("retention-approval", "ledger init", "retention key is not the exact protected-base trust anchor")
+        approval = admission.approval
         _validate_retention_preflight(approval.preflight)
         preflight = approval.preflight
         if preflight.working_branch != working_branch or preflight.base_sha != base_sha or preflight.retention_days != retention_days:
@@ -2721,6 +2745,12 @@ def initialize_workstream_ledger(*, working_branch: str, base_sha: str, retentio
                                             _git_sha(approval.commit, "ledger init", "commit"), _git_sha(approval.blob, "ledger init", "blob"), approval.signature)
         header = WorkstreamLedgerHeader(preflight.workstream_id, working_branch, base_sha, preflight.created_at,
                                         retention_days, receipt, preflight.key_id, preflight.id_salt)
+        validate_retention_approval_admission(
+            header, approval, trust=admission.trust, now=now,
+            session_contains_preflight=admission.session_contains_preflight,
+            commit_is_reachable=admission.commit_is_reachable,
+            object_at=admission.object_at, admitted_headers=admission.admitted_headers,
+        )
     ledger = WorkstreamLedger(header)
     validate_workstream_ledger(ledger)
     return ledger
@@ -2753,7 +2783,9 @@ def _append_pre_digest(ledger: WorkstreamLedger) -> str:
 
 
 def _append_record(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *, created_at: str,
-                   pre_ledger_digest: str, branch: str) -> WorkstreamRecord:
+                   pre_ledger_digest: str, branch: str, active_ledgers: Iterable[WorkstreamLedger],
+                   durable_receipts: Iterable[AdmittedWorkstreamReceipt],
+                   receipt_verifier: WorkstreamReceiptVerifier | None) -> WorkstreamRecord:
     validate_workstream_ledger(ledger)
     if branch != ledger.effective_branch:
         _fail("branch-owner", "ledger append", "branch is not the current effective ledger owner", expected=ledger.effective_branch, actual=branch)
@@ -2817,6 +2849,11 @@ def _append_record(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *
         identifier = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, created_at, pre_ledger_digest)
     if any(dependency.workstream_id == ledger.header.workstream_id for dependency in dependencies):
         _fail("dependency", "ledger append", "a workstream cannot depend on itself")
+    for dependency in dependencies:
+        resolve_workstream_dependency(
+            dependency, source_workstream_id=ledger.header.workstream_id, active_ledgers=active_ledgers,
+            durable_receipts=durable_receipts, receipt_verifier=receipt_verifier,
+        )
     draft = WorkstreamRecord(identifier, created_at, request.role, from_phase, to_phase, None, chain, parents,
                              request.relationship, request.no_related_thread, dependencies, request.source, decisions,
                              request.confidence, pre_ledger_digest, "sha256:" + "0" * 64, request.conclusion, request.reasoning,
@@ -2827,7 +2864,10 @@ def _append_record(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *
 
 def plan_workstream_append(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *, expected_head: str,
                            actual_head: str, pre_ledger_digest: str, branch: str,
-                           clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+                           clock: Callable[[], datetime] | None = None,
+                           active_ledgers: Iterable[WorkstreamLedger] = (),
+                           durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                           receipt_verifier: WorkstreamReceiptVerifier | None = None) -> WorkstreamLedger:
     """Return the next ledger after all compare-and-swap and phase checks.
 
     This pure primitive does not write.  Surface adapters must obtain both the
@@ -2840,7 +2880,9 @@ def plan_workstream_append(ledger: WorkstreamLedger, request: WorkstreamAppendRe
     if pre_ledger_digest != actual_digest:
         _fail("stale_ledger_digest", "ledger append", "ledger bytes changed; reload and re-judge", expected=pre_ledger_digest, actual=actual_digest)
     created_at = _clock_timestamp(clock)
-    record = _append_record(ledger, request, created_at=created_at, pre_ledger_digest=actual_digest, branch=branch)
+    record = _append_record(ledger, request, created_at=created_at, pre_ledger_digest=actual_digest, branch=branch,
+                            active_ledgers=active_ledgers, durable_receipts=durable_receipts,
+                            receipt_verifier=receipt_verifier)
     result = WorkstreamLedger(ledger.header, ledger.entries + (record,))
     validate_workstream_ledger(result)
     return result
@@ -2865,6 +2907,54 @@ class WorkstreamReceipt:
         return WorkstreamDependencyReceipt(self.session_path, self.entry_id, self.decision_id, self.receipt_id, self.receipt_digest)
 
 
+@dataclass(frozen=True)
+class AdmittedWorkstreamReceipt:
+    """A receipt reloaded from an immutable committed session blob."""
+
+    receipt: WorkstreamReceipt
+    commit: str
+    blob: str
+
+
+class WorkstreamReceiptVerifier:
+    """Session/Git adapter; raw receipt dataclasses are never coverage authority."""
+
+    def verify(self, admitted: AdmittedWorkstreamReceipt) -> bool:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class EarlyExpiryApproval:
+    """Durable live-user approval/disposition locator for one unpromoted chain."""
+
+    workstream_id: str
+    chain_id: str
+    session_path: str
+    entry_id: str
+    decision_id: str
+    commit: str
+    blob: str
+    disposition: str
+
+
+class EarlyExpiryApprovalVerifier:
+    """Host/Git verifier for a live-user early-expiry approval."""
+
+    def verify(self, approval: EarlyExpiryApproval) -> bool:
+        raise NotImplementedError
+
+
+def _validate_early_expiry_approval(approval: EarlyExpiryApproval, path: str = "early expiry approval") -> None:
+    _id(approval.workstream_id, "rwl_", path, "workstream_id")
+    _id(approval.chain_id, "rlc_", path, "chain_id")
+    _session_path(approval.session_path, path, "session_path")
+    if not SESSION_ENTRY_ID_RE.fullmatch(approval.entry_id) or not SESSION_DECISION_ID_RE.fullmatch(approval.decision_id):
+        _fail("early-expiry", path, "approval session entry or decision locator is invalid")
+    _git_sha(approval.commit, path, "commit")
+    _git_sha(approval.blob, path, "blob")
+    _text(approval.disposition, path, "disposition")
+
+
 def _validate_workstream_receipt(receipt: WorkstreamReceipt, path: str = "receipt") -> None:
     _id(receipt.workstream_id, "rwl_", path, "workstream_id")
     _id(receipt.chain_id, "rlc_", path, "chain_id")
@@ -2872,6 +2962,18 @@ def _validate_workstream_receipt(receipt: WorkstreamReceipt, path: str = "receip
     _digest(receipt.detail_digest, path, "detail_digest")
     _dependency_receipt_from_dict(receipt.dependency_locator().as_dict(), path)
     _text(receipt.disposition, path, "disposition")
+
+
+def _validate_admitted_receipt(value: AdmittedWorkstreamReceipt, verifier: WorkstreamReceiptVerifier,
+                                path: str = "receipt") -> WorkstreamReceipt:
+    if not isinstance(value, AdmittedWorkstreamReceipt):
+        _fail("receipt", path, "receipt coverage requires a Git/session-admitted receipt")
+    _validate_workstream_receipt(value.receipt, path)
+    _git_sha(value.commit, path, "commit")
+    _git_sha(value.blob, path, "blob")
+    if not verifier.verify(value):
+        _fail("receipt", path, "receipt was not admitted from its committed session blob")
+    return value.receipt
 
 
 @dataclass(frozen=True)
@@ -2883,7 +2985,8 @@ class DependencyResolution:
 
 def resolve_workstream_dependency(dependency: WorkstreamDependency, *, source_workstream_id: str,
                                   active_ledgers: Iterable[WorkstreamLedger] = (),
-                                  durable_receipts: Iterable[WorkstreamReceipt] = ()) -> DependencyResolution:
+                                  durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                                  receipt_verifier: WorkstreamReceiptVerifier | None = None) -> DependencyResolution:
     """Resolve by active exact record first, otherwise by an exact durable receipt."""
     if dependency.workstream_id == source_workstream_id:
         _fail("dependency", "dependency", "a workstream cannot depend on itself")
@@ -2898,17 +3001,18 @@ def resolve_workstream_dependency(dependency: WorkstreamDependency, *, source_wo
             return DependencyResolution(dependency, "active-ledger")
         # A live ledger that claims the target, but lacks the cited record, is a
         # changed/missing target rather than a licence to silently switch proof.
-        if dependency.receipt is None:
-            _fail("dependency", "dependency", "active dependency target is missing and has no durable fallback")
+        _fail("dependency", "dependency", "active dependency target is missing; a fallback is legal only after expiry")
     if dependency.receipt is None:
         _fail("dependency", "dependency", "expired dependency requires a durable receipt fallback")
+    if receipt_verifier is None:
+        _fail("dependency", "dependency", "expired dependency requires a session/Git receipt verifier")
     candidates: list[WorkstreamReceipt] = []
     locator = dependency.receipt
     for receipt in durable_receipts:
-        _validate_workstream_receipt(receipt)
-        if (receipt.workstream_id == dependency.workstream_id and receipt.record_id == dependency.record_id
-                and receipt.detail_digest == dependency.record_digest and receipt.dependency_locator() == locator):
-            candidates.append(receipt)
+        durable = _validate_admitted_receipt(receipt, receipt_verifier, "dependency receipt")
+        if (durable.workstream_id == dependency.workstream_id and durable.record_id == dependency.record_id
+                and durable.detail_digest == dependency.record_digest and durable.dependency_locator() == locator):
+            candidates.append(durable)
     if len(candidates) != 1:
         _fail("dependency", "dependency", "dependency fallback does not resolve to one exact durable receipt", matches=len(candidates))
     return DependencyResolution(dependency, "durable-receipt", candidates[0])
@@ -2994,6 +3098,19 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
             continue
         items.append(WorkstreamBoardItem(relative, "valid", raw_digest, ledger.header.workstream_id,
                                          ledger.header.working_branch, ledger.effective_branch, None, ledger))
+    owners: dict[str, list[int]] = {}
+    for index, item in enumerate(items):
+        if item.status == "valid" and item.effective_branch is not None:
+            owners.setdefault(item.effective_branch, []).append(index)
+    for branch, indexes in owners.items():
+        if len(indexes) < 2:
+            continue
+        for index in indexes:
+            item = items[index]
+            items[index] = WorkstreamBoardItem(
+                item.path, "malformed", item.raw_digest, item.workstream_id, item.working_branch, item.effective_branch,
+                ReflectionDiagnostic("branch-collision", item.path, "multiple active v2 ledgers claim one effective branch", {"branch": branch}),
+            )
     return WorkstreamBoardView(tuple(items))
 
 
@@ -3010,6 +3127,20 @@ def validate_workstream_init_collisions(cwd: Path | str, *, working_branch: str,
             _fail("branch-collision", item.path, "an active ledger already owns this branch", branch=working_branch)
 
 
+def validate_workstream_branch_owner(cwd: Path | str, ledger: WorkstreamLedger, *, active_root: str = REFLECTION_ROOT) -> None:
+    """Require exactly one healthy active candidate for every guarded mutation."""
+    board = workstream_board_view(cwd, active_root=active_root)
+    relative = workstream_ledger_path(ledger.header.workstream_id)
+    matches = [item for item in board.items if item.path == relative and item.status == "valid"]
+    if len(matches) != 1:
+        _fail("branch-collision", relative, "active ledger is missing, malformed, or ambiguously owned")
+    for item in board.items:
+        if item.status != "valid":
+            _fail("branch-collision", item.path, "malformed or ambiguous active ledger blocks guarded mutation")
+        if item.path != relative and item.effective_branch == ledger.effective_branch:
+            _fail("branch-collision", item.path, "another ledger claims this effective branch", branch=ledger.effective_branch)
+
+
 @dataclass(frozen=True)
 class TrustedRebindToken:
     """Opaque integration coordinator capability; callers cannot choose a target branch."""
@@ -3024,10 +3155,36 @@ class TrustedRebindToken:
 
 
 class TrustedRebindVerifier:
-    """Host adapter which validates the opaque integration preview token."""
+    """Host adapter for the opaque token and the durable integration witness."""
 
     def verify(self, token: TrustedRebindToken, *, integration_commit: str, current_target_tip: str) -> bool:
         raise NotImplementedError
+
+    def admit_witness(self, token: TrustedRebindToken, rebind: TrustedRebind, *, integration_commit: str) -> "TrustedIntegrationWitness":
+        raise NotImplementedError
+
+    def verify_witness(self, witness: "TrustedIntegrationWitness") -> bool:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class TrustedIntegrationWitness:
+    """Verifier-issued evidence that binds a rebind record to real integration."""
+
+    workstream_id: str
+    rebind_record_id: str
+    source_branch: str
+    target_branch: str
+    source_tip: str
+    target_pre_merge_tip: str
+    integration_commit: str
+    pre_ledger_digest: str
+
+
+@dataclass(frozen=True)
+class TrustedRebindResult:
+    ledger: WorkstreamLedger
+    witness: TrustedIntegrationWitness
 
 
 def preview_trusted_rebind(ledger: WorkstreamLedger, *, source_tip: str, target_branch: str,
@@ -3042,7 +3199,7 @@ def preview_trusted_rebind(ledger: WorkstreamLedger, *, source_tip: str, target_
 
 def apply_trusted_rebind(ledger: WorkstreamLedger, token: TrustedRebindToken, *, integration_commit: str,
                          current_target_tip: str, verifier: TrustedRebindVerifier,
-                         reason: str, clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+                         reason: str, clock: Callable[[], datetime] | None = None) -> TrustedRebindResult:
     """Append the only v2 ownership transfer record after verified integration."""
     validate_workstream_ledger(ledger)
     pre_digest = _append_pre_digest(ledger)
@@ -3060,15 +3217,40 @@ def apply_trusted_rebind(ledger: WorkstreamLedger, token: TrustedRebindToken, *,
     rebind = TrustedRebind(**{**draft.__dict__, "detail_digest": _detail_digest_for_rebind(draft)})
     result = WorkstreamLedger(ledger.header, ledger.entries + (rebind,))
     validate_workstream_ledger(result)
-    return result
+    witness = verifier.admit_witness(token, rebind, integration_commit=integration_commit)
+    if not isinstance(witness, TrustedIntegrationWitness) or not verifier.verify_witness(witness):
+        _fail("rebind", "ledger rebind", "integration verifier did not issue an admitted witness")
+    _validate_integration_witness(result, witness, verifier)
+    return TrustedRebindResult(result, witness)
 
 
-def _receipt_coverage(ledger: WorkstreamLedger, receipts: Iterable[WorkstreamReceipt], chain_id: str) -> dict[str, WorkstreamReceipt]:
+def _validate_integration_witness(ledger: WorkstreamLedger, witness: TrustedIntegrationWitness,
+                                  verifier: TrustedRebindVerifier) -> TrustedRebind:
+    """Refuse structural rebind bytes unless a verifier admits the exact witness."""
+    if not verifier.verify_witness(witness):
+        _fail("close-authority", "integration witness", "integration witness is not admitted by its verifier")
+    matches = [item for item in ledger.rebinds if item.record_id == witness.rebind_record_id]
+    if len(matches) != 1:
+        _fail("close-authority", "integration witness", "witness rebind record is absent or ambiguous")
+    rebind = matches[0]
+    expected = (ledger.header.workstream_id, rebind.record_id, rebind.from_branch, rebind.to_branch, rebind.source_tip,
+                rebind.target_pre_merge_tip, rebind.integration_commit, rebind.pre_ledger_digest)
+    actual = (witness.workstream_id, witness.rebind_record_id, witness.source_branch, witness.target_branch,
+              witness.source_tip, witness.target_pre_merge_tip, witness.integration_commit, witness.pre_ledger_digest)
+    if actual != expected:
+        _fail("close-authority", "integration witness", "witness does not exactly bind the rendered rebind record")
+    if rebind != ledger.rebinds[-1]:
+        _fail("close-authority", "integration witness", "only the current effective rebind can authorise closeout")
+    return rebind
+
+
+def _receipt_coverage(ledger: WorkstreamLedger, receipts: Iterable[AdmittedWorkstreamReceipt], chain_id: str,
+                      verifier: WorkstreamReceiptVerifier) -> dict[str, WorkstreamReceipt]:
     records = _records_by_chain(ledger).get(chain_id, [])
     expected = {record.record_id: record for record in records}
     covered: dict[str, WorkstreamReceipt] = {}
-    for receipt in receipts:
-        _validate_workstream_receipt(receipt)
+    for admitted in receipts:
+        receipt = _validate_admitted_receipt(admitted, verifier, "chain receipt")
         if receipt.workstream_id != ledger.header.workstream_id or receipt.chain_id != chain_id:
             continue
         target = expected.get(receipt.record_id)
@@ -3084,13 +3266,17 @@ def _receipt_coverage(ledger: WorkstreamLedger, receipts: Iterable[WorkstreamRec
     return covered
 
 
-def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[WorkstreamReceipt],
+def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[AdmittedWorkstreamReceipt],
+                                receipt_verifier: WorkstreamReceiptVerifier,
+                                integration_witness: TrustedIntegrationWitness,
+                                integration_verifier: TrustedRebindVerifier,
                                 expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
                                 conclusion: str, reasoning: str, source: str, confidence: str,
                                 clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
     """Create the post-integration orchestrator close record for exactly one chain."""
-    if branch != ledger.effective_branch or not ledger.rebinds:
+    if branch != ledger.effective_branch:
         _fail("close-authority", "chain close", "close requires a trusted rebind on its integration branch")
+    _validate_integration_witness(ledger, integration_witness, integration_verifier)
     if expected_head != actual_head:
         _fail("stale_head", "chain close", "branch tip changed; reload and re-judge", expected=expected_head, actual=actual_head)
     actual_digest = _append_pre_digest(ledger)
@@ -3098,7 +3284,7 @@ def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, rece
         _fail("stale_ledger_digest", "chain close", "ledger bytes changed; reload and re-judge", expected=pre_ledger_digest, actual=actual_digest)
     if workstream_chain_phase(ledger, chain_id) != "orchestrate":
         _fail("close", "chain close", "only an orchestrate-phase chain can close")
-    coverage = _receipt_coverage(ledger, receipts, chain_id)
+    coverage = _receipt_coverage(ledger, receipts, chain_id, receipt_verifier)
     expected_members = {record.record_id for record in _records_by_chain(ledger)[chain_id]}
     if set(coverage) != expected_members:
         _fail("receipt", "chain close", "every existing chain member needs one durable receipt", missing=sorted(expected_members - set(coverage)))
@@ -3146,38 +3332,52 @@ def _validate_expiry_dependencies(ledger: WorkstreamLedger, removed_chain_ids: s
 
 
 def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, chain_ids: Iterable[str], now: datetime,
-                               receipts: Iterable[WorkstreamReceipt], early: bool = False,
-                               early_approval_verifier: Callable[[str], bool] | None = None,
-                               promoted_chain_ids: Iterable[str] = ()) -> WorkstreamExpiryPreview:
+                               receipts: Iterable[AdmittedWorkstreamReceipt], receipt_verifier: WorkstreamReceiptVerifier,
+                               integration_witness: TrustedIntegrationWitness,
+                               integration_verifier: TrustedRebindVerifier,
+                               early_approval: EarlyExpiryApproval | None = None,
+                               early_approval_verifier: EarlyExpiryApprovalVerifier | None = None) -> WorkstreamExpiryPreview:
     validate_workstream_ledger(ledger)
-    if not ledger.rebinds:
-        _fail("expiry-authority", "ledger expiry", "expiry requires a trusted rebind on the integration branch")
+    _validate_integration_witness(ledger, integration_witness, integration_verifier)
+    early = early_approval is not None
     selected = tuple(sorted(set(chain_ids)))
     if not selected:
         _fail("expiry", "ledger expiry", "expiry must select at least one complete chain")
-    promoted = set(promoted_chain_ids)
     for chain in selected:
         _id(chain, "rlc_", "ledger expiry", "chain_id")
         closed_at = _chain_closed_at(ledger, chain)
-        coverage = _receipt_coverage(ledger, receipts, chain)
+        coverage = _receipt_coverage(ledger, receipts, chain, receipt_verifier)
         members = _records_by_chain(ledger)[chain]
         if set(coverage) != {record.record_id for record in members}:
             _fail("receipt", "ledger expiry", "expired chain lacks complete receipt coverage", chain_id=chain)
         if early:
-            if chain in promoted or early_approval_verifier is None or not early_approval_verifier(chain):
-                _fail("early-expiry", "ledger expiry", "early cleanup needs verified live approval for an unpromoted chain", chain_id=chain)
+            if any(receipt.disposition == "promoted" for receipt in coverage.values()):
+                _fail("early-expiry", "ledger expiry", "a promoted chain can never use early expiry", chain_id=chain)
+            if early_approval is None or early_approval_verifier is None:
+                _fail("early-expiry", "ledger expiry", "early cleanup needs a durable live-user approval/disposition")
+            _validate_early_expiry_approval(early_approval)
+            if (early_approval.workstream_id != ledger.header.workstream_id or early_approval.chain_id != chain
+                    or not early_approval.disposition or not early_approval_verifier.verify(early_approval)):
+                _fail("early-expiry", "ledger expiry", "early cleanup approval is not a verified durable chain disposition", chain_id=chain)
         elif now.astimezone(timezone.utc) < _as_utc(closed_at) + timedelta(days=ledger.header.reflection_retention_days):
             _fail("expiry", "ledger expiry", "chain retention window has not elapsed", chain_id=chain)
     _validate_expiry_dependencies(ledger, set(selected))
     retained = tuple(entry for entry in ledger.entries if not (isinstance(entry, WorkstreamRecord) and entry.chain_id in set(selected)))
     post = WorkstreamLedger(ledger.header, retained)
-    validate_workstream_ledger(post)
+    # Compaction deliberately removes historical blocks without rewriting the
+    # surviving immutable record IDs/preimages.  Normal parser/append paths
+    # always recompute predecessor digests; this one-shot post-image has just
+    # been derived from a verified pre-image and is checked structurally here.
+    validate_workstream_ledger(post, verify_predecessors=False)
     removed = tuple(sorted(record.record_id for record in ledger.records if record.chain_id in set(selected)))
     return WorkstreamExpiryPreview(expected_head, _append_pre_digest(ledger), selected, removed, _append_pre_digest(post), post)
 
 
 def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryPreview, *, actual_head: str,
+                            integration_witness: TrustedIntegrationWitness,
+                            integration_verifier: TrustedRebindVerifier,
                             actual_ledger_digest: str | None = None) -> WorkstreamLedger:
+    _validate_integration_witness(ledger, integration_witness, integration_verifier)
     if actual_head != preview.expected_head:
         _fail("stale_head", "ledger expiry", "branch tip changed after expiry preview", expected=preview.expected_head, actual=actual_head)
     actual_digest = actual_ledger_digest or _append_pre_digest(ledger)
@@ -3393,7 +3593,10 @@ def guarded_init_workstream_ledger(cwd: Path | str, *, expected_head: str, actua
 
 def guarded_append_workstream_ledger(cwd: Path | str, *, workstream_id: str, request: WorkstreamAppendRequest,
                                      expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
-                                     clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+                                     clock: Callable[[], datetime] | None = None,
+                                     active_ledgers: Iterable[WorkstreamLedger] = (),
+                                     durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                                     receipt_verifier: WorkstreamReceiptVerifier | None = None) -> WorkstreamLedger:
     root = Path(cwd).resolve()
     relative = workstream_ledger_path(workstream_id)
     path = root / Path(relative)
@@ -3403,14 +3606,19 @@ def guarded_append_workstream_ledger(cwd: Path | str, *, workstream_id: str, req
     ledger = parse_workstream_ledger(raw, relative)
     if ledger.header.workstream_id != workstream_id:
         _fail("path", relative, "ledger path and header workstream ID differ")
+    validate_workstream_branch_owner(root, ledger)
     result = plan_workstream_append(ledger, request, expected_head=expected_head, actual_head=actual_head,
-                                    pre_ledger_digest=pre_ledger_digest, branch=branch, clock=clock)
+                                    pre_ledger_digest=pre_ledger_digest, branch=branch, clock=clock,
+                                    active_ledgers=active_ledgers, durable_receipts=durable_receipts,
+                                    receipt_verifier=receipt_verifier)
     _atomic_replace_existing(path, raw, render_workstream_ledger(result).encode("utf-8"))
     return result
 
 
-def guarded_apply_workstream_expiry(cwd: Path | str, *, workstream_id: str, preview: WorkstreamExpiryPreview,
-                                    actual_head: str) -> WorkstreamLedger:
+def guarded_apply_trusted_rebind(cwd: Path | str, *, workstream_id: str, token: TrustedRebindToken,
+                                 integration_commit: str, current_target_tip: str, verifier: TrustedRebindVerifier,
+                                 reason: str, clock: Callable[[], datetime] | None = None) -> TrustedRebindResult:
+    """CAS write primitive which rejects occupied/malformed target-branch boards."""
     root = Path(cwd).resolve()
     relative = workstream_ledger_path(workstream_id)
     path = root / Path(relative)
@@ -3418,6 +3626,31 @@ def guarded_apply_workstream_expiry(cwd: Path | str, *, workstream_id: str, prev
         _fail("path", relative, "active v2 ledger does not exist")
     raw = path.read_bytes()
     ledger = parse_workstream_ledger(raw, relative)
-    result = apply_workstream_expiry(ledger, preview, actual_head=actual_head)
+    validate_workstream_branch_owner(root, ledger)
+    board = workstream_board_view(root)
+    for item in board.items:
+        if item.status != "valid":
+            _fail("branch-collision", item.path, "malformed active candidate blocks trusted rebind")
+        if item.path != relative and item.effective_branch == token.target_branch:
+            _fail("branch-collision", item.path, "target branch is already owned by another ledger", branch=token.target_branch)
+    result = apply_trusted_rebind(ledger, token, integration_commit=integration_commit, current_target_tip=current_target_tip,
+                                  verifier=verifier, reason=reason, clock=clock)
+    _atomic_replace_existing(path, raw, render_workstream_ledger(result.ledger).encode("utf-8"))
+    return result
+
+
+def guarded_apply_workstream_expiry(cwd: Path | str, *, workstream_id: str, preview: WorkstreamExpiryPreview,
+                                    actual_head: str, integration_witness: TrustedIntegrationWitness,
+                                    integration_verifier: TrustedRebindVerifier) -> WorkstreamLedger:
+    root = Path(cwd).resolve()
+    relative = workstream_ledger_path(workstream_id)
+    path = root / Path(relative)
+    if not path.is_file():
+        _fail("path", relative, "active v2 ledger does not exist")
+    raw = path.read_bytes()
+    ledger = parse_workstream_ledger(raw, relative)
+    validate_workstream_branch_owner(root, ledger)
+    result = apply_workstream_expiry(ledger, preview, actual_head=actual_head,
+                                     integration_witness=integration_witness, integration_verifier=integration_verifier)
     _atomic_replace_existing(path, raw, render_workstream_ledger(result).encode("utf-8"))
     return result
