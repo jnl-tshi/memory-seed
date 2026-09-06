@@ -6619,6 +6619,199 @@ def _resolve_commit(root: Path, ref: str) -> str | None:
     return commit if code == 0 and commit else None
 
 
+def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    """Whether ``ancestor`` is provably reachable from ``descendant``."""
+    code, _output = _git_text(root, ("merge-base", "--is-ancestor", ancestor, descendant))
+    return code == 0
+
+
+def _entry_records_with_id(root: Path, ref: str, entry_id: str) -> list[_SessionEntryRecord]:
+    """Read every occurrence of one entry identity at a Git ref.
+
+    The normal fuse parser reports duplicate identities in the source diff.  The
+    transitive proof is deliberately stricter: a durable merge receipt can only
+    vouch for one exact record, not a choice among same-id copies in a parent.
+    """
+    return [record for record in _entry_records_from_ref(root, ref) if record.entry_id == entry_id]
+
+
+def _resolve_local_branch(root: Path, branch: str) -> str | None:
+    """Resolve only a current local branch, never a generic Git revision."""
+    if not branch or branch != branch.strip() or branch.startswith("refs/") or branch in {"HEAD", "@"}:
+        return None
+    code, _output = _git_text(root, ("check-ref-format", "--branch", branch))
+    if code != 0:
+        return None
+    code, commit = _git_text(root, ("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}"))
+    return commit if code == 0 and _FULL_COMMIT_SHA_RE.fullmatch(commit) else None
+
+
+def _exact_entry_records(root: Path, ref: str, entry: _SessionEntryRecord) -> list[_SessionEntryRecord]:
+    """Return exact-text instances of an entry, after enforcing ID cardinality."""
+    assert entry.entry_id is not None
+    records = _entry_records_with_id(root, ref, entry.entry_id)
+    return records if len(records) == 1 and records[0].text == entry.text else []
+
+
+def _has_exact_final_receipt(root: Path, commit: str, entry_id: str) -> bool:
+    """Require one valid receipt in Git's final trailer block, with no raw duplicate."""
+    trailers = _commit_memory_entry_trailers(root, commit)
+    if trailers is None or trailers.count(entry_id) != 1:
+        return False
+    code, message = _git_text(root, ("show", "-s", "--format=%B", commit))
+    if code != 0:
+        return False
+    raw_values: list[str] = []
+    for line in message.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("Memory-Entry:"):
+            continue
+        value = stripped[len("Memory-Entry:"):].strip()
+        if _TRAILER_ENTRY_ID_RE.fullmatch(value) is None:
+            return False
+        raw_values.append(value)
+    return raw_values.count(entry_id) == 1
+
+
+def _first_parent_history_has_entry(
+    root: Path,
+    *,
+    start: str,
+    stop_before: str,
+    entry_id: str,
+) -> bool:
+    """Detect deletion/re-add laundering before a later carrier merge."""
+    current = start
+    while current and current != stop_before:
+        if _entry_records_with_id(root, current, entry_id):
+            return True
+        code, parents = _git_text(root, ("show", "-s", "--format=%P", current))
+        if code != 0:
+            return True
+        parent_ids = parents.split()
+        current = parent_ids[0] if parent_ids else ""
+    # A first-parent segment that never reaches the bounded merge base is not
+    # evidence for this integration.  Treat it like an unreadable history
+    # rather than allowing a receipt from some unrelated ancestry to leak in.
+    return current != stop_before
+
+
+def _carrier_merge_for_segment(
+    root: Path,
+    *,
+    segment_tip: str,
+    window_start: str,
+    allowed_commits: set[str],
+    entry: _SessionEntryRecord,
+) -> tuple[str, str] | None:
+    """Find the one first-parent carrier that introduced an exact record.
+
+    The walk stops at the first parent without the identity.  That is the only
+    place a carrier merge may introduce it on this aggregate workstream; later
+    disappearance and byte-identical re-addition cannot masquerade as the
+    original receipt because the older first-parent segment is checked too.
+    """
+    assert entry.entry_id is not None
+    current = segment_tip
+    while current and current != window_start:
+        if current not in allowed_commits or not _exact_entry_records(root, current, entry):
+            return None
+        code, parents_text = _git_text(root, ("show", "-s", "--format=%P", current))
+        parents = parents_text.split() if code == 0 else []
+        if not parents:
+            return None
+        first_parent = parents[0]
+        first_records = _entry_records_with_id(root, first_parent, entry.entry_id)
+        if first_records:
+            if not _exact_entry_records(root, first_parent, entry):
+                return None
+            current = first_parent
+            continue
+        # A missing first-parent record is a first introduction only when this
+        # is an ordinary, uniquely attributable two-parent carrier merge.
+        if len(parents) != 2 or not _exact_entry_records(root, parents[1], entry):
+            return None
+        if not _git_is_ancestor(root, window_start, first_parent):
+            return None
+        if _first_parent_history_has_entry(
+            root, start=first_parent, stop_before=window_start, entry_id=entry.entry_id
+        ):
+            return None
+        if not _has_exact_final_receipt(root, current, entry.entry_id):
+            return None
+        return current, parents[1]
+    return None
+
+
+def _transitive_entry_proof_issue(
+    root: Path,
+    *,
+    source_commit: str,
+    base_commit: str,
+    entry: _SessionEntryRecord,
+) -> str | None:
+    """Prove recursively that aggregate carriers preserved an exact child entry.
+
+    ``branch:`` is the entry's authorship, not a label to rewrite at every
+    integration boundary.  We therefore permit a foreign-attributed record only
+    when Git's durable topology and every prior merge's ``Memory-Entry``
+    receipt jointly show its exact path.  Each aggregate workstream owns one
+    continuous first-parent segment and one two-parent carrier merge; the
+    carrier's non-first parent is either the declared child branch or the next
+    recursively proven aggregate.  Any missing, copied, altered, reintroduced,
+    octopus, unreceipted, or multiply-explained path remains a refusal.
+
+    Branch refs are intentionally part of the proof.  They bind the immutable
+    authored ``branch:`` value to a real child history instead of trusting a
+    copied YAML scalar, and a deleted/unresolvable ref fails closed.
+    """
+    if not entry.entry_id or not entry.branch:
+        return "the entry has no declared child branch"
+    child_tip = _resolve_local_branch(root, entry.branch)
+    if child_tip is None:
+        return (
+            f"declared child branch {entry.branch!r} is not a current local branch; "
+            "restore the exact local child branch ref (rather than editing branch:) and retry"
+        )
+    if not _git_is_ancestor(root, child_tip, source_commit):
+        return f"declared child branch {entry.branch!r} is not an ancestor of the aggregate source"
+    if not _exact_entry_records(root, child_tip, entry):
+        return "the declared child branch does not contain one byte-identical entry"
+    if not _exact_entry_records(root, source_commit, entry):
+        return "the aggregate source does not contain one byte-identical entry"
+    code, window_start = _git_text(root, ("merge-base", base_commit, source_commit))
+    if code != 0 or _FULL_COMMIT_SHA_RE.fullmatch(window_start) is None:
+        return "could not determine the bounded base-to-source evidence window"
+    code, commits = _git_lines(root, ("rev-list", f"{window_start}..{source_commit}"))
+    if code != 0:
+        return "could not inspect the bounded base-to-source evidence window"
+    allowed_commits = set(commits)
+    if not allowed_commits:
+        return "the bounded base-to-source evidence window is empty"
+
+    current = source_commit
+    visited: set[str] = set()
+    while current != child_tip:
+        if current in visited:
+            return "the carrier path is cyclic or otherwise ambiguous"
+        visited.add(current)
+        carrier = _carrier_merge_for_segment(
+            root,
+            segment_tip=current,
+            window_start=window_start,
+            allowed_commits=allowed_commits,
+            entry=entry,
+        )
+        if carrier is None:
+            return (
+                "no unique two-parent, byte-continuous carrier merge with one final "
+                "Memory-Entry receipt proves the inherited entry"
+            )
+        _merge_commit, carrying_parent = carrier
+        current = carrying_parent
+    return None if _exact_entry_records(root, child_tip, entry) else "the child entry changed during proof"
+
+
 def _current_branch_name(root: Path) -> str | None:
     code, branch = _git_text(root, ("branch", "--show-current"))
     return branch if code == 0 and branch else None
@@ -6917,9 +7110,20 @@ def _plan_session_fuse(
                 f"does not match session date {source_entry.session_date}"
             )
             continue
-        if source_entry.branch != source_label:
+        proof_issue = (
+            _transitive_entry_proof_issue(
+                root,
+                source_commit=source_commit,
+                base_commit=base_commit,
+                entry=source_entry,
+            )
+            if source_entry.branch != source_label
+            else None
+        )
+        if proof_issue:
             issues.append(
-                f"{source_entry.source_path}: entry_id {entry_id} has branch {source_entry.branch or '(missing)'}; expected {source_label}"
+                f"{source_entry.source_path}: entry_id {entry_id} has branch {source_entry.branch or '(missing)'}; "
+                f"expected {source_label} or one unique receipted ancestor merge; {proof_issue}"
             )
             continue
         if source_entry.branch in {"main", "master"}:

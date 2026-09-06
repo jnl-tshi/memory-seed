@@ -272,6 +272,45 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self._commit_all(cwd, "main appends 10:00")
         return target
 
+    def _receipted_child_on_aggregate(self, cwd):
+        """Build child -> aggregate -> main without landing aggregate on main.
+
+        The child is fused onto the aggregate with the sanctioned one-step
+        command, so its merge commit carries the durable Memory-Entry receipt.
+        The aggregate intentionally retains the child's original branch value.
+        """
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "child-fuse")
+        child_path = self._write_grouped_session(
+            cwd, "2026-07-11", "mse_1111111111111111", branch="child-fuse"
+        )
+        child_links = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-11.md"
+        child_links.parent.mkdir(parents=True, exist_ok=True)
+        child_links.write_text(
+            self._link_sidecar_text(
+                "2026-07-11", [("09:05", "Child provenance", "mse_1111111111111111", [])]
+            ),
+            encoding="utf-8",
+        )
+        self._write_legacy_diagram(cwd, "2026-07-11", "mse_1111111111111111")
+        child_topics = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-11.md"
+        child_topics.parent.mkdir(parents=True, exist_ok=True)
+        child_topics.write_text(
+            self._topic_sidecar_text(
+                "2026-07-11", [("09:06", "Child topics", "mse_1111111111111111", ["git-workflow"], ["feature-build"])]
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "child session")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "switch", "-c", "aggregate-fuse")
+        child_result = session_merge_branch(cwd=cwd, branch="child-fuse")
+        self.assertTrue(child_result.committed, child_result.issues)
+        self._git(cwd, "switch", "main")
+        return child_path
+
     def _false_anchor_branches(self, cwd, *, gitattributes=None):
         """The 2026-07-19 corruption shape: two entries whose `topics:` /
         `related_entries:` scaffolding is byte-identical, appended concurrently.
@@ -623,6 +662,64 @@ class SessionFuseAndMergeTests(unittest.TestCase):
             result.planned_entries,
             ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
         )
+    @pytest.mark.integration
+    def test_session_fuse_recursively_carries_a_child_through_two_aggregate_merges(self):
+        cwd = self.make_project()
+        self._receipted_child_on_aggregate(cwd)
+        self._git(cwd, "switch", "-c", "aggregate-second")
+        first_hop = session_merge_branch(cwd=cwd, branch="aggregate-fuse")
+        self.assertTrue(first_hop.committed, first_hop.issues)
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-second")
+
+        self.assertEqual(result.issues, [])
+        self.assertEqual(len(result.planned_entries), 1)
+        self.assertIn("mse_1111111111111111", result.planned_entries[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_delete_then_byte_identical_readd_after_receipt(self):
+        cwd = self.make_project()
+        child_path = self._receipted_child_on_aggregate(cwd)
+        self._git(cwd, "switch", "aggregate-fuse")
+        original = child_path.read_text(encoding="utf-8")
+        child_path.unlink()
+        self._commit_all(cwd, "delete inherited child entry")
+        child_path.parent.mkdir(parents=True, exist_ok=True)
+        child_path.write_text(original, encoding="utf-8")
+        self._commit_all(cwd, "readd inherited child entry")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("expected aggregate-fuse or one unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_deleted_child_ref_with_recovery_guidance(self):
+        cwd = self.make_project()
+        self._receipted_child_on_aggregate(cwd)
+        self._git(cwd, "branch", "-D", "child-fuse")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("restore the exact local child branch ref", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_non_branch_child_ref(self):
+        cwd = self.make_project()
+        self._receipted_child_on_aggregate(cwd)
+        self._git(cwd, "switch", "aggregate-fuse")
+        child = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
+        child.write_text(child.read_text(encoding="utf-8").replace("branch: child-fuse", "branch: HEAD"), encoding="utf-8")
+        self._commit_all(cwd, "replace child ref with a revision")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("not a current local branch", result.issues[0])
 
     @pytest.mark.integration
     def test_session_fuse_reads_non_ascii_branch_entry(self):
@@ -709,6 +806,212 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertTrue(result.issues)
         self.assertIn("expected feature-fuse", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_accepts_a_uniquely_receipted_child_entry_on_an_aggregate_branch(self):
+        cwd = self.make_project()
+        self._receipted_child_on_aggregate(cwd)
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_entries,
+            ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+        )
+        self.assertEqual(
+            result.planned_link_sidecars,
+            ["mse_1111111111111111 2026-07-11 09:05 -> .memory-seed/sessions/links/2026-07/2026-07-11.md"],
+        )
+        self.assertEqual(
+            result.planned_sidecars,
+            ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-11.md"],
+        )
+        self.assertEqual(
+            result.planned_topic_sidecars,
+            ["mse_1111111111111111 2026-07-11 09:06 -> .memory-seed/sessions/topics/2026-07/2026-07-11.md"],
+        )
+        source_text = self._git(
+            cwd, "show", "aggregate-fuse:.memory-seed/sessions/2026-07/2026-07-11.md"
+        ).stdout
+        landed = session_merge_branch(cwd=cwd, branch="aggregate-fuse")
+        self.assertTrue(landed.committed, landed.issues)
+        self.assertEqual(
+            (cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").read_text(encoding="utf-8"),
+            source_text,
+        )
+        # Once the aggregate is an ancestor of the target, a preview is an
+        # idempotent no-op rather than a second import of the child record.
+        replay = session_fuse(cwd=cwd, branch="aggregate-fuse")
+        self.assertEqual(replay.issues, [])
+        self.assertEqual(replay.planned_entries, [])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_a_copied_child_entry_without_ancestor_merge_evidence(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "child-fuse")
+        child_path = self._write_grouped_session(
+            cwd, "2026-07-11", "mse_1111111111111111", branch="child-fuse"
+        )
+        child_text = child_path.read_text(encoding="utf-8")
+        self._commit_all(cwd, "child session")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "switch", "-c", "aggregate-fuse")
+        copied_path = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
+        copied_path.parent.mkdir(parents=True, exist_ok=True)
+        copied_path.write_text(child_text, encoding="utf-8")
+        self._commit_all(cwd, "copy child entry without merging it")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("expected aggregate-fuse or one unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_a_receipt_outside_the_base_to_source_window(self):
+        cwd = self.make_project()
+        child_path = self._receipted_child_on_aggregate(cwd)
+        # The valid receipt lives on aggregate-fuse, but `copied-fuse` shares
+        # only main with it. A receipt outside copied-fuse's bounded ancestry
+        # cannot authorise a text copy in its current source window.
+        child_text = self._git(
+            cwd, "show", "aggregate-fuse:.memory-seed/sessions/2026-07/2026-07-11.md"
+        ).stdout
+        self._git(cwd, "switch", "-c", "copied-fuse")
+        child_path.parent.mkdir(parents=True, exist_ok=True)
+        child_path.write_text(child_text, encoding="utf-8")
+        self._commit_all(cwd, "copy from unrelated historical aggregate")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="copied-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_a_tampered_child_entry_after_a_receipted_merge(self):
+        cwd = self.make_project()
+        child_path = self._receipted_child_on_aggregate(cwd)
+        self._git(cwd, "switch", "aggregate-fuse")
+        child_path.write_text(
+            child_path.read_text(encoding="utf-8").replace("- Body.\n", "- Tampered body.\n"),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "tamper with inherited child entry")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("expected aggregate-fuse or one unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_an_unreceipted_child_merge(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "child-fuse")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="child-fuse")
+        self._commit_all(cwd, "child session")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "switch", "-c", "aggregate-fuse")
+        self._git(cwd, "merge", "--no-ff", "--no-edit", "child-fuse")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("expected aggregate-fuse or one unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_malformed_duplicate_or_nonfinal_child_receipts(self):
+        # Receipt parsing is deliberately stricter than `git log --format`:
+        # only one valid Memory-Entry trailer in the final trailer block can
+        # bind a carrier merge to this exact record.
+        entry_id = "mse_1111111111111111"
+        messages = {
+            "malformed": "aggregate carrier\n\nMemory-Entry: not-an-entry-id",
+            "duplicate": f"aggregate carrier\n\nMemory-Entry: {entry_id}\nMemory-Entry: {entry_id}",
+            "nonfinal": f"Memory-Entry: {entry_id}\n\nordinary message body after a nonfinal trailer",
+        }
+        for shape, message in messages.items():
+            with self.subTest(shape=shape):
+                cwd = self.make_project()
+                self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+                self._init_git_project(cwd)
+                self._commit_all(cwd, "base")
+                self._git(cwd, "switch", "-c", "child-fuse")
+                self._write_grouped_session(cwd, "2026-07-11", entry_id, branch="child-fuse")
+                self._commit_all(cwd, "child entry")
+                child_tip = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+                child_tree = self._git(cwd, "rev-parse", "HEAD^{tree}").stdout.strip()
+                self._git(cwd, "switch", "main")
+                self._git(cwd, "switch", "-c", "aggregate-fuse")
+                base = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+                merge = self._git(
+                    cwd, "commit-tree", child_tree, "-p", base, "-p", child_tip, "-m", message
+                ).stdout.strip()
+                self._git(cwd, "reset", "--hard", merge)
+                self._git(cwd, "switch", "main")
+
+                result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+                self.assertTrue(result.issues)
+                self.assertIn("one unique receipted ancestor merge", result.issues[0])
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_an_ambiguous_octopus_child_receipt(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "child-fuse")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="child-fuse")
+        self._commit_all(cwd, "child session")
+        self._git(cwd, "switch", "-c", "child-copy-a")
+        (cwd / "a.txt").write_text("a\n", encoding="utf-8")
+        self._commit_all(cwd, "first child descendant")
+        self._git(cwd, "switch", "child-fuse")
+        self._git(cwd, "switch", "-c", "child-copy-b")
+        (cwd / "b.txt").write_text("b\n", encoding="utf-8")
+        self._commit_all(cwd, "second child descendant")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "switch", "-c", "aggregate-fuse")
+        # Build the octopus commit directly: Git for Windows sometimes cannot
+        # start its shell-backed octopus strategy under parallel test runners,
+        # while commit-tree gives this topology fixture the same durable object
+        # shape without relying on that platform shell.
+        base = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        parent_a = self._git(cwd, "rev-parse", "child-copy-a").stdout.strip()
+        parent_b = self._git(cwd, "rev-parse", "child-copy-b").stdout.strip()
+        tree = self._git(cwd, "rev-parse", "child-copy-b^{tree}").stdout.strip()
+        merge = self._git(
+            cwd,
+            "commit-tree",
+            tree,
+            "-p",
+            base,
+            "-p",
+            parent_a,
+            "-p",
+            parent_b,
+            "-m",
+            "aggregate child receipts",
+            "-m",
+            "Memory-Entry: mse_1111111111111111",
+        ).stdout.strip()
+        self._git(cwd, "reset", "--hard", merge)
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="aggregate-fuse")
+
+        self.assertTrue(result.issues)
+        self.assertIn("expected aggregate-fuse or one unique receipted ancestor merge", result.issues[0])
 
     @pytest.mark.integration
     def test_session_fuse_blocks_existing_entry_edits(self):

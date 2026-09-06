@@ -81,6 +81,46 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         self.assertNotIn("branch-entry", self.log.read_text(encoding="utf-8"))
 
     @pytest.mark.integration
+    def test_integrate_carries_a_receipted_child_entry_through_an_aggregate_branch(self):
+        # The aggregate's source file still says `branch: child`, because that
+        # is authorship metadata.  Its preceding MCP integration made the
+        # two-parent merge and stamped the child's exact Memory-Entry receipt;
+        # the second integration must accept that proof rather than demand a
+        # relabel or a repeat child-by-child fuse.
+        self._branch_with_entry("child", "2026-06-13 10:00", "mse_" + "b" * 16, "child-entry")
+        _git(self.root, "checkout", "-b", "aggregate")
+        child = call_tool("memory_session_integrate", {"cwd": str(self.root), "branch": "child"})
+        self.assertTrue(child["committed"], child["issues"])
+        _git(self.root, "checkout", "main")
+
+        result = call_tool("memory_session_integrate", {"cwd": str(self.root), "branch": "aggregate"})
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertTrue(result["committed"])
+        merged = self.log.read_text(encoding="utf-8")
+        self.assertIn("child-entry", merged)
+        self.assertIn("branch: child", merged)
+
+    @pytest.mark.integration
+    def test_integrate_refuses_a_copied_child_entry_without_the_receipted_carrier(self):
+        self._branch_with_entry("child", "2026-06-13 10:00", "mse_" + "b" * 16, "child-entry")
+        _git(self.root, "checkout", "-b", "aggregate")
+        # Same authored text, but no merge topology or receipt links it to the
+        # real child workstream. MCP must expose the same core refusal as CLI.
+        child_text = _entry("2026-06-13 10:00", "mse_" + "b" * 16, "child-entry", "child")
+        self.log.write_text(self.log.read_text(encoding="utf-8") + child_text, encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-m", "copy child entry")
+        _git(self.root, "checkout", "main")
+
+        result = call_tool("memory_session_integrate", {"cwd": str(self.root), "branch": "aggregate"})
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["committed"])
+        self.assertIn("unique receipted ancestor merge", " ".join(result["issues"]))
+        self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists())
+
+    @pytest.mark.integration
     def test_a_non_session_conflict_aborts_and_leaves_a_clean_tree(self):
         # The autonomous difference: session_merge_branch parks this for a human,
         # which would strand an agent in a half-merged repo it cannot resolve.
