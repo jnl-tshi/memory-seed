@@ -25,6 +25,7 @@ from memory_seed.reflection_ledger import (
     _apply_reflection_fuse_plan,
     admit_reflection_closeout,
     admit_reflection_git_tree,
+    admit_reflection_receipt,
     canonical_id,
     common_view,
     ed25519_verify,
@@ -107,7 +108,24 @@ def reports_for(manifest):
             for person in manifest.participants]
 
 
-def admitted_for(tmp_path, manifest, fragments, close=None):
+SESSION_PATH = ".memory-seed/sessions/2026-09/2026-09-06.md"
+
+
+def _receipt_entry_id(index=0):
+    return f"mse_0123456789abcde{index}"
+
+
+def admitted_receipts_for(root, receipts, *, source="HEAD"):
+    return tuple(
+        admit_reflection_receipt(
+            root, source=source, session_path=SESSION_PATH, entry_id=_receipt_entry_id(index),
+            decision_id="D1",
+        )
+        for index, receipt in enumerate(receipts)
+    )
+
+
+def admitted_for(tmp_path, manifest, fragments, close=None, *, receipts=()):
     root = Path(tempfile.mkdtemp(prefix="reflection-admission-", dir=tmp_path))
     subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
     subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True, capture_output=True)
@@ -125,6 +143,17 @@ def admitted_for(tmp_path, manifest, fragments, close=None):
         fragment_path.write_text(render_fragment(fragment), encoding="utf-8")
     if close is not None:
         (base / "closeout.md").write_text(render_closeout(manifest.plan_id, [close]), encoding="utf-8")
+    if receipts:
+        session = root / SESSION_PATH
+        session.parent.mkdir(parents=True, exist_ok=True)
+        sections = ["# Committed durable reflection receipts\n"]
+        for index, receipt in enumerate(receipts):
+            sections.append(
+                f"\n## 2026-09-06 12:05 - Record reflection receipt {index + 1}\n\n"
+                f"```yaml\nentry_id: {_receipt_entry_id(index)}\nuser_initials: JNL\nagent_type: codex\nproject_path: .\nsubproject_path: null\nbranch: main\n```\n\n"
+                f"#### D1 - Record durable reflection receipt\n\n```yaml\n{render_receipt(receipt)}```\n"
+            )
+        session.write_text("".join(sections), encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "reflection evidence"], check=True, capture_output=True)
     admitted = admit_reflection_git_tree(root, source="HEAD", plan_id=manifest.plan_id)
@@ -203,11 +232,12 @@ def test_close_and_expiry_require_independent_coverage_and_closed_at_window(tmp_
                                 (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), "Settled.", "already-covered", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     assert parse_receipt(render_receipt(receipt)) == receipt
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker_record.record_id,), (reviewer_record.record_id,),
-                                 (orch_record.record_id,), orch_record.record_id, (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), (), "validation:ok", (receipt.receipt_id,), "closeout.md")
-    _root, admitted, git_close = admitted_for(tmp_path, manifest, [worker_fragment, reviewer_fragment, orch_fragment], close)
-    validate_chain_close(git_close, admitted, [receipt])
-    assert eligible_expiry_paths([git_close], admitted, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == (git_close.closeout_path,)
-    assert eligible_expiry_paths([git_close], admitted, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
+                                 (orch_record.record_id,), orch_record.record_id, (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), (), receipt.receipt_id, (receipt.receipt_id,), "closeout.md")
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, [worker_fragment, reviewer_fragment, orch_fragment], close, receipts=(receipt,))
+    git_receipts = admitted_receipts_for(_root, (receipt,))
+    validate_chain_close(git_close, admitted, git_receipts)
+    assert eligible_expiry_paths([git_close], admitted, git_receipts, now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == (git_close.closeout_path,)
+    assert eligible_expiry_paths([git_close], admitted, git_receipts, now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
     assert parse_closeout(render_closeout(PLAN, [close])) == (PLAN, (close,))
 
 
@@ -242,31 +272,55 @@ def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts(tmp
     receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id),
                                 (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,),
-                                 (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
-    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close)
+                                 (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), receipt.receipt_id, (receipt.receipt_id,))
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close, receipts=(receipt,))
+    git_receipts = admitted_receipts_for(_root, (receipt,))
     with pytest.raises(ValueError, match="Git-admitted closeout"):
-        validate_chain_close(close, admitted, [receipt])
+        validate_chain_close(close, admitted, git_receipts)
     with pytest.raises(ValueError, match="Git-admitted reflection documents"):
-        validate_chain_close(git_close, fragments, [receipt])
+        validate_chain_close(git_close, fragments, git_receipts)
     with pytest.raises(ValueError, match="immutable Git tree"):
-        validate_chain_close(replace(git_close, closeout_oid="0" * 40), admitted, [receipt])
+        validate_chain_close(replace(git_close, closeout_oid="0" * 40), admitted, git_receipts)
+    fabricated_receipt = parse_receipt(render_receipt(replace(receipt, conclusion="Canonical bytes that were never committed.")))
+    with pytest.raises(ValueError, match="Git/session-admitted durable receipts"):
+        validate_chain_close(git_close, admitted, [fabricated_receipt])
+    uncommitted_path = _root / ".memory-seed/sessions/2026-09/uncommitted-receipt.md"
+    uncommitted_path.write_text(
+        "# Uncommitted receipt evidence\n\n## 2026-09-06 12:05 - Fabricated receipt\n\n"
+        "```yaml\nentry_id: mse_0123456789abcdef\nuser_initials: JNL\nagent_type: codex\nproject_path: .\nsubproject_path: null\nbranch: main\n```\n\n"
+        f"#### D1 - Fabricated receipt\n\n```yaml\n{render_receipt(receipt)}```\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="absent from the declared Git commit"):
+        admit_reflection_receipt(_root, source=admitted.source_commit, session_path=".memory-seed/sessions/2026-09/uncommitted-receipt.md", entry_id="mse_0123456789abcdef", decision_id="D1")
+    with pytest.raises(ValueError, match="session path is absent"):
+        validate_chain_close(git_close, admitted, [replace(git_receipts[0], session_path=".memory-seed/sessions/2026-09/wrong-session.md")])
+    committed_session = _root / SESSION_PATH
+    committed_session.write_text(committed_session.read_text(encoding="utf-8") + "\n# Later committed session change\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(_root), "add", SESSION_PATH], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(_root), "commit", "-qm", "later session evidence"], check=True, capture_output=True)
+    wrong_commit_receipts = admitted_receipts_for(_root, (receipt,))
+    with pytest.raises(ValueError, match="trusted integration commit"):
+        validate_chain_close(git_close, admitted, wrong_commit_receipts)
     forged_record = replace(worker, conclusion="Agent supplied a different conclusion.")
     fabricated_canonical_fragment = parse_fragment(render_fragment(replace(fragments[0], records=(forged_record,))))
     forged_documents = replace(admitted, fragments=(fabricated_canonical_fragment,) + fragments[1:])
     with pytest.raises(ValueError, match="immutable Git tree"):
-        validate_chain_close(git_close, forged_documents, [receipt])
-    _root, bad_retention_admitted, bad_retention_close = admitted_for(tmp_path, manifest, fragments, replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"))
+        validate_chain_close(git_close, forged_documents, git_receipts)
+    _root, bad_retention_admitted, bad_retention_close = admitted_for(tmp_path, manifest, fragments, replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"), receipts=(receipt,))
+    bad_retention_receipts = admitted_receipts_for(_root, (receipt,))
     with pytest.raises(ValueError, match="manifest policy"):
-        validate_chain_close(bad_retention_close, bad_retention_admitted, [receipt])
+        validate_chain_close(bad_retention_close, bad_retention_admitted, bad_retention_receipts)
     with pytest.raises(ValueError, match="positive integer"):
         parse_closeout(render_closeout(PLAN, [close]).replace("retention_days: 7", "retention_days: seven"))
     unrelated = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution")
     unrelated_fragment = make_fragment(manifest, [unrelated], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration")
     unrelated_close = replace(close, orchestrator_record_ids=(unrelated.record_id,), synthesis_record_id=unrelated.record_id,
                               resolved_head_ids=(worker.record_id, reviewer_record.record_id, unrelated.record_id))
-    _root, unrelated_admitted, unrelated_git_close = admitted_for(tmp_path, manifest, fragments[:2] + (unrelated_fragment,), unrelated_close)
+    _root, unrelated_admitted, unrelated_git_close = admitted_for(tmp_path, manifest, fragments[:2] + (unrelated_fragment,), unrelated_close, receipts=(receipt,))
+    unrelated_receipts = admitted_receipts_for(_root, (receipt,))
     with pytest.raises(ValueError, match="not connected to reviewer"):
-        validate_chain_close(unrelated_git_close, unrelated_admitted, [receipt])
+        validate_chain_close(unrelated_git_close, unrelated_admitted, unrelated_receipts)
 
 
 class AlwaysTrueAgentVerifier:
@@ -338,27 +392,29 @@ def test_early_expiry_needs_verified_host_receipt_and_a_valid_complete_close(tmp
     orchestrator = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution", relationship="responds", parents=(reviewer_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
     fragments = (make_fragment(manifest, [worker]), make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification"), make_fragment(manifest, [orchestrator], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration"))
     receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
-    close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,), (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
-    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close)
+    close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,), (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), receipt.receipt_id, (receipt.receipt_id,))
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close, receipts=(receipt,))
+    git_receipts = admitted_receipts_for(_root, (receipt,))
     now = datetime(2026, 9, 7, 12, 6, tzinfo=timezone.utc)
     member_ids = (worker.record_id, reviewer_record.record_id, orchestrator.record_id)
     with pytest.raises(ValueError, match="canonical signed approval"):
-        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True)
+        eligible_expiry_paths([git_close], admitted, git_receipts, now=now, chain=CHAIN, early=True)
     with pytest.raises(ValueError, match="canonical signed approval"):
-        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=AlwaysTrueAgentVerifier())
+        eligible_expiry_paths([git_close], admitted, git_receipts, now=now, chain=CHAIN, early=True, approval_receipt=AlwaysTrueAgentVerifier())
     with pytest.raises(ValueError, match="canonical signed approval"):
         eligible_expiry_paths(
-            [git_close], admitted, [receipt], now=now, chain=CHAIN, early=True,
+            [git_close], admitted, git_receipts, now=now, chain=CHAIN, early=True,
             approval_receipt=EarlyExpiryApprovalReceipt(TEST_APPROVAL_KEY_ID, PLAN, CHAIN, member_ids, "forged", "2026-09-07T12:06:00Z", git_close.close.expires_at, "ed25519:" + "0" * 128),
         )
     valid_approval = signed_approval(signing_seed, manifest, git_close.close, member_ids)
     tampered_approval = valid_approval[:-2] + ("0" if valid_approval[-2] != "0" else "1") + "\n"
     with pytest.raises(ValueError, match="does not verify"):
-        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=tampered_approval)
-    assert eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=valid_approval) == (git_close.closeout_path,)
+        eligible_expiry_paths([git_close], admitted, git_receipts, now=now, chain=CHAIN, early=True, approval_receipt=tampered_approval)
+    assert eligible_expiry_paths([git_close], admitted, git_receipts, now=now, chain=CHAIN, early=True, approval_receipt=valid_approval) == (git_close.closeout_path,)
     with pytest.raises(ValueError, match="unavailable durable receipt"):
-        _root, bad_admitted, bad_close = admitted_for(tmp_path, manifest, fragments, replace(close, receipt_ids=("rrc_1123456789abcdefghjk",)))
-        eligible_expiry_paths([bad_close], bad_admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=signed_approval(signing_seed, manifest, bad_close.close, member_ids))
+        _root, bad_admitted, bad_close = admitted_for(tmp_path, manifest, fragments, replace(close, validation_receipt="rrc_1123456789abcdefghjk", receipt_ids=("rrc_1123456789abcdefghjk",)), receipts=(receipt,))
+        bad_receipts = admitted_receipts_for(_root, (receipt,))
+        eligible_expiry_paths([bad_close], bad_admitted, bad_receipts, now=now, chain=CHAIN, early=True, approval_receipt=signed_approval(signing_seed, manifest, bad_close.close, member_ids))
 
 
 class TestFuse:

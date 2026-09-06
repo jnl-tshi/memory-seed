@@ -1099,6 +1099,158 @@ def parse_receipt(raw: bytes | str, path: str = "receipt.yaml") -> ReflectionRec
     return receipt
 
 
+SESSION_ROOT = ".memory-seed/sessions/"
+SESSION_ENTRY_ID_RE = re.compile(r"^mse_[0-9abcdefghjkmnpqrstvwxyz]{16}$")
+SESSION_DECISION_ID_RE = re.compile(r"^D[1-9][0-9]*$")
+
+
+def _session_path(value: Any, path: str, field_name: str) -> str:
+    """Validate the one repository-owned location permitted for receipts."""
+    value = _text(value, path, field_name)
+    candidate = PurePosixPath(value)
+    if (
+        not value.startswith(SESSION_ROOT)
+        or value == SESSION_ROOT
+        or candidate.is_absolute()
+        or ".." in candidate.parts
+        or "\\" in value
+        or value != candidate.as_posix()
+        or "//" in value
+    ):
+        _fail("session-path", path, "receipt evidence must name a clean .memory-seed/sessions POSIX path", field=field_name, value=value)
+    return value
+
+
+def _session_receipt_from_blob(raw: bytes, path: str, entry_id: str,
+                               decision_id: str | None) -> ReflectionReceipt:
+    """Find one canonical receipt in one committed SessionStart-style entry.
+
+    Session prose is intentionally not a second reflection document grammar.
+    The durable receipt itself is canonical YAML, while this routine binds it to
+    an exact entry (and, where supplied, decision) location in the Git blob.
+    """
+    _session_path(path, path, "session_path")
+    if not SESSION_ENTRY_ID_RE.fullmatch(entry_id):
+        _fail("session-locator", path, "receipt entry_id must be a canonical session entry ID", entry_id=entry_id)
+    if decision_id is not None and not SESSION_DECISION_ID_RE.fullmatch(decision_id):
+        _fail("session-locator", path, "receipt decision_id must be a canonical decision locator", decision_id=decision_id)
+    if raw.startswith(b"\xef\xbb\xbf"):
+        _fail("encoding", path, "session receipt evidence cannot use a UTF-8 BOM")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        _fail("encoding", path, "could not decode UTF-8 session receipt evidence", reason=str(exc))
+    if "\r" in text or unicodedata.normalize("NFC", text) != text:
+        _fail("session-canonical", path, "session receipt evidence must use NFC UTF-8 with LF line endings")
+
+    entry_matches = list(re.finditer(r"^## [^\n]+\n\n```yaml\n(?P<meta>.*?)```\n", text, re.MULTILINE | re.DOTALL))
+    matching_entries: list[tuple[re.Match[str], int]] = []
+    for index, entry in enumerate(entry_matches):
+        try:
+            metadata = _parse_yaml_mapping(entry.group("meta"), path)
+        except ReflectionValidationError:
+            continue
+        if metadata.get("entry_id") == entry_id:
+            matching_entries.append((entry, index))
+    if len(matching_entries) != 1:
+        _fail("session-locator", path, "receipt evidence must resolve exactly one committed session entry", entry_id=entry_id)
+    entry, entry_index = matching_entries[0]
+    entry_end = entry_matches[entry_index + 1].start() if entry_index + 1 < len(entry_matches) else len(text)
+    scope = text[entry.end():entry_end]
+    if decision_id is not None:
+        decision_matches = list(re.finditer(rf"^#### {re.escape(decision_id)}(?:\s|-|$)[^\n]*\n", scope, re.MULTILINE))
+        if len(decision_matches) != 1:
+            _fail("session-locator", path, "receipt evidence must resolve exactly one decision in its session entry", entry_id=entry_id, decision_id=decision_id)
+        decision = decision_matches[0]
+        following = re.search(r"^#### D[1-9][0-9]*(?:\s|-|$)[^\n]*\n", scope[decision.end():], re.MULTILINE)
+        decision_end = decision.end() + following.start() if following is not None else len(scope)
+        scope = scope[decision.start():decision_end]
+
+    matches: list[ReflectionReceipt] = []
+    for fenced in re.finditer(r"```yaml\n(?P<document>.*?)```\n", scope, re.DOTALL):
+        document = fenced.group("document")
+        if not document.startswith("schema: memory-seed/reflection-receipt\n"):
+            continue
+        receipt = parse_receipt(document, path)
+        matches.append(receipt)
+    if len(matches) != 1:
+        _fail("session-receipt", path, "receipt evidence must resolve exactly one canonical durable receipt", entry_id=entry_id, decision_id=decision_id)
+    return matches[0]
+
+
+@dataclass(frozen=True)
+class AdmittedReflectionReceipt:
+    """A durable receipt reloaded from one immutable Git session blob."""
+
+    repository: str
+    source_commit: str
+    session_path: str
+    session_blob_oid: str
+    entry_id: str
+    decision_id: str | None
+    receipt: ReflectionReceipt
+
+
+def admit_reflection_receipt(cwd: Path | str = ".", *, source: str, session_path: str,
+                             entry_id: str, decision_id: str | None) -> AdmittedReflectionReceipt:
+    """Load the sole canonical receipt from a committed session entry/decision.
+
+    This verifier deliberately takes no receipt ID or raw receipt object. A
+    later trusted close/promote surface must generate and persist the canonical
+    receipt through the sanctioned session writer, then call this loader to
+    return the evidence it actually committed.
+    """
+    root = Path(cwd).resolve()
+    commit = _commit(root, source)
+    if commit is None:
+        _fail("git-ref", str(root), "receipt evidence source does not resolve to a commit", source=source)
+    session_path = _session_path(session_path, str(root), "session_path")
+    blob = _tree_blob(root, commit, session_path)
+    if blob is None:
+        _fail("session-receipt", session_path, "receipt evidence session path is absent from the declared Git commit")
+    if blob.mode != CANONICAL_MODE:
+        _fail("mode", session_path, "receipt evidence session file must be regular mode 100644", mode=blob.mode)
+    receipt = _session_receipt_from_blob(blob.content, session_path, entry_id, decision_id)
+    return AdmittedReflectionReceipt(str(root), commit, session_path, blob.oid, entry_id, decision_id, receipt)
+
+
+def _verified_admitted_receipts(values: Iterable[AdmittedReflectionReceipt], admitted: AdmittedReflectionSet) -> tuple[AdmittedReflectionReceipt, ...]:
+    """Reopen every receipt evidence reference; objects themselves carry no authority."""
+    evidence = _verified_admitted_set(admitted)
+    result: list[AdmittedReflectionReceipt] = []
+    seen: dict[str, AdmittedReflectionReceipt] = {}
+    for value in values:
+        if not isinstance(value, AdmittedReflectionReceipt):
+            _fail("admission", "closeout.md", "closeout validation requires Git/session-admitted durable receipts")
+        if (
+            not isinstance(value.repository, str)
+            or not isinstance(value.source_commit, str)
+            or not isinstance(value.session_path, str)
+            or not isinstance(value.session_blob_oid, str)
+            or not isinstance(value.entry_id, str)
+            or (value.decision_id is not None and not isinstance(value.decision_id, str))
+            or not isinstance(value.receipt, ReflectionReceipt)
+        ):
+            _fail("admission", "closeout.md", "receipt evidence has malformed immutable Git/session fields")
+        fresh = admit_reflection_receipt(
+            value.repository,
+            source=value.source_commit,
+            session_path=value.session_path,
+            entry_id=value.entry_id,
+            decision_id=value.decision_id,
+        )
+        if value != fresh:
+            _fail("admission", value.session_path, "receipt evidence does not match its declared immutable Git session blob")
+        if fresh.repository != evidence.repository or fresh.source_commit != evidence.source_commit:
+            _fail("admission", value.session_path, "receipt evidence must be admitted from the reflection closeout's trusted integration commit")
+        existing = seen.get(fresh.receipt.receipt_id)
+        if existing is not None and existing != fresh:
+            _fail("receipt-collision", value.session_path, "conflicting durable receipt evidence shares one receipt ID", receipt_id=fresh.receipt.receipt_id)
+        seen[fresh.receipt.receipt_id] = fresh
+        result.append(fresh)
+    return tuple(result)
+
+
 @dataclass(frozen=True)
 class ReflectionChainClose:
     chain_id: str
@@ -1137,7 +1289,9 @@ def _close_shape(close: ReflectionChainClose, path: str | None = None) -> None:
         for identifier in values:
             _id(identifier, prefix, close_path, field_name)
     _id(close.synthesis_record_id, "rlr_", close_path, "synthesis_record_id")
-    _text(close.validation_receipt, close_path, "validation_receipt")
+    _id(close.validation_receipt, "rrc_", close_path, "validation_receipt")
+    if close.validation_receipt not in close.receipt_ids:
+        _fail("close", close_path, "validation_receipt must be included in receipt_ids")
     _relative_path(close.path, close_path, "path")
 
 
@@ -1184,7 +1338,7 @@ def parse_closeout(raw: bytes | str, path: str = "closeout.md") -> tuple[str, tu
             _id(item["chain_id"], "rlc_", path, "chain_id"), _timestamp(item["closed_at"], path, "closed_at"), item["retention_days"],
             _timestamp(item["expires_at"], path, "expires_at"), tuple(item["implementer_record_ids"]), tuple(item["reviewer_record_ids"]),
             tuple(item["orchestrator_record_ids"]), _id(item["synthesis_record_id"], "rlr_", path, "synthesis_record_id"),
-            tuple(item["resolved_head_ids"]), tuple(item["disposed_head_ids"]), _text(item["validation_receipt"], path, "validation_receipt"), tuple(item["receipt_ids"]), path,
+            tuple(item["resolved_head_ids"]), tuple(item["disposed_head_ids"]), _id(item["validation_receipt"], "rrc_", path, "validation_receipt"), tuple(item["receipt_ids"]), path,
         )
         _close_shape(close, path)
         closes.append(close)
@@ -1241,7 +1395,7 @@ def _verified_admitted_close(value: AdmittedChainClose, admitted: AdmittedReflec
 
 
 def validate_chain_close(value: AdmittedChainClose, admitted: AdmittedReflectionSet,
-                         receipts: Iterable[ReflectionReceipt]) -> None:
+                         receipts: Iterable[AdmittedReflectionReceipt]) -> None:
     """Validate a closeout only against canonically admitted ledger state.
 
     Parsed records are not sufficient authority here. Both the reflection
@@ -1307,12 +1461,11 @@ def validate_chain_close(value: AdmittedChainClose, admitted: AdmittedReflection
         or close.synthesis_record_id not in roles["orchestrator"]
     ):
         _fail("close-topology", close.path, "synthesis must be authored by and declared under the manifest orchestrator")
-    receipts_by_id: dict[str, ReflectionReceipt] = {}
-    for receipt in receipts:
-        existing = receipts_by_id.get(receipt.receipt_id)
-        if existing is not None and existing != receipt:
-            _fail("receipt-collision", close.path, "conflicting duplicate durable receipt ID", receipt_id=receipt.receipt_id)
-        receipts_by_id[receipt.receipt_id] = receipt
+    admitted_receipts = _verified_admitted_receipts(receipts, evidence)
+    receipts_by_id = {item.receipt.receipt_id: item.receipt for item in admitted_receipts}
+    validation_receipt = receipts_by_id.get(close.validation_receipt)
+    if validation_receipt is None:
+        _fail("receipt", close.path, "close references an unavailable durable receipt required for validation", receipt_id=close.validation_receipt)
     covered: set[str] = set()
     for receipt_id_value in close.receipt_ids:
         receipt = receipts_by_id.get(receipt_id_value)
@@ -1329,7 +1482,7 @@ def validate_chain_close(value: AdmittedChainClose, admitted: AdmittedReflection
 
 
 def validate_board_close(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
-                         receipts: Iterable[ReflectionReceipt]) -> None:
+                         receipts: Iterable[AdmittedReflectionReceipt]) -> None:
     evidence = _verified_admitted_set(admitted)
     fragments = evidence.fragments
     receipts = tuple(receipts)
@@ -1501,14 +1654,14 @@ def validate_early_expiry_approval(receipt: EarlyExpiryApprovalReceipt, *, manif
 
 
 def eligible_expiry_paths(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
-                          receipts: Iterable[ReflectionReceipt], *, now: datetime, chain: str | None = None,
+                          receipts: Iterable[AdmittedReflectionReceipt], *, now: datetime, chain: str | None = None,
                           early: bool = False, approval_receipt: bytes | str | None = None) -> tuple[str, ...]:
     if now.tzinfo is None:
         _fail("expiry", "closeout.md", "expiry comparison requires timezone-aware now")
     evidence = _verified_admitted_set(admitted)
     manifest = evidence.manifest
     fragments = evidence.fragments
-    receipts = tuple(receipts)
+    receipts = _verified_admitted_receipts(receipts, evidence)
     close_map: dict[str, AdmittedChainClose] = {}
     for value in closes:
         close = _verified_admitted_close(value, evidence)
@@ -1532,7 +1685,7 @@ def eligible_expiry_paths(closes: Iterable[AdmittedChainClose], admitted: Admitt
                 _fail("live-user-approval", close.path, "early deletion requires a canonical signed approval receipt")
             approval = parse_early_expiry_approval(approval_receipt)
             validate_early_expiry_approval(approval, manifest=manifest, close=close, member_record_ids=member_ids)
-            receipts_by_id = {item.receipt_id: item for item in receipts}
+            receipts_by_id = {item.receipt.receipt_id: item.receipt for item in receipts}
             if any(receipts_by_id[item].disposition == "promoted" for item in close.receipt_ids if item in receipts_by_id):
                 _fail("early-expiry", close.path, "early deletion is limited to unpromoted chains")
         else:
