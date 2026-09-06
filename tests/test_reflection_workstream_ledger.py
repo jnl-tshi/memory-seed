@@ -126,7 +126,7 @@ def receipt_for(ledger, record):
         "D1",
         workstream_receipt_id(ledger.header.id_salt, ledger.header.workstream_id, record.chain_id, record.detail_digest),
         "sha256:" + "e" * 64,
-        "promoted",
+        "promoted-to-decision",
     )
 
 
@@ -259,6 +259,77 @@ def test_rebind_close_and_per_chain_expiry_keep_other_chain_active():
         from memory_seed.reflection_ledger import apply_workstream_expiry
         apply_workstream_expiry(ledger, preview, actual_head=HEAD, integration_witness=rebind.witness,
                                 integration_verifier=AcceptRebind())
+
+
+def test_rebind_followed_by_close_and_later_record_round_trips_from_disk(tmp_path):
+    ledger, chain = open_chain()
+    ledger = append(ledger, "implementer", chain, parents=(ledger.records[-1].record_id,), now=START + timedelta(minutes=3))
+    ledger = append(ledger, "reviewer", chain, parents=(ledger.records[-1].record_id,), to_phase="orchestrate", now=START + timedelta(minutes=4))
+    verifier = AcceptRebind()
+    token = preview_trusted_rebind(ledger, source_tip=HEAD, target_branch="main", target_pre_merge_tip=TARGET, token_factory=lambda: "opaque-token")
+    rebind = apply_trusted_rebind(ledger, token, integration_commit=INTEGRATION, current_target_tip=INTEGRATION,
+                                  verifier=verifier, reason="normal integration", clock=fixed_clock(START + timedelta(minutes=5)))
+    ledger = rebind.ledger
+    receipts = [admitted_receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    ledger = plan_workstream_chain_close(
+        ledger, chain_id=chain, receipts=receipts, receipt_verifier=AdmitReceipts(),
+        integration_witness=rebind.witness, integration_verifier=verifier, expected_head=INTEGRATION, actual_head=INTEGRATION,
+        pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)), branch="main",
+        conclusion="closed", reasoning="reviewed", source="test", confidence="high",
+        clock=fixed_clock(START + timedelta(minutes=6)),
+    )
+    ledger = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                    now=START + timedelta(minutes=7))
+    path = tmp_path / "ledger.md"
+    rendered = render_workstream_ledger(ledger)
+    path.write_bytes(rendered.encode("utf-8"))
+    parsed = parse_workstream_ledger(path.read_bytes(), path.as_posix())
+    assert parsed == ledger
+    assert render_workstream_ledger(parsed) == rendered
+
+
+@pytest.mark.parametrize("disposition", ("promoted-to-decision", "already-covered-by-decision"))
+def test_early_expiry_refuses_every_canonical_promoted_receipt_disposition(disposition):
+    ledger, chain = open_chain()
+    ledger = append(ledger, "implementer", chain, parents=(ledger.records[-1].record_id,), now=START + timedelta(minutes=3))
+    ledger = append(ledger, "reviewer", chain, parents=(ledger.records[-1].record_id,), to_phase="orchestrate", now=START + timedelta(minutes=4))
+    verifier = AcceptRebind()
+    token = preview_trusted_rebind(ledger, source_tip=HEAD, target_branch="main", target_pre_merge_tip=TARGET, token_factory=lambda: "opaque-token")
+    rebind = apply_trusted_rebind(ledger, token, integration_commit=INTEGRATION, current_target_tip=INTEGRATION,
+                                  verifier=verifier, reason="normal integration", clock=fixed_clock(START + timedelta(minutes=5)))
+    ledger = rebind.ledger
+    receipts = [replace(admitted_receipt_for(ledger, record), receipt=replace(receipt_for(ledger, record), disposition=disposition))
+                for record in ledger.records if record.chain_id == chain]
+    ledger = plan_workstream_chain_close(
+        ledger, chain_id=chain, receipts=receipts, receipt_verifier=AdmitReceipts(),
+        integration_witness=rebind.witness, integration_verifier=verifier, expected_head=INTEGRATION, actual_head=INTEGRATION,
+        pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)), branch="main",
+        conclusion="closed", reasoning="reviewed", source="test", confidence="high",
+        clock=fixed_clock(START + timedelta(minutes=6)),
+    )
+    receipts = [replace(admitted_receipt_for(ledger, record), receipt=replace(receipt_for(ledger, record), disposition=disposition))
+                for record in ledger.records if record.chain_id == chain]
+    approval = EarlyExpiryApproval(ledger.header.workstream_id, chain, ".memory-seed/sessions/2026-09/2026-09-06.md",
+                                   "mse_0123456789abcdef", "D1", HEAD, "e" * 40, "user-approved-disposal")
+    with pytest.raises(ReflectionValidationError, match="promoted"):
+        preview_workstream_expiry(
+            ledger, expected_head=INTEGRATION, chain_ids=(chain,), now=START, receipts=receipts,
+            receipt_verifier=AdmitReceipts(), integration_witness=rebind.witness, integration_verifier=verifier,
+            early_approval=approval, early_approval_verifier=AcceptEarlyExpiry(),
+        )
+
+
+def test_workstream_receipt_refuses_noncanonical_disposition():
+    ledger, chain = open_chain()
+    with pytest.raises(ReflectionValidationError, match="canonical v2 disposition"):
+        resolve_workstream_dependency(
+            WorkstreamDependency(ledger.header.workstream_id, ledger.records[-1].record_id, ledger.records[-1].detail_digest,
+                                  "needs record", receipt_for(ledger, ledger.records[-1]).dependency_locator()),
+            source_workstream_id="rwl_00000000000000000000",
+            durable_receipts=(replace(admitted_receipt_for(ledger, ledger.records[-1]),
+                                      receipt=replace(receipt_for(ledger, ledger.records[-1]), disposition="promoted")),),
+            receipt_verifier=AdmitReceipts(),
+        )
 
 
 def test_board_includes_malformed_candidate_and_guarded_filesystem_writes(tmp_path):

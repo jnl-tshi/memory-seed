@@ -2461,7 +2461,12 @@ def _parse_v2_entry(raw: str, path: str) -> WorkstreamEntry:
             _fail("record", path, "record heading and metadata ID differ")
         return _record_from_v2_dict(metadata, _parse_v2_sections(match.group(3), path), path)
     if raw.startswith("## Rebind "):
-        match = re.fullmatch(r"## Rebind ([^\n]+)\n\n```yaml\n(.*?)```\n", raw, re.DOTALL)
+        # Ledger blocks are joined by exactly one separator LF.  Rebind blocks
+        # already end in their YAML LF, so an intermediate rebind consequently
+        # owns two trailing LFs; the final rebind owns one.  Accept precisely
+        # those renderer-produced forms and let the full-ledger byte equality
+        # check reject every other separator.
+        match = re.fullmatch(r"## Rebind ([^\n]+)\n\n```yaml\n(.*?)```\n(?:\n)?", raw, re.DOTALL)
         if not match:
             _fail("rebind", path, "rebind block is malformed")
         metadata = _parse_yaml_mapping(match.group(2), path)
@@ -2907,6 +2912,25 @@ class WorkstreamReceipt:
         return WorkstreamDependencyReceipt(self.session_path, self.entry_id, self.decision_id, self.receipt_id, self.receipt_digest)
 
 
+# These are v2 receipt values, not free-form prose.  The two decision-backed
+# dispositions deliberately share the promoted classification: a chain already
+# covered by a decision is no less promoted than one newly promoted to it.
+WORKSTREAM_RECEIPT_DISPOSITIONS = frozenset({
+    "promoted-to-decision",
+    "already-covered-by-decision",
+    "expired-unpromoted",
+    "early-expired-unpromoted",
+})
+WORKSTREAM_PROMOTED_RECEIPT_DISPOSITIONS = frozenset({
+    "promoted-to-decision",
+    "already-covered-by-decision",
+})
+
+
+def _workstream_receipt_is_promoted(receipt: WorkstreamReceipt) -> bool:
+    return receipt.disposition in WORKSTREAM_PROMOTED_RECEIPT_DISPOSITIONS
+
+
 @dataclass(frozen=True)
 class AdmittedWorkstreamReceipt:
     """A receipt reloaded from an immutable committed session blob."""
@@ -2961,7 +2985,9 @@ def _validate_workstream_receipt(receipt: WorkstreamReceipt, path: str = "receip
     _id(receipt.record_id, "rlr_", path, "record_id")
     _digest(receipt.detail_digest, path, "detail_digest")
     _dependency_receipt_from_dict(receipt.dependency_locator().as_dict(), path)
-    _text(receipt.disposition, path, "disposition")
+    disposition = _text(receipt.disposition, path, "disposition")
+    if disposition not in WORKSTREAM_RECEIPT_DISPOSITIONS:
+        _fail("receipt", path, "receipt disposition is not a canonical v2 disposition", disposition=disposition)
 
 
 def _validate_admitted_receipt(value: AdmittedWorkstreamReceipt, verifier: WorkstreamReceiptVerifier,
@@ -3351,7 +3377,7 @@ def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, c
         if set(coverage) != {record.record_id for record in members}:
             _fail("receipt", "ledger expiry", "expired chain lacks complete receipt coverage", chain_id=chain)
         if early:
-            if any(receipt.disposition == "promoted" for receipt in coverage.values()):
+            if any(_workstream_receipt_is_promoted(receipt) for receipt in coverage.values()):
                 _fail("early-expiry", "ledger expiry", "a promoted chain can never use early expiry", chain_id=chain)
             if early_approval is None or early_approval_verifier is None:
                 _fail("early-expiry", "ledger expiry", "early cleanup needs a durable live-user approval/disposition")
