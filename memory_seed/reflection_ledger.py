@@ -12,8 +12,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256, sha512
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 import json
+import os
 import re
 import subprocess
 import unicodedata
@@ -1918,3 +1919,1505 @@ def _apply_reflection_fuse_plan(cwd: Path | str, plan: _ReflectionFusePlan, *, p
         return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[exc.diagnostic])
     return ReflectionFuseResult(bool(written), plan.plan_id, plan.source_tip, plan.base_tip, plan.manifest_sha256,
                                 written, list(plan.already_present), plan.token)
+
+
+# ---------------------------------------------------------------------------
+# Reflection workstream ledger v2
+# ---------------------------------------------------------------------------
+#
+# The v1 fragment/fuse format above is intentionally left intact.  New boards
+# are selected by an explicit discriminator and use the types below; there is
+# no heuristic conversion between the two families.
+
+WORKSTREAM_LEDGER_SCHEMA = "memory-seed/reflection-workstream-ledger"
+WORKSTREAM_LEDGER_VERSION = 2
+WORKSTREAM_LEDGER_NAME = "ledger.md"
+WORKSTREAM_LEDGER_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2/ledger\0"
+WORKSTREAM_DETAIL_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2/detail\0"
+WORKSTREAM_ID_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2\0"
+WORKSTREAM_HEADER_FIELDS = (
+    "schema", "version", "workstream_id", "working_branch", "base_sha", "created_at",
+    "reflection_retention_days", "retention_extension_receipt", "retention_approval_key_id", "id_salt",
+)
+WORKSTREAM_RECORD_FIELDS = (
+    "record_id", "created_at", "role", "from_phase", "to_phase", "closed_at", "chain_id", "parents",
+    "relationship", "no_related_thread", "depends_on", "source", "related_decisions", "confidence",
+    "pre_ledger_digest", "detail_digest",
+)
+WORKSTREAM_REBIND_FIELDS = (
+    "record_id", "created_at", "role", "from_branch", "to_branch", "source_tip", "target_pre_merge_tip",
+    "integration_commit", "pre_ledger_digest", "detail_digest", "reason",
+)
+WORKSTREAM_PHASES = ("plan", "implement", "review", "orchestrate", "closed")
+WORKSTREAM_ROLES = {"planner", "implementer", "reviewer", "orchestrator"}
+WORKSTREAM_RELATIONSHIPS = {"no_related_thread", "refines", "responds", "challenges", "corrects", "combines", "orphan"}
+WORKSTREAM_TRANSITIONS = {
+    ("plan", "implement"): "planner",
+    ("implement", "review"): "implementer",
+    ("review", "implement"): "reviewer",
+    ("review", "orchestrate"): "reviewer",
+    ("orchestrate", "closed"): "orchestrator",
+}
+WORKSTREAM_PHASE_OWNERS = {"plan": "planner", "implement": "implementer", "review": "reviewer", "orchestrate": "orchestrator"}
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+GIT_OID_RE = re.compile(r"^[0-9a-f]{40,64}$")
+
+
+def _v2_digest(domain: bytes, raw: bytes) -> str:
+    return "sha256:" + sha256(domain + raw).hexdigest()
+
+
+def _v2_yaml_inline(value: Any) -> str:
+    """The v2 renderer preserves all-digit IDs/nonces as strings."""
+    if isinstance(value, list):
+        return "[" + ", ".join(_v2_yaml_inline(item) for item in value) + "]"
+    if isinstance(value, Mapping):
+        return "{" + ", ".join(f"{key}: {_v2_yaml_inline(item)}" for key, item in value.items()) + "}"
+    if isinstance(value, str) and re.fullmatch(r"0|[1-9]\d*", value):
+        return json.dumps(value, ensure_ascii=False)
+    return _quote(value)
+
+
+def _v2_yaml_mapping(items: Sequence[tuple[str, Any]]) -> str:
+    lines: list[str] = []
+    for key, value in items:
+        if isinstance(value, list):
+            if not value:
+                lines.append(f"{key}: []")
+                continue
+            lines.append(f"{key}:")
+            for member in value:
+                if isinstance(member, Mapping):
+                    member_items = list(member.items())
+                    if not member_items:
+                        _fail("schema", "<renderer>", "empty list map is unsupported")
+                    first_key, first_value = member_items[0]
+                    lines.append(f"  - {first_key}: {_v2_yaml_inline(first_value)}")
+                    for nested_key, nested_value in member_items[1:]:
+                        lines.append(f"    {nested_key}: {_v2_yaml_inline(nested_value)}")
+                else:
+                    lines.append(f"  - {_v2_yaml_inline(member)}")
+        else:
+            lines.append(f"{key}: {_v2_yaml_inline(value)}")
+    return "\n".join(lines) + "\n"
+
+
+def workstream_ledger_digest(raw: bytes | str) -> str:
+    """Return the domain-separated digest of canonical ledger bytes."""
+    text = _canonical_text(raw, "ledger.md")
+    return _v2_digest(WORKSTREAM_LEDGER_DOMAIN, text.encode("utf-8"))
+
+
+def workstream_detail_digest(raw: bytes | str) -> str:
+    """Return the domain-separated digest of one canonical record/rebind block."""
+    text = _canonical_text(raw, "record")
+    return _v2_digest(WORKSTREAM_DETAIL_DOMAIN, text.encode("utf-8"))
+
+
+def _digest(value: Any, path: str, field_name: str) -> str:
+    value = _text(value, path, field_name)
+    if not SHA256_RE.fullmatch(value):
+        _fail("digest", path, "field must be a lowercase sha256 digest", field=field_name, value=value)
+    return value
+
+
+def _git_sha(value: Any, path: str, field_name: str) -> str:
+    value = _text(value, path, field_name)
+    if not GIT_OID_RE.fullmatch(value):
+        _fail("git-oid", path, "field must be a lowercase Git object ID", field=field_name, value=value)
+    return value
+
+
+def _v2_id(prefix: str, id_salt: str, *components: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{64}", id_salt):
+        raise ValueError("id_salt must be 64 lowercase hex characters")
+    frame = WORKSTREAM_ID_DOMAIN + bytes.fromhex(id_salt)
+    for component in components:
+        if not isinstance(component, str):
+            raise TypeError("ID components must be strings")
+        encoded = component.encode("utf-8")
+        frame += len(encoded).to_bytes(4, "big") + encoded
+    return prefix + crockford(sha256(frame).digest()[:12])
+
+
+def workstream_id(id_salt: str, working_branch: str, base_sha: str, created_at: str) -> str:
+    return _v2_id("rwl_", id_salt, "workstream", working_branch, base_sha, created_at)
+
+
+def workstream_record_id(id_salt: str, workstream: str, created_at: str, pre_ledger_digest: str) -> str:
+    return _v2_id("rlr_", id_salt, "record", workstream, created_at, pre_ledger_digest)
+
+
+def workstream_chain_id(id_salt: str, workstream: str, first_record_id: str) -> str:
+    return _v2_id("rlc_", id_salt, "chain", workstream, first_record_id)
+
+
+def workstream_receipt_id(id_salt: str, workstream: str, chain_id: str, detail_digest: str) -> str:
+    return _v2_id("rrc_", id_salt, "receipt", workstream, chain_id, detail_digest)
+
+
+def workstream_ledger_path(workstream: str) -> str:
+    _id(workstream, "rwl_", "workstream path", "workstream_id")
+    return f"{REFLECTION_ROOT}/{workstream}/{WORKSTREAM_LEDGER_NAME}"
+
+
+def _sorted_unique(values: Sequence[str], path: str, field_name: str) -> tuple[str, ...]:
+    result = tuple(values)
+    if any(not isinstance(value, str) or not value for value in result):
+        _fail("schema", path, "list must contain non-empty strings", field=field_name)
+    if result != tuple(sorted(result)) or len(set(result)) != len(result):
+        _fail("canonical-order", path, "list must be sorted and unique", field=field_name)
+    return result
+
+
+def _clock_timestamp(clock: Callable[[], datetime] | None = None) -> str:
+    value = (clock or (lambda: datetime.now(timezone.utc)))()
+    if value.tzinfo is None:
+        _fail("timestamp", "clock", "clock must return an aware UTC timestamp")
+    value = value.astimezone(timezone.utc).replace(microsecond=0)
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@dataclass(frozen=True)
+class RetentionExtensionReceipt:
+    """The six immutable locator fields copied into a v2 ledger header."""
+
+    nonce: str
+    session_path: str
+    entry_id: str
+    commit: str
+    blob: str
+    signature: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {"nonce": self.nonce, "session_path": self.session_path, "entry_id": self.entry_id,
+                "commit": self.commit, "blob": self.blob, "signature": self.signature}
+
+
+@dataclass(frozen=True)
+class WorkstreamLedgerHeader:
+    workstream_id: str
+    working_branch: str
+    base_sha: str
+    created_at: str
+    reflection_retention_days: int
+    retention_extension_receipt: RetentionExtensionReceipt | None
+    retention_approval_key_id: str | None
+    id_salt: str
+    schema: str = WORKSTREAM_LEDGER_SCHEMA
+    version: int = WORKSTREAM_LEDGER_VERSION
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema, "version": self.version, "workstream_id": self.workstream_id,
+            "working_branch": self.working_branch, "base_sha": self.base_sha, "created_at": self.created_at,
+            "reflection_retention_days": self.reflection_retention_days,
+            "retention_extension_receipt": (None if self.retention_extension_receipt is None else self.retention_extension_receipt.as_dict()),
+            "retention_approval_key_id": self.retention_approval_key_id, "id_salt": self.id_salt,
+        }
+
+
+@dataclass(frozen=True)
+class WorkstreamDependencyReceipt:
+    session_path: str
+    entry_id: str
+    decision_id: str
+    receipt_id: str
+    receipt_digest: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {"session_path": self.session_path, "entry_id": self.entry_id, "decision_id": self.decision_id,
+                "receipt_id": self.receipt_id, "receipt_digest": self.receipt_digest}
+
+
+@dataclass(frozen=True)
+class WorkstreamDependency:
+    workstream_id: str
+    record_id: str
+    record_digest: str
+    reason: str
+    receipt: WorkstreamDependencyReceipt | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"workstream_id": self.workstream_id, "record_id": self.record_id, "record_digest": self.record_digest,
+                "reason": self.reason, "receipt": None if self.receipt is None else self.receipt.as_dict()}
+
+
+@dataclass(frozen=True)
+class WorkstreamRecord:
+    record_id: str
+    created_at: str
+    role: str
+    from_phase: str
+    to_phase: str
+    closed_at: str | None
+    chain_id: str
+    parents: tuple[str, ...]
+    relationship: str
+    no_related_thread: bool
+    depends_on: tuple[WorkstreamDependency, ...]
+    source: str
+    related_decisions: tuple[str, ...]
+    confidence: str
+    pre_ledger_digest: str
+    detail_digest: str
+    conclusion: str
+    reasoning: str
+    assumptions: str | None = None
+    alternatives: str | None = None
+    evidence: str | None = None
+    next_step: str | None = None
+
+    def metadata(self, *, zero_detail_digest: bool = False) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id, "created_at": self.created_at, "role": self.role,
+            "from_phase": self.from_phase, "to_phase": self.to_phase, "closed_at": self.closed_at,
+            "chain_id": self.chain_id, "parents": list(self.parents), "relationship": self.relationship,
+            "no_related_thread": self.no_related_thread, "depends_on": [item.as_dict() for item in self.depends_on],
+            "source": self.source, "related_decisions": list(self.related_decisions), "confidence": self.confidence,
+            "pre_ledger_digest": self.pre_ledger_digest,
+            "detail_digest": "sha256:" + "0" * 64 if zero_detail_digest else self.detail_digest,
+        }
+
+
+@dataclass(frozen=True)
+class TrustedRebind:
+    record_id: str
+    created_at: str
+    from_branch: str
+    to_branch: str
+    source_tip: str
+    target_pre_merge_tip: str
+    integration_commit: str
+    pre_ledger_digest: str
+    detail_digest: str
+    reason: str
+    role: str = "orchestrator"
+
+    def metadata(self, *, zero_detail_digest: bool = False) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id, "created_at": self.created_at, "role": self.role,
+            "from_branch": self.from_branch, "to_branch": self.to_branch, "source_tip": self.source_tip,
+            "target_pre_merge_tip": self.target_pre_merge_tip, "integration_commit": self.integration_commit,
+            "pre_ledger_digest": self.pre_ledger_digest,
+            "detail_digest": "sha256:" + "0" * 64 if zero_detail_digest else self.detail_digest,
+            "reason": self.reason,
+        }
+
+
+WorkstreamEntry = WorkstreamRecord | TrustedRebind
+
+
+@dataclass(frozen=True)
+class WorkstreamLedger:
+    header: WorkstreamLedgerHeader
+    entries: tuple[WorkstreamEntry, ...] = ()
+
+    @property
+    def records(self) -> tuple[WorkstreamRecord, ...]:
+        return tuple(entry for entry in self.entries if isinstance(entry, WorkstreamRecord))
+
+    @property
+    def rebinds(self) -> tuple[TrustedRebind, ...]:
+        return tuple(entry for entry in self.entries if isinstance(entry, TrustedRebind))
+
+    @property
+    def effective_branch(self) -> str:
+        return self.rebinds[-1].to_branch if self.rebinds else self.header.working_branch
+
+
+def _retention_receipt_from_dict(value: Any, path: str) -> RetentionExtensionReceipt:
+    if not isinstance(value, Mapping):
+        _fail("retention-approval", path, "retention extension receipt must be a mapping")
+    fields = ("nonce", "session_path", "entry_id", "commit", "blob", "signature")
+    _required(value, fields, path)
+    _only(value, fields, path)
+    nonce = _text(value["nonce"], path, "nonce")
+    if not re.fullmatch(r"[0-9a-f]{64}", nonce):
+        _fail("retention-approval", path, "nonce must be 64 lowercase hex characters")
+    entry_id = _text(value["entry_id"], path, "entry_id")
+    if not SESSION_ENTRY_ID_RE.fullmatch(entry_id):
+        _fail("retention-approval", path, "entry_id is not canonical")
+    signature = _text(value["signature"], path, "signature")
+    if not re.fullmatch(r"ed25519:[0-9a-f]{128}", signature):
+        _fail("retention-approval", path, "signature is not canonical Ed25519 hex")
+    return RetentionExtensionReceipt(nonce, _session_path(value["session_path"], path, "session_path"), entry_id,
+                                    _git_sha(value["commit"], path, "commit"), _git_sha(value["blob"], path, "blob"), signature)
+
+
+def _header_from_dict(value: Mapping[str, Any], path: str) -> WorkstreamLedgerHeader:
+    _required(value, WORKSTREAM_HEADER_FIELDS, path)
+    _only(value, WORKSTREAM_HEADER_FIELDS, path)
+    if value["schema"] != WORKSTREAM_LEDGER_SCHEMA or value["version"] != WORKSTREAM_LEDGER_VERSION:
+        _fail("discriminator", path, "unsupported or mixed reflection ledger discriminator")
+    branch = _text(value["working_branch"], path, "working_branch")
+    base = value["base_sha"]
+    if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}", base):
+        _fail("base-sha", path, "base_sha must be 40 lowercase hex characters")
+    created = _timestamp(value["created_at"], path, "created_at")
+    salt = value["id_salt"]
+    if not isinstance(salt, str) or not re.fullmatch(r"[0-9a-f]{64}", salt):
+        _fail("id-salt", path, "id_salt must be 64 lowercase hex characters")
+    identifier = _id(value["workstream_id"], "rwl_", path, "workstream_id")
+    if identifier != workstream_id(salt, branch, base, created):
+        _fail("id", path, "workstream_id does not match its frozen ID preimage")
+    retention = value["reflection_retention_days"]
+    if retention not in {7, 14, 30} or isinstance(retention, bool):
+        _fail("retention", path, "retention must be exactly 7, 14, or 30 days")
+    receipt_value = value["retention_extension_receipt"]
+    key_id = value["retention_approval_key_id"]
+    if retention == 7:
+        if receipt_value is not None or key_id is not None:
+            _fail("retention", path, "seven-day retention requires literal null extension fields")
+        receipt = None
+    else:
+        if not isinstance(key_id, str) or not key_id:
+            _fail("retention-approval", path, "extended retention needs a key identifier")
+        receipt = _retention_receipt_from_dict(receipt_value, path)
+    return WorkstreamLedgerHeader(identifier, branch, base, created, retention, receipt, key_id, salt)
+
+
+def reflection_ledger_family(raw: bytes | str, path: str = "reflection") -> str:
+    """Return an explicit family discriminator; never infer v2 from a v1 plan."""
+    text = _canonical_text(raw, path)
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end < 0:
+            _fail("discriminator", path, "front matter is not closed")
+        mapping = _parse_yaml_mapping(text[4:end], path)
+    else:
+        mapping = _parse_yaml_mapping(text, path)
+    schema = mapping.get("schema")
+    version = mapping.get("version")
+    if schema == "memory-seed/reflection-plan" and version == 1:
+        return "v1"
+    if schema == WORKSTREAM_LEDGER_SCHEMA and version == WORKSTREAM_LEDGER_VERSION:
+        return "v2"
+    _fail("discriminator", path, "unsupported, absent, duplicate, or mixed reflection ledger family")
+
+
+def render_workstream_header(header: WorkstreamLedgerHeader) -> str:
+    # Parse the rendered mapping as a final renderer guard, including field order.
+    rendered = _v2_yaml_mapping([(name, header.as_dict()[name]) for name in WORKSTREAM_HEADER_FIELDS])
+    parsed = _parse_yaml_mapping(rendered, "ledger header")
+    _header_from_dict(parsed, "ledger header")
+    return "---\n" + rendered + "---\n"
+
+
+def _dependency_receipt_from_dict(value: Any, path: str) -> WorkstreamDependencyReceipt:
+    if not isinstance(value, Mapping):
+        _fail("dependency", path, "dependency receipt must be a mapping")
+    fields = ("session_path", "entry_id", "decision_id", "receipt_id", "receipt_digest")
+    _required(value, fields, path)
+    _only(value, fields, path)
+    entry = _text(value["entry_id"], path, "entry_id")
+    if not SESSION_ENTRY_ID_RE.fullmatch(entry):
+        _fail("dependency", path, "dependency receipt entry_id is not canonical")
+    decision = _text(value["decision_id"], path, "decision_id")
+    if not SESSION_DECISION_ID_RE.fullmatch(decision):
+        _fail("dependency", path, "dependency receipt decision_id is not canonical")
+    return WorkstreamDependencyReceipt(
+        _session_path(value["session_path"], path, "session_path"), entry, decision,
+        _id(value["receipt_id"], "rrc_", path, "receipt_id"), _digest(value["receipt_digest"], path, "receipt_digest"),
+    )
+
+
+def _dependency_from_dict(value: Any, path: str) -> WorkstreamDependency:
+    if not isinstance(value, Mapping):
+        _fail("dependency", path, "dependency must be a mapping")
+    fields = ("workstream_id", "record_id", "record_digest", "reason", "receipt")
+    _required(value, fields, path)
+    _only(value, fields, path)
+    receipt = value["receipt"]
+    return WorkstreamDependency(
+        _id(value["workstream_id"], "rwl_", path, "workstream_id"),
+        _id(value["record_id"], "rlr_", path, "record_id"),
+        _digest(value["record_digest"], path, "record_digest"),
+        _text(value["reason"], path, "reason"),
+        None if receipt is None else _dependency_receipt_from_dict(receipt, path),
+    )
+
+
+def _dependency_key(value: WorkstreamDependency) -> tuple[str, str, str, str, str]:
+    receipt = "" if value.receipt is None else json.dumps(value.receipt.as_dict(), separators=(",", ":"), ensure_ascii=False)
+    return (value.workstream_id, value.record_id, value.record_digest, value.reason, receipt)
+
+
+def _record_from_v2_dict(value: Mapping[str, Any], sections: Mapping[str, str], path: str) -> WorkstreamRecord:
+    _required(value, WORKSTREAM_RECORD_FIELDS, path)
+    _only(value, WORKSTREAM_RECORD_FIELDS, path)
+    record = _id(value["record_id"], "rlr_", path, "record_id")
+    created = _timestamp(value["created_at"], path, "created_at")
+    role = _text(value["role"], path, "role")
+    if role not in WORKSTREAM_ROLES:
+        _fail("role", path, "record role is not permitted", role=role)
+    from_phase = _text(value["from_phase"], path, "from_phase")
+    to_phase = _text(value["to_phase"], path, "to_phase")
+    if from_phase not in WORKSTREAM_PHASES or to_phase not in WORKSTREAM_PHASES:
+        _fail("phase", path, "record phase is not recognised")
+    closed_at = value["closed_at"]
+    if closed_at is not None:
+        closed_at = _timestamp(closed_at, path, "closed_at")
+    chain = _id(value["chain_id"], "rlc_", path, "chain_id")
+    parents_value = value["parents"]
+    if not isinstance(parents_value, list):
+        _fail("schema", path, "parents must be a list")
+    parents = _sorted_unique([_id(parent, "rlr_", path, "parents") for parent in parents_value], path, "parents")
+    relationship = _text(value["relationship"], path, "relationship")
+    if relationship not in WORKSTREAM_RELATIONSHIPS:
+        _fail("relationship", path, "record relationship is not recognised", relationship=relationship)
+    no_related = value["no_related_thread"]
+    if not isinstance(no_related, bool):
+        _fail("schema", path, "no_related_thread must be a boolean")
+    dependencies_value = value["depends_on"]
+    if not isinstance(dependencies_value, list):
+        _fail("schema", path, "depends_on must be a list")
+    dependencies = tuple(_dependency_from_dict(item, path) for item in dependencies_value)
+    if tuple(_dependency_key(item) for item in dependencies) != tuple(sorted(_dependency_key(item) for item in dependencies)) or len(set(_dependency_key(item) for item in dependencies)) != len(dependencies):
+        _fail("canonical-order", path, "depends_on must be sorted and unique")
+    decisions_value = value["related_decisions"]
+    if not isinstance(decisions_value, list):
+        _fail("schema", path, "related_decisions must be a list")
+    decisions = _sorted_unique([_text(item, path, "related_decisions") for item in decisions_value], path, "related_decisions")
+    expected_sections = ["Conclusion", "Reasoning"] + [name for name in ("Assumptions", "Alternatives", "Evidence", "Next step") if name in sections]
+    if list(sections) != expected_sections:
+        _fail("sections", path, "record sections are not canonical")
+    conclusion = _text(sections.get("Conclusion"), path, "Conclusion")
+    reasoning = _text(sections.get("Reasoning"), path, "Reasoning")
+    return WorkstreamRecord(record, created, role, from_phase, to_phase, closed_at, chain, parents, relationship,
+                            no_related, dependencies, _text(value["source"], path, "source"), decisions,
+                            _text(value["confidence"], path, "confidence"), _digest(value["pre_ledger_digest"], path, "pre_ledger_digest"),
+                            _digest(value["detail_digest"], path, "detail_digest"), conclusion, reasoning,
+                            sections.get("Assumptions"), sections.get("Alternatives"), sections.get("Evidence"), sections.get("Next step"))
+
+
+def _rebind_from_v2_dict(value: Mapping[str, Any], path: str) -> TrustedRebind:
+    _required(value, WORKSTREAM_REBIND_FIELDS, path)
+    _only(value, WORKSTREAM_REBIND_FIELDS, path)
+    if value["role"] != "orchestrator":
+        _fail("rebind", path, "only the orchestrator may create a rebind")
+    return TrustedRebind(
+        _id(value["record_id"], "rlr_", path, "record_id"), _timestamp(value["created_at"], path, "created_at"),
+        _text(value["from_branch"], path, "from_branch"), _text(value["to_branch"], path, "to_branch"),
+        _git_sha(value["source_tip"], path, "source_tip"), _git_sha(value["target_pre_merge_tip"], path, "target_pre_merge_tip"),
+        _git_sha(value["integration_commit"], path, "integration_commit"), _digest(value["pre_ledger_digest"], path, "pre_ledger_digest"),
+        _digest(value["detail_digest"], path, "detail_digest"), _text(value["reason"], path, "reason"),
+    )
+
+
+def _render_v2_sections(record: WorkstreamRecord) -> str:
+    values = (("Conclusion", record.conclusion), ("Reasoning", record.reasoning), ("Assumptions", record.assumptions),
+              ("Alternatives", record.alternatives), ("Evidence", record.evidence), ("Next step", record.next_step))
+    result: list[str] = []
+    for heading, body in values:
+        if body is None:
+            continue
+        body = _text(body, "record", heading)
+        if body != body.strip() or "\r" in body or "\n\n\n" in body:
+            _fail("sections", "record", "section prose must be non-empty trimmed canonical text", section=heading)
+        result.append(f"### {heading}\n{body}\n")
+    return "\n".join(result)
+
+
+def render_workstream_record(record: WorkstreamRecord, *, zero_detail_digest: bool = False) -> str:
+    metadata = _v2_yaml_mapping([(name, record.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_RECORD_FIELDS])
+    return f"## Record {record.record_id}\n\n```yaml\n{metadata}```\n\n{_render_v2_sections(record)}"
+
+
+def render_trusted_rebind(rebind: TrustedRebind, *, zero_detail_digest: bool = False) -> str:
+    metadata = _v2_yaml_mapping([(name, rebind.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_REBIND_FIELDS])
+    return f"## Rebind {rebind.record_id}\n\n```yaml\n{metadata}```\n"
+
+
+def _parse_v2_sections(raw: str, path: str) -> dict[str, str]:
+    allowed = ("Conclusion", "Reasoning", "Assumptions", "Alternatives", "Evidence", "Next step")
+    matches = list(re.finditer(r"^### (Conclusion|Reasoning|Assumptions|Alternatives|Evidence|Next step)\n", raw, re.MULTILINE))
+    if not matches or matches[0].start() != 0:
+        _fail("sections", path, "record must start with Conclusion and Reasoning sections")
+    result: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        heading = match.group(1)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+        body = raw[match.end():end]
+        if body.endswith("\n\n"):
+            body = body[:-1]
+        if body.endswith("\n"):
+            body = body[:-1]
+        if heading in result or not body or body != body.strip():
+            _fail("sections", path, "record has duplicate or non-canonical section prose", section=heading)
+        result[heading] = body
+    if tuple(result) != tuple(item for item in allowed if item in result) or "Conclusion" not in result or "Reasoning" not in result:
+        _fail("sections", path, "record sections have the wrong order")
+    return result
+
+
+def _parse_v2_entry(raw: str, path: str) -> WorkstreamEntry:
+    if raw.startswith("## Record "):
+        match = re.fullmatch(r"## Record ([^\n]+)\n\n```yaml\n(.*?)```\n\n(.*)", raw, re.DOTALL)
+        if not match:
+            _fail("record", path, "record block is malformed")
+        metadata = _parse_yaml_mapping(match.group(2), path)
+        if metadata.get("record_id") != match.group(1):
+            _fail("record", path, "record heading and metadata ID differ")
+        return _record_from_v2_dict(metadata, _parse_v2_sections(match.group(3), path), path)
+    if raw.startswith("## Rebind "):
+        match = re.fullmatch(r"## Rebind ([^\n]+)\n\n```yaml\n(.*?)```\n", raw, re.DOTALL)
+        if not match:
+            _fail("rebind", path, "rebind block is malformed")
+        metadata = _parse_yaml_mapping(match.group(2), path)
+        if metadata.get("record_id") != match.group(1):
+            _fail("rebind", path, "rebind heading and metadata ID differ")
+        return _rebind_from_v2_dict(metadata, path)
+    _fail("entry", path, "ledger contains an unsupported block")
+
+
+def render_workstream_ledger(ledger: WorkstreamLedger) -> str:
+    result = render_workstream_header(ledger.header)
+    if ledger.entries:
+        blocks = [render_workstream_record(entry) if isinstance(entry, WorkstreamRecord) else render_trusted_rebind(entry)
+                  for entry in ledger.entries]
+        result += "\n" + "\n".join(blocks)
+    _canonical_text(result, "ledger.md")
+    return result
+
+
+def _split_workstream_ledger(raw: bytes | str, path: str) -> tuple[dict[str, Any], list[str], str]:
+    text = _canonical_text(raw, path)
+    if not text.startswith("---\n"):
+        _fail("discriminator", path, "v2 ledger requires canonical front matter")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        _fail("yaml", path, "front matter is not closed")
+    header = _parse_yaml_mapping(text[4:end], path)
+    remainder = text[end + 5:]
+    if not remainder:
+        return header, [], text
+    if not remainder.startswith("\n"):
+        _fail("format", path, "ledger blocks require one blank line after header")
+    body = remainder[1:]
+    starts = list(re.finditer(r"^## (?:Record|Rebind) [^\n]+\n", body, re.MULTILINE))
+    if not starts or starts[0].start() != 0:
+        _fail("format", path, "ledger body contains no canonical record blocks")
+    entries = [body[match.start():starts[index + 1].start()] if index + 1 < len(starts) else body[match.start():]
+               for index, match in enumerate(starts)]
+    return header, entries, text
+
+
+def parse_workstream_ledger(raw: bytes | str, path: str = "ledger.md") -> WorkstreamLedger:
+    header_value, blocks, text = _split_workstream_ledger(raw, path)
+    header = _header_from_dict(header_value, path)
+    entries = tuple(_parse_v2_entry(block, path) for block in blocks)
+    ledger = WorkstreamLedger(header, entries)
+    validate_workstream_ledger(ledger, path)
+    if render_workstream_ledger(ledger) != text:
+        _fail("canonical-bytes", path, "ledger does not use the canonical v2 renderer")
+    return ledger
+
+
+def _detail_digest_for_record(record: WorkstreamRecord) -> str:
+    return workstream_detail_digest(render_workstream_record(record, zero_detail_digest=True))
+
+
+def _detail_digest_for_rebind(rebind: TrustedRebind) -> str:
+    return workstream_detail_digest(render_trusted_rebind(rebind, zero_detail_digest=True))
+
+
+def _records_by_chain(ledger: WorkstreamLedger) -> dict[str, list[WorkstreamRecord]]:
+    result: dict[str, list[WorkstreamRecord]] = {}
+    for record in ledger.records:
+        result.setdefault(record.chain_id, []).append(record)
+    return result
+
+
+def workstream_chain_heads(ledger: WorkstreamLedger, chain_id: str) -> tuple[str, ...]:
+    """Return every visible graph head, never a silently selected winner."""
+    records = _records_by_chain(ledger).get(chain_id, [])
+    if not records:
+        _fail("chain", "ledger", "chain does not exist", chain_id=chain_id)
+    parents = {parent for record in records for parent in record.parents}
+    return tuple(sorted(record.record_id for record in records if record.record_id not in parents))
+
+
+def workstream_chain_phase(ledger: WorkstreamLedger, chain_id: str) -> str:
+    records = _records_by_chain(ledger).get(chain_id, [])
+    if not records:
+        _fail("chain", "ledger", "chain does not exist", chain_id=chain_id)
+    return records[-1].to_phase
+
+
+def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md") -> None:
+    """Validate all v2 invariants that can be established from ledger bytes alone."""
+    # Header construction is deliberately repeated so direct dataclass use cannot
+    # evade schema, frozen preimage, or retention checks.
+    _header_from_dict(ledger.header.as_dict(), path)
+    seen_ids: set[str] = set()
+    records_by_id: dict[str, WorkstreamRecord] = {}
+    chains: dict[str, list[WorkstreamRecord]] = {}
+    effective_branch = ledger.header.working_branch
+    for ordinal, entry in enumerate(ledger.entries):
+        entry_path = f"{path}#{ordinal + 1}"
+        if entry.record_id in seen_ids:
+            _fail("id-collision", entry_path, "record IDs must be unique", record_id=entry.record_id)
+        seen_ids.add(entry.record_id)
+        if isinstance(entry, TrustedRebind):
+            _rebind_from_v2_dict(entry.metadata(), entry_path)
+            if entry.from_branch != effective_branch:
+                _fail("rebind", entry_path, "rebind source is not the effective owning branch", expected=effective_branch)
+            expected_id = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, entry.created_at, entry.pre_ledger_digest)
+            if entry.record_id != expected_id:
+                _fail("id", entry_path, "rebind ID does not match its frozen preimage")
+            if entry.detail_digest != _detail_digest_for_rebind(entry):
+                _fail("detail-digest", entry_path, "rebind detail digest is invalid")
+            effective_branch = entry.to_branch
+            continue
+        _record_from_v2_dict(entry.metadata(), {
+            name: value for name, value in (("Conclusion", entry.conclusion), ("Reasoning", entry.reasoning),
+                                               ("Assumptions", entry.assumptions), ("Alternatives", entry.alternatives),
+                                               ("Evidence", entry.evidence), ("Next step", entry.next_step)) if value is not None
+        }, entry_path)
+        expected_id = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, entry.created_at, entry.pre_ledger_digest)
+        if entry.record_id != expected_id:
+            _fail("id", entry_path, "record ID does not match its frozen preimage")
+        if entry.detail_digest != _detail_digest_for_record(entry):
+            _fail("detail-digest", entry_path, "record detail digest is invalid")
+        if entry.chain_id not in chains:
+            if entry.parents or entry.relationship != "no_related_thread" or entry.no_related_thread is not True:
+                _fail("root", entry_path, "a new chain requires an explicit no_related_thread root")
+            if entry.role != "planner" or entry.from_phase != "plan" or entry.to_phase != "plan" or entry.closed_at is not None:
+                _fail("phase", entry_path, "a root must be a planner-owned plan note")
+            expected_chain = workstream_chain_id(ledger.header.id_salt, ledger.header.workstream_id, entry.record_id)
+            if entry.chain_id != expected_chain:
+                _fail("id", entry_path, "root chain ID does not match its first record")
+            chains[entry.chain_id] = []
+        else:
+            if entry.no_related_thread:
+                _fail("relationship", entry_path, "only a root may declare no_related_thread")
+            current_phase = chains[entry.chain_id][-1].to_phase
+            if current_phase == "closed":
+                _fail("phase", entry_path, "a closed chain accepts no ordinary append")
+            if entry.from_phase != current_phase:
+                _fail("phase", entry_path, "record from_phase is not this chain's current phase", expected=current_phase)
+            if entry.from_phase == entry.to_phase:
+                expected_role = WORKSTREAM_PHASE_OWNERS.get(current_phase)
+                if entry.role != expected_role:
+                    _fail("phase-owner", entry_path, "only the current phase owner may add a note", expected=expected_role)
+            elif WORKSTREAM_TRANSITIONS.get((entry.from_phase, entry.to_phase)) != entry.role:
+                _fail("transition", entry_path, "record transition is not allowed for this role")
+            if entry.closed_at is not None and not (entry.role == "orchestrator" and entry.from_phase == "orchestrate" and entry.to_phase == "closed" and entry.closed_at == entry.created_at):
+                _fail("closed-at", entry_path, "closed_at is permitted only on the close transition and equals created_at")
+            if entry.closed_at is None and entry.to_phase == "closed":
+                _fail("closed-at", entry_path, "close transition requires closed_at equal to created_at")
+            if entry.parents:
+                for parent in entry.parents:
+                    source = records_by_id.get(parent)
+                    if source is None:
+                        _fail("parent", entry_path, "parent must be an earlier local record", parent=parent)
+                    if source.chain_id != entry.chain_id:
+                        _fail("parent", entry_path, "parent must stay within its own chain", parent=parent)
+            elif entry.relationship != "orphan":
+                _fail("parent", entry_path, "a non-root record without parents must explicitly be orphaned")
+            if entry.relationship == "orphan" and "orphan" not in entry.reasoning.casefold():
+                _fail("orphan-judgment", entry_path, "orphan relationship needs an explicit judgment in Reasoning")
+            if any(dependency.workstream_id == ledger.header.workstream_id for dependency in entry.depends_on):
+                _fail("dependency", entry_path, "a workstream cannot depend on itself")
+        if entry.closed_at is not None and not (entry.role == "orchestrator" and entry.from_phase == "orchestrate" and entry.to_phase == "closed" and entry.closed_at == entry.created_at):
+            _fail("closed-at", entry_path, "closed_at is invalid")
+        chains[entry.chain_id].append(entry)
+        records_by_id[entry.record_id] = entry
+
+
+@dataclass(frozen=True)
+class RetentionPreflight:
+    """Host-generated candidate, retained so adapters can prove exact replay."""
+
+    key_id: str
+    workstream_id: str
+    working_branch: str
+    base_sha: str
+    id_salt: str
+    created_at: str
+    retention_days: int
+    nonce: str
+    approved_at: str
+    expires_at: str
+    reason: str
+    session_path: str
+    entry_id: str
+
+
+@dataclass(frozen=True)
+class RetentionApproval:
+    """The host-signed payload.  Its private key never enters this module."""
+
+    preflight: RetentionPreflight
+    commit: str
+    blob: str
+    signature: str
+
+
+class RetentionPreflightVerifier:
+    """Adapter contract for the host-owned, Git-admitted 14/30-day flow."""
+
+    def admit(self, handle: object, *, working_branch: str, base_sha: str, now: datetime) -> RetentionApproval:
+        raise NotImplementedError
+
+
+def _validate_retention_preflight(preflight: RetentionPreflight, path: str = "retention preflight") -> None:
+    if not preflight.key_id or preflight.retention_days not in {14, 30}:
+        _fail("retention-approval", path, "preflight has an unsupported key or period")
+    _id(preflight.workstream_id, "rwl_", path, "workstream_id")
+    if preflight.workstream_id != workstream_id(preflight.id_salt, preflight.working_branch, preflight.base_sha, preflight.created_at):
+        _fail("retention-approval", path, "preflight workstream ID does not match its preimage")
+    if not re.fullmatch(r"[0-9a-f]{64}", preflight.id_salt) or not re.fullmatch(r"[0-9a-f]{64}", preflight.nonce):
+        _fail("retention-approval", path, "preflight salt and nonce must be 64 lowercase hex")
+    if not re.fullmatch(r"[0-9a-f]{40}", preflight.base_sha):
+        _fail("retention-approval", path, "preflight base SHA is invalid")
+    for name in ("created_at", "approved_at", "expires_at"):
+        _timestamp(getattr(preflight, name), path, name)
+    if not _as_utc(preflight.approved_at) < _as_utc(preflight.expires_at) <= _as_utc(preflight.approved_at) + timedelta(hours=24):
+        _fail("retention-approval", path, "preflight expiry must be after approval and no more than 24 hours later")
+    _session_path(preflight.session_path, path, "session_path")
+    if not SESSION_ENTRY_ID_RE.fullmatch(preflight.entry_id):
+        _fail("retention-approval", path, "preflight entry ID is invalid")
+    _text(preflight.reason, path, "reason")
+
+
+def initialize_workstream_ledger(*, working_branch: str, base_sha: str, retention_days: int = 7,
+                                 clock: Callable[[], datetime] | None = None,
+                                 entropy: Callable[[int], bytes] = os.urandom,
+                                 retention_preflight_handle: object | None = None,
+                                 retention_verifier: RetentionPreflightVerifier | None = None) -> WorkstreamLedger:
+    """Create an empty canonical ledger without accepting caller-selected identity.
+
+    The extension path only accepts an opaque host handle.  Caller-supplied IDs,
+    timestamps, approval text, and signature material are deliberately absent
+    from this API.
+    """
+    if not isinstance(working_branch, str) or not working_branch:
+        _fail("branch", "ledger init", "working branch must be non-empty")
+    if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+        _fail("base-sha", "ledger init", "base_sha must be 40 lowercase hex")
+    if retention_days not in {7, 14, 30} or isinstance(retention_days, bool):
+        _fail("retention", "ledger init", "retention must be exactly 7, 14, or 30 days")
+    now = (clock or (lambda: datetime.now(timezone.utc)))()
+    if retention_days == 7:
+        if retention_preflight_handle is not None or retention_verifier is not None:
+            _fail("retention", "ledger init", "seven-day init accepts no approval or preflight")
+        salt = entropy(32).hex()
+        created = _clock_timestamp(lambda: now)
+        header = WorkstreamLedgerHeader(workstream_id(salt, working_branch, base_sha, created), working_branch, base_sha,
+                                        created, 7, None, None, salt)
+    else:
+        if retention_preflight_handle is None or retention_verifier is None:
+            _fail("retention-approval", "ledger init", "extended retention requires a host-issued preflight handle")
+        approval = retention_verifier.admit(retention_preflight_handle, working_branch=working_branch, base_sha=base_sha, now=now)
+        _validate_retention_preflight(approval.preflight)
+        preflight = approval.preflight
+        if preflight.working_branch != working_branch or preflight.base_sha != base_sha or preflight.retention_days != retention_days:
+            _fail("retention-approval", "ledger init", "host preflight does not bind this branch, base, and period")
+        if not re.fullmatch(r"ed25519:[0-9a-f]{128}", approval.signature):
+            _fail("retention-approval", "ledger init", "host approval signature is not canonical")
+        receipt = RetentionExtensionReceipt(preflight.nonce, preflight.session_path, preflight.entry_id,
+                                            _git_sha(approval.commit, "ledger init", "commit"), _git_sha(approval.blob, "ledger init", "blob"), approval.signature)
+        header = WorkstreamLedgerHeader(preflight.workstream_id, working_branch, base_sha, preflight.created_at,
+                                        retention_days, receipt, preflight.key_id, preflight.id_salt)
+    ledger = WorkstreamLedger(header)
+    validate_workstream_ledger(ledger)
+    return ledger
+
+
+@dataclass(frozen=True)
+class WorkstreamAppendRequest:
+    """Caller-authored content only; writer-owned fields are intentionally absent."""
+
+    role: str
+    chain_id: str | None
+    relationship: str
+    parents: tuple[str, ...]
+    no_related_thread: bool
+    conclusion: str
+    reasoning: str
+    source: str
+    confidence: str
+    depends_on: tuple[WorkstreamDependency, ...] = ()
+    related_decisions: tuple[str, ...] = ()
+    assumptions: str | None = None
+    alternatives: str | None = None
+    evidence: str | None = None
+    next_step: str | None = None
+    to_phase: str | None = None
+
+
+def _append_pre_digest(ledger: WorkstreamLedger) -> str:
+    return workstream_ledger_digest(render_workstream_ledger(ledger))
+
+
+def _append_record(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *, created_at: str,
+                   pre_ledger_digest: str, branch: str) -> WorkstreamRecord:
+    validate_workstream_ledger(ledger)
+    if branch != ledger.effective_branch:
+        _fail("branch-owner", "ledger append", "branch is not the current effective ledger owner", expected=ledger.effective_branch, actual=branch)
+    if request.role not in WORKSTREAM_ROLES:
+        _fail("role", "ledger append", "role is not permitted", role=request.role)
+    if request.relationship not in WORKSTREAM_RELATIONSHIPS:
+        _fail("relationship", "ledger append", "relationship is not permitted")
+    if not isinstance(request.no_related_thread, bool):
+        _fail("schema", "ledger append", "no_related_thread must be a boolean")
+    parents = _sorted_unique(tuple(request.parents), "ledger append", "parents")
+    for parent in parents:
+        _id(parent, "rlr_", "ledger append", "parents")
+    decisions = _sorted_unique(tuple(request.related_decisions), "ledger append", "related_decisions")
+    dependencies = tuple(request.depends_on)
+    if tuple(_dependency_key(item) for item in dependencies) != tuple(sorted(_dependency_key(item) for item in dependencies)) or len(set(_dependency_key(item) for item in dependencies)) != len(dependencies):
+        _fail("canonical-order", "ledger append", "depends_on must be sorted and unique")
+    if request.chain_id is None:
+        if request.role != "planner" or request.relationship != "no_related_thread" or not request.no_related_thread or parents:
+            _fail("root", "ledger append", "only a planner may open a root with no_related_thread")
+        from_phase = to_phase = "plan"
+        identifier = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, created_at, pre_ledger_digest)
+        chain = workstream_chain_id(ledger.header.id_salt, ledger.header.workstream_id, identifier)
+    else:
+        chain = _id(request.chain_id, "rlc_", "ledger append", "chain_id")
+        current = workstream_chain_phase(ledger, chain)
+        if current == "closed":
+            _fail("phase", "ledger append", "a closed chain cannot be appended")
+        if request.no_related_thread or request.relationship == "no_related_thread":
+            _fail("relationship", "ledger append", "no_related_thread is only legal for a root")
+        if not parents and request.relationship != "orphan":
+            _fail("parent", "ledger append", "a non-root record needs local parents or an orphan judgment")
+        known = {record.record_id: record for record in ledger.records}
+        for parent in parents:
+            target = known.get(parent)
+            if target is None or target.chain_id != chain:
+                _fail("parent", "ledger append", "parent must be an existing record in this chain", parent=parent)
+        if request.relationship == "orphan" and "orphan" not in request.reasoning.casefold():
+            _fail("orphan-judgment", "ledger append", "orphan relationship needs an explicit reasoning judgment")
+        owner = WORKSTREAM_PHASE_OWNERS[current]
+        transitions = [(candidate, owner_role) for (from_value, candidate), owner_role in WORKSTREAM_TRANSITIONS.items()
+                       if from_value == current and owner_role == request.role and candidate != "closed"]
+        if request.to_phase is not None:
+            if request.to_phase not in WORKSTREAM_PHASES:
+                _fail("phase", "ledger append", "requested target phase is not recognised")
+            if request.to_phase == current:
+                if request.role != owner:
+                    _fail("phase-owner", "ledger append", "only the current phase owner may add a note", expected=owner)
+                from_phase = to_phase = current
+            elif WORKSTREAM_TRANSITIONS.get((current, request.to_phase)) != request.role or request.to_phase == "closed":
+                _fail("transition", "ledger append", "requested transition is not permitted")
+            else:
+                from_phase, to_phase = current, request.to_phase
+        elif len(transitions) == 1:
+            from_phase, to_phase = current, transitions[0][0]
+        elif not transitions and request.role == owner:
+            from_phase = to_phase = current
+        elif len(transitions) > 1:
+            _fail("transition", "ledger append", "role has multiple possible transitions; choose to_phase explicitly")
+        else:
+            _fail("phase-owner", "ledger append", "role cannot append to this chain phase", expected=owner)
+        identifier = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, created_at, pre_ledger_digest)
+    if any(dependency.workstream_id == ledger.header.workstream_id for dependency in dependencies):
+        _fail("dependency", "ledger append", "a workstream cannot depend on itself")
+    draft = WorkstreamRecord(identifier, created_at, request.role, from_phase, to_phase, None, chain, parents,
+                             request.relationship, request.no_related_thread, dependencies, request.source, decisions,
+                             request.confidence, pre_ledger_digest, "sha256:" + "0" * 64, request.conclusion, request.reasoning,
+                             request.assumptions, request.alternatives, request.evidence, request.next_step)
+    detail = _detail_digest_for_record(draft)
+    return WorkstreamRecord(**{**draft.__dict__, "detail_digest": detail})
+
+
+def plan_workstream_append(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *, expected_head: str,
+                           actual_head: str, pre_ledger_digest: str, branch: str,
+                           clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    """Return the next ledger after all compare-and-swap and phase checks.
+
+    This pure primitive does not write.  Surface adapters must obtain both the
+    Git tip and digest immediately before invoking it, then atomically write the
+    exact rendered result.
+    """
+    if expected_head != actual_head:
+        _fail("stale_head", "ledger append", "branch tip changed; reload and re-judge", expected=expected_head, actual=actual_head)
+    actual_digest = _append_pre_digest(ledger)
+    if pre_ledger_digest != actual_digest:
+        _fail("stale_ledger_digest", "ledger append", "ledger bytes changed; reload and re-judge", expected=pre_ledger_digest, actual=actual_digest)
+    created_at = _clock_timestamp(clock)
+    record = _append_record(ledger, request, created_at=created_at, pre_ledger_digest=actual_digest, branch=branch)
+    result = WorkstreamLedger(ledger.header, ledger.entries + (record,))
+    validate_workstream_ledger(result)
+    return result
+
+
+@dataclass(frozen=True)
+class WorkstreamReceipt:
+    """A compact durable session receipt used after temporary blocks expire."""
+
+    workstream_id: str
+    chain_id: str
+    record_id: str
+    detail_digest: str
+    session_path: str
+    entry_id: str
+    decision_id: str
+    receipt_id: str
+    receipt_digest: str
+    disposition: str
+
+    def dependency_locator(self) -> WorkstreamDependencyReceipt:
+        return WorkstreamDependencyReceipt(self.session_path, self.entry_id, self.decision_id, self.receipt_id, self.receipt_digest)
+
+
+def _validate_workstream_receipt(receipt: WorkstreamReceipt, path: str = "receipt") -> None:
+    _id(receipt.workstream_id, "rwl_", path, "workstream_id")
+    _id(receipt.chain_id, "rlc_", path, "chain_id")
+    _id(receipt.record_id, "rlr_", path, "record_id")
+    _digest(receipt.detail_digest, path, "detail_digest")
+    _dependency_receipt_from_dict(receipt.dependency_locator().as_dict(), path)
+    _text(receipt.disposition, path, "disposition")
+
+
+@dataclass(frozen=True)
+class DependencyResolution:
+    dependency: WorkstreamDependency
+    source: str  # active-ledger or durable-receipt
+    receipt: WorkstreamReceipt | None = None
+
+
+def resolve_workstream_dependency(dependency: WorkstreamDependency, *, source_workstream_id: str,
+                                  active_ledgers: Iterable[WorkstreamLedger] = (),
+                                  durable_receipts: Iterable[WorkstreamReceipt] = ()) -> DependencyResolution:
+    """Resolve by active exact record first, otherwise by an exact durable receipt."""
+    if dependency.workstream_id == source_workstream_id:
+        _fail("dependency", "dependency", "a workstream cannot depend on itself")
+    active = [ledger for ledger in active_ledgers if ledger.header.workstream_id == dependency.workstream_id]
+    if len(active) > 1:
+        _fail("dependency", "dependency", "dependency workstream is ambiguously active")
+    if active:
+        matches = [record for record in active[0].records if record.record_id == dependency.record_id]
+        if matches:
+            if matches[0].detail_digest != dependency.record_digest:
+                _fail("dependency", "dependency", "active dependency record digest changed")
+            return DependencyResolution(dependency, "active-ledger")
+        # A live ledger that claims the target, but lacks the cited record, is a
+        # changed/missing target rather than a licence to silently switch proof.
+        if dependency.receipt is None:
+            _fail("dependency", "dependency", "active dependency target is missing and has no durable fallback")
+    if dependency.receipt is None:
+        _fail("dependency", "dependency", "expired dependency requires a durable receipt fallback")
+    candidates: list[WorkstreamReceipt] = []
+    locator = dependency.receipt
+    for receipt in durable_receipts:
+        _validate_workstream_receipt(receipt)
+        if (receipt.workstream_id == dependency.workstream_id and receipt.record_id == dependency.record_id
+                and receipt.detail_digest == dependency.record_digest and receipt.dependency_locator() == locator):
+            candidates.append(receipt)
+    if len(candidates) != 1:
+        _fail("dependency", "dependency", "dependency fallback does not resolve to one exact durable receipt", matches=len(candidates))
+    return DependencyResolution(dependency, "durable-receipt", candidates[0])
+
+
+@dataclass(frozen=True)
+class WorkstreamBoardItem:
+    path: str
+    status: str  # valid, malformed, unsupported
+    raw_digest: str | None
+    workstream_id: str | None
+    working_branch: str | None
+    effective_branch: str | None
+    diagnostic: ReflectionDiagnostic | None = None
+    ledger: WorkstreamLedger | None = None
+
+
+@dataclass(frozen=True)
+class WorkstreamBoardView:
+    items: tuple[WorkstreamBoardItem, ...]
+
+    @property
+    def valid_ledgers(self) -> tuple[WorkstreamLedger, ...]:
+        return tuple(item.ledger for item in self.items if item.status == "valid" and item.ledger is not None)
+
+    @property
+    def exit_code(self) -> int:
+        return 0 if all(item.status == "valid" for item in self.items) else 1
+
+
+def _recover_v2_header(raw: bytes, path: str) -> tuple[str | None, str | None, str | None]:
+    """Best-effort information for diagnostics; never turns malformed bytes valid."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, None, None
+    if not text.startswith("---\n"):
+        return None, None, None
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        return None, None, None
+    try:
+        header = _parse_yaml_mapping(text[4:end], path)
+    except ReflectionValidationError:
+        return None, None, None
+    return header.get("workstream_id") if isinstance(header.get("workstream_id"), str) else None, \
+        header.get("working_branch") if isinstance(header.get("working_branch"), str) else None, \
+        header.get("schema") if isinstance(header.get("schema"), str) else None
+
+
+def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTION_ROOT) -> WorkstreamBoardView:
+    """Read-only, complete projection of every immediate active-ledger candidate."""
+    root = Path(cwd).resolve()
+    active = root / Path(active_root)
+    if not active.exists():
+        return WorkstreamBoardView(())
+    items: list[WorkstreamBoardItem] = []
+    for candidate in sorted((item for item in active.iterdir() if item.is_dir()), key=lambda item: item.name):
+        ledger_path = candidate / WORKSTREAM_LEDGER_NAME
+        relative = (PurePosixPath(active_root) / candidate.name / WORKSTREAM_LEDGER_NAME).as_posix()
+        if not ledger_path.is_file():
+            items.append(WorkstreamBoardItem(relative, "malformed", None, None, None, None,
+                                              ReflectionDiagnostic("missing-ledger", relative, "active candidate has no ledger.md", {})))
+            continue
+        raw = ledger_path.read_bytes()
+        raw_digest = "sha256:" + sha256(raw).hexdigest()
+        workstream, branch, schema = _recover_v2_header(raw, relative)
+        try:
+            ledger = parse_workstream_ledger(raw, relative)
+        except ReflectionValidationError as exc:
+            status = "unsupported" if schema is not None and schema != WORKSTREAM_LEDGER_SCHEMA else "malformed"
+            items.append(WorkstreamBoardItem(relative, status, raw_digest, workstream, branch, None, exc.diagnostic))
+            continue
+        if candidate.name != ledger.header.workstream_id:
+            items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, ledger.header.workstream_id,
+                                              ledger.header.working_branch, ledger.effective_branch,
+                                              ReflectionDiagnostic("path", relative, "ledger directory must equal workstream_id", {})))
+            continue
+        if (candidate / MANIFEST_NAME).exists():
+            items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, ledger.header.workstream_id,
+                                              ledger.header.working_branch, ledger.effective_branch,
+                                              ReflectionDiagnostic("mixed-family", relative, "v2 ledger directory cannot contain manifest.yaml", {})))
+            continue
+        items.append(WorkstreamBoardItem(relative, "valid", raw_digest, ledger.header.workstream_id,
+                                         ledger.header.working_branch, ledger.effective_branch, None, ledger))
+    return WorkstreamBoardView(tuple(items))
+
+
+def validate_workstream_init_collisions(cwd: Path | str, *, working_branch: str, workstream_id: str,
+                                        active_root: str = REFLECTION_ROOT) -> None:
+    """Fail closed on every active candidate, including a malformed ownerless one."""
+    board = workstream_board_view(cwd, active_root=active_root)
+    for item in board.items:
+        if item.status != "valid":
+            _fail("branch-collision", item.path, "malformed or unsupported active candidate blocks init", status=item.status)
+        if item.workstream_id == workstream_id:
+            _fail("workstream-collision", item.path, "workstream ID is already active")
+        if item.effective_branch == working_branch:
+            _fail("branch-collision", item.path, "an active ledger already owns this branch", branch=working_branch)
+
+
+@dataclass(frozen=True)
+class TrustedRebindToken:
+    """Opaque integration coordinator capability; callers cannot choose a target branch."""
+
+    token: str
+    workstream_id: str
+    source_branch: str
+    source_tip: str
+    target_branch: str
+    target_pre_merge_tip: str
+    pre_ledger_digest: str
+
+
+class TrustedRebindVerifier:
+    """Host adapter which validates the opaque integration preview token."""
+
+    def verify(self, token: TrustedRebindToken, *, integration_commit: str, current_target_tip: str) -> bool:
+        raise NotImplementedError
+
+
+def preview_trusted_rebind(ledger: WorkstreamLedger, *, source_tip: str, target_branch: str,
+                           target_pre_merge_tip: str, token_factory: Callable[[], str]) -> TrustedRebindToken:
+    validate_workstream_ledger(ledger)
+    return TrustedRebindToken(_text(token_factory(), "rebind preview", "token"), ledger.header.workstream_id,
+                              ledger.effective_branch, _git_sha(source_tip, "rebind preview", "source_tip"),
+                              _text(target_branch, "rebind preview", "target_branch"),
+                              _git_sha(target_pre_merge_tip, "rebind preview", "target_pre_merge_tip"),
+                              _append_pre_digest(ledger))
+
+
+def apply_trusted_rebind(ledger: WorkstreamLedger, token: TrustedRebindToken, *, integration_commit: str,
+                         current_target_tip: str, verifier: TrustedRebindVerifier,
+                         reason: str, clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    """Append the only v2 ownership transfer record after verified integration."""
+    validate_workstream_ledger(ledger)
+    pre_digest = _append_pre_digest(ledger)
+    if token.workstream_id != ledger.header.workstream_id or token.source_branch != ledger.effective_branch or token.pre_ledger_digest != pre_digest:
+        _fail("rebind", "ledger rebind", "token is not bound to this current ledger state")
+    integration_commit = _git_sha(integration_commit, "ledger rebind", "integration_commit")
+    if current_target_tip != integration_commit:
+        _fail("stale_head", "ledger rebind", "integration target is not at the verified integration commit", expected=integration_commit, actual=current_target_tip)
+    if not verifier.verify(token, integration_commit=integration_commit, current_target_tip=current_target_tip):
+        _fail("rebind", "ledger rebind", "host did not verify the trusted integration token")
+    created = _clock_timestamp(clock)
+    identifier = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, created, pre_digest)
+    draft = TrustedRebind(identifier, created, token.source_branch, token.target_branch, token.source_tip,
+                          token.target_pre_merge_tip, integration_commit, pre_digest, "sha256:" + "0" * 64, reason)
+    rebind = TrustedRebind(**{**draft.__dict__, "detail_digest": _detail_digest_for_rebind(draft)})
+    result = WorkstreamLedger(ledger.header, ledger.entries + (rebind,))
+    validate_workstream_ledger(result)
+    return result
+
+
+def _receipt_coverage(ledger: WorkstreamLedger, receipts: Iterable[WorkstreamReceipt], chain_id: str) -> dict[str, WorkstreamReceipt]:
+    records = _records_by_chain(ledger).get(chain_id, [])
+    expected = {record.record_id: record for record in records}
+    covered: dict[str, WorkstreamReceipt] = {}
+    for receipt in receipts:
+        _validate_workstream_receipt(receipt)
+        if receipt.workstream_id != ledger.header.workstream_id or receipt.chain_id != chain_id:
+            continue
+        target = expected.get(receipt.record_id)
+        if target is None or target.detail_digest != receipt.detail_digest:
+            _fail("receipt", "chain close", "receipt does not identify an exact chain member", record_id=receipt.record_id)
+        expected_receipt_id = workstream_receipt_id(ledger.header.id_salt, ledger.header.workstream_id, chain_id, target.detail_digest)
+        if receipt.receipt_id != expected_receipt_id:
+            _fail("receipt", "chain close", "receipt ID does not match its frozen workstream preimage", record_id=receipt.record_id)
+        old = covered.get(receipt.record_id)
+        if old is not None and old != receipt:
+            _fail("receipt", "chain close", "conflicting duplicate receipt coverage", record_id=receipt.record_id)
+        covered[receipt.record_id] = receipt
+    return covered
+
+
+def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[WorkstreamReceipt],
+                                expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
+                                conclusion: str, reasoning: str, source: str, confidence: str,
+                                clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    """Create the post-integration orchestrator close record for exactly one chain."""
+    if branch != ledger.effective_branch or not ledger.rebinds:
+        _fail("close-authority", "chain close", "close requires a trusted rebind on its integration branch")
+    if expected_head != actual_head:
+        _fail("stale_head", "chain close", "branch tip changed; reload and re-judge", expected=expected_head, actual=actual_head)
+    actual_digest = _append_pre_digest(ledger)
+    if pre_ledger_digest != actual_digest:
+        _fail("stale_ledger_digest", "chain close", "ledger bytes changed; reload and re-judge", expected=pre_ledger_digest, actual=actual_digest)
+    if workstream_chain_phase(ledger, chain_id) != "orchestrate":
+        _fail("close", "chain close", "only an orchestrate-phase chain can close")
+    coverage = _receipt_coverage(ledger, receipts, chain_id)
+    expected_members = {record.record_id for record in _records_by_chain(ledger)[chain_id]}
+    if set(coverage) != expected_members:
+        _fail("receipt", "chain close", "every existing chain member needs one durable receipt", missing=sorted(expected_members - set(coverage)))
+    heads = workstream_chain_heads(ledger, chain_id)
+    created = _clock_timestamp(clock)
+    identifier = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, created, actual_digest)
+    draft = WorkstreamRecord(identifier, created, "orchestrator", "orchestrate", "closed", created, chain_id, heads,
+                             "combines" if len(heads) > 1 else "responds", False, (), source, (), confidence,
+                             actual_digest, "sha256:" + "0" * 64, conclusion, reasoning)
+    close = WorkstreamRecord(**{**draft.__dict__, "detail_digest": _detail_digest_for_record(draft)})
+    result = WorkstreamLedger(ledger.header, ledger.entries + (close,))
+    validate_workstream_ledger(result)
+    return result
+
+
+@dataclass(frozen=True)
+class WorkstreamExpiryPreview:
+    expected_head: str
+    pre_ledger_digest: str
+    removed_chain_ids: tuple[str, ...]
+    removed_record_ids: tuple[str, ...]
+    post_ledger_digest: str
+    post_ledger: WorkstreamLedger
+    git_blobs_remain: bool = True
+    privacy_grade_erasure: bool = False
+
+
+def _chain_closed_at(ledger: WorkstreamLedger, chain_id: str) -> str:
+    records = _records_by_chain(ledger).get(chain_id, [])
+    if not records or records[-1].to_phase != "closed" or records[-1].closed_at is None:
+        _fail("expiry", "ledger expiry", "chain is not closed", chain_id=chain_id)
+    return records[-1].closed_at
+
+
+def _validate_expiry_dependencies(ledger: WorkstreamLedger, removed_chain_ids: set[str]) -> None:
+    removed_records = {record.record_id for chain in removed_chain_ids for record in _records_by_chain(ledger).get(chain, [])}
+    for record in ledger.records:
+        if record.chain_id in removed_chain_ids:
+            continue
+        if record.to_phase == "closed":
+            continue
+        for dependency in record.depends_on:
+            if dependency.workstream_id == ledger.header.workstream_id and dependency.record_id in removed_records and dependency.receipt is None:
+                _fail("dependency", "ledger expiry", "open dependent lacks a durable fallback for removed target", record_id=record.record_id)
+
+
+def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, chain_ids: Iterable[str], now: datetime,
+                               receipts: Iterable[WorkstreamReceipt], early: bool = False,
+                               early_approval_verifier: Callable[[str], bool] | None = None,
+                               promoted_chain_ids: Iterable[str] = ()) -> WorkstreamExpiryPreview:
+    validate_workstream_ledger(ledger)
+    if not ledger.rebinds:
+        _fail("expiry-authority", "ledger expiry", "expiry requires a trusted rebind on the integration branch")
+    selected = tuple(sorted(set(chain_ids)))
+    if not selected:
+        _fail("expiry", "ledger expiry", "expiry must select at least one complete chain")
+    promoted = set(promoted_chain_ids)
+    for chain in selected:
+        _id(chain, "rlc_", "ledger expiry", "chain_id")
+        closed_at = _chain_closed_at(ledger, chain)
+        coverage = _receipt_coverage(ledger, receipts, chain)
+        members = _records_by_chain(ledger)[chain]
+        if set(coverage) != {record.record_id for record in members}:
+            _fail("receipt", "ledger expiry", "expired chain lacks complete receipt coverage", chain_id=chain)
+        if early:
+            if chain in promoted or early_approval_verifier is None or not early_approval_verifier(chain):
+                _fail("early-expiry", "ledger expiry", "early cleanup needs verified live approval for an unpromoted chain", chain_id=chain)
+        elif now.astimezone(timezone.utc) < _as_utc(closed_at) + timedelta(days=ledger.header.reflection_retention_days):
+            _fail("expiry", "ledger expiry", "chain retention window has not elapsed", chain_id=chain)
+    _validate_expiry_dependencies(ledger, set(selected))
+    retained = tuple(entry for entry in ledger.entries if not (isinstance(entry, WorkstreamRecord) and entry.chain_id in set(selected)))
+    post = WorkstreamLedger(ledger.header, retained)
+    validate_workstream_ledger(post)
+    removed = tuple(sorted(record.record_id for record in ledger.records if record.chain_id in set(selected)))
+    return WorkstreamExpiryPreview(expected_head, _append_pre_digest(ledger), selected, removed, _append_pre_digest(post), post)
+
+
+def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryPreview, *, actual_head: str,
+                            actual_ledger_digest: str | None = None) -> WorkstreamLedger:
+    if actual_head != preview.expected_head:
+        _fail("stale_head", "ledger expiry", "branch tip changed after expiry preview", expected=preview.expected_head, actual=actual_head)
+    actual_digest = actual_ledger_digest or _append_pre_digest(ledger)
+    if actual_digest != preview.pre_ledger_digest:
+        _fail("stale_ledger_digest", "ledger expiry", "ledger bytes changed after expiry preview", expected=preview.pre_ledger_digest, actual=actual_digest)
+    if _append_pre_digest(preview.post_ledger) != preview.post_ledger_digest:
+        _fail("expiry", "ledger expiry", "expiry preview post bytes no longer match their digest")
+    return preview.post_ledger
+
+
+RETENTION_PREFLIGHT_FIELDS = (
+    "schema", "version", "key_id", "id_domain", "id_kind", "workstream_id", "working_branch", "base_sha",
+    "id_salt", "created_at", "retention_days", "scope", "chain_id", "nonce", "approved_at", "expires_at",
+    "reason", "session_path", "entry_id",
+)
+RETENTION_APPROVAL_FIELDS = RETENTION_PREFLIGHT_FIELDS + ("commit", "blob", "signature")
+
+
+def _retention_preflight_mapping(preflight: RetentionPreflight) -> dict[str, Any]:
+    return {
+        "schema": "memory-seed/reflection-retention-preflight", "version": 2, "key_id": preflight.key_id,
+        "id_domain": "memory-seed/reflection-workstream-ledger/v2", "id_kind": "workstream",
+        "workstream_id": preflight.workstream_id, "working_branch": preflight.working_branch, "base_sha": preflight.base_sha,
+        "id_salt": preflight.id_salt, "created_at": preflight.created_at, "retention_days": preflight.retention_days,
+        "scope": "ledger", "chain_id": None, "nonce": preflight.nonce, "approved_at": preflight.approved_at,
+        "expires_at": preflight.expires_at, "reason": preflight.reason, "session_path": preflight.session_path,
+        "entry_id": preflight.entry_id,
+    }
+
+
+def render_retention_preflight(preflight: RetentionPreflight) -> str:
+    _validate_retention_preflight(preflight)
+    values = _retention_preflight_mapping(preflight)
+    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_PREFLIGHT_FIELDS])
+
+
+def retention_preflight_from_dict(value: Mapping[str, Any], path: str = "retention-preflight.yaml") -> RetentionPreflight:
+    _required(value, RETENTION_PREFLIGHT_FIELDS, path)
+    _only(value, RETENTION_PREFLIGHT_FIELDS, path)
+    if value["schema"] != "memory-seed/reflection-retention-preflight" or value["version"] != 2 or value["id_domain"] != "memory-seed/reflection-workstream-ledger/v2" or value["id_kind"] != "workstream" or value["scope"] != "ledger" or value["chain_id"] is not None:
+        _fail("retention-approval", path, "retention preflight discriminator or scope is invalid")
+    result = RetentionPreflight(_text(value["key_id"], path, "key_id"), _text(value["workstream_id"], path, "workstream_id"),
+                                _text(value["working_branch"], path, "working_branch"), _text(value["base_sha"], path, "base_sha"),
+                                _text(value["id_salt"], path, "id_salt"), _text(value["created_at"], path, "created_at"),
+                                value["retention_days"], _text(value["nonce"], path, "nonce"),
+                                _text(value["approved_at"], path, "approved_at"), _text(value["expires_at"], path, "expires_at"),
+                                _text(value["reason"], path, "reason"), _session_path(value["session_path"], path, "session_path"),
+                                _text(value["entry_id"], path, "entry_id"))
+    _validate_retention_preflight(result, path)
+    return result
+
+
+def parse_retention_preflight(raw: bytes | str, path: str = "retention-preflight.yaml") -> RetentionPreflight:
+    text = _canonical_text(raw, path)
+    result = retention_preflight_from_dict(_parse_yaml_mapping(text, path), path)
+    if render_retention_preflight(result) != text:
+        _fail("canonical-bytes", path, "retention preflight is not canonical")
+    return result
+
+
+def _retention_approval_mapping(approval: RetentionApproval, *, include_signature: bool) -> dict[str, Any]:
+    result = _retention_preflight_mapping(approval.preflight)
+    result["schema"] = "memory-seed/reflection-retention-approval"
+    result["commit"] = approval.commit
+    result["blob"] = approval.blob
+    if include_signature:
+        result["signature"] = approval.signature
+    return result
+
+
+def render_retention_approval(approval: RetentionApproval) -> str:
+    _validate_retention_preflight(approval.preflight, "retention approval")
+    if not re.fullmatch(r"ed25519:[0-9a-f]{128}", approval.signature):
+        _fail("retention-approval", "retention approval", "approval signature is invalid")
+    values = _retention_approval_mapping(approval, include_signature=True)
+    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS])
+
+
+def retention_approval_payload(approval: RetentionApproval) -> bytes:
+    values = _retention_approval_mapping(approval, include_signature=False)
+    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS[:-1]]).encode("utf-8")
+
+
+def retention_approval_from_dict(value: Mapping[str, Any], path: str = "retention-approval.yaml") -> RetentionApproval:
+    _required(value, RETENTION_APPROVAL_FIELDS, path)
+    _only(value, RETENTION_APPROVAL_FIELDS, path)
+    if value["schema"] != "memory-seed/reflection-retention-approval":
+        _fail("retention-approval", path, "retention approval schema is invalid")
+    preflight_fields = {name: value[name] for name in RETENTION_PREFLIGHT_FIELDS}
+    preflight_fields["schema"] = "memory-seed/reflection-retention-preflight"
+    preflight = retention_preflight_from_dict(preflight_fields, path)
+    result = RetentionApproval(preflight, _git_sha(value["commit"], path, "commit"), _git_sha(value["blob"], path, "blob"),
+                               _text(value["signature"], path, "signature"))
+    if not re.fullmatch(r"ed25519:[0-9a-f]{128}", result.signature):
+        _fail("retention-approval", path, "retention approval signature is invalid")
+    return result
+
+
+def parse_retention_approval(raw: bytes | str, path: str = "retention-approval.yaml") -> RetentionApproval:
+    text = _canonical_text(raw, path)
+    result = retention_approval_from_dict(_parse_yaml_mapping(text, path), path)
+    if render_retention_approval(result) != text:
+        _fail("canonical-bytes", path, "retention approval is not canonical")
+    return result
+
+
+@dataclass(frozen=True)
+class RetentionApprovalTrust:
+    key_id: str
+    public_key: str
+
+
+def validate_retention_approval_admission(header: WorkstreamLedgerHeader, approval: RetentionApproval, *,
+                                          trust: RetentionApprovalTrust, now: datetime,
+                                          session_contains_preflight: Callable[[RetentionPreflight, str, str], bool],
+                                          commit_is_reachable: Callable[[str], bool],
+                                          object_at: Callable[[str, str], str | None],
+                                          admitted_headers: Iterable[WorkstreamLedgerHeader] = ()) -> None:
+    """Validate all host/Git supplied facts without accepting caller candidate fields.
+
+    The callbacks deliberately expose facts, not arbitrary policy: adapters own
+    Git traversal and session parsing, while this kernel owns every exact
+    identity, signature, binding, expiry, and replay comparison.
+    """
+    _header_from_dict(header.as_dict(), "ledger header")
+    _validate_retention_preflight(approval.preflight, "retention approval")
+    if header.reflection_retention_days not in {14, 30} or header.retention_extension_receipt is None:
+        _fail("retention-approval", "ledger header", "only extended headers can admit an approval")
+    if trust.key_id != header.retention_approval_key_id or trust.key_id != approval.preflight.key_id:
+        _fail("retention-approval", "ledger header", "trust key ID does not bind the header and approval")
+    if not re.fullmatch(r"ed25519:[0-9a-f]{64}", trust.public_key):
+        _fail("retention-approval", "trust anchor", "trusted public key is not canonical")
+    preflight = approval.preflight
+    common = ("workstream_id", "working_branch", "base_sha", "id_salt", "created_at", "retention_days", "nonce",
+              "session_path", "entry_id")
+    expected = {"workstream_id": header.workstream_id, "working_branch": header.working_branch, "base_sha": header.base_sha,
+                "id_salt": header.id_salt, "created_at": header.created_at, "retention_days": header.reflection_retention_days,
+                "nonce": header.retention_extension_receipt.nonce, "session_path": header.retention_extension_receipt.session_path,
+                "entry_id": header.retention_extension_receipt.entry_id}
+    for name in common:
+        if getattr(preflight, name) != expected[name]:
+            _fail("retention-approval", "ledger header", "approval preflight does not exactly bind header", field=name)
+    receipt = header.retention_extension_receipt
+    if receipt.commit != approval.commit or receipt.blob != approval.blob or receipt.signature != approval.signature:
+        _fail("retention-approval", "ledger header", "header locator does not exactly equal signed approval")
+    if now.astimezone(timezone.utc) >= _as_utc(preflight.expires_at):
+        _fail("retention-approval", "retention approval", "retention approval has expired")
+    if not commit_is_reachable(approval.commit) or object_at(approval.commit, preflight.session_path) != approval.blob:
+        _fail("retention-approval", "retention approval", "approval locator is not Git-admitted")
+    if not session_contains_preflight(preflight, approval.commit, approval.blob):
+        _fail("retention-approval", "retention approval", "committed session does not contain exact preflight")
+    if not ed25519_verify(bytes.fromhex(trust.public_key[len("ed25519:"):]), retention_approval_payload(approval), bytes.fromhex(approval.signature[len("ed25519:"):])):
+        _fail("retention-approval", "retention approval", "approval signature does not verify under the admitted key")
+    nonce_identity = ("memory-seed/reflection-retention-approval", 2, preflight.key_id, preflight.nonce)
+    locator_identity = (preflight.session_path, preflight.entry_id, approval.commit, approval.blob)
+    for other in admitted_headers:
+        if other.workstream_id == header.workstream_id or other.retention_extension_receipt is None:
+            continue
+        other_nonce = ("memory-seed/reflection-retention-approval", 2, other.retention_approval_key_id, other.retention_extension_receipt.nonce)
+        other_locator = (other.retention_extension_receipt.session_path, other.retention_extension_receipt.entry_id,
+                         other.retention_extension_receipt.commit, other.retention_extension_receipt.blob)
+        if nonce_identity == other_nonce or locator_identity == other_locator:
+            _fail("retention-approval", "ledger header", "approval nonce or locator was already consumed")
+
+
+def _atomic_write_new(path: Path, raw: bytes) -> None:
+    if path.exists() or path.is_symlink():
+        _fail("overwrite", path.as_posix(), "guarded init refuses to overwrite an existing file")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = path.with_name(path.name + ".tmp")
+    if descriptor.exists() or descriptor.is_symlink():
+        _fail("overwrite", descriptor.as_posix(), "temporary guarded writer path is occupied")
+    try:
+        descriptor.write_bytes(raw)
+        os.replace(descriptor, path)
+    finally:
+        descriptor.unlink(missing_ok=True)
+
+
+def _atomic_replace_existing(path: Path, old: bytes, new: bytes) -> None:
+    if not path.is_file() or path.read_bytes() != old:
+        _fail("stale_ledger_digest", path.as_posix(), "ledger changed before guarded write")
+    descriptor = path.with_name(path.name + ".tmp")
+    if descriptor.exists() or descriptor.is_symlink():
+        _fail("overwrite", descriptor.as_posix(), "temporary guarded writer path is occupied")
+    try:
+        descriptor.write_bytes(new)
+        # Re-check immediately before replacement so a direct overwrite loses
+        # rather than being silently replaced by stale author intent.
+        if path.read_bytes() != old:
+            _fail("stale_ledger_digest", path.as_posix(), "ledger changed during guarded write")
+        os.replace(descriptor, path)
+    finally:
+        descriptor.unlink(missing_ok=True)
+
+
+def guarded_init_workstream_ledger(cwd: Path | str, *, expected_head: str, actual_head: str, working_branch: str,
+                                   base_sha: str, retention_days: int = 7, clock: Callable[[], datetime] | None = None,
+                                   entropy: Callable[[int], bytes] = os.urandom,
+                                   retention_preflight_handle: object | None = None,
+                                   retention_verifier: RetentionPreflightVerifier | None = None) -> tuple[str, WorkstreamLedger]:
+    if expected_head != actual_head:
+        _fail("stale_head", "ledger init", "branch tip changed before init", expected=expected_head, actual=actual_head)
+    ledger = initialize_workstream_ledger(working_branch=working_branch, base_sha=base_sha, retention_days=retention_days,
+                                          clock=clock, entropy=entropy, retention_preflight_handle=retention_preflight_handle,
+                                          retention_verifier=retention_verifier)
+    root = Path(cwd).resolve()
+    validate_workstream_init_collisions(root, working_branch=working_branch, workstream_id=ledger.header.workstream_id)
+    relative = workstream_ledger_path(ledger.header.workstream_id)
+    _atomic_write_new(root / Path(relative), render_workstream_ledger(ledger).encode("utf-8"))
+    return relative, ledger
+
+
+def guarded_append_workstream_ledger(cwd: Path | str, *, workstream_id: str, request: WorkstreamAppendRequest,
+                                     expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
+                                     clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    root = Path(cwd).resolve()
+    relative = workstream_ledger_path(workstream_id)
+    path = root / Path(relative)
+    if not path.is_file():
+        _fail("path", relative, "active v2 ledger does not exist")
+    raw = path.read_bytes()
+    ledger = parse_workstream_ledger(raw, relative)
+    if ledger.header.workstream_id != workstream_id:
+        _fail("path", relative, "ledger path and header workstream ID differ")
+    result = plan_workstream_append(ledger, request, expected_head=expected_head, actual_head=actual_head,
+                                    pre_ledger_digest=pre_ledger_digest, branch=branch, clock=clock)
+    _atomic_replace_existing(path, raw, render_workstream_ledger(result).encode("utf-8"))
+    return result
+
+
+def guarded_apply_workstream_expiry(cwd: Path | str, *, workstream_id: str, preview: WorkstreamExpiryPreview,
+                                    actual_head: str) -> WorkstreamLedger:
+    root = Path(cwd).resolve()
+    relative = workstream_ledger_path(workstream_id)
+    path = root / Path(relative)
+    if not path.is_file():
+        _fail("path", relative, "active v2 ledger does not exist")
+    raw = path.read_bytes()
+    ledger = parse_workstream_ledger(raw, relative)
+    result = apply_workstream_expiry(ledger, preview, actual_head=actual_head)
+    _atomic_replace_existing(path, raw, render_workstream_ledger(result).encode("utf-8"))
+    return result
