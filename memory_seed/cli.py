@@ -176,40 +176,48 @@ def _read_provenance_ledger(root: Path, runtime: Mapping[str, Any]) -> tuple[dic
     return ledger, path, []
 
 
-def _git_sidecar_baseline(root: Path, path: Path) -> tuple[str | None, str]:
-    """Return committed sidecar text; a missing anchor is not a true claim."""
+def _git_sidecar_baseline(root: Path, path: Path) -> dict[str, Any]:
+    """Read one Git baseline using unavailable-Git audit semantics."""
+
+    from .provenance_git import GitUnavailableError, git_head
 
     try:
         relative = path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
-        return None, "unverifiable"
-    completed = subprocess.run(
-        ["git", "-C", str(root), "show", f"HEAD:{relative}"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
-    if completed.returncode:
-        probe = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+        return {"text": None, "status": "unverifiable", "anchor": "outside-runtime"}
+    try:
+        git_head(root)
+    except GitUnavailableError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-unavailable", "detail": str(exc)}
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "show", f"HEAD:{relative}"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
-        return None, "unverifiable" if probe.returncode == 0 else "unavailable"
-    return completed.stdout.decode("utf-8", "strict"), "available"
+    except OSError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-unavailable", "detail": str(exc)}
+    if completed.returncode:
+        return {"text": None, "status": "unverifiable", "anchor": "no-committed-sidecar"}
+    return {"text": completed.stdout.decode("utf-8", "strict"), "status": "available", "anchor": "git-head-prefix"}
 
 
 def _append_only_status(root: Path, path: Path) -> dict[str, Any]:
     """Mechanically anchor event order to committed Git prefixes when present."""
 
     if not path.exists():
-        baseline, source = _git_sidecar_baseline(root, path)
-        return {"status": "violated" if baseline is not None else "not-applicable", "anchor": source}
+        baseline = _git_sidecar_baseline(root, path)
+        if baseline["text"] is not None:
+            return {"status": "violated", "anchor": baseline["anchor"], "detail": "committed sidecar is missing from the working tree"}
+        return {"status": "unverifiable" if baseline["anchor"] == "git-unavailable" else "not-applicable", "anchor": baseline["anchor"], **({"detail": baseline["detail"]} if baseline.get("detail") else {})}
     try:
         current = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         return {"status": "violated", "anchor": "unreadable", "detail": str(exc)}
-    baseline, source = _git_sidecar_baseline(root, path)
-    if baseline is None:
-        return {"status": "unverifiable" if source != "unavailable" else "unavailable", "anchor": source}
-    if not current.startswith(baseline):
+    baseline = _git_sidecar_baseline(root, path)
+    baseline_text = baseline["text"]
+    if baseline_text is None:
+        return {"status": "unverifiable", "anchor": baseline["anchor"], **({"detail": baseline["detail"]} if baseline.get("detail") else {})}
+    if not current.startswith(baseline_text):
         return {"status": "violated", "anchor": "git-head-prefix", "detail": "working sidecar does not retain committed event prefix"}
     try:
         relative = path.resolve().relative_to(root.resolve()).as_posix()
@@ -217,7 +225,9 @@ def _append_only_status(root: Path, path: Path) -> dict[str, Any]:
             ["git", "-C", str(root), "log", "--format=%H", "--reverse", "HEAD", "--", relative],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
-        commits = history.stdout.decode("ascii", "strict").splitlines() if history.returncode == 0 else []
+        if history.returncode:
+            return {"status": "unverifiable", "anchor": "git-history-unavailable"}
+        commits = history.stdout.decode("ascii", "strict").splitlines()
         previous: str | None = None
         for commit in commits:
             version = subprocess.run(
