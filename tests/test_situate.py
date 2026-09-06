@@ -184,6 +184,28 @@ class SituateReportTests(unittest.TestCase):
         self.assertIn("1 commit(s) ahead of main", format_situate_report(report))
 
     @pytest.mark.integration
+    def test_cadence_measurement_is_rendered_from_the_same_worktree_guard(self):
+        def git(*args):
+            return subprocess.run(["git", "-C", str(self.cwd), *args], check=True, capture_output=True, text=True)
+
+        git("init", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        (self.cwd / "base.txt").write_text("base\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        git("switch", "-c", "codex/cadence")
+        (self.cwd / "large.txt").write_text("x\n" * 750, encoding="utf-8")
+
+        report = situate_report(cwd=self.cwd)
+        text = format_situate_report(report)
+
+        self.assertIsNotNone(report.cadence)
+        self.assertTrue(any("churn=750" in item for item in report.cadence.high_signals))
+        self.assertIn("## Checkpoint cadence", text)
+        self.assertIn("Checkpoint cadence warning", text)
+
+    @pytest.mark.integration
     def test_phantom_worktree_path_still_reports_the_primary_checkout(self):
         # The regression this section exists for. An agent is told it is working in
         # `<repo>/.claude/worktrees/<session>`, but the worktree was never created -

@@ -25,12 +25,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Sequence
 
-from .core import _git_text, resolve_runtime
+from .core import _git_text, _task_packet_activation_paths, commit_cadence, resolve_runtime
 from .retrieval import (
     EVIDENCE_PACK_SCHEMA,
     EVIDENCE_PACK_VERSION,
     RETRIEVAL_V2_RESOLVER_VERSION,
     RetrievalSpecResolutionError,
+    _evidence_pack_fingerprint,
     _source_slice,
     get_chunk,
     resolve_retrieval_spec,
@@ -44,6 +45,10 @@ TASK_DISPATCH_SCHEMA = "memory-seed/task-dispatch"
 TASK_DISPATCH_VERSION = 1
 TASK_PACKET_SCHEMA = "memory-seed/task-packet"
 TASK_PACKET_VERSION = 1
+TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
+TASK_PACKET_ACTIVATION_VERSION = 1
+TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
+TASK_PACKET_ACTIVATION_RECEIPT_VERSION = 1
 TOKEN_ESTIMATOR = "utf8-bytes-ceil-div-4/v1"
 
 TIER_BANDS: dict[str, dict[str, int]] = {
@@ -117,6 +122,23 @@ _BINDING_KEYS = frozenset(
         "worktree",
         "expected_directory",
         "integration_artifact",
+    }
+)
+_COMPILED_PACKET_KEYS = frozenset(
+    {
+        "packet_schema",
+        "packet_version",
+        "dispatch",
+        "dispatch_fingerprint",
+        "runtime_binding",
+        "retrieval_profile",
+        "evidence_pack",
+        "materialized_evidence",
+        "constitution_projection",
+        "execution_defaults",
+        "input_ledger",
+        "cost_ledger",
+        "fingerprint",
     }
 )
 _ENVIRONMENT_KEYS = frozenset(
@@ -1353,6 +1375,7 @@ def project_constitution(
 
 def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
     writing = dispatch["execution"]["write_intent"] == "writing"
+    cadence = commit_cadence(binding["worktree"], base_ref=binding["base_sha"])
     preflight = [
         f"Set-Location -LiteralPath {binding['worktree']!r}",
         "pwd",
@@ -1399,6 +1422,14 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "required": "name the required file and compare it with dispatch.execution.allowed_files",
             "allowed_files": list(dispatch["execution"]["allowed_files"]),
         },
+        "activation": {
+            "required": writing,
+            "api": "memory_seed.task_packet.activate_task_packet",
+            "implements": list(dispatch["execution"]["implements"]),
+            "scope_update": "requires a non-empty, explicit binding_update_reason",
+            "storage": "fingerprint-verified, worktree-local Git activation artifact",
+        },
+        "cadence": cadence.to_dict(),
         "escalated_shell": {
             "required_location": binding["worktree"],
             "required_branch": binding["working_branch"],
@@ -1444,6 +1475,289 @@ def canonical_task_packet_json(packet: Mapping[str, Any]) -> str:
             stage="serialization",
         )
     return canonical_json(packet)
+
+
+def _activation_binding(packet_binding: Mapping[str, Any], cwd: str | Path) -> dict[str, Any]:
+    """Strictly remeasure a writing binding while allowing its own branch to advance.
+
+    Compilation requires a base branch to resolve *exactly* to ``base_sha``.
+    Once a packet is active, a worktree may legitimately commit on a branch
+    that is itself named as that base.  In that one case, activation requires
+    the base SHA to remain an ancestor of the branch and current HEAD; every
+    other base branch still has to resolve exactly.  This preserves the
+    compiler's authority without treating an arbitrary, changed base ref as a
+    valid packet binding.
+    """
+    binding = _mapping(packet_binding, "packet.runtime_binding")
+    _exact_keys(binding, "packet.runtime_binding", _BINDING_KEYS, required=_BINDING_KEYS)
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root.resolve()
+    measured_root = Path(_git_required(root, ("rev-parse", "--show-toplevel"), label="activation worktree")).resolve()
+    branch = _git_required(root, ("rev-parse", "--abbrev-ref", "HEAD"), label="activation branch")
+    if branch == "HEAD":
+        _fail("packet.runtime_binding.working_branch", "must not activate from detached HEAD", code="binding_mismatch", stage="activation")
+    expected_raw = Path(str(_string(binding["expected_directory"], "packet.runtime_binding.expected_directory")))
+    worktree_raw = Path(str(_string(binding["worktree"], "packet.runtime_binding.worktree")))
+    if not expected_raw.is_absolute() or not worktree_raw.is_absolute():
+        _fail("packet.runtime_binding", "worktree and expected_directory must be absolute measured paths", code="binding_mismatch", stage="activation")
+    worktree = worktree_raw.resolve()
+    expected = expected_raw.resolve()
+    working_branch = _string(binding["working_branch"], "packet.runtime_binding.working_branch")
+    base_sha = _string(binding["base_sha"], "packet.runtime_binding.base_sha")
+    base_branch = _string(binding["base_branch"], "packet.runtime_binding.base_branch")
+    owner = _string(binding["owner"], "packet.runtime_binding.owner")
+    agent_type = _string(binding["agent_type"], "packet.runtime_binding.agent_type")
+    integration_artifact = _string(binding["integration_artifact"], "packet.runtime_binding.integration_artifact")
+    assert all(value is not None for value in (working_branch, base_sha, base_branch, owner, agent_type, integration_artifact))
+    if _SHA_RE.fullmatch(base_sha) is None:
+        _fail("packet.runtime_binding.base_sha", "must be a full 40-character Git SHA", code="binding_mismatch", stage="activation")
+    if _SLUG_RE.fullmatch(owner) is None or _SLUG_RE.fullmatch(agent_type) is None:
+        _fail("packet.runtime_binding", "owner and agent_type must be lowercase identity slugs", code="binding_mismatch", stage="activation")
+    if integration_artifact not in {"pr", "merge-request", "patch", "branch", "handoff"}:
+        _fail("packet.runtime_binding.integration_artifact", "is not a supported integration artifact", code="binding_mismatch", stage="activation")
+    if measured_root != root or worktree != measured_root or expected != measured_root or working_branch != branch:
+        _fail("packet.runtime_binding", "does not match the measured activation worktree and branch", code="binding_mismatch", stage="activation")
+    base_code, base_head = _git_text(root, ("show-ref", "--verify", "--hash", f"refs/heads/{base_branch}"))
+    if base_code != 0 or not base_head:
+        _fail("packet.runtime_binding.base_branch", "must name an existing local branch exactly", code="binding_mismatch", stage="activation")
+    if base_head.lower() != base_sha.lower():
+        # A packet may name its own task branch as its immutable base. That
+        # branch necessarily moves after its first checkpoint; no unrelated
+        # mutable base ref gets this exception.
+        if base_branch != branch or _git_text(root, ("merge-base", "--is-ancestor", base_sha, base_head))[0] != 0:
+            _fail("packet.runtime_binding.base_sha", "does not match the supplied base branch", code="binding_mismatch", stage="activation")
+    if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
+        _fail("packet.runtime_binding.base_sha", "must remain an ancestor of the activation HEAD", code="binding_mismatch", stage="activation")
+    return {
+        "owner": owner,
+        "agent_type": agent_type,
+        "base_branch": base_branch,
+        "base_sha": base_sha.lower(),
+        "working_branch": branch,
+        "worktree": str(worktree),
+        "expected_directory": str(expected),
+        "integration_artifact": integration_artifact,
+    }
+
+
+def _validate_compiled_packet_evidence(packet: Mapping[str, Any]) -> None:
+    """Check compiler-produced evidence identities without rereading mutable sources.
+
+    A packet can legitimately be activated after it has caused new commits, so
+    validating a live corpus revision here would reject its own work.  The
+    packet still has to carry the exact v2 evidence identity and its materialized
+    non-Constitution slices must match that identity byte-for-byte.
+    """
+    evidence_pack = _mapping(packet.get("evidence_pack"), "packet.evidence_pack")
+    if (
+        evidence_pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA
+        or evidence_pack.get("pack_version") != EVIDENCE_PACK_VERSION
+        or evidence_pack.get("resolver_version") != RETRIEVAL_V2_RESOLVER_VERSION
+    ):
+        _fail("packet.evidence_pack", "must be a compiler Evidence Pack v2", code="invalid_packet", stage="activation")
+    try:
+        evidence_fingerprint = _evidence_pack_fingerprint(evidence_pack)
+    except (KeyError, TypeError, ValueError) as exc:
+        _fail("packet.evidence_pack", "is missing canonical evidence identities", code="invalid_packet", stage="activation", details={"error": exc.__class__.__name__})
+    if evidence_pack.get("fingerprint") != evidence_fingerprint:
+        _fail("packet.evidence_pack.fingerprint", "does not match canonical evidence identities", code="fingerprint_mismatch", stage="activation")
+    profile = _mapping(packet.get("retrieval_profile"), "packet.retrieval_profile")
+    effective_spec = _mapping(profile.get("effective_spec"), "packet.retrieval_profile.effective_spec")
+    if profile.get("effective_spec_fingerprint") != retrieval_spec_fingerprint(effective_spec):
+        _fail("packet.retrieval_profile.effective_spec_fingerprint", "does not match the effective spec", code="fingerprint_mismatch", stage="activation")
+    materialized = packet.get("materialized_evidence")
+    records = evidence_pack.get("evidence")
+    if not isinstance(materialized, list) or not isinstance(records, list) or not all(isinstance(item, Mapping) for item in records):
+        _fail("packet.materialized_evidence", "must carry compiler materialized evidence", code="invalid_packet", stage="activation")
+    expected = [
+        (item.get("id"), item.get("kind"), item.get("source"), item.get("line_range"), item.get("content_digest"))
+        for item in records
+        if item.get("kind") != "constitution"
+    ]
+    observed: list[tuple[Any, Any, Any, Any, Any]] = []
+    for item in materialized:
+        if not isinstance(item, Mapping) or not isinstance(item.get("content"), str):
+            _fail("packet.materialized_evidence", "contains an incomplete compiler slice", code="invalid_packet", stage="activation")
+        digest = "sha256:" + hashlib.sha256(item["content"].encode("utf-8")).hexdigest()
+        if item.get("content_digest") != digest:
+            _fail("packet.materialized_evidence", "content does not match its declared digest", code="fingerprint_mismatch", stage="activation")
+        observed.append((item.get("id"), item.get("kind"), item.get("source"), item.get("line_range"), item.get("content_digest")))
+    if observed != expected:
+        _fail("packet.materialized_evidence", "does not match the Evidence Pack identities", code="fingerprint_mismatch", stage="activation")
+
+
+def _activation_receipt(
+    packet: Mapping[str, Any], dispatch: Mapping[str, Any], binding: Mapping[str, Any]
+) -> dict[str, Any]:
+    """A deterministic record of successful compiler-compatible activation."""
+    return {
+        "schema": TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA,
+        "version": TASK_PACKET_ACTIVATION_RECEIPT_VERSION,
+        "compiler": "memory_seed.task_packet.compile_task_packet",
+        "activation": "memory_seed.task_packet.activate_task_packet",
+        "packet_fingerprint": packet["fingerprint"],
+        "dispatch_fingerprint": packet["dispatch_fingerprint"],
+        "evidence_pack_fingerprint": packet["evidence_pack"]["fingerprint"],
+        "runtime_binding": dict(binding),
+        "objective": dispatch["objective"],
+        "implements": list(dispatch["execution"]["implements"]),
+    }
+
+
+def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Return fully checked dispatch, binding, and receipt for artifact use."""
+    packet = _mapping(packet, "packet")
+    _exact_keys(packet, "packet", _COMPILED_PACKET_KEYS, required=_COMPILED_PACKET_KEYS)
+    canonical_task_packet_json(packet)
+    dispatch = normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
+    if dispatch != packet["dispatch"]:
+        _fail("packet.dispatch", "is not the compiler-normalized dispatch", code="fingerprint_mismatch", stage="activation")
+    if packet.get("dispatch_fingerprint") != task_dispatch_fingerprint(dispatch):
+        _fail("packet.dispatch_fingerprint", "does not match the normalized dispatch", code="fingerprint_mismatch", stage="activation")
+    if dispatch["execution"]["write_intent"] != "writing":
+        _fail("packet.dispatch.execution.write_intent", "read-only packets cannot activate commit attribution", code="activation_read_only", stage="activation")
+    binding = _activation_binding(_mapping(packet.get("runtime_binding"), "packet.runtime_binding"), cwd)
+    if binding != packet["runtime_binding"]:
+        _fail("packet.runtime_binding", "is not the strict normalized activation binding", code="binding_mismatch", stage="activation")
+    _validate_compiled_packet_evidence(packet)
+    selected_decisions = {
+        item["id"]
+        for item in packet["materialized_evidence"]
+        if item["kind"] == "decision"
+    }
+    if not set(dispatch["execution"]["implements"]).issubset(selected_decisions):
+        _fail("packet.dispatch.execution.implements", "must remain selected materialized decision evidence", code="unresolved_implements", stage="activation")
+    return dispatch, binding, _activation_receipt(packet, dispatch, binding)
+
+
+def _read_activation_artifact(path: Path, cwd: str | Path) -> Mapping[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, Mapping):
+        return None
+    if payload.get("schema") != TASK_PACKET_ACTIVATION_SCHEMA or payload.get("version") != TASK_PACKET_ACTIVATION_VERSION:
+        return None
+    packet = payload.get("packet")
+    receipt = payload.get("receipt")
+    if not isinstance(packet, Mapping) or not isinstance(receipt, Mapping):
+        return None
+    try:
+        _, _, expected_receipt = _validate_activation_packet(packet, cwd)
+        if dict(receipt) != expected_receipt:
+            return None
+    except TaskPacketValidationError:
+        return None
+    return payload
+
+
+def activate_task_packet(
+    packet: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    binding_update_reason: str | None = None,
+) -> dict[str, Any]:
+    """Activate a compiled writing packet for its bound Git branch.
+
+    Activation deliberately writes no project files, Git configuration, or
+    global Git state. It stores the complete fingerprint-verified packet in the
+    bound worktree's Git directory and appends replacement receipts beside it.
+    The managed hook can therefore verify branch, worktree, base SHA, scope,
+    selected evidence, and exact refs before it writes provenance trailers.
+    """
+    packet = _mapping(packet, "packet")
+    dispatch, binding, activation_receipt = _validate_activation_packet(packet, cwd)
+    branch = binding["working_branch"]
+    assert branch is not None
+    root = Path(binding["worktree"])
+    scope = canonical_json(
+        {
+            "allowed_files": dispatch["execution"]["allowed_files"],
+            "forbidden_files": dispatch["execution"]["forbidden_files"],
+            "expected_absent": dispatch["execution"]["expected_absent"],
+        }
+    )
+    binding_identity = canonical_json(
+        {
+            "base_branch": binding["base_branch"],
+            "base_sha": binding["base_sha"],
+            "working_branch": branch,
+            "worktree": binding["worktree"],
+        }
+    )
+    reason = (binding_update_reason or "").strip()
+    paths = _task_packet_activation_paths(root, branch)
+    if paths is None:
+        _fail("activation", "requires a Git worktree-local activation directory", code="activation_io", stage="activation")
+    artifact_path, history_path = paths
+    previous = _read_activation_artifact(artifact_path, root)
+    previous_packet = previous.get("packet") if previous is not None else None
+    previous_dispatch = (
+        normalize_task_dispatch(previous_packet["dispatch"])
+        if isinstance(previous_packet, Mapping) and isinstance(previous_packet.get("dispatch"), Mapping)
+        else None
+    )
+    previous_scope = canonical_json({
+        "allowed_files": previous_dispatch["execution"]["allowed_files"],
+        "forbidden_files": previous_dispatch["execution"]["forbidden_files"],
+        "expected_absent": previous_dispatch["execution"]["expected_absent"],
+    }) if previous_dispatch is not None else None
+    previous_binding = canonical_json({
+        key: previous_packet["runtime_binding"][key]
+        for key in ("base_branch", "base_sha", "working_branch", "worktree")
+    }) if isinstance(previous_packet, Mapping) else None
+    implements = list(dispatch["execution"]["implements"])
+    previous_implements = list(previous_dispatch["execution"]["implements"]) if previous_dispatch is not None else None
+    changed = previous is not None and (
+        previous_scope != scope or previous_binding != binding_identity or previous_implements != implements
+    )
+    if changed and len(reason) < 12:
+        _fail(
+            "binding_update_reason",
+            "a changed activation scope, binding, or implements list requires an explicit reason of at least 12 characters",
+            code="binding_update_required",
+            stage="activation",
+        )
+    if previous is None or changed:
+        payload = {
+            "schema": TASK_PACKET_ACTIVATION_SCHEMA,
+            "version": TASK_PACKET_ACTIVATION_VERSION,
+            "packet": packet,
+            "receipt": activation_receipt,
+        }
+        try:
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = artifact_path.with_suffix(".tmp")
+            temporary.write_text(canonical_json(payload) + "\n", encoding="utf-8")
+            temporary.replace(artifact_path)
+            receipt = {
+                "from_fingerprint": previous_packet.get("fingerprint") if isinstance(previous_packet, Mapping) else None,
+                "to_fingerprint": packet["fingerprint"],
+                "changed": [
+                    name for name, did_change in (
+                        ("scope", previous is not None and previous_scope != scope),
+                        ("binding", previous is not None and previous_binding != binding_identity),
+                        ("implements", previous is not None and previous_implements != implements),
+                    ) if did_change
+                ],
+                "reason": reason or None,
+            }
+            with history_path.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(canonical_json(receipt) + "\n")
+        except OSError as exc:
+            _fail("activation", "could not persist the worktree-local packet artifact", code="activation_io", stage="activation", details={"error": exc.__class__.__name__})
+    return {
+        "activated": True,
+        "branch": branch,
+        "worktree": str(root),
+        "packet_fingerprint": packet["fingerprint"],
+        "implements": implements,
+        "binding_updated": changed,
+        "binding_update_reason": reason if changed else None,
+        "activation_artifact": str(artifact_path),
+        "activation_history": str(history_path),
+    }
 
 
 def compile_task_packet(
