@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.10 — **RATIFIED 2026-08-31** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.12 — **RATIFIED 2026-09-06** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -13,7 +13,9 @@ with a human-gated, one-off exception for diagram-sidecar syntax repair (Invaria
 sufficient context* principle (§3, `[candidate]`); amended 2026-08-06 with stable clause anchors;
 amended 2026-08-11 to make a declared ratified Constitution formally govern lower control-plane
 documents; **corrected** 2026-08-13 (1.9, evolution-class — not an amendment) to record the shipped
-quality instrumentation in §8. **Source:** distilled from demonstrated behaviour
+quality instrumentation in §8; amended 2026-09-05 to make the governed path the path of least
+resistance through inspectable outcome-level composition (§3); amended 2026-09-06 with the bounded
+temporary reflection-board lifecycle (Invariant #2). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -95,6 +97,23 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    it verifies the known preimage digests, refuses unfamiliar input and any second run, and is neither a
    general rewrite facility nor a standing CLI/MCP command. On successful completion this exception is
    exhausted; all future ADR history is append-only under the invariant.
+   <!-- constitution-ref: constitution:v1#temporary-reflection-expiry -->
+   **Narrow standing exception — temporary reflection-board expiry (1.12):** reflection blocks explicitly
+   created inside a declared plan-scoped reflection board are temporary coordination material, not durable
+   Memory Seed decisions or ordinary retrieval history. They may be removed only as complete reflection
+   chains through the governed reflection lifecycle. A chain cannot expire until its implementation has been
+   independently validated where validation is required, the orchestrator has synthesized the relevant
+   implementer, reviewer, and orchestrator reflections, and a successful chain-level close records the
+   disposition and complete receipt coverage. The project-configurable retention period defaults to seven days
+   and starts from that chain's `closed_at` time. When it elapses, the next sanctioned cleanup automatically
+   removes that chain; it never performs a general board wipe. Before any
+   removal, a compact receipt for every chain member must already exist in ordinary append-only session
+   memory: promoted chains embed their receipts with the decision or decisions that absorbed them, while
+   unpromoted chains receive an expiry disposition in the ESR closeout entry. Early removal of an unpromoted
+   chain requires the user's live approval and a durable approval/disposition record. An unresolved divergent
+   head prevents chain close and therefore prevents ordinary expiry until it is resolved or explicitly disposed.
+   The exception never permits rewriting or deleting ordinary sessions, decisions, ADRs, policies, or other
+   durable memory; Git may retain historical blobs, so active-tree expiry is not privacy-grade erasure.
 <!-- constitution-ref: constitution:v1#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
@@ -174,6 +193,14 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   *Provenance note:* first written into §3 on 2026-07-25 **without** an amendment, which §11 requires
   for a core principle. Ratified retroactively as part of v1.5 rather than left as an unratified clause
   — a principle nobody approved is exactly the kind of silent override §11 forbids.
+<!-- constitution-ref: constitution:v1#path-of-least-resistance -->
+- **Make the correct path the easiest path.** Memory Seed composes mechanically determined steps behind
+  outcome-level operations so humans and agents do not spend attention or model tokens reconstructing
+  deterministic workflows. It stops where relevance, authority, risk, scope, or intent requires judgment,
+  and every composed operation preserves the same validation, provenance, explainability, and human control
+  as its underlying steps. The result exposes what was selected, what was omitted, why execution continued
+  or stopped, and which governing guards were applied. *(Cited: `1_Inbox/agent-interaction-storylines-review.md`;
+  `8_Deferred/agent-skill-workflow-architecture-proposal.md`; `mse_d1h4mf4z40epm8jz:d1` and `:d2`.)*
 <!-- constitution-ref: constitution:v1#open-core -->
 - **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
   hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
@@ -332,6 +359,8 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.12 | 2026-09-06 | **Amendment: bounded temporary reflection-board expiry.** Reflection blocks created inside a declared plan-scoped board are temporary coordination material rather than durable memory. After required validation and orchestrator synthesis, complete chains close independently with durable receipt coverage; their user-configurable retention period, seven days by default, starts from chain close. Elapsed closed chains expire automatically and individually, never as a board wipe; early removal of an unpromoted chain requires live user approval and a durable disposition. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (ratified live 2026-09-06) |
+| 1.11 | 2026-09-05 | **Make the correct path the easiest path.** Adds a permanent §3 principle requiring Memory Seed to compose mechanically determined continuations behind outcome-level operations, stop at genuine judgment or authority boundaries, preserve all underlying validation/provenance/human control, and expose selections, omissions, guards, and stopping reasons. This turns the storyline and workflow-architecture direction into a constitutional design constraint without authorizing opaque automation. | JNL (ratified in live discussion, 2026-09-05) |
 | 1.10 | 2026-08-31 | **Amendment: one-time Canonical ADR Ledger v2 migration.** Authorizes only the corpus-locked conversion from the ambiguous `Decision`/`Why`/`Evolution` and `Reason` event prose to a uniform `Decision`/`Reason`/`Impact` ledger. It requires a preimage archive and SHA-256 manifest before rewrite; preserves event IDs, timestamps, envelopes, and references; requires declared impact provenance with direct evidence for reconstructions; and forbids a reusable rewrite command. Once run, the exception is exhausted and Invariant #2 again applies without qualification. | JNL |
 | 1.9 | 2026-08-13 | **Correction (evolution-class — not an amendment): §8 records the shipped quality instrumentation.** §8 claimed that named quality metrics "are not yet tracked" and listed only `links check`, `topics check`, and `esr` as the partial instrumentation. That was true when written and had since decayed: `memory-seed quality report` shipped 2026-07-17 and measures `unlinked_entry_rate` (180/901 at this revision) and structural `draft_reason_coverage` (857/857, 44 excluded), with `generated_claim_citation_coverage`, `provenance_coverage`, and `ranking_ab_regression_rate` declaring `unavailable`/`not_applicable` and a reason each. Two of the three named metrics — orphan-rate and evidence/decision coverage — therefore have measured proxies; stale-rate does not, and its absence is deliberate v0 scope, not an oversight. §8 **remains `[candidate]`**: graduation is separately gated on the step-6 usefulness review in `2_Todo/memory-quality-metrics-v0-proposal.md`, whose `next_action` names §8 graduation explicitly, so the correction records shipped fact without touching that hold. Nothing this document requires has changed. §11 gains the versioning rule that makes an evolution-class bump legible rather than indistinguishable from an amendment. Found while comparing this project against an external report and noticing that two review passes had read current capability out of §8 — a *why* document — instead of out of the code, which Invariant #4 assigns as the authority for what is true now. | JNL (accepted 2026-08-13; version bump requested so the log tracks document versions, not amendments alone) |
 | 1.8 | 2026-08-11 | **Formal control-plane precedence** — a ratified Constitution declared by the active runtime index now governs lower control files; the index routes, policy states concise executable constraints, accepted ADR heads own durable decision rationale/evolution, sessions retain evidence, and projections remain derived. Draft or undeclared Constitutions do not govern, preserving Constitution-optional bootstrap for other projects. | JNL |

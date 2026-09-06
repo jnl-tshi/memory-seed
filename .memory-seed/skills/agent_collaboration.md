@@ -47,6 +47,23 @@ Load this skill when the task involves any of:
 - Each code-writing worker gets a separate worktree unless the task is strictly sequential.
 - Validators review from the integration branch or final diff, not from a worker's unmerged assumptions.
 
+#### Continuous monitoring contract
+
+Every dispatched planner, implementer, researcher, validator, and plan reviewer remains an active orchestration
+gate until it reaches a terminal result. The orchestrator owns that gate and must:
+
+1. record the dispatched agent and the outcome or verdict that will close the gate;
+2. wait or poll through the collaboration surface at reasonable intervals instead of relying on the human to
+   notice completion;
+3. surface a meaningful blocker or requested decision promptly;
+4. read and act on the terminal report before sequencing dependent work; and
+5. close or supersede the gate explicitly in the plan ledger or handoff record.
+
+A status update to the human does not close a running gate. Planning and plan-review agents follow the same
+rule as implementation agents: once launched, they are monitored through `APPROVE`, `REVISE`, `BLOCKED`, or
+another declared terminal contract. Prefer bounded waits and event cursors where the collaboration surface
+supports them; avoid busy polling, but never leave completion discovery to the human.
+
 ### Multi-Developer Agent Work
 
 - Use per-developer branches and per-user session targets where configured.

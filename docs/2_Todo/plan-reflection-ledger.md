@@ -4,14 +4,14 @@ date: "2026-09-06"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review the revised active-board, ESR promotion, embedded-receipt, and approved-expiry contract before implementation."
+next_action: "Independently review the ratified chain-expiry, immediate-promotion, embedded-receipt, and active-thread retrieval contract before implementation."
 source:
   - "docs/CONSTITUTION.md"
   - ".memory-seed/skills/agent_collaboration.md"
   - ".memory-seed/skills/session_logging.md"
   - "experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md"
   - "docs/2_Todo/task-packet-hardening-progressive-provenance-plan.md"
-scope: "Add a plan-scoped, multi-writer reflection board with a guarded fuse, topic-aware active retrieval, ESR promotion into ordinary sessions, embedded durable receipts, and approved expiry of temporary detail."
+scope: "Add a plan-scoped, multi-writer reflection board with a guarded fuse, topic-aware active retrieval, timely promotion into ordinary sessions, embedded durable receipts, and automatic configured expiry of complete chains."
 non_goals:
   - "Do not place active reflection records in .memory-seed/sessions/ or alter past session history."
   - "Do not make the ledger a permanent retrieval corpus, ADR source, index, or database."
@@ -27,9 +27,9 @@ acceptance_criteria:
   - "A derived common view exposes all admitted opinions and their corrections without silently selecting an opinion as truth."
   - "Only the orchestrator can author resolution or promotion records, and durable lessons are written through the ordinary guarded session append path during the plan."
   - "Each reflection starts with a concise conclusion and carries enough reasoning, assumptions, uncertainty, and alternatives for another worker to challenge or refine it without reconstructing the author's work."
-  - "ESR finds unresolved reflections, groups overlaps, checks existing decisions, and presents promotion and cleanup candidates without making the durable judgment automatically."
+  - "End-of-turn identifies reflection chains whose conclusions the turn used; after required validation, the orchestrator synthesizes the relevant implementer, reviewer, and orchestrator reflections before promoting and closing each accepted chain. ESR catches unresolved or missed candidates without making the durable judgment automatically."
   - "Promoted conclusions become compact ordinary Memory Seed decisions containing embedded reflection receipts; non-promoted dispositions are embedded in the ESR session entry, so no separate authoritative receipt sidecar is introduced."
-  - "After the retention window, approved temporary detail may be removed from the active tree without breaking durable references; the derived receipt index remains rebuildable from session entries."
+  - "After the configurable retention window (seven days by default), the next sanctioned cleanup automatically removes each eligible chain individually without breaking durable references; only early deletion of an unpromoted chain requires live user approval."
 ---
 
 # Plan-scoped reflection ledger
@@ -45,15 +45,19 @@ This is deliberately not a second session layout. Durable sessions remain the ch
 authority. The reflection board is temporary coordination material: it is Markdown/YAML while live, is fused
 with fail-closed identity and ownership checks, is visible through a derived common view, and is excluded from
 ordinary memory retrieval. A lesson becomes durable only through the existing guarded session writer after
-orchestrator judgment. Its compact receipt is embedded in the resulting decision; a reflection that is
-superseded or intentionally discarded gets its receipt in the ESR closeout entry. A rebuildable derived index
+orchestrator judgment. Promotion occurs at the end of the first turn that adopts the conclusion rather than
+waiting for ESR. A chain may produce several decisions and a decision may synthesize several chains. Compact
+receipts are embedded with every resulting decision; a chain that expires without promotion gets its receipt
+in the ESR closeout entry. A rebuildable derived index
 may collect those receipts for lookup, but it owns no truth.
 
-Temporary detail has a default seven-day review window. ESR may extend unresolved or disputed reflections to
-14 or 30 days. Once ESR shows the user what was promoted, already covered, unresolved, and safe to remove,
-deletion requires live user approval. Approved expiry removes detailed blocks from the active tree; ordinary
-Git history may still retain earlier committed blobs, so this is active-state cleanup rather than a promise of
-privacy-grade erasure. Any hard-erasure capability is a separate security and governance concern.
+Temporary detail uses `reflection_retention_days`, a user-configurable project setting that defaults to seven
+days. A chain cannot expire while open. After required validation and orchestrator synthesis, its successful
+chain-level close records `closed_at`; `expires_at` is that timestamp plus the configured window. At or
+after that timestamp the next sanctioned cleanup automatically removes that chain, never the whole board.
+Early deletion of an unpromoted chain requires live user approval and a durable disposition; ordinary expiry
+does not. Git history may still retain earlier committed blobs, so this is active-state cleanup rather than a
+promise of privacy-grade erasure. Any hard-erasure capability is a separate security and governance concern.
 
 The five-question test: this primarily improves **Validation**, **Trust**, and **Application**. It makes
 parallel opinions inspectable and attributable before an orchestrator acts on them, without pretending that
@@ -142,7 +146,8 @@ manifest or pre-dispatch authority:
 Active reflection material is coordination state, not session membership or a reusable retrieval corpus.
 `reflection view` writes no stored view: canonical Markdown goes
 to stdout; a guarded explicit output path is a disposable derived export. JSON is non-authoritative transport
-or export only. After approved expiry, durable lookup uses embedded session receipts rather than these paths.
+or export only. After automatic configured expiry, durable lookup uses embedded session receipts rather than
+these paths.
 
 `reflection init` is orchestrator-only and runs only after the Kernel parser/fuse lands. It generates a
 cryptographically random 256-bit `reservation_seed`, creates canonical `manifest.yaml`, validates it, and
@@ -202,7 +207,9 @@ version: 1
 plan_id: reflection-ledger-v1
 base_branch: main
 base_sha: <40-character resolved SHA>
-state: active                         # active -> review -> closed; never reopened
+state: active                         # active -> review -> closed when every chain is closed; never reopened
+created_at: <RFC3339-UTC from the canonical writer>
+reflection_retention_days: 7          # project-configurable positive integer
 reservation_algorithm: sha256-crockford-v1
 reservation_seed: <64-lowercase-hex>
 participants_seal: <sha256 canonical participant-roster bytes>
@@ -246,12 +253,17 @@ Lifecycle:
 2. **Initialize.** Orchestrator commits the manifest and compiles packets with its exact reservations.
 3. **Collect/fuse.** Subsequent workers and the auditor commit their reserved pair; each is admitted by the
    coordinated integration primitive.
-4. **Resolve/promote.** ESR groups overlapping records, checks existing decisions, and presents promotion,
-   extension, and cleanup candidates. The orchestrator judges; it never promotes automatically.
-5. **Close.** The orchestrator appends `closeout.md`, embeds compact receipts in promoted decisions or the
-   ESR session entry, and moves the plan to `closed`.
-6. **Expire.** After 7 days by default (or an approved 14/30-day extension), ESR may propose removing the
-   detailed active family. Removal requires live user approval and never removes the embedded receipts.
+4. **Resolve/promote.** End-of-turn checks the reflections used by that turn and presents promotion candidates.
+   ESR groups unresolved records, checks existing decisions, and catches missed candidates. After required
+   validation, the orchestrator synthesizes the relevant implementer, reviewer, and orchestrator records,
+   resolves disagreement, and promotes any adopted conclusion; neither discovery path promotes automatically.
+5. **Close chains and board.** The orchestrator appends a chain-level synthesis and close record only after
+   required validation and complete receipt coverage. Independent chains close separately when their own review
+   cycles finish. `closeout.md` accumulates those immutable chain close records; the plan moves to `closed` only
+   after every admitted chain is closed.
+6. **Expire.** At the configured deadline (seven days by default), the next sanctioned cleanup automatically
+   removes each eligible chain whose complete receipt is durable. Only early removal of an unpromoted chain
+   requires live user approval; cleanup never removes the whole board or embedded receipts.
 
 ## Fragment and report schema
 
@@ -325,11 +337,13 @@ base_sha: <manifest base SHA>
 record_id: rlr_<20-crockford>
 ordinal: 1
 kind: opinion
+chain_id: rlc_<deterministic-chain-id>
+parents: []
+relationship: orphan
 area: reflection-ledger
 activity: implementation-review
 topics: [agent-collaboration, reflection]
 related_decisions: []
-responds_to: []
 confidence: medium
 ```
 
@@ -356,7 +370,11 @@ The conclusion is required and comes first, acting as an abstract for humans and
 and may be more detailed than the promoted decision because it exists to expose assumptions and let peers
 challenge the proposal during implementation. Assumptions/uncertainty, alternatives/objections, and a question
 or next step are optional structured sections. `area`, `activity`, and `topics` support active-board grouping;
-`responds_to` creates a reflection dialogue. Related decisions are optional. Files, commits, patches, and test
+`parents` links to the preceding reflection record or records; `relationship` is `refines`, `responds`,
+`corrects`, `challenges`, `combines`, or `orphan`. A new record searches active chain heads first and may use
+`orphan` only after an explicit `no-related-thread` judgment. `refines` and `corrects` advance a chain head;
+`responds` and `challenges` retain divergent live heads; `combines` names two or more parents and creates a
+new shared head. Related decisions are optional. Files, commits, patches, and test
 logs are not standard reflection fields and appear only when the thought cannot be understood without them.
 
 Record kinds have intentionally narrow authority:
@@ -409,10 +427,13 @@ The only integration route for a branch that changes reflections is
 commit changing reflection paths without a successful matching reflection-fuse trailer; raw merge,
 manual post-merge edit, and standalone reflection apply therefore fail closed.
 
-`reflection view --plan <id> [--area ...] [--activity ...] [--topic ...] [--related-decision ...]` consumes the same parsed records and writes canonical Markdown only to stdout:
+`reflection view --plan <id> [--area ...] [--activity ...] [--topic ...] [--related-decision ...]
+[--chain ...] [--responds-to ...]` consumes the same parsed records and writes canonical Markdown only to stdout:
 raw records, measured source-tip receipt, correction chains, risks, resolutions, promotions, and participant
 coverage, sorted by `(created_at, participant, sequence, fragment_id, record_ordinal)`. Filters are confined
-to active reflections and allow a worker to pull relevant thinking from other branches without broad discovery. It may group but
+to active reflections and allow a worker to pull relevant thinking from other branches without broad discovery.
+`--responds-to` returns the direct children by default and accepts `--transitive` for the complete descendant
+chain. No selector ranks away dissent or returns only one live head. It may group but
 must show every source record and label grouping derived. It never picks a majority or effective winner.
 JSON/MCP structured data are non-authoritative projections of this same result.
 
@@ -421,18 +442,26 @@ JSON/MCP structured data are non-authoritative projections of this same result.
 | Surface | Operation | Write policy |
 | --- | --- | --- |
 | CLI | `memory-seed reflection init --manifest-file …` | Orchestrator-only; validates identity, reservation paths/IDs, and roster seal before the initial manifest commit. |
-| CLI | `reflection append --report-file … --fragment … [--dry-run]` | Checks guarded worktree, reservation ownership, sequence/IDs, and canonical bytes. Dry run returns exact rendered Markdown/YAML bytes. |
+| CLI | `reflection append --report-file … --fragment … [--dry-run]` | Accepts conclusion, reasoning, topics, and optional relationship judgment. It adds clock-owned metadata, searches active heads, links one mechanically clear match, and asks only when the relationship is ambiguous or no-related-thread must be confirmed. Dry run returns exact rendered Markdown/YAML bytes. |
 | CLI | `reflection check --plan`, `reflection view --plan`, `reflection fuse --plan --branch --preview` | Read-only. View is stdout Markdown; `--json` is transport only. Apply is internal to the coordinated merge primitive. |
-| CLI | `reflection close --plan --apply` | Orchestrator-only; validates dispositions/promotions and appends closeout evidence. |
-| CLI | `reflection expire --plan --preview` | Read-only ESR proposal showing age, unresolved records, receipt destinations, and exact paths eligible for removal. Apply requires separate live user approval. |
+| CLI | `reflection close --plan --chain <id> --apply` | Orchestrator-only; validates required review coverage, synthesis, dispositions/promotions, complete receipts, and appends one immutable chain close record. The plan closes only when every admitted chain has closed. |
+| CLI | `reflection expire --plan [--chain ...] --preview|--apply` | Preview shows age, receipt coverage, and exact eligible chain paths. Apply automatically removes only elapsed chains. `--early` is restricted to unpromoted chains and requires a live-user approval receipt the agent cannot mint. |
 | MCP | `memory_reflection_view`, `memory_reflection_fuse_preview` | Non-mutating projections of the same core result as CLI. |
 | MCP | `memory_reflection_append`, `memory_reflection_close` | Added only with success/error parity tests; call shared validators and cannot merge or bypass live approval. |
-| Orchestrator | Task Packet compile + coordinated integration | Compiles exact pre-reserved paths, checks binding/admission receipt, and owns resolution, promotion, integration, closeout, and approved expiry. |
+| Orchestrator | Task Packet compile + coordinated integration | Compiles exact pre-reserved paths, checks binding/admission receipt, and owns resolution, promotion, integration, and closeout. Elapsed-chain expiry is mechanical; early unpromoted deletion remains user-gated. |
 
 CLI and MCP must expose identical valid core result dictionaries/rendered bytes and identical structured
 errors `{code, path, message, details}` for every shared fixture. No MCP writer hand-writes files. No export
 path exists except stdout or a caller-scoped derived file guarded by the normal worktree policy. No new
 dispatch engine is introduced: the ledger is evidence inside the existing flow.
+
+The append surface is an outcome-level operation under `constitution:v1#path-of-least-resistance`. The caller
+supplies the thought, not storage mechanics: the shared core stamps time and identity, resolves the active plan,
+normalizes topics, searches active chain heads, and validates and writes the record in one call. It automatically
+continues only when one relationship is mechanically justified. Multiple plausible heads, an unclear relationship,
+or a proposed orphan are judgment boundaries returned to the caller with concise candidates. End-of-turn uses the
+same principle to inspect reflections actually referenced or adopted by the turn and offer their complete chains
+for promotion review; validation and orchestrator synthesis still precede the durable judgment.
 
 ## Authority, ESR promotion, receipts, and expiry
 
@@ -454,12 +483,45 @@ dispatch engine is introduced: the ledger is evidence inside the existing flow.
   live in the ESR session entry rather than a separate receipt sidecar.
 - A rebuildable receipt index may accelerate lookup by reflection ID, topic, or decision ref. It is derived
   solely from ordinary session entries, can be deleted at any time, and owns no authority.
-- Closing is distinct from expiry. `closeout.md` must cover every admitted reflection and name its promotion,
-  existing-decision coverage, approved extension, or non-promotion disposition. ESR may propose expiry only
-  after every record has a durable receipt and no unresolved record is inside its review window.
-- Expiry is never automatic. ESR shows the user concise promoted summaries and the exact detailed paths that
-  would be removed; only live approval authorizes removal. Default eligibility is 7 days, with 14- or 30-day
-  extensions for unfinished or disputed work. Git may retain historical blobs; no hard-erasure claim is made.
+- The canonical embedded receipt shape is:
+
+  ```yaml
+  reflection_receipts:
+    - schema: memory-seed/reflection-receipt
+      version: 1
+      receipt_id: rrc_<deterministic-id>
+      plan_id: reflection-ledger-v1
+      chain_id: rlc_<chain-id>
+      head_record_ids: [rlr_<head-id>]
+      member_record_ids: [rlr_<record-id>, rlr_<record-id>]
+      conclusion: "One sentence describing what survived the discussion."
+      disposition: promoted|already-covered|expired-unpromoted|early-deletion
+      promoted_to: [mse_<entry-id>:d1]
+      recorded_at: <RFC3339-UTC>
+      detail_digest: sha256:<digest-of-canonical-member-bytes-in-record-order>
+  ```
+
+  `member_record_ids` contains every reachable member absorbed by the named live head or heads. Promoting a
+  chain means promoting that complete set, not only its newest record. Several receipts may attach to one
+  decision and one chain receipt may name several decisions. Repeated copies of the same receipt are allowed
+  only when their canonical bytes are identical; conflicting duplicates fail validation. The receipt-only
+  resolver scans ordinary sessions by `(plan_id, chain_id, record_id)` and never requires an expired active
+  file. `promoted_to` must resolve to the decision containing the receipt or to another decision authored in
+  the same promotion checkpoint.
+- Closing is distinct from expiry. `closeout.md` contains immutable per-chain close records naming the relevant
+  implementer, reviewer, and orchestrator records; required validation receipt; synthesis; promotion,
+  existing-decision coverage, or non-promotion disposition; complete member receipt coverage; `closed_at`;
+  measured `retention_days`; and deterministic `expires_at = closed_at + retention_days`. An open, unvalidated,
+  unsynthesized, or unresolved chain has no ordinary expiry deadline. Independent chains may close while peers
+  remain active; board close requires every admitted chain to have a valid close record.
+- At or after `expires_at`, the next sanctioned cleanup automatically removes that chain after verifying a
+  durable receipt covers every member. It does not require a per-chain approval and never removes another
+  chain. The user changes future retention through the project setting; a shorter value never retroactively
+  deletes a chain without a fresh preview.
+- Early deletion is allowed only for an unpromoted chain with the user's live approval. The approval is
+  recorded in the ESR/session disposition with the exact chain, member IDs, reason, approval time, and
+  pre-expiry `expires_at`; an agent cannot self-assert it. Git may retain historical blobs, so no hard-erasure
+  claim is made.
 
 ## Delivery sequence and ownership
 
@@ -482,11 +544,11 @@ dispatch engine is introduced: the ledger is evidence inside the existing flow.
 | --- | --- | --- | --- |
 | Kernel fuse (serialized bootstrap) | `memory_seed/reflection_ledger.py`, minimal shared `memory_seed/core.py` helper extraction, `.gitattributes`, `tests/test_reflection_ledger.py`, canonical fixtures | Schema, manifest IDs, report validation, conclusion-first records, topic filters, preview/internal apply fuse, coordinated merge, and closeout/expiry preconditions. It emits no ledger record. | Foundation base only. |
 | Surfaces and packets | `memory_seed/cli.py`, `memory_seed/mcp_server.py`, `memory_seed/task_packet.py`, `tests/test_reflection_ledger_surfaces.py`, `tests/test_task_packet.py`, packet/worker documentation and its Seed twin | CLI/MCP parity, active-rules/session-logging packet baseline, pre-reserved paths, handoff validation, then its reserved pair. | Kernel API frozen and manifest committed. |
-| Orchestrator integration test | `tests/test_reflection_ledger_integration.py` and integration fixture helpers | Multi-worktree simulation, cross-branch topic retrieval, ESR promotion, embedded receipts, approved expiry, and negative controls. | Kernel + surfaces integrated; serialized owner only. |
+| Orchestrator integration test | `tests/test_reflection_ledger_integration.py` and integration fixture helpers | Multi-worktree simulation, cross-branch topic retrieval, end-of-turn and ESR promotion, embedded receipts, automatic chain expiry, and negative controls. | Kernel + surfaces integrated; serialized owner only. |
 | Independent auditor | Its pre-reserved report/fragment only | Read-only integrated-tree verdict and evidence handoff. | Kernel + surfaces integrated; no product/test edits. |
 
 The orchestrator owns `.memory-seed/reflections/active/<plan_id>/manifest.yaml`, the integration fragment,
-branch ordering, resolution/promotion, durable session appends, closeout, approved expiry, and the integration test. No worker
+branch ordering, resolution/promotion, durable session appends, closeout, automatic chain expiry, and the integration test. No worker
 owns shared control-plane files, dependency files, existing sessions, ADRs, policy, index, or seed files.
 This assigns each test file to one owner. The auditor writes only its reserved evidence pair and otherwise
 reviews the integrated diff.
@@ -502,10 +564,12 @@ reviews the integrated diff.
    each merge. No octopus merge or raw conflict resolution for reflection paths.
 5. Have an independent validator review the integrated behavior and negative controls. Route rework to the
    owning worker up to the existing bounded review-loop limit.
-6. The orchestrator runs the ESR reflection review, writes resolutions and promotions, embeds receipts in
-   ordinary session entries, closes the board, and validates the integrated tree again.
-7. At the eligible review date, ESR previews unresolved state and exact cleanup paths. Only live user approval
-   permits expiry; the integration test proves every durable link resolves through an embedded receipt afterward.
+6. After each chain's required validation, the orchestrator synthesizes its records, writes any resolution and
+   promotion, embeds complete receipts in ordinary session entries, closes that chain, and validates again.
+   The board closes only when all admitted chains have closed.
+7. At each ESR or process checkpoint, preview exact elapsed chains and cleanup paths, then automatically expire
+   eligible chains. Require live user approval only for early deletion of an unpromoted chain. The integration
+   test proves every durable link resolves through an embedded receipt afterward.
 
 ## Test matrix and acceptance observables
 
@@ -514,13 +578,16 @@ reviews the integrated diff.
 | Manifest and ownership | Unknown/duplicate participant, roster-seal mismatch, changed manifest, foreign plan, wrong branch/base/track/reservation, a worker writing an orchestrator kind, and an uncited resolution all refuse. |
 | Canonical IDs/bytes | Manifest-derived dry-run IDs; malformed/forged IDs; duplicate source ID; base collision same bytes/mode=`already_present`; changed bytes/mode refusal; duplicate sequence; invalid UTF-8/NFC/LF/final LF; golden manifest/report/fragment/closeout bytes. |
 | Report provenance | Missing report, wrong plan/participant/branch/base, unreserved path, malformed fingerprint, uncited report, changed source tip, and altered measured blob/hash/mode all refuse. Reports cannot claim a head SHA. |
-| Active immutability | Before approved expiry, delete, rename, copy, source-only extra path, symlink/executable/submodule, and any mode change of a report/fragment/manifest refuse. |
-| Corrections and derived view | Correction cannot edit or target another participant; original and correction remain visible; derived cannot outrank write-time without explicit correction; stdout Markdown and transport JSON are deterministic; disagreement is visible rather than collapsed. |
+| Active immutability | Before sanctioned chain expiry, delete, rename, copy, source-only extra path, symlink/executable/submodule, and any mode change of a report/fragment/manifest refuse. |
+| Chains and derived view | Refines/responds/corrects/challenges/combines edges validate, cycles and dangling parents refuse, orphan requires `no-related-thread`, divergent heads remain visible, and direct/transitive cross-branch selectors work without ranking away dissent. |
 | Coordinated application | Both previews are required; no-commit merge resets every union path and removes additions; second apply failure aborts; raw/post-merge reflection integration fails closed; one commit has both receipts. |
 | CLI/MCP parity | Same valid rendered fragment/result and `{code,path,details}` errors from both paths; MCP read surfaces and stdout view are non-mutating; unsupported export arguments fail closed; no writer bypasses core validation. |
 | Packet governance baseline | Every worker packet materializes active agent-rules; worker-checkpoint/session-path packets also materialize session_logging, reject direct session Markdown/future timestamp overrides, preserve lazy orientation, and account both components in input/cost tokens. |
 | Task Packet integration | Exact pre-reserved worker paths/IDs and expected-absent paths are materialized; stale binding blocks; packet evidence is not refetched; compilation is measured for all three drafts. |
-| ESR promotion and expiry | ESR finds uncaptured reflections without auto-promoting; promoted decisions and non-promoted ESR entries embed complete compact receipts; expiry refuses without live approval, unresolved records, missing receipts, or an unelapsed retention window; durable references still resolve afterward. |
+| Outcome-level friction | One append call stamps canonical time/identity, resolves the plan, normalizes topics, and links a single clear active head; ambiguous heads and orphan creation stop for judgment; no caller must daisy-chain deterministic parser, search, hydration, validation, and write calls. |
+| Promotion and receipts | End-of-turn identifies candidates when a turn uses a reflection; ESR catches leftovers; promotion waits for required validation and orchestrator synthesis; many-chains-to-one-decision and one-chain-to-many-decisions work; receipt grammar/digests validate; session-only resolution and index rebuild refuse duplicates, conflicts, malformed digests, and decision mismatches. |
+| Validation and closure | Implementer records remain open for reviewer confirmation, challenge, correction, or refinement; close refuses without required validation, relevant implementer/reviewer/orchestrator coverage, synthesis, resolved or disposed divergent heads, and complete receipts; independent chains close while peers remain active; board close refuses until all chains close. |
+| Expiry | Default seven-day and configured windows derive only from chain `closed_at`; elapsed closed chains delete automatically and individually; open, unvalidated, unelapsed, or incompletely receipted chains refuse; early unpromoted deletion requires an unforgeable live-approval receipt; general board wipes refuse. |
 | Regression | Existing `session_fuse`, `session_merge_branch`, Task Packet, docs, and MCP tests stay green. Add a negative control that deliberately corrupts a fragment/report and proves the new checker refuses it. |
 
 Minimum final commands (run from the integration checkout using the checkout's own module) are:
@@ -705,8 +772,8 @@ Actual compilation has staged committed inputs and receipts:
 There is no migration or backfill. Existing sessions, diagrams, links, topics, ADRs, Task Packets, and
 experiment reflection logs retain their current readers and semantics. The first board is an opt-in pilot
 with no automatic initialization and no change to `memory-seed init` or seed payloads. A completed pilot is
-closed, its durable receipts live inside ordinary sessions, and its detailed active files become eligible for
-approved expiry. Any later decision
+closed, its durable receipts live inside ordinary sessions, and its detailed chains expire automatically at
+their configured deadlines. Any later decision
 to make the family reusable across projects, include it in retrieval, add native Task Dispatch schema, or add
 a server/sync layer needs separate evidence and a new proposal.
 
@@ -729,17 +796,18 @@ Known risks to hold visible during implementation:
 
 The plan is ready for independent review when the reviewer can answer yes to all of these:
 
-1. Reflection storage is distinct from durable sessions, defaults to a seven-day active review window, and
-   cannot expire until ESR has produced complete embedded receipts and the user approves cleanup.
+1. Reflection storage is distinct from durable sessions, defaults to a configurable seven-day window, and
+   expires automatically per chain only after ordinary sessions contain complete embedded receipts.
 2. Every writer is manifest-authorized and every fragment is traceable to a committed, binding-matched
    report.
 3. The fuse blocks unsafe state before merge/apply, while the common view exposes disagreement rather than
    manufacturing consensus.
-4. Resolution, promotion, closeout, and expiry remain orchestrator-only; promotion uses ordinary session
-   safeguards, and decisions reference embedded receipts rather than temporary paths.
+4. Resolution, promotion, and closeout remain orchestrator judgments; elapsed expiry is deterministic, while
+   early unpromoted deletion requires live user approval. Decisions reference embedded receipts rather than
+   temporary paths.
 5. Task Packet drafts compile from pre-reserved exact paths/IDs plus measured binding; no hidden
    dispatch, worktree, provider, or authority feature is implied.
 6. Active retrieval can find overlapping reflections across branches by plan, area, activity, topic, related
    decision, or response link without making the board part of ordinary long-term memory retrieval.
-7. The review explicitly adjudicates whether approved deletion of a non-authoritative working board is
-   compatible with the current Constitution or requires a narrow amendment before implementation.
+7. The ratified Constitution 1.12 reflection-expiry exception and this plan agree on the temporary boundary,
+   chain deletion unit, receipt prerequisite, configured deadline, and early-deletion approval gate.

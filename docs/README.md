@@ -125,7 +125,7 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) — —
 - **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
-- **P1** [plan-reflection-ledger.md](2_Todo/plan-reflection-ledger.md) — Independently review the revised active-board, ESR promotion, embedded-receipt, and approved-expiry contract before implementation.
+- **P1** [plan-reflection-ledger.md](2_Todo/plan-reflection-ledger.md) — Independently review the ratified chain-expiry, immediate-promotion, embedded-receipt, and active-thread retrieval contract before implemen…
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 - **P1** [storyline-gap-tranche-implementation-plan.md](2_Todo/storyline-gap-tranche-implementation-plan.md) — None — R5, R8, and R13 are reconciled from reviewed implementation evidence.
