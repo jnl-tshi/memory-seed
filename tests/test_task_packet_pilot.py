@@ -62,6 +62,13 @@ class TaskPacketPilotTests(unittest.TestCase):
         manifest = packet["evidence_pack"]["evidence"]
         materialized = packet["materialized_evidence"]
         materialized_ids = {item["id"] for item in materialized}
+        projection = packet["constitution_projection"]
+        projected_constitution_ids = (
+            {item["path"] for item in projection["clauses"]}
+            if projection["mode"] == "anchored_clauses"
+            else {projection["full_document"]["path"]}
+        )
+        supplied_ids = materialized_ids | projected_constitution_ids
         self.assertTrue(
             {"adr_task_packet_pilot", "mse_packetpilot:d1", "docs/pilot-support.md"}
             <= materialized_ids
@@ -86,10 +93,10 @@ class TaskPacketPilotTests(unittest.TestCase):
             for evidence_id in conclusion["evidence_ids"]
         }
         self.assertEqual(assessment["evidence_status"], "sufficient")
-        self.assertTrue(cited_ids <= materialized_ids)
+        self.assertTrue(cited_ids <= supplied_ids)
         self.assertEqual(
             set(assessment["evidence_id_correctness"]["referenced_evidence_ids"]),
-            materialized_ids,
+            supplied_ids,
         )
         self.assertEqual(assessment["evidence_id_correctness"]["status"], "correct")
         self.assertTrue(assessment["evidence_id_correctness"]["all_present_in_packet"])

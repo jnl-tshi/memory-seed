@@ -254,7 +254,7 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
     base = normalize_retrieval_spec(v1_input)
 
     selectors_in = _mapping(spec.get("selectors", {}), "selectors")
-    _known_keys(selectors_in, "selectors", {"pinned"})
+    _known_keys(selectors_in, "selectors", {"pinned", "path_references"})
     pinned_in = selectors_in.get("pinned", [])
     if not isinstance(pinned_in, list):
         _error("selectors.pinned", "must be a list")
@@ -302,8 +302,17 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
                 "required": required,
             }
         )
+    path_references = _bool(
+        selectors_in.get("path_references", False), "selectors.path_references"
+    )
     base["version"] = V2_VERSION
-    base["selectors"] = {"pinned": pinned}
+    base["selectors"] = {
+        "pinned": pinned,
+        # F: metadata is contextual evidence, not an exact path selector.
+        # Keep it opt-in so filters.paths selects the named Markdown path by
+        # default and cannot silently widen to every session mentioning it.
+        "path_references": path_references,
+    }
     return base
 
 

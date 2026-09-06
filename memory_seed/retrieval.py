@@ -1163,17 +1163,21 @@ def _build_retrieval_plan(
 
     direct_markdown: list[_RetrievalCandidate] = []
     normalized_paths = list(normalized["filters"]["paths"])
+    include_path_references = bool(
+        normalized.get("selectors", {}).get("path_references", False)
+    )
     for requested in normalized_paths:
         target = _runtime_scoped_path(root, requested)
         matched = False
-        for chunk in chunks:
-            if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
-                add_root(
-                    chunk.entry_id,
-                    "",
-                    f"path {requested!r} matched canonical session file evidence"
-                )
-                matched = True
+        if include_path_references:
+            for chunk in chunks:
+                if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
+                    add_root(
+                        chunk.entry_id,
+                        "",
+                        f"path {requested!r} matched canonical session file evidence"
+                    )
+                    matched = True
         if target.is_file() and target.suffix.lower() == ".md":
             try:
                 source_text = target.read_text(encoding="utf-8")
@@ -1239,6 +1243,7 @@ def _build_retrieval_plan(
             "stage": "path_filters",
             "reader": "runtime-bounded canonical Markdown path reader",
             "requested": normalized_paths,
+            "path_references": include_path_references,
             "matched_entries": sum(
                 1
                 for selectors in root_selection.values()
