@@ -603,8 +603,16 @@ class SessionSchemaTests(unittest.TestCase):
             "Return `NEEDS_CONTEXT` only",
             "memory_update_policy: orchestrator",
             "worker_checkpoint",
+            "complete active `.memory-seed/agent-rules.md` as baseline",
+            "fingerprints and token-accounts this baseline",
+            "exact session-log path is writable",
+            "complete active\n`.memory-seed/skills/session_logging.md`",
+            "memory_session_append",
+            "checkout-local `python -X utf8 -m memory_seed.cli session append`",
+            "direct Markdown session edits and explicit timestamps are\nforbidden",
+            "narrowly scoped repair/backfill exception",
             "guarded branch-local append mechanics",
-            "Duration alone never changes context, authority, or memory ownership",
+            "Duration alone never\nchanges context, authority, or memory ownership",
             "context_load: full` is reserved",
         ):
             self.assertIn(phrase, content)

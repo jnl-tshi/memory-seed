@@ -252,12 +252,22 @@ additional context might be useful.
 
 #### Memory update policy
 
+Every compiled worker packet materializes the complete active `.memory-seed/agent-rules.md` as baseline
+governance. It remains distinct from task-scoped retrieval evidence: it establishes the non-deferrable
+worker safety and authority contract without eagerly loading orientation, the skill registry, policy,
+unrelated skills, or unrelated authority. The compiler fingerprints and token-accounts this baseline, so
+a source change is visible in both the packet identity and context ledger.
+
 `memory_update_policy: orchestrator` is the default: the orchestrator owns durable session logging and
 integrates worker evidence. `worker_checkpoint` is allowed only for consequential work with multiple
-checkpoints where delaying a first-hand rationale risks losing it. A checkpoint worker receives scoped
-session-logging instructions and guarded branch-local append mechanics, **not** full `agent-rules.md`.
-Duration alone never changes context, authority, or memory ownership; `context_load: full` is reserved for
-project-wide reconciliation or deliberate promotion to an orchestrator role.
+checkpoints where delaying a first-hand rationale risks losing it. A checkpoint worker — and any worker
+whose exact session-log path is writable — also receives the complete active
+`.memory-seed/skills/session_logging.md` plus guarded branch-local append mechanics. It must use
+`memory_session_append` or the checkout-local `python -X utf8 -m memory_seed.cli session append` path;
+the sanctioned writer owns the clock, so direct Markdown session edits and explicit timestamps are
+forbidden unless the dispatch grants a narrowly scoped repair/backfill exception. Duration alone never
+changes context, authority, or memory ownership; `context_load: full` is reserved for project-wide
+reconciliation or deliberate promotion to an orchestrator role.
 
 Under `worker_checkpoint`, the worker may write only its first-hand decisions, evidence, tests, risks, and
 explicitly delegated files. Prior entries, policy, index, ADRs, and other shared control-plane files remain

@@ -112,6 +112,8 @@ _BUDGET_KEYS = frozenset(
 _CHECKPOINT_KEYS = frozenset(
     {"names", "session_paths", "branch_local_only", "guarded_append"}
 )
+_WORKER_BASELINE_AGENT_RULES = ".memory-seed/agent-rules.md"
+_WORKER_BASELINE_SESSION_LOGGING = ".memory-seed/skills/session_logging.md"
 _BINDING_KEYS = frozenset(
     {
         "owner",
@@ -134,6 +136,7 @@ _COMPILED_PACKET_KEYS = frozenset(
         "retrieval_profile",
         "evidence_pack",
         "materialized_evidence",
+        "worker_baseline",
         "constitution_projection",
         "execution_defaults",
         "input_ledger",
@@ -935,6 +938,8 @@ def assess_context_budget(
     output_tokens: int,
     over_soft_cap: str,
     over_soft_cap_reason: str | None,
+    materialized_agent_rules_tokens: int = 0,
+    materialized_session_logging_tokens: int = 0,
     _enforce: bool = True,
 ) -> dict[str, Any]:
     if tier not in TIER_BANDS:
@@ -945,6 +950,11 @@ def assess_context_budget(
         "tool_schema_input_tokens": tool_schema_tokens,
         "supplemental_input_reserve_tokens": supplemental_input_tokens,
         "output_reasoning_reserve_tokens": output_tokens,
+        # These are subsets of the canonical serialized packet rather than
+        # additional input.  Exposing them separately makes the always-on
+        # worker-governance cost inspectable without double-counting it.
+        "materialized_agent_rules_tokens": materialized_agent_rules_tokens,
+        "materialized_session_logging_tokens": materialized_session_logging_tokens,
     }
     for name, value in components.items():
         _nonnegative_int(value, f"input_ledger.{name}")
@@ -998,6 +1008,13 @@ def assess_context_budget(
         }
         for name, value in components.items()
     }
+    for name in (
+        "materialized_agent_rules_tokens",
+        "materialized_session_logging_tokens",
+    ):
+        component_measurements[name]["accounting_scope"] = (
+            "subset_of_serialized_packet_input_tokens"
+        )
     return {
         "estimator": TOKEN_ESTIMATOR,
         "tier": tier,
@@ -1133,6 +1150,105 @@ def materialize_evidence_pack(
             }
         )
     return materialized
+
+
+def _materialize_worker_baseline_document(
+    memory_dir: Path, relative_source: str, *, required: bool
+) -> dict[str, Any] | None:
+    """Read one active control-plane baseline byte-for-byte as UTF-8."""
+    source = (memory_dir.parent / relative_source).resolve()
+    try:
+        source.relative_to(memory_dir.parent.resolve())
+    except ValueError:
+        _fail(
+            "worker_baseline",
+            "baseline source resolved outside the active runtime",
+            code="invalid_worker_baseline",
+            stage="materialization",
+            details={"source": relative_source},
+        )
+    try:
+        payload = source.read_bytes()
+    except OSError as exc:
+        if not required:
+            return None
+        _fail(
+            f"worker_baseline.{Path(relative_source).stem}",
+            "required active baseline source is missing or unreadable",
+            code="missing_worker_baseline",
+            stage="materialization",
+            details={"source": relative_source, "error": exc.__class__.__name__},
+        )
+    try:
+        content = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        _fail(
+            f"worker_baseline.{Path(relative_source).stem}",
+            "required active baseline source must be UTF-8",
+            code="invalid_worker_baseline",
+            stage="materialization",
+            details={"source": relative_source, "error": exc.__class__.__name__},
+        )
+    return {
+        "source": relative_source,
+        "byte_count": len(payload),
+        "token_estimate": estimate_tokens(payload),
+        "content_digest": "sha256:" + hashlib.sha256(payload).hexdigest(),
+        "content": content,
+    }
+
+
+def _session_log_paths_are_writable(dispatch: Mapping[str, Any]) -> bool:
+    return any(
+        _canonical_scope_identity(path).startswith(".memory-seed/sessions/")
+        for path in dispatch["execution"]["allowed_files"]
+    )
+
+
+def materialize_worker_baseline(
+    dispatch: Mapping[str, Any], cwd: str | Path = "."
+) -> dict[str, Any]:
+    """Materialize the minimum always-on worker governance from the active runtime.
+
+    Retrieval evidence remains task scoped.  These baseline sources are instead
+    a deterministic execution envelope: every packet gets agent rules, while
+    session logging is included only when the dispatch delegates a session
+    write or asks for worker checkpoints.
+    """
+    runtime = resolve_runtime(cwd)
+    agent_rules = _materialize_worker_baseline_document(
+        runtime.memory_dir, _WORKER_BASELINE_AGENT_RULES, required=True
+    )
+    assert agent_rules is not None
+    session_logging_required = (
+        dispatch["memory_update_policy"] == "worker_checkpoint"
+        or _session_log_paths_are_writable(dispatch)
+    )
+    session_logging = (
+        _materialize_worker_baseline_document(
+            runtime.memory_dir,
+            _WORKER_BASELINE_SESSION_LOGGING,
+            required=True,
+        )
+        if session_logging_required
+        else None
+    )
+    if session_logging_required and session_logging is None:
+        _fail(
+            "worker_baseline.session_logging",
+            "session-writable packets require the active session_logging baseline",
+            code="missing_worker_baseline",
+            stage="materialization",
+            details={"source": _WORKER_BASELINE_SESSION_LOGGING},
+        )
+    sources = {"agent_rules": agent_rules, "session_logging": session_logging}
+    identity = copy.deepcopy(sources)
+    return {
+        "sources": sources,
+        "fingerprint": "sha256:" + hashlib.sha256(
+            canonical_json(identity).encode("utf-8")
+        ).hexdigest(),
+    }
 
 
 def _content_digest(content: str) -> str:
@@ -1375,6 +1491,10 @@ def project_constitution(
 
 def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:
     writing = dispatch["execution"]["write_intent"] == "writing"
+    session_logging_delegated = (
+        dispatch["memory_update_policy"] == "worker_checkpoint"
+        or _session_log_paths_are_writable(dispatch)
+    )
     cadence = commit_cadence(binding["worktree"], base_ref=binding["base_sha"])
     preflight = [
         f"Set-Location -LiteralPath {binding['worktree']!r}",
@@ -1421,6 +1541,25 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
         "scope_blocker_check": {
             "required": "name the required file and compare it with dispatch.execution.allowed_files",
             "allowed_files": list(dispatch["execution"]["allowed_files"]),
+        },
+        "session_logging": {
+            "delegated": session_logging_delegated,
+            "append_requirement": (
+                "When a session write is delegated, use memory_session_append or "
+                "the checkout-local python -X utf8 -m memory_seed.cli session append path."
+            ),
+            "clock_ownership": (
+                "Automatic clock ownership is required: omit timestamp so the sanctioned "
+                "writer owns the current timestamp."
+            ),
+            "prohibitions": [
+                "Direct Markdown session edits are forbidden.",
+                "Explicit timestamps are forbidden.",
+            ],
+            "repair_backfill_exception": (
+                "Only a dispatch that grants a narrowly scoped repair/backfill exception may "
+                "depart from these prohibitions; this packet grants none."
+            ),
         },
         "activation": {
             "required": writing,
@@ -1586,6 +1725,87 @@ def _validate_compiled_packet_evidence(packet: Mapping[str, Any]) -> None:
         _fail("packet.materialized_evidence", "does not match the Evidence Pack identities", code="fingerprint_mismatch", stage="activation")
 
 
+def _validate_worker_baseline(packet: Mapping[str, Any]) -> None:
+    """Validate baseline bytes embedded by the compiler without rereading mutable files."""
+    baseline = _mapping(packet.get("worker_baseline"), "packet.worker_baseline")
+    _exact_keys(
+        baseline,
+        "packet.worker_baseline",
+        frozenset({"sources", "fingerprint"}),
+        required=frozenset({"sources", "fingerprint"}),
+    )
+    sources = _mapping(baseline.get("sources"), "packet.worker_baseline.sources")
+    _exact_keys(
+        sources,
+        "packet.worker_baseline.sources",
+        frozenset({"agent_rules", "session_logging"}),
+        required=frozenset({"agent_rules", "session_logging"}),
+    )
+
+    def validate_source(name: str, expected_source: str, *, required: bool) -> None:
+        item = sources.get(name)
+        if item is None:
+            if required:
+                _fail(
+                    f"packet.worker_baseline.sources.{name}",
+                    "is required by the dispatch",
+                    code="invalid_packet",
+                    stage="activation",
+                )
+            return
+        source = _mapping(item, f"packet.worker_baseline.sources.{name}")
+        _exact_keys(
+            source,
+            f"packet.worker_baseline.sources.{name}",
+            frozenset({"source", "byte_count", "token_estimate", "content_digest", "content"}),
+            required=frozenset({"source", "byte_count", "token_estimate", "content_digest", "content"}),
+        )
+        if source.get("source") != expected_source or not isinstance(source.get("content"), str):
+            _fail(
+                f"packet.worker_baseline.sources.{name}",
+                "does not carry the expected complete baseline source",
+                code="invalid_packet",
+                stage="activation",
+            )
+        payload = str(source["content"]).encode("utf-8")
+        if source.get("byte_count") != len(payload) or source.get("token_estimate") != estimate_tokens(payload):
+            _fail(
+                f"packet.worker_baseline.sources.{name}",
+                "does not match the embedded baseline bytes",
+                code="fingerprint_mismatch",
+                stage="activation",
+            )
+        if source.get("content_digest") != "sha256:" + hashlib.sha256(payload).hexdigest():
+            _fail(
+                f"packet.worker_baseline.sources.{name}",
+                "content does not match its declared digest",
+                code="fingerprint_mismatch",
+                stage="activation",
+            )
+
+    dispatch = _mapping(packet.get("dispatch"), "packet.dispatch")
+    session_logging_required = (
+        dispatch.get("memory_update_policy") == "worker_checkpoint"
+        or _session_log_paths_are_writable(dispatch)
+    )
+    validate_source("agent_rules", _WORKER_BASELINE_AGENT_RULES, required=True)
+    validate_source(
+        "session_logging",
+        _WORKER_BASELINE_SESSION_LOGGING,
+        required=session_logging_required,
+    )
+    expected_fingerprint = "sha256:" + hashlib.sha256(
+        canonical_json(copy.deepcopy(dict(sources))).encode("utf-8")
+    ).hexdigest()
+    if baseline.get("fingerprint") != expected_fingerprint:
+        _fail(
+            "packet.worker_baseline.fingerprint",
+            "does not match the canonical baseline sources",
+            code="fingerprint_mismatch",
+            stage="activation",
+        )
+
+
 def _activation_receipt(
     packet: Mapping[str, Any], dispatch: Mapping[str, Any], binding: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -1620,6 +1840,7 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
     if binding != packet["runtime_binding"]:
         _fail("packet.runtime_binding", "is not the strict normalized activation binding", code="binding_mismatch", stage="activation")
     _validate_compiled_packet_evidence(packet)
+    _validate_worker_baseline(packet)
     selected_decisions = {
         item["id"]
         for item in packet["materialized_evidence"]
@@ -1854,6 +2075,14 @@ def compile_task_packet(
     materialized = [
         item for item in materialized_all if item.get("kind") != "constitution"
     ]
+    worker_baseline = materialize_worker_baseline(normalized_dispatch, cwd)
+    baseline_sources = worker_baseline["sources"]
+    agent_rules_tokens = int(baseline_sources["agent_rules"]["token_estimate"])
+    session_logging_tokens = (
+        int(baseline_sources["session_logging"]["token_estimate"])
+        if baseline_sources["session_logging"] is not None
+        else 0
+    )
 
     fixed_tokens = estimate_tokens("\n".join(normalized_environment["fixed_instructions"]))
     tool_tokens = estimate_tokens(normalized_environment["tool_schemas"])
@@ -1872,6 +2101,7 @@ def compile_task_packet(
         },
         "evidence_pack": evidence_pack,
         "materialized_evidence": materialized,
+        "worker_baseline": worker_baseline,
         "constitution_projection": constitution_projection,
         "execution_defaults": _execution_defaults(normalized_dispatch, normalized_binding),
         "input_ledger": {},
@@ -1893,6 +2123,8 @@ def compile_task_packet(
             output_tokens=budget["output_tokens"],
             over_soft_cap=budget["over_soft_cap"],
             over_soft_cap_reason=budget["over_soft_cap_reason"],
+            materialized_agent_rules_tokens=agent_rules_tokens,
+            materialized_session_logging_tokens=session_logging_tokens,
             _enforce=False,
         )
         packet["input_ledger"] = ledger

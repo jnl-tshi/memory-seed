@@ -207,3 +207,18 @@ The following dispositions complete the compiler-evaluation record. “Extra hop
 | Surfaces | Same shared evaluation hops: frozen binding check **appropriate task-scoped authority check**; compiler/CLI/MCP and test reads **expected implementation inspection**; no governance/history hop and no broad discovery. | Missing: none for compilation. Excessive: none after full-Constitution removal; CLI/MCP parity proof was scoped to compiler surfaces. | Explicit clauses and identity/scoping ADRs preserve governing source identities. Worker reconstruction quality: **N/A, not measured**; CLI/MCP parity does not measure worker reasoning. | Accurate: surface test/report creations were explicitly allowlisted and expected absent; the replay binding check rejected wrong-worktree scope before write. | Retain canonical CLI/MCP parity as an observable and add a future optional controlled worker-outcome field rather than inferring worker quality from compiler tests. |
 
 No row is classified as compiler omission, stale compiled content, unclear dispatch instruction, or unjustified broad discovery: the completed packets carried the required evidence, had no warnings, and the evaluator did not perform those kinds of hops. The only unmeasured dimensions are clean-worker reconstruction, worker instruction compliance, and implementation correctness, because this cycle intentionally evaluated packet compilation rather than dispatching a worker.
+
+## Baseline-governance correction — Ada future-timestamp incident
+
+- Ada's clean worker packet omitted the active session-writing contract, so the worker manually edited a
+  session entry and supplied a future timestamp instead of letting the canonical append writer own the
+  clock. That was an instruction-completeness failure, not a reason to relax append-only validation.
+- The compiler now gives every worker the complete active `.memory-seed/agent-rules.md`; checkpoint and
+  session-writable packets additionally receive the complete active
+  `.memory-seed/skills/session_logging.md`. Their execution defaults require `memory_session_append` or
+  checkout-local `python -X utf8 -m memory_seed.cli session append`, require automatic clock ownership,
+  and forbid direct Markdown session edits and explicit timestamps unless a dispatch grants a narrowly
+  scoped repair/backfill exception.
+- This makes the governance source bytes, digest, baseline fingerprint, and token share visible in the
+  packet itself. A changed baseline changes the compiled packet fingerprint, preventing a clean worker
+  from silently receiving stale or absent session-authoring governance.

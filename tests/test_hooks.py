@@ -37,6 +37,11 @@ class CommitHookTests(unittest.TestCase):
             encoding="utf-8",
         )
         (self.root / "docs" / "evidence.md").write_text("# Evidence\n\nExact slice.\n", encoding="utf-8")
+        agent_rules = self.root / MEMORY_DIR_NAME / "agent-rules.md"
+        agent_rules.parent.mkdir(parents=True)
+        agent_rules.write_text(
+            "# Active agent rules\n\nGovern every worker.\n", encoding="utf-8"
+        )
         profile = self.root / MEMORY_DIR_NAME / "retrieval-profiles" / "implementation"
         profile.mkdir(parents=True)
         (profile / "v1.yaml").write_text(
