@@ -18,3 +18,8 @@
 # entry records) is the only way through. The tool itself is unaffected: it
 # already resets branch-touched session files to base content before fusing.
 .memory-seed/sessions/** -merge
+
+# Active reflection boards are parsed and admitted structurally by the
+# reflection fuse.  A line-based merge can fabricate a valid-looking but
+# unauthorised record, so ordinary Git merging must stop wholesale instead.
+.memory-seed/reflections/active/** -merge
