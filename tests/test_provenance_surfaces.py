@@ -6,9 +6,13 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import contextlib
+import io
+import json
+import os
 from pathlib import Path
 
-from memory_seed.cli import provenance_surface
+from memory_seed.cli import provenance_audit_all, provenance_surface
 from memory_seed.mcp_server import MUTATING_TOOL_NAMES, call_tool
 from memory_seed.provenance import build_runtime_ownership
 from memory_seed.provenance_git import derive_commit_bindings
@@ -79,7 +83,7 @@ class ProvenanceSurfaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "retired"):
             provenance_surface("bind", cwd=self.root, binding=self.binding, owner=retired, apply=True)
         descendant = build_runtime_ownership(runtime_path="child", owner_kind="pod", owner_id="pod-a", owner_state="active")
-        with self.assertRaisesRegex(ValueError, "descendant"):
+        with self.assertRaisesRegex(ValueError, "measured nested"):
             provenance_surface("bind", cwd=self.root, binding=self.binding, owner=descendant, apply=True)
         shown = provenance_surface("show", cwd=self.root, decision_ref=DECISION, owner=retired)
         self.assertEqual(shown["projections"], [])
@@ -89,3 +93,56 @@ class ProvenanceSurfaceTests(unittest.TestCase):
             provenance_surface("show", cwd=self.root, decision_ref=DECISION, context_lines=21)
         with self.assertRaisesRegex(ValueError, "0 through 20"):
             call_tool("memory_decision_provenance", {"cwd": str(self.root), "decision_ref": DECISION, "context_lines": 21})
+
+
+class MeasuredProvenanceTopologyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp(prefix="mseed-provenance-topology-")).resolve()
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
+        self.pod = self.root / "pods" / "pod-a"
+        for place, entry_id in ((self.root, "mse_abcd1234"), (self.pod, "mse_dcba4321")):
+            path = place / ".memory-seed/sessions/2026-09/2026-09-06.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(f"## 2026-09-06 10:00 - pod\n\n```yaml\nentry_id: {entry_id}\n```\n\n### Decision\n\n- D: Local decision.\n- R: Local authority.\n", encoding="utf-8")
+        self.git("init", "-q")
+        self.git("config", "user.name", "Test")
+        self.git("config", "user.email", "test@example.invalid")
+        target = self.root / "pkg/example.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("one\n", encoding="utf-8")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "initial")
+        target.write_text("TWO\n", encoding="utf-8")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "implementation")
+        self.binding = derive_commit_bindings(self.root, self.git("rev-parse", "HEAD"), [{"decision_ref": "mse_dcba4321:d1", "files": ["pkg/example.py"]}], authorship=AUTHORSHIP)["bindings"][0]
+        self.runtime = build_runtime_ownership(runtime_path="pods/pod-a", owner_kind="pod", owner_id="pod-a", owner_state="active")
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    def test_measurement_missing_decision_and_cli_runtime_file(self) -> None:
+        forged = build_runtime_ownership(runtime_path=".", owner_kind="pod", owner_id="pod-a", owner_state="active")
+        with self.assertRaisesRegex(ValueError, "measured nested"):
+            provenance_surface("bind", cwd=self.root, binding=self.binding, owner=forged, apply=True)
+        with self.assertRaisesRegex(ValueError, "cannot append"):
+            provenance_surface("bind", cwd=self.root, binding=self.binding, owner=self.runtime, apply=True)
+        self.assertTrue(provenance_surface("bind", cwd=self.pod, binding=self.binding, owner=self.runtime, apply=True)["written"])
+        missing = derive_commit_bindings(self.root, self.git("rev-parse", "HEAD"), [{"decision_ref": "mse_eeeeeeee:d1", "files": ["pkg/example.py"]}], authorship=AUTHORSHIP)["bindings"][0]
+        with self.assertRaisesRegex(ValueError, "does not exist"):
+            provenance_surface("bind", cwd=self.pod, binding=missing, owner=self.runtime, apply=True)
+        runtime_file = self.root / "runtime.json"; runtime_file.write_text(json.dumps(self.runtime), encoding="utf-8")
+        from memory_seed.cli import main
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(self.root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["provenance", "show", "mse_dcba4321:d1", "--runtime-file", str(runtime_file), "--json"]), 0)
+        finally:
+            os.chdir(old_cwd)
+
+    def test_committed_tamper_is_violated(self) -> None:
+        sidecar = Path(provenance_surface("bind", cwd=self.pod, binding=self.binding, owner=self.runtime, apply=True)["path"])
+        self.git("add", sidecar.relative_to(self.root).as_posix()); self.git("commit", "-q", "-m", "anchor")
+        sidecar.write_text("", encoding="utf-8")
+        check = provenance_surface("check", cwd=self.root, owner=self.runtime)
+        self.assertEqual(check["append_only"]["status"], "violated")
+        self.assertFalse(provenance_audit_all(self.root)["ok"])

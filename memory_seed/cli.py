@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from datetime import date, datetime
@@ -88,28 +89,51 @@ def _provenance_event(kind: str, value: Mapping[str, Any]) -> str:
     )
 
 
-def _provenance_runtime(cwd: str | Path, owner: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """Construct one explicit local runtime record; callers cannot write a descendant."""
+def _provenance_topology(
+    cwd: str | Path, owner: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], Path, Path, bool]:
+    """Measure the selected runtime against nested ``.memory-seed`` topology."""
 
     from .provenance import build_runtime_ownership, normalize_runtime_ownership
 
-    if owner is not None:
-        return normalize_runtime_ownership(owner)
-    return build_runtime_ownership(
-        runtime_path=".", owner_kind="runtime", owner_id="root", owner_state="active"
+    active = resolve_runtime(cwd)
+    outer = active.workspace_root
+    if not (active.workspace_root / ".git").exists():
+        parent = active.workspace_root.parent
+        for candidate in (parent, *parent.parents):
+            if (candidate / ".memory-seed").is_dir():
+                outer = candidate
+                break
+    active_path = active.workspace_root.relative_to(outer).as_posix() if active.workspace_root != outer else "."
+    runtime = (
+        normalize_runtime_ownership(owner)
+        if owner is not None
+        else build_runtime_ownership(runtime_path=".", owner_kind="runtime", owner_id="root", owner_state="active")
     )
+    declared_path = runtime["runtime_path"]
+    selected = outer if declared_path == "." else outer / declared_path
+    owner_data = runtime["owner"]
+    if owner_data["kind"] == "runtime":
+        if declared_path != "." or active_path != ".":
+            raise ValueError("a runtime root record is valid only for the measured root runtime")
+    elif owner_data["kind"] == "pod" and owner_data["state"] == "active":
+        if declared_path == "." or not (selected / ".memory-seed").is_dir():
+            raise ValueError("an active pod must name a measured nested .memory-seed runtime")
+        if owner_data["id"] != Path(declared_path).name:
+            raise ValueError("active pod id must match the measured runtime path leaf")
+    return runtime, outer, selected, active_path == declared_path
 
 
-def _provenance_sidecar(cwd: str | Path, runtime: Mapping[str, Any]) -> Path:
-    return resolve_runtime(cwd).workspace_root / str(runtime["sidecar_path"])
+def _provenance_sidecar(root: Path, runtime: Mapping[str, Any]) -> Path:
+    return root / str(runtime["sidecar_path"])
 
 
-def _read_provenance_ledger(cwd: str | Path, runtime: Mapping[str, Any]) -> tuple[dict[str, Any], Path, list[str]]:
+def _read_provenance_ledger(root: Path, runtime: Mapping[str, Any]) -> tuple[dict[str, Any], Path, list[str]]:
     """Read a complete event stream, refusing malformed or cross-runtime history."""
 
     from .provenance import build_ledger, normalize_ledger
 
-    path = _provenance_sidecar(cwd, runtime)
+    path = _provenance_sidecar(root, runtime)
     if not path.exists():
         return build_ledger(runtime=runtime), path, []
     try:
@@ -152,6 +176,67 @@ def _read_provenance_ledger(cwd: str | Path, runtime: Mapping[str, Any]) -> tupl
     return ledger, path, []
 
 
+def _git_sidecar_baseline(root: Path, path: Path) -> tuple[str | None, str]:
+    """Return committed sidecar text; a missing anchor is not a true claim."""
+
+    try:
+        relative = path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None, "unverifiable"
+    completed = subprocess.run(
+        ["git", "-C", str(root), "show", f"HEAD:{relative}"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if completed.returncode:
+        probe = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        return None, "unverifiable" if probe.returncode == 0 else "unavailable"
+    return completed.stdout.decode("utf-8", "strict"), "available"
+
+
+def _append_only_status(root: Path, path: Path) -> dict[str, Any]:
+    """Mechanically anchor event order to committed Git prefixes when present."""
+
+    if not path.exists():
+        baseline, source = _git_sidecar_baseline(root, path)
+        return {"status": "violated" if baseline is not None else "not-applicable", "anchor": source}
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return {"status": "violated", "anchor": "unreadable", "detail": str(exc)}
+    baseline, source = _git_sidecar_baseline(root, path)
+    if baseline is None:
+        return {"status": "unverifiable" if source != "unavailable" else "unavailable", "anchor": source}
+    if not current.startswith(baseline):
+        return {"status": "violated", "anchor": "git-head-prefix", "detail": "working sidecar does not retain committed event prefix"}
+    try:
+        relative = path.resolve().relative_to(root.resolve()).as_posix()
+        history = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%H", "--reverse", "HEAD", "--", relative],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        commits = history.stdout.decode("ascii", "strict").splitlines() if history.returncode == 0 else []
+        previous: str | None = None
+        for commit in commits:
+            version = subprocess.run(
+                ["git", "-C", str(root), "show", f"{commit}:{relative}"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            )
+            if version.returncode:
+                if previous is not None:
+                    return {"status": "violated", "anchor": "git-history-prefix", "detail": "a committed sidecar revision deleted the event history"}
+                continue
+            text = version.stdout.decode("utf-8", "strict")
+            if previous is not None and not text.startswith(previous):
+                return {"status": "violated", "anchor": "git-history-prefix", "detail": "a committed sidecar revision rewrote or reordered event history"}
+            previous = text
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {"status": "unverifiable", "anchor": "git-history-unavailable"}
+    return {"status": "verified", "anchor": "git-history-prefix"}
+
+
 def _provenance_decision(cwd: str | Path, decision_ref: str) -> dict[str, Any]:
     """Return first-hand decision text plus a small D/R projection when present."""
 
@@ -189,14 +274,25 @@ def provenance_surface(
 
     if type(context_lines) is not int or not 0 <= context_lines <= 20:
         raise ValueError("context_lines must be an integer from 0 through 20")
-    runtime = _provenance_runtime(cwd, owner)
-    ledger, path, _ = _read_provenance_ledger(cwd, runtime)
+    runtime, root, selected_runtime, is_current_runtime = _provenance_topology(cwd, owner)
+    try:
+        ledger, path, _ = _read_provenance_ledger(root, runtime)
+    except ValueError as exc:
+        if action != "check":
+            raise
+        path = _provenance_sidecar(root, runtime)
+        return {"ok": False, "action": "check", "path": str(path), "runtime": runtime,
+                "append_only": {"status": "violated", "anchor": "event-parse", "detail": str(exc)},
+                "reference_audit": [], "error": str(exc)}
     if action == "bind":
         if binding is None:
             raise ValueError("binding is required")
-        if runtime["runtime_path"] != ".":
-            raise ValueError("a root may inspect a descendant runtime but cannot append to its sidecar")
+        if not is_current_runtime:
+            raise ValueError("a caller may inspect a descendant runtime but cannot append to its sidecar")
         normalized = normalize_binding(binding)
+        decision = _provenance_decision(selected_runtime, normalized["decision_ref"])
+        if decision["decision"] is None:
+            raise ValueError("binding decision_ref does not exist in the owning runtime corpus")
         authorization = authorize_runtime_operation(runtime, operation="append")
         if not authorization.ok:
             raise ValueError(authorization.issues[0].message)
@@ -221,27 +317,29 @@ def provenance_surface(
         verification: list[dict[str, Any]] = []
         for item in ledger["bindings"]:
             try:
-                result = verify_binding(item, cwd)
+                result = verify_binding(item, root)
             except GitUnavailableError as exc:
                 result = {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}
             verification.append({"binding_id": item["binding_id"], **result})
+        append_only = _append_only_status(root, path)
         return {
-            "ok": all(row.get("verified") for row in verification) if verification else True,
+            "ok": (all(row.get("verified") for row in verification) if verification else True)
+            and append_only["status"] not in {"violated", "unavailable"},
             "action": "check", "path": str(path), "ledger": project_ledger(ledger),
-            "append_only": True, "reference_audit": verification,
+            "append_only": append_only, "reference_audit": verification,
         }
     if action != "show":
         raise ValueError("action must be 'show', 'bind', or 'check'")
     if not isinstance(decision_ref, str) or not decision_ref.strip():
         raise ValueError("decision_ref is required")
     decision_ref = decision_ref.strip()
-    decision = _provenance_decision(cwd, decision_ref)
+    decision = _provenance_decision(selected_runtime, decision_ref)
     rows: list[dict[str, Any]] = []
     for item in ledger["bindings"]:
         if item["decision_ref"] != decision_ref:
             continue
         try:
-            rows.append(project_binding(item, cwd, before=context_lines, after=context_lines, decision=decision, reason=decision["reason"]))
+            rows.append(project_binding(item, root, before=context_lines, after=context_lines, decision=decision, reason=decision["reason"]))
         except GitUnavailableError as exc:
             rows.append({"binding_id": item["binding_id"], "decision_ref": decision_ref, "decision": decision, "reason": decision["reason"], "code_available": False, "verification": {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}, "hunks": []})
     return {"ok": True, "action": "show", "path": str(path), "runtime": runtime, "decision": decision, "context_lines": context_lines, "projections": rows, "code_available": any(row.get("code_available") for row in rows)}
@@ -252,13 +350,23 @@ def provenance_audit_all(cwd: str | Path = ".") -> dict[str, Any]:
 
     root = resolve_runtime(cwd).workspace_root
     directory = root / ".memory-seed" / "provenance"
-    paths = [directory / "bindings.md"]
+    paths = {directory / "bindings.md"}
     if directory.is_dir():
-        paths.extend(sorted(directory.glob("pods/*.md")))
-        paths.extend(sorted(directory.glob("detached-roots/*.md")))
+        paths.update(directory.glob("pods/*.md"))
+        paths.update(directory.glob("detached-roots/*.md"))
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--", ".memory-seed/provenance"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if tracked.returncode == 0:
+        paths.update(root / item for item in tracked.stdout.decode("utf-8", "replace").splitlines() if item.endswith(".md"))
     audits: list[dict[str, Any]] = []
-    for path in paths:
+    for path in sorted(paths):
         if not path.exists():
+            status = _append_only_status(root, path)
+            if status["status"] == "not-applicable":
+                continue
+            audits.append({"path": str(path), "ok": False, "append_only": status, "reference_audit": [], "error": "committed sidecar is missing from the working tree"})
             continue
         try:
             events = list(_PROVENANCE_EVENT_RE.finditer(path.read_text(encoding="utf-8")))
@@ -268,7 +376,7 @@ def provenance_audit_all(cwd: str | Path = ".") -> dict[str, Any]:
             result = provenance_surface("check", cwd=root, owner=runtime)
             audits.append({"path": str(path), **result})
         except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
-            audits.append({"path": str(path), "ok": False, "append_only": False, "reference_audit": [], "error": str(exc)})
+            audits.append({"path": str(path), "ok": False, "append_only": {"status": "violated", "anchor": "event-parse"}, "reference_audit": [], "error": str(exc)})
     return {
         "ok": all(item["ok"] for item in audits), "sidecars": audits,
         "sidecar_count": len(audits),
@@ -1091,12 +1199,15 @@ def main(argv: list[str] | None = None) -> int:
     provenance_show = provenance_sub.add_parser("show", help="show verified temporary before/after code projections")
     provenance_show.add_argument("decision_ref", help="exact <entry_id>:dN decision reference")
     provenance_show.add_argument("--context-lines", type=int, default=3, help="Git context lines per side, 0-20 (default: 3)")
+    provenance_show.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record for descendant/retired inspection")
     provenance_show.add_argument("--json", action="store_true", help="emit machine-readable output")
     provenance_bind = provenance_sub.add_parser("bind", help="append one validated binding reference")
     provenance_bind.add_argument("--binding-file", required=True, help="UTF-8 JSON binding object; use - for stdin")
     provenance_bind.add_argument("--apply", action="store_true", help="append after validation; default is a dry run")
+    provenance_bind.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record; writes require the current measured runtime")
     provenance_bind.add_argument("--json", action="store_true", help="emit machine-readable output")
     provenance_check = provenance_sub.add_parser("check", help="audit append-only sidecar and Git references")
+    provenance_check.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record for descendant/retired inspection")
     provenance_check.add_argument("--json", action="store_true", help="emit machine-readable output")
 
     esr_parser = subparsers.add_parser(
@@ -3088,18 +3199,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "provenance":
         try:
+            runtime = _read_json_object(args.runtime_file, label="runtime") if args.runtime_file else None
             if args.provenance_command == "bind":
                 payload = provenance_surface(
                     "bind", cwd=Path(".").resolve(),
-                    binding=_read_json_object(args.binding_file, label="binding"), apply=args.apply,
+                    binding=_read_json_object(args.binding_file, label="binding"), owner=runtime, apply=args.apply,
                 )
             elif args.provenance_command == "show":
                 payload = provenance_surface(
                     "show", cwd=Path(".").resolve(), decision_ref=args.decision_ref,
-                    context_lines=args.context_lines,
+                    owner=runtime, context_lines=args.context_lines,
                 )
             else:
-                payload = provenance_surface("check", cwd=Path(".").resolve())
+                payload = provenance_surface("check", cwd=Path(".").resolve(), owner=runtime)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"provenance {args.provenance_command} refused: {exc}", file=sys.stderr)
             return 1

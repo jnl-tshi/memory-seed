@@ -980,6 +980,15 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         ignored = ignore.is_file() and GITIGNORE_ENTRY in ignore.read_text(encoding="utf-8").splitlines()
         if ignored:
             report.temporal_lineage = refresh_temporal_lineage(root, decisions)
+            report.temporal_lineage["classifications"] = {
+                ref: {
+                    "relative_order": value.get("relative_order"),
+                    "claimed_timestamp_relation": value.get("claimed_timestamp_relation"),
+                    "calendar_time": value.get("calendar_time"),
+                }
+                for ref, value in report.temporal_lineage.get("decisions", {}).items()
+                if isinstance(value, dict)
+            }
         else:
             report.temporal_lineage = {
                 "git_available": None, "cache_status": "cache-unignored",
@@ -1166,6 +1175,14 @@ def format_esr_report(report: EsrReport) -> str:
     )
     if temporal.get("instruction"):
         lines.append(f"- {temporal['instruction']}")
+    classifications = temporal.get("classifications", {})
+    if classifications:
+        for ref, classification in sorted(classifications.items()):
+            lines.append(
+                f"- {ref}: {classification.get('relative_order')}; "
+                f"{classification.get('claimed_timestamp_relation')}; "
+                f"calendar {classification.get('calendar_time')}"
+            )
     lines.append("")
 
     lines.append("## Semantic ranking")
