@@ -4,7 +4,7 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review the history-aware admitted-compaction amendment before any further v2 implementation; do not reopen or implement it without that review."
+next_action: "Independently review the history-aware admitted-compaction and adapter-owned append-persistence amendments before any further v2 implementation; do not reopen or implement them without that review."
 source:
   - "docs/2_Todo/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
@@ -66,6 +66,9 @@ non-monotonic path transition enters the same proof-gated compaction path or ref
 a new durable compaction index nor a new authority sidecar: ordinary committed session entries plus Git
 objects are the only proof authority; any receipt/proof index is a disposable, rebuildable cache.
 
+Ordinary append is likewise an outcome-level composed operation: the governed adapter makes and CASes the
+ledger-only commit, so trusted readers never depend on an uncommitted suffix or a second manual Git step.
+
 ## Why the workstream model is simpler
 
 The old model pays for distributed coordination inside one plan: roster sealing, deterministic reservations,
@@ -119,10 +122,12 @@ never inferred from a v1 object.
 
 ### Sequential-writer enforcement
 
-The writer takes the expected Git `HEAD` and the digest of the complete current `ledger.md`. It reopens both
-immediately before append. A mismatch refuses with a structured stale-write diagnostic and no file change.
-It atomically writes only the newly rendered suffix, then returns the new tip/digest/record identity. A caller
-must reload and make any relationship judgment again; it must not mechanically replay stale prose.
+The writer takes the expected Git `HEAD`, trusted branch ref, ledger blob, digest, and history fingerprint of
+the complete current `ledger.md`. It reopens all of them immediately before append. A mismatch refuses with a
+structured stale-write diagnostic and no persisted ledger change. The shared guarded adapter—not an external
+manual Git commit—persists a normal append as the ledger-only commit transaction below, then returns the new
+tip/blob/digest/record identity. A caller must reload and make any relationship judgment again; it must not
+mechanically replay stale prose.
 
 Each chain's state machine allows the normal loop:
 
@@ -141,6 +146,66 @@ head/digest compare-and-swap; no two writers can succeed against the same ledger
 
 Git/worktree isolation remains the outer guard: an append may run only from the ledger's owned workstream
 branch. Branches are never treated as evidence of a different person's identity.
+
+### Guarded append persistence
+
+The ratified outcome-level composition principle applies to ordinary v2 append: the one governed CLI/MCP
+operation owns deterministic Git persistence, so a caller does **not** make a second, manual commit to make
+its record visible to trusted readers. This is a normal append transaction only; promotion, close, and expiry
+retain their existing receipt and cleanup rules.
+
+`append` preview returns an opaque plan containing the host-selected `trusted_ref`, `expected_head` (and exact
+expected ref OID), `ledger_path`, regular-file `expected_ledger_blob`, `pre_ledger_digest`,
+`history_fingerprint`, rendered suffix bytes, generated `record_id`, and predicted `post_ledger_digest`. The
+caller may select relationships and prose before preview, but may not supply, replace, or recompute any of
+those persistence fields.
+
+Apply is one adapter-owned transaction:
+
+1. It requires `HEAD` to be attached to exactly `trusted_ref`, the checked-out worktree to be clean (ignored
+   files excepted), and the index to equal `HEAD`. Any staged, modified, or untracked unrelated path, and any
+   existing change at `ledger_path`, returns `append-worktree-not-clean` before the adapter writes or stages
+   anything. This deliberate refusal is safer than trying to preserve a caller's partial index while creating
+   an authoritative branch commit.
+2. It reloads the ref, head, `ledger_path` mode/blob/bytes/digest, and trusted-history fingerprint. They must
+   equal the preview exactly and the shared loader must accept the image. A detached checkout, wrong branch,
+   missing ref, or changed head/blob/digest/history returns the relevant `append-detached-head`,
+   `append-wrong-branch`, `stale_head`, `stale_ledger_digest`, or `stale_ledger_history` diagnostic.
+3. It renders exactly the planned canonical suffix against those bytes, writes that one path, and stages only
+   `ledger_path`; no session, cache, configuration, or unrelated repository path may enter the index. It then
+   creates one canonical, single-parent commit whose parent is `expected_head`, tree changes only that regular
+   `100644` ledger blob, and message is `reflection: append <record_id>` with exact
+   `Reflection-Workstream`, `Reflection-Record`, `Reflection-Pre-Ledger-Digest`, and
+   `Reflection-Post-Ledger-Digest` trailers. Failure to construct that exact commit is
+   `append-commit-failed` and takes the rollback path below.
+4. It compare-and-swaps `trusted_ref` from `expected_head` to that new commit. Only after the CAS succeeds
+   does apply return `new_head`, `new_ledger_blob`, `post_ledger_digest`, `history_fingerprint`, and
+   `record_id`. A failed CAS is `stale_ref`; the checked-out index and worktree already match that commit only
+   after successful CAS, so the next adapter read resolves the same committed blob.
+
+There is no ordinary-append `Memory-Entry` trailer and no session write: the ledger record and its commit own
+normal append provenance. Where a distinct action already requires a durable session receipt, the adapter
+verifies the pre-existing, committed receipt locator under that action's own contract; it never stages a
+session file or fabricates a `Memory-Entry` trailer as part of normal append. The named Reflection trailers
+are auditable commit metadata, not a second authority over the committed ledger bytes.
+
+On commit construction failure or a CAS/ref race, the adapter restores the exact pre-apply ledger bytes and
+index entry before returning failure; it updates no ref. The unreferenced candidate Git object, if Git created
+one, is harmless and must not be reported as success. If restoration itself cannot be proven, the adapter
+stops with `append-rollback-failed` and leaves the worktree marked unsafe for human repair; it never attempts
+to absorb or overwrite unrelated content. This gives a successful transaction one ledger-path worktree/index
+change plus one protected-ref advance, and a failed transaction no durable ref or partial ledger/index change.
+
+`reflection ledger check`, `view`, ESR, dependency resolution, and board discovery read the trusted ref rather
+than a caller worktree copy, so they immediately observe the returned committed blob. A second append must use
+the returned `new_head`, digest, and history fingerprint; reuse of the first preview is stale and refuses.
+
+Before integration, `trusted_ref` is the owned workstream branch and a successful append commit is part of the
+source tip that the existing integration/rebind preflight verifies. After a validated rebind, it is the trusted
+integration branch. The append adapter performs neither feature integration nor a broad commit: it never
+commits feature code, a session file, or a caller's unrelated work. Normal session logging remains a separate
+governed operation; it is required only where the existing promotion/close/cleanup contracts require a durable
+decision or receipt.
 
 ### Chains and dependencies
 
@@ -222,10 +287,10 @@ authoritative.
 
 | Surface | Required evolution |
 | --- | --- |
-| Core | Add a versioned standalone parser, canonical append planner, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
-| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7; append owns time/identity/head lookup. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
-| MCP | Add parity read operations for ledger and board views and guarded append/close/expire paths that call the same history-aware core loader, planner, and Git/session adapter. Return identical rendered bytes and `{code, path, message, details}` errors. MCP accepts no raw proof, commit/blob, post-image, or arbitrary file-write input; it has no merge or early-expiry-approval bypass. |
-| ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, per-chain expiry candidates, and each trusted ledger's `normal` or `admitted-compaction` history classification/proof diagnostic. It must distinguish v1 fragment boards from fresh and admitted-compacted v2 ledgers. |
+| Core | Add a versioned standalone parser, canonical append planner/preview, append transaction result, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
+| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7. `append --apply` owns the ledger-only commit/ref-CAS transaction and returns its new committed identity; callers make no external Git commit. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
+| MCP | Add parity read operations for ledger and board views and guarded append/close/expire paths that call the same history-aware core loader, planner, and Git/session adapter. The append operation owns the identical ledger-only commit/ref-CAS transaction; it never asks the caller to commit. Return identical rendered bytes and `{code, path, message, details}` errors. MCP accepts no raw proof, commit/blob, post-image, or arbitrary file-write input; it has no merge or early-expiry-approval bypass. |
+| ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, per-chain expiry candidates, and each trusted ledger's `normal` or `admitted-compaction` history classification/proof diagnostic. It reads only the trusted committed blob, so it observes a successful append immediately and never treats an uncommitted worktree suffix as state. It must distinguish v1 fragment boards from fresh and admitted-compacted v2 ledgers. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
 | `session_logging.md` and Seed twin | Specify the compact embedded receipt locator for the new ledger and preserve v1 receipt reading. Do not make a reflection append a session write. |
 | `end_of_turn.md` and Seed twin | Add ESR discovery of a current workstream ledger and promotion/close/expiry review prompts. |
@@ -247,7 +312,8 @@ rewritten.
 
 | Area | Positive proof | Required negative controls |
 | --- | --- | --- |
-| Ledger identity and append | Canonical init/append produces reproducible bytes, generated IDs, and a conclusion-first block. | Forged ID, manual timestamp, noncanonical bytes, stale ledger digest, stale Git tip, and direct file overwrite all refuse. |
+| Ledger identity and append | Canonical init/append produces reproducible bytes, generated IDs, a conclusion-first block, and a normal monotonic history transition. | Forged ID, manual timestamp, noncanonical bytes, stale ledger digest, stale Git tip, and direct file overwrite all refuse. |
+| Guarded append persistence | A real-Git append from a clean owned branch stages only `ledger_path`, creates its canonical ledger-only commit, CASes the trusted ref, and is immediately visible to check/view/ESR/board; a second append succeeds from the first result without an external manual commit. CLI and MCP return identical heads, blobs, digests, records, and diagnostics. | Dirty ledger-path worktree, any staged/untracked/unrelated worktree change, commit creation failure, ref race/stale preview, detached `HEAD`, wrong branch/ref, caller-supplied commit/blob/ref fields, a session file or unrelated path in the append commit, reused first-preview identity, and any failure leaving a partial ref, ledger path, or index mutation all refuse. |
 | Phase ownership | Multiple independent root chains may each complete a planner/implementer/reviewer/orchestrator loop, including implementer rework after review. | Wrong target-chain role, skipped review, phase regression, concurrent/stale writer, and orchestrator-only action by another role refuse. |
 | Chains | Local parent, correction, challenge, combine, and all-head view work. | Cross-ledger parent, orphan without judgment, dangling/cyclic parent, silent derived override, and hidden divergent head refuse. |
 | Dependencies | A real dependency resolves first from an active ledger then from its durable receipt after expiry. | Similar-topic link without dependency reason, wrong digest, self-dependency, missing target, expired target without receipt, and dependency-as-parent refuse. |
@@ -257,7 +323,7 @@ rewritten.
 | Admitted compaction proof | Real-Git fixtures prove both strict-invalid middle removal and strict-valid tail-chain or sole-chain/header-only removal are admitted only by their canonical two-commit session/Git proof. The loader proves every pre/post blob and digest, chain/member closure receipts, byte-removal derivation, then accepts a fresh suffix append whose predecessor binds the compacted bytes. Repeated tail and header-only compactions recurse through each earlier proof. | Raw tail-chain or sole-chain/header-only deletion without a proof; missing/uncommitted/noncanonical receipt; wrong session trailer, entry, decision, path, workstream, pre-tip, commit, blob, mode, digest, parent, reachability, or restricted diff; receipt/event replay, conflicting duplicate/incomparable proof, stale non-prefix bytes, missing/forged close or member receipt, partial-chain/extra-ID/rebind removal, re-rendered retained block/header, inserted cleanup block, altered separator derivation, raw `verify_predecessors=False`, and caller-supplied CLI/MCP proof all refuse. |
 | History-aware readers and board | Ledger check/view, guarded append/close/expiry, dependency resolution, ESR, and a board with normal plus compacted candidates all route through the same trusted-history loader; a normal image is so labelled only after append/rebind-only history proof, while a proven compacted candidate is `valid` with `validation: admitted-compaction`. The board remains read-only. | A strict-valid tail or sole deletion classified as normal; a reader that bypasses history/admission, chooses an ambiguous proof, hides a missing/forged proof candidate, converts v1, writes a cache as authority, or lets a stale append/cleanup write fails. |
 | Compatibility | Existing `tests/test_reflection_ledger.py` v1 fixtures still parse, view, close, expire, and fuse. | A v2 writer pointed at a v1 board, v1 fuse pointed at v2 data, or mixed family directory refuses. |
-| Surface parity | CLI and MCP return the same valid result, rendered bytes, and diagnostics for shared fixtures. | One surface accepting an invalid append or bypassing phase/approval validation fails parity tests. |
+| Surface parity | CLI and MCP return the same valid result, rendered bytes, committed append identity, normal/admitted classification, and diagnostics for shared fixtures. | One surface accepting an invalid append, requiring a manual commit, observing an uncommitted suffix, or bypassing phase/approval/history validation fails parity tests. |
 
 Acceptance is complete only when the existing v1 suite and new focused ledger, real-Git compaction, surfaces,
 ESR, session, and worktree integration suites pass; `docs check`, `docs index --check`, `links check`, and
@@ -272,13 +338,13 @@ fusion as authority or a general predecessor-validation bypass.
    structural-only check into a public parser mode or classify a strict-valid deletion as normal.
 2. **Core ledger track — one implementation owner.** Add standalone strict versus trusted-history loading,
    canonical raw-block removal derivation, bounded Git path-history classification, real-Git proof-pair
-   verification, recursive repeated-compaction validation, append etag/phase checks, local chain logic,
+   verification, recursive repeated-compaction validation, append preview/etag/phase checks, local chain logic,
    dependency resolver, derived board view, close/expiry adaptation, and v1 routing. Own focused
    normal/admitted and real-Git negative tests. No CLI/MCP/control-plane edits in this track.
-3. **Surface track — one owner after core API freeze.** Add the shared CLI/MCP Git-session adapter, protected
-   two-commit expiry composition, parity reads/writes, ESR proof reporting, help/reference text, and surface
-   tests. It consumes the core loader; it does not duplicate history/admission validation or accept raw proof
-   data.
+3. **Surface track — one owner after core API freeze.** Add the shared CLI/MCP Git-session adapter, including
+   the ledger-only append commit/ref-CAS and protected two-commit expiry composition, parity reads/writes, ESR
+   proof reporting, help/reference text, and surface tests. It consumes the core loader; it does not duplicate
+   history/admission validation, accept raw proof data, or require an external manual append commit.
 4. **Workflow track — one owner after surface behavior is tested.** Update active/seed skill twins and
    Task Packet materialization only where the old fragment reservation instruction would mislead new work.
    Do not broaden worker authority or add a dispatcher.
@@ -773,12 +839,12 @@ with its structured diagnostic and makes the board command non-zero. No board re
 cache as authority, silently omits the candidate, or treats a compacted image as a new normal ledger.
 
 An append after compaction reloads the admitted state through that same loader, rechecks expected head, exact
-current digest, and history fingerprint, and adds only a canonical new suffix block. That new record's
-`pre_ledger_digest` binds the actual compacted bytes that precede it. It never re-renders or rehashes a
-retained block. A later compaction repeats the same pair against that admitted pre-image, so a second proof
-recursively proves the first and any intervening normal suffix. Old append/cleanup previews become stale and
-return `stale_head`, `stale_ledger_digest`, or `stale_ledger_history` without a write; the adapter must reload
-and require a fresh judgment.
+current digest, and history fingerprint, and runs the same ledger-only commit/ref-CAS transaction. It adds
+only a canonical new suffix block. That new record's `pre_ledger_digest` binds the actual compacted bytes that
+precede it. It never re-renders or rehashes a retained block. A later compaction repeats the same pair against
+that admitted pre-image, so a second proof recursively proves the first and any intervening normal suffix.
+Old append/cleanup previews become stale and return `stale_head`, `stale_ledger_digest`, or
+`stale_ledger_history` without a write; the adapter must reload and require a fresh judgment.
 
 The verifier fails closed with stable `compaction-proof-*` diagnostics: missing proof or no reachable receipt;
 forged/noncanonical session content, entry, trailer, locator, field, digest, blob, path, workstream, coverage,
@@ -816,8 +882,11 @@ pre-merge close/expiry refusal, trusted-token rebind, arbitrary rebind refusal, 
 the protected pair never exposes an unreceipted rewrite, and the Git-blob/non-erasure disclosure. CLI, MCP,
 ESR, and board parity fixtures must return the same normal/admitted classification and same malformed
 diagnostic for all tail, sole/header-only, suffix, repeated, missing-proof, ambiguous-history, and forged-proof
-cases. Board tests additionally prove malformed candidates are reported and non-zero. The v1 suite remains
-unchanged. The normal v2 path is accepted only with one active authority file, one guarded append, zero
-participant reservations, zero v2 fuse operations, append/rebind-only trusted history, and no public
-predecessor-validation bypass; every exception is counted and justified as v1 reader/receipt compatibility,
-never hidden v2 coordination.
+cases. A real-Git append sequence must prove `append -> check/view/ESR/board -> second append` works from the
+returned committed identity with no external manual commit; it must also prove dirty ledger and staged
+unrelated refusal, commit-construction rollback, ref-race rollback, detached/wrong-branch refusal, and no
+partial ref/worktree/index mutation. Board tests additionally prove malformed candidates are reported and
+non-zero. The v1 suite remains unchanged. The normal v2 path is accepted only with one active authority file,
+one guarded adapter-owned append commit, zero participant reservations, zero v2 fuse operations,
+append/rebind-only trusted history, and no public predecessor-validation bypass; every exception is counted
+and justified as v1 reader/receipt compatibility, never hidden v2 coordination.
