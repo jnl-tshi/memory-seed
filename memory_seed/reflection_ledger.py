@@ -8,9 +8,9 @@ memory, so its format, discovery, and fuse are all kept separate from
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
+from hashlib import sha256, sha512
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 import json
@@ -354,6 +354,8 @@ class ReflectionManifest:
     reservation_algorithm: str
     reservation_seed: str
     participants_seal: str
+    early_expiry_approval_key_id: str
+    early_expiry_approval_public_key: str
     orchestrator: Mapping[str, str]
     participants: tuple[ReflectionParticipant, ...]
 
@@ -426,7 +428,7 @@ def _participant_from_mapping(value: Any, path: str) -> ReflectionParticipant:
 def manifest_from_dict(value: Mapping[str, Any], path: str = MANIFEST_NAME) -> ReflectionManifest:
     fields = ("schema", "version", "plan_id", "base_branch", "base_sha", "state", "created_at",
               "reflection_retention_days", "reservation_algorithm", "reservation_seed", "participants_seal",
-              "orchestrator", "participants")
+              "early_expiry_approval_key_id", "early_expiry_approval_public_key", "orchestrator", "participants")
     _required(value, fields, path)
     _only(value, fields, path)
     if value["schema"] != "memory-seed/reflection-plan" or value["version"] != 1:
@@ -456,6 +458,8 @@ def manifest_from_dict(value: Mapping[str, Any], path: str = MANIFEST_NAME) -> R
         _text(value["plan_id"], path, "plan_id"), _text(value["base_branch"], path, "base_branch"),
         _text(value["base_sha"], path, "base_sha"), value["state"], _timestamp(value["created_at"], path, "created_at"),
         days, RESERVATION_ALGORITHM, seed, _text(value["participants_seal"], path, "participants_seal"),
+        _text(value["early_expiry_approval_key_id"], path, "early_expiry_approval_key_id"),
+        _text(value["early_expiry_approval_public_key"], path, "early_expiry_approval_public_key"),
         {"participant": _text(orchestrator["participant"], path, "orchestrator.participant"),
          "branch": _text(orchestrator["branch"], path, "orchestrator.branch")}, participants,
     )
@@ -496,6 +500,10 @@ def validate_manifest(manifest: ReflectionManifest, path: str = MANIFEST_NAME) -
                 paths.add(rel_path)
     if not re.fullmatch(r"[0-9a-f]{64}", manifest.participants_seal) or manifest.participants_seal != participants_seal(manifest):
         _fail("roster-seal", path, "participants_seal does not match canonical participant roster")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", manifest.early_expiry_approval_key_id):
+        _fail("approval-key", path, "early expiry approval key ID must be a stable token")
+    if not re.fullmatch(r"ed25519:[0-9a-f]{64}", manifest.early_expiry_approval_public_key):
+        _fail("approval-key", path, "early expiry approval public key must be ed25519:<32-byte lowercase hex>")
 
 
 def render_manifest(manifest: ReflectionManifest) -> str:
@@ -509,7 +517,8 @@ def render_manifest(manifest: ReflectionManifest) -> str:
         ("base_branch", manifest.base_branch), ("base_sha", manifest.base_sha), ("state", manifest.state),
         ("created_at", manifest.created_at), ("reflection_retention_days", manifest.reflection_retention_days),
         ("reservation_algorithm", manifest.reservation_algorithm), ("reservation_seed", manifest.reservation_seed),
-        ("participants_seal", manifest.participants_seal), ("orchestrator", dict(manifest.orchestrator)),
+        ("participants_seal", manifest.participants_seal), ("early_expiry_approval_key_id", manifest.early_expiry_approval_key_id),
+        ("early_expiry_approval_public_key", manifest.early_expiry_approval_public_key), ("orchestrator", dict(manifest.orchestrator)),
         ("participants", participants),
     ])
 
@@ -877,111 +886,84 @@ def validate_admitted_fragments(
     return fragments
 
 
-# An admitted set is deliberately not a convenience container for callers to
-# populate.  Closeout is an authority boundary: records reach it only after
-# their exact reserved documents were parsed from canonical bytes.
-_ADMITTED_SET_SEAL = object()
-
-
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True)
 class AdmittedReflectionSet:
-    """Canonical report/fragment documents admitted for one manifest.
+    """Reflection documents loaded from one immutable Git tree.
 
-    Obtain instances only with :func:`admit_reflection_documents`. The opaque
-    seal is a library capability, not a value an agent can replace with an
-    ``Iterable[ReflectionFragment]`` or a lookalike report.
+    This is evidence, not a caller-authored assertion. Every close/expiry use
+    re-loads the stated repository and commit, checks the manifest and every
+    report/fragment blob OID, then compares the resulting value in full.
     """
 
+    repository: str
+    source_commit: str
+    manifest_path: str
+    manifest_oid: str
     manifest_sha256: str
-    document_sha256: str
+    document_oids: tuple[tuple[str, str], ...]
+    manifest: ReflectionManifest
     fragments: tuple[ReflectionFragment, ...]
     reports: tuple[ReflectionReport, ...]
-    _seal: object = field(repr=False, compare=False)
-
-    def __init__(self, _seal: object, manifest_sha256: str, document_sha256: str,
-                 fragments: tuple[ReflectionFragment, ...], reports: tuple[ReflectionReport, ...]) -> None:
-        if _seal is not _ADMITTED_SET_SEAL:
-            raise TypeError("AdmittedReflectionSet is issued only by admit_reflection_documents")
-        object.__setattr__(self, "manifest_sha256", manifest_sha256)
-        object.__setattr__(self, "document_sha256", document_sha256)
-        object.__setattr__(self, "fragments", fragments)
-        object.__setattr__(self, "reports", reports)
-        object.__setattr__(self, "_seal", _seal)
 
 
-def _manifest_digest(manifest: ReflectionManifest) -> str:
-    return sha256(render_manifest(manifest).encode("utf-8")).hexdigest()
+def admit_reflection_git_tree(cwd: Path | str, *, source: str, plan_id: str) -> AdmittedReflectionSet:
+    """Load canonical active reflection pairs from an immutable Git commit.
 
-
-def _admitted_document_digest(manifest: ReflectionManifest, fragments: Iterable[ReflectionFragment],
-                              reports: Iterable[ReflectionReport]) -> str:
-    """Fingerprint the exact canonical report/fragment bytes in an admission."""
-    reports_by_id = {report.report_id: report for report in reports}
-    pieces: list[bytes] = []
-    for fragment in sorted(fragments, key=lambda item: (item.participant, item.sequence, item.fragment_id)):
-        reservation = manifest.reservation(fragment.participant, fragment.sequence)
-        if reservation is None:
-            _fail("admission", manifest.active_dir, "admitted fragment has no manifest reservation", fragment_id=fragment.fragment_id)
-        report = reports_by_id.get(fragment.report_id)
-        if report is None:
-            _fail("admission", manifest.active_dir, "admitted fragment has no report", fragment_id=fragment.fragment_id)
-        for path, text in (
-            (f"{manifest.active_dir}/{reservation.report_path}", render_report(report)),
-            (f"{manifest.active_dir}/{reservation.fragment_path}", render_fragment(fragment)),
-        ):
-            pieces.extend((path.encode("utf-8"), b"\0", text.encode("utf-8"), b"\0"))
-    return sha256(b"".join(pieces)).hexdigest()
-
-
-def admit_reflection_documents(manifest: ReflectionManifest, documents: Mapping[str, bytes | str]) -> AdmittedReflectionSet:
-    """Parse and admit reserved reflection documents from their canonical bytes.
-
-    ``documents`` is keyed by the full repository-relative reservation path,
-    including ``manifest.active_dir``. Supplying parsed dataclasses is not an
-    admission route; that would let callers bypass bytes, paths and report
-    provenance before closeout validation.
+    Raw mappings and parsed dataclasses are intentionally not accepted here:
+    the repository, resolved commit, paths, modes, and object IDs are the
+    provenance proof consumed by closeout validation.
     """
-    if not isinstance(documents, Mapping):
-        _fail("admission", manifest.active_dir, "reflection admission requires a path-to-canonical-bytes mapping")
-    expected: set[str] = set()
+    root = Path(cwd).resolve()
+    source_commit = _commit(root, source)
+    if source_commit is None:
+        _fail("git-ref", str(root), "reflection admission source does not resolve to a commit", source=source)
+    manifest_path = f"{REFLECTION_ROOT}/{plan_id}/{MANIFEST_NAME}"
+    manifest_blob = _tree_blob(root, source_commit, manifest_path)
+    if manifest_blob is None:
+        _fail("manifest", manifest_path, "admission source has no reflection manifest")
+    if manifest_blob.mode != CANONICAL_MODE:
+        _fail("mode", manifest_path, "reflection manifest must be regular mode 100644", mode=manifest_blob.mode)
+    manifest = parse_manifest(manifest_blob.content, manifest_path)
+    if manifest.plan_id != plan_id:
+        _fail("manifest", manifest_path, "admission manifest plan_id does not match requested plan")
     reports: list[ReflectionReport] = []
     fragments: list[ReflectionFragment] = []
+    document_oids: list[tuple[str, str]] = []
     for participant in manifest.participants:
         for reservation in participant.reservations:
             report_path = f"{manifest.active_dir}/{reservation.report_path}"
             fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
-            expected.update((report_path, fragment_path))
-            has_report = report_path in documents
-            has_fragment = fragment_path in documents
-            if has_report != has_fragment:
+            report_blob = _tree_blob(root, source_commit, report_path)
+            fragment_blob = _tree_blob(root, source_commit, fragment_path)
+            if report_blob is None and fragment_blob is None:
+                continue
+            if report_blob is None or fragment_blob is None:
                 _fail("report-provenance", manifest.active_dir, "admitted reservation must contain both report and fragment", sequence=reservation.sequence)
-            if has_report:
-                reports.append(parse_report(documents[report_path], report_path))
-                fragments.append(parse_fragment(documents[fragment_path], fragment_path))
-    for path in documents:
-        if not isinstance(path, str) or path not in expected:
-            _fail("admission", manifest.active_dir, "document is not an active manifest reservation", path=path)
+            if report_blob.mode != CANONICAL_MODE or fragment_blob.mode != CANONICAL_MODE:
+                _fail("mode", report_path if report_blob.mode != CANONICAL_MODE else fragment_path, "reflection files must be regular mode 100644")
+            reports.append(parse_report(report_blob.content, report_path))
+            fragments.append(parse_fragment(fragment_blob.content, fragment_path))
+            document_oids.extend(((report_path, report_blob.oid), (fragment_path, fragment_blob.oid)))
     admitted = validate_admitted_fragments(fragments, reports, manifest)
     return AdmittedReflectionSet(
-        _ADMITTED_SET_SEAL,
-        _manifest_digest(manifest),
-        _admitted_document_digest(manifest, admitted, reports),
-        admitted,
-        tuple(reports),
+        str(root), source_commit, manifest_path, manifest_blob.oid, manifest_blob.raw_sha256,
+        tuple(sorted(document_oids)), manifest, admitted, tuple(reports),
     )
 
 
-def _require_admitted_set(admitted: AdmittedReflectionSet, manifest: ReflectionManifest) -> tuple[ReflectionFragment, ...]:
-    if not isinstance(admitted, AdmittedReflectionSet) or admitted._seal is not _ADMITTED_SET_SEAL:
-        _fail("admission", "closeout.md", "closeout validation requires canonically admitted reflection documents")
-    if admitted.manifest_sha256 != _manifest_digest(manifest):
-        _fail("admission", "closeout.md", "admitted reflection documents do not belong to this manifest")
-    # Rechecking protects the invariant even if a trusted host accidentally
-    # retains an object from a previous manifest version.
-    validate_admitted_fragments(admitted.fragments, admitted.reports, manifest)
-    if admitted.document_sha256 != _admitted_document_digest(manifest, admitted.fragments, admitted.reports):
-        _fail("admission", "closeout.md", "admitted reflection documents differ from their canonical bytes")
-    return admitted.fragments
+def _verified_admitted_set(admitted: AdmittedReflectionSet) -> AdmittedReflectionSet:
+    if not isinstance(admitted, AdmittedReflectionSet):
+        _fail("admission", "closeout.md", "closeout validation requires Git-admitted reflection documents")
+    if (
+        not isinstance(admitted.repository, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", admitted.source_commit)
+        or not isinstance(admitted.manifest, ReflectionManifest)
+    ):
+        _fail("admission", "closeout.md", "Git admission evidence has malformed repository or commit identity")
+    fresh = admit_reflection_git_tree(admitted.repository, source=admitted.source_commit, plan_id=admitted.manifest.plan_id)
+    if admitted != fresh:
+        _fail("admission", "closeout.md", "admission evidence does not match the declared immutable Git tree")
+    return fresh
 
 
 def live_heads(
@@ -1132,8 +1114,6 @@ class ReflectionChainClose:
     validation_receipt: str
     receipt_ids: tuple[str, ...]
     path: str = "closeout.md"
-    _admission_plan_id: str | None = field(default=None, repr=False, compare=False)
-    _canonical_digest: str | None = field(default=None, repr=False, compare=False)
 
 
 def _close_shape(close: ReflectionChainClose, path: str | None = None) -> None:
@@ -1180,18 +1160,6 @@ def render_closeout(plan_id: str, closes: Iterable[ReflectionChainClose]) -> str
     return "".join(pieces)
 
 
-def _close_admission_digest(plan_id: str, close: ReflectionChainClose) -> str:
-    """Bind one parsed close record to its exact canonical closeout payload."""
-    return sha256((close.path + "\0" + render_closeout(plan_id, (close,))).encode("utf-8")).hexdigest()
-
-
-def _require_admitted_close(close: ReflectionChainClose, manifest: ReflectionManifest) -> None:
-    if close._admission_plan_id != manifest.plan_id or not isinstance(close._canonical_digest, str):
-        _fail("admission", close.path, "closeout validation requires a canonically parsed closeout record")
-    if close._canonical_digest != _close_admission_digest(manifest.plan_id, close):
-        _fail("admission", close.path, "closeout record differs from its admitted canonical bytes")
-
-
 def parse_closeout(raw: bytes | str, path: str = "closeout.md") -> tuple[str, tuple[ReflectionChainClose, ...]]:
     text = _canonical_text(raw, path)
     prefix = re.match(r"^---\n(?P<header>.*?)---\n", text, re.DOTALL)
@@ -1212,13 +1180,12 @@ def parse_closeout(raw: bytes | str, path: str = "closeout.md") -> tuple[str, tu
         for list_key in ("implementer_record_ids", "reviewer_record_ids", "orchestrator_record_ids", "resolved_head_ids", "disposed_head_ids", "receipt_ids"):
             if not isinstance(item[list_key], list) or any(not isinstance(value, str) for value in item[list_key]):
                 _fail("close", path, "close record list field must be a string list", field=list_key)
-        unadmitted = ReflectionChainClose(
+        close = ReflectionChainClose(
             _id(item["chain_id"], "rlc_", path, "chain_id"), _timestamp(item["closed_at"], path, "closed_at"), item["retention_days"],
             _timestamp(item["expires_at"], path, "expires_at"), tuple(item["implementer_record_ids"]), tuple(item["reviewer_record_ids"]),
             tuple(item["orchestrator_record_ids"]), _id(item["synthesis_record_id"], "rlr_", path, "synthesis_record_id"),
             tuple(item["resolved_head_ids"]), tuple(item["disposed_head_ids"]), _text(item["validation_receipt"], path, "validation_receipt"), tuple(item["receipt_ids"]), path,
         )
-        close = replace(unadmitted, _admission_plan_id=header["plan_id"], _canonical_digest=_close_admission_digest(header["plan_id"], unadmitted))
         _close_shape(close, path)
         closes.append(close)
     result = (header["plan_id"], tuple(closes))
@@ -1237,16 +1204,53 @@ def validate_receipt(receipt: ReflectionReceipt, path: str = "receipt") -> None:
     _timestamp(receipt.recorded_at, path, "recorded_at")
 
 
-def validate_chain_close(close: ReflectionChainClose, admitted: AdmittedReflectionSet, manifest: ReflectionManifest,
+@dataclass(frozen=True)
+class AdmittedChainClose:
+    """One close record loaded from a Git-tracked canonical closeout blob."""
+
+    repository: str
+    source_commit: str
+    closeout_path: str
+    closeout_oid: str
+    close: ReflectionChainClose
+
+
+def admit_reflection_closeout(admitted: AdmittedReflectionSet) -> tuple[AdmittedChainClose, ...]:
+    """Load closeout records from the same immutable tree as an admission."""
+    evidence = _verified_admitted_set(admitted)
+    closeout_path = f"{evidence.manifest.active_dir}/closeout.md"
+    blob = _tree_blob(Path(evidence.repository), evidence.source_commit, closeout_path)
+    if blob is None:
+        _fail("closeout", closeout_path, "Git-admitted reflection tree has no closeout document")
+    if blob.mode != CANONICAL_MODE:
+        _fail("mode", closeout_path, "reflection closeout must be regular mode 100644", mode=blob.mode)
+    plan_id, closes = parse_closeout(blob.content, "closeout.md")
+    if plan_id != evidence.manifest.plan_id:
+        _fail("closeout", closeout_path, "closeout plan_id does not match its admitted manifest")
+    return tuple(AdmittedChainClose(evidence.repository, evidence.source_commit, closeout_path, blob.oid, close) for close in closes)
+
+
+def _verified_admitted_close(value: AdmittedChainClose, admitted: AdmittedReflectionSet) -> ReflectionChainClose:
+    if not isinstance(value, AdmittedChainClose):
+        _fail("admission", "closeout.md", "closeout validation requires a Git-admitted closeout record")
+    evidence = _verified_admitted_set(admitted)
+    fresh = admit_reflection_closeout(evidence)
+    if value not in fresh:
+        _fail("admission", "closeout.md", "closeout evidence does not match the declared immutable Git tree")
+    return value.close
+
+
+def validate_chain_close(value: AdmittedChainClose, admitted: AdmittedReflectionSet,
                          receipts: Iterable[ReflectionReceipt]) -> None:
     """Validate a closeout only against canonically admitted ledger state.
 
-    Parsed records are not sufficient authority here. ``admitted`` carries the
-    reservation/path/report-byte checks, while ``close`` carries the canonical
-    closeout payload digest established by :func:`parse_closeout`.
+    Parsed records are not sufficient authority here. Both the reflection
+    records and closeout are re-loaded from their declared Git commit.
     """
-    _require_admitted_close(close, manifest)
-    fragments = _require_admitted_set(admitted, manifest)
+    evidence = _verified_admitted_set(admitted)
+    manifest = evidence.manifest
+    close = _verified_admitted_close(value, evidence)
+    fragments = evidence.fragments
     _close_shape(close)
     if close.retention_days != manifest.reflection_retention_days:
         _fail("retention", close.path, "close retention_days must equal the manifest policy", expected=manifest.reflection_retention_days, actual=close.retention_days)
@@ -1324,96 +1328,217 @@ def validate_chain_close(close: ReflectionChainClose, admitted: AdmittedReflecti
         _fail("receipt-coverage", close.path, "durable receipts must cover every chain member", missing=sorted(members - covered), foreign=sorted(covered - members))
 
 
-def validate_board_close(closes: Iterable[ReflectionChainClose], admitted: AdmittedReflectionSet, manifest: ReflectionManifest,
+def validate_board_close(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
                          receipts: Iterable[ReflectionReceipt]) -> None:
-    fragments = _require_admitted_set(admitted, manifest)
+    evidence = _verified_admitted_set(admitted)
+    fragments = evidence.fragments
     receipts = tuple(receipts)
     chains = {record.chain_id for _fragment, record in _record_index(fragments).values()}
-    by_chain: dict[str, ReflectionChainClose] = {}
+    by_chain: dict[str, AdmittedChainClose] = {}
     for close in closes:
-        if close.chain_id in by_chain:
-            _fail("close-collision", close.path, "multiple close records name one chain", chain=close.chain_id)
-        by_chain[close.chain_id] = close
+        parsed_close = _verified_admitted_close(close, evidence)
+        if parsed_close.chain_id in by_chain:
+            _fail("close-collision", parsed_close.path, "multiple close records name one chain", chain=parsed_close.chain_id)
+        by_chain[parsed_close.chain_id] = close
     if chains != set(by_chain):
         _fail("board-close", "closeout.md", "board cannot close until every admitted chain has a close record", missing=sorted(chains - set(by_chain)))
     for close in by_chain.values():
-        validate_chain_close(close, admitted, manifest, receipts)
+        validate_chain_close(close, evidence, receipts)
 
 
-_LIVE_USER_APPROVAL_SEAL = object()
+@dataclass(frozen=True)
+class EarlyExpiryApprovalReceipt:
+    """A canonical host-signed receipt for one early-deletion request.
 
-
-@dataclass(frozen=True, init=False)
-class LiveUserExpiryApproval:
-    """A sealed, host-issued approval for one exact early-expiry request.
-
-    Agent code cannot use a callback, boolean, or self-constructed receipt as
-    an approval. A privileged interactive-host adapter (outside this module's
-    agent-facing API) issues the sealed capability after recording the user
-    decision; the kernel checks every bound field before making a path
-    eligible. This module intentionally exposes no mint function.
+    The signing private key is never accepted or stored by this module. The
+    immutable manifest supplies the corresponding Ed25519 public trust anchor.
     """
 
-    receipt_id: str
+    key_id: str
     plan_id: str
     chain_id: str
     member_record_ids: tuple[str, ...]
+    reason: str
+    approved_at: str
     expires_at: str
-    _seal: object = field(repr=False, compare=False)
-
-    def __init__(self, _seal: object, receipt_id: str, plan_id: str, chain_id: str,
-                 member_record_ids: tuple[str, ...], expires_at: str) -> None:
-        if _seal is not _LIVE_USER_APPROVAL_SEAL:
-            raise TypeError("LiveUserExpiryApproval is issued only by the trusted interactive-host bridge")
-        object.__setattr__(self, "receipt_id", receipt_id)
-        object.__setattr__(self, "plan_id", plan_id)
-        object.__setattr__(self, "chain_id", chain_id)
-        object.__setattr__(self, "member_record_ids", member_record_ids)
-        object.__setattr__(self, "expires_at", expires_at)
-        object.__setattr__(self, "_seal", _seal)
+    signature: str
 
 
-def _validate_live_user_approval(approval: LiveUserExpiryApproval | None, *, close: ReflectionChainClose,
-                                 manifest: ReflectionManifest, member_record_ids: tuple[str, ...]) -> None:
-    if not isinstance(approval, LiveUserExpiryApproval) or approval._seal is not _LIVE_USER_APPROVAL_SEAL:
-        _fail("live-user-approval", close.path, "early deletion requires a sealed trusted-host approval capability")
+EARLY_EXPIRY_APPROVAL_FIELDS = (
+    "schema", "version", "key_id", "plan_id", "chain_id", "member_record_ids", "reason", "approved_at", "expires_at", "signature",
+)
+ED25519_P = 2**255 - 19
+ED25519_L = 2**252 + 27742317777372353535851937790883648493
+ED25519_D = (-121665 * pow(121666, ED25519_P - 2, ED25519_P)) % ED25519_P
+ED25519_I = pow(2, (ED25519_P - 1) // 4, ED25519_P)
+ED25519_BASE_Y = (4 * pow(5, ED25519_P - 2, ED25519_P)) % ED25519_P
+
+
+def ed25519_verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
+    """Verify an RFC 8032 Ed25519 signature without an issuer callback."""
+    if len(public_key) != 32 or len(signature) != 64:
+        return False
+    encoded_r, encoded_s = signature[:32], signature[32:]
+    scalar_s = int.from_bytes(encoded_s, "little")
+    if scalar_s >= ED25519_L:
+        return False
+
+    def decode_point(encoded: bytes) -> tuple[int, int] | None:
+        y = int.from_bytes(encoded, "little") & ((1 << 255) - 1)
+        sign = encoded[31] >> 7
+        if y >= ED25519_P:
+            return None
+        xx = ((y * y - 1) * pow(ED25519_D * y * y + 1, ED25519_P - 2, ED25519_P)) % ED25519_P
+        x = pow(xx, (ED25519_P + 3) // 8, ED25519_P)
+        if (x * x - xx) % ED25519_P:
+            x = (x * ED25519_I) % ED25519_P
+        if (x * x - xx) % ED25519_P:
+            return None
+        if (x & 1) != sign:
+            x = ED25519_P - x
+        return (x, y)
+
+    def add(left: tuple[int, int], right: tuple[int, int]) -> tuple[int, int]:
+        x1, y1 = left
+        x2, y2 = right
+        denominator_x = pow((1 + ED25519_D * x1 * x2 * y1 * y2) % ED25519_P, ED25519_P - 2, ED25519_P)
+        denominator_y = pow((1 - ED25519_D * x1 * x2 * y1 * y2) % ED25519_P, ED25519_P - 2, ED25519_P)
+        return (
+            ((x1 * y2 + x2 * y1) * denominator_x) % ED25519_P,
+            ((y1 * y2 + x1 * x2) * denominator_y) % ED25519_P,
+        )
+
+    def multiply(point: tuple[int, int], scalar: int) -> tuple[int, int]:
+        total = (0, 1)
+        current = point
+        while scalar:
+            if scalar & 1:
+                total = add(total, current)
+            current = add(current, current)
+            scalar >>= 1
+        return total
+
+    def has_prime_order(point: tuple[int, int]) -> bool:
+        return point != (0, 1) and multiply(point, ED25519_L) == (0, 1)
+
+    public_point = decode_point(public_key)
+    r_point = decode_point(encoded_r)
+    if public_point is None or r_point is None or not has_prime_order(public_point) or not has_prime_order(r_point):
+        return False
+    base_x_squared = ((ED25519_BASE_Y * ED25519_BASE_Y - 1) * pow(ED25519_D * ED25519_BASE_Y * ED25519_BASE_Y + 1, ED25519_P - 2, ED25519_P)) % ED25519_P
+    base_x = pow(base_x_squared, (ED25519_P + 3) // 8, ED25519_P)
+    if base_x & 1:
+        base_x = ED25519_P - base_x
+    digest = int.from_bytes(sha512(encoded_r + public_key + message).digest(), "little") % ED25519_L
+    return multiply((base_x, ED25519_BASE_Y), scalar_s) == add(r_point, multiply(public_point, digest))
+
+
+def early_expiry_approval_from_dict(value: Mapping[str, Any], path: str = "early-expiry-approval.yaml") -> EarlyExpiryApprovalReceipt:
+    _required(value, EARLY_EXPIRY_APPROVAL_FIELDS, path)
+    _only(value, EARLY_EXPIRY_APPROVAL_FIELDS, path)
+    if value["schema"] != "memory-seed/reflection-early-expiry-approval" or value["version"] != 1:
+        _fail("schema", path, "unsupported early-expiry approval schema/version")
+    members = value["member_record_ids"]
+    if not isinstance(members, list) or not members or any(not isinstance(item, str) for item in members) or len(set(members)) != len(members):
+        _fail("live-user-approval", path, "approval member_record_ids must be a non-empty unique string list")
+    receipt = EarlyExpiryApprovalReceipt(
+        _text(value["key_id"], path, "key_id"), _text(value["plan_id"], path, "plan_id"),
+        _id(value["chain_id"], "rlc_", path, "chain_id"), tuple(members), _text(value["reason"], path, "reason"),
+        _timestamp(value["approved_at"], path, "approved_at"), _timestamp(value["expires_at"], path, "expires_at"),
+        _text(value["signature"], path, "signature"),
+    )
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", receipt.key_id):
+        _fail("live-user-approval", path, "approval key_id must be a stable token")
+    if any(not re.fullmatch(r"rlr_[0-9abcdefghjkmnpqrstvwxyz]{20}", item) for item in receipt.member_record_ids):
+        _fail("live-user-approval", path, "approval member_record_ids must be reflection record IDs")
+    if not re.fullmatch(r"ed25519:[0-9a-f]{128}", receipt.signature):
+        _fail("live-user-approval", path, "approval signature must be ed25519:<64-byte lowercase hex>")
+    return receipt
+
+
+def early_expiry_approval_payload(receipt: EarlyExpiryApprovalReceipt) -> bytes:
+    return _yaml_mapping([
+        ("schema", "memory-seed/reflection-early-expiry-approval"), ("version", 1), ("key_id", receipt.key_id),
+        ("plan_id", receipt.plan_id), ("chain_id", receipt.chain_id), ("member_record_ids", list(receipt.member_record_ids)),
+        ("reason", receipt.reason), ("approved_at", receipt.approved_at), ("expires_at", receipt.expires_at),
+    ]).encode("utf-8")
+
+
+def render_early_expiry_approval(receipt: EarlyExpiryApprovalReceipt) -> str:
+    early_expiry_approval_from_dict({
+        "schema": "memory-seed/reflection-early-expiry-approval", "version": 1, "key_id": receipt.key_id,
+        "plan_id": receipt.plan_id, "chain_id": receipt.chain_id, "member_record_ids": list(receipt.member_record_ids),
+        "reason": receipt.reason, "approved_at": receipt.approved_at, "expires_at": receipt.expires_at, "signature": receipt.signature,
+    })
+    return _yaml_mapping([
+        ("schema", "memory-seed/reflection-early-expiry-approval"), ("version", 1), ("key_id", receipt.key_id),
+        ("plan_id", receipt.plan_id), ("chain_id", receipt.chain_id), ("member_record_ids", list(receipt.member_record_ids)),
+        ("reason", receipt.reason), ("approved_at", receipt.approved_at), ("expires_at", receipt.expires_at), ("signature", receipt.signature),
+    ])
+
+
+def parse_early_expiry_approval(raw: bytes | str, path: str = "early-expiry-approval.yaml") -> EarlyExpiryApprovalReceipt:
+    text = _canonical_text(raw, path)
+    receipt = early_expiry_approval_from_dict(_parse_yaml_mapping(text, path), path)
+    if render_early_expiry_approval(receipt) != text:
+        _fail("canonical-bytes", path, "early-expiry approval is valid but not the canonical rendering")
+    return receipt
+
+
+def validate_early_expiry_approval(receipt: EarlyExpiryApprovalReceipt, *, manifest: ReflectionManifest,
+                                   close: ReflectionChainClose, member_record_ids: tuple[str, ...]) -> None:
+    if receipt.key_id != manifest.early_expiry_approval_key_id:
+        _fail("live-user-approval", close.path, "approval key_id does not match the manifest trust anchor")
     if (
-        approval.plan_id != manifest.plan_id
-        or approval.chain_id != close.chain_id
-        or approval.member_record_ids != member_record_ids
-        or approval.expires_at != close.expires_at
+        receipt.plan_id != manifest.plan_id or receipt.chain_id != close.chain_id
+        or tuple(sorted(receipt.member_record_ids)) != member_record_ids or receipt.expires_at != close.expires_at
     ):
-        _fail("live-user-approval", close.path, "trusted-host approval does not bind this exact expiry request")
+        _fail("live-user-approval", close.path, "approval receipt does not bind this exact expiry request")
+    public_key = bytes.fromhex(manifest.early_expiry_approval_public_key.removeprefix("ed25519:"))
+    signature = bytes.fromhex(receipt.signature.removeprefix("ed25519:"))
+    if not ed25519_verify(public_key, early_expiry_approval_payload(receipt), signature):
+        _fail("live-user-approval", close.path, "approval receipt signature does not verify against the manifest trust anchor")
 
 
-def eligible_expiry_paths(closes: Iterable[ReflectionChainClose], admitted: AdmittedReflectionSet, manifest: ReflectionManifest,
+def eligible_expiry_paths(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
                           receipts: Iterable[ReflectionReceipt], *, now: datetime, chain: str | None = None,
-                          early: bool = False, approval: LiveUserExpiryApproval | None = None) -> tuple[str, ...]:
+                          early: bool = False, approval_receipt: bytes | str | None = None) -> tuple[str, ...]:
     if now.tzinfo is None:
         _fail("expiry", "closeout.md", "expiry comparison requires timezone-aware now")
-    fragments = _require_admitted_set(admitted, manifest)
+    evidence = _verified_admitted_set(admitted)
+    manifest = evidence.manifest
+    fragments = evidence.fragments
     receipts = tuple(receipts)
-    close_map = {close.chain_id: close for close in closes}
+    close_map: dict[str, AdmittedChainClose] = {}
+    for value in closes:
+        close = _verified_admitted_close(value, evidence)
+        if close.chain_id in close_map:
+            _fail("close-collision", close.path, "multiple close records name one chain", chain=close.chain_id)
+        close_map[close.chain_id] = value
     if chain is None and early:
         _fail("expiry", "closeout.md", "early expiry requires one exact chain")
     candidates = [close_map[chain]] if chain is not None and chain in close_map else ([] if chain is not None else list(close_map.values()))
     if chain is not None and not candidates:
         _fail("expiry", "closeout.md", "requested chain has no close record", chain=chain)
     eligible: list[str] = []
-    for close in candidates:
+    for value in candidates:
+        close = _verified_admitted_close(value, evidence)
         # Early disposal has the same closure/receipt gate as ordinary expiry;
         # a user can approve deletion, not bypass unresolved coordination work.
-        validate_chain_close(close, admitted, manifest, receipts)
+        validate_chain_close(value, evidence, receipts)
         if early:
             member_ids = tuple(sorted(record.record_id for _fragment, record in _record_index(fragments).values() if record.chain_id == close.chain_id))
-            _validate_live_user_approval(approval, close=close, manifest=manifest, member_record_ids=member_ids)
+            if not isinstance(approval_receipt, (bytes, str)):
+                _fail("live-user-approval", close.path, "early deletion requires a canonical signed approval receipt")
+            approval = parse_early_expiry_approval(approval_receipt)
+            validate_early_expiry_approval(approval, manifest=manifest, close=close, member_record_ids=member_ids)
             receipts_by_id = {item.receipt_id: item for item in receipts}
             if any(receipts_by_id[item].disposition == "promoted" for item in close.receipt_ids if item in receipts_by_id):
                 _fail("early-expiry", close.path, "early deletion is limited to unpromoted chains")
         else:
             if now < _as_utc(close.expires_at):
                 continue
-        eligible.append(close.path)
+        eligible.append(value.closeout_path)
     return tuple(sorted(set(eligible)))
 
 
@@ -1480,7 +1605,9 @@ def _tree_blob(root: Path, commit: str, path: str) -> ReflectionBlob | None:
     match = re.fullmatch(r"(?P<mode>\d+) (?P<kind>\w+) (?P<oid>[0-9a-f]{40})\t(?P<path>.+)", line)
     if not match or match.group("path") != path:
         _fail("git", path, "could not read unique Git tree entry")
-    code, content = _git(root, "show", f"{commit}:{path}", binary=True)
+    # Reading the resolved object ID avoids Windows treating a long
+    # ``<commit>:<path>`` revision expression as an overlong filesystem path.
+    code, content = _git(root, "cat-file", "blob", match.group("oid"), binary=True)
     if code or not isinstance(content, bytes):
         _fail("git", path, "could not read Git blob")
     return ReflectionBlob(path, match.group("oid"), sha256(content).hexdigest(), match.group("mode"), content)
@@ -1509,22 +1636,10 @@ def _changed_paths(root: Path, base: str, source: str, family: str) -> list[tupl
 
 def _admitted_fragments_at_commit(root: Path, commit: str, manifest: ReflectionManifest) -> AdmittedReflectionSet:
     """Load every complete reserved pair visible at one immutable Git commit."""
-    documents: dict[str, bytes] = {}
-    for participant in manifest.participants:
-        for reservation in participant.reservations:
-            report_path = f"{manifest.active_dir}/{reservation.report_path}"
-            fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
-            report_blob = _tree_blob(root, commit, report_path)
-            fragment_blob = _tree_blob(root, commit, fragment_path)
-            if report_blob is None and fragment_blob is None:
-                continue
-            if report_blob is None or fragment_blob is None:
-                _fail("report-provenance", manifest.active_dir, "admitted reservation must contain both report and fragment", sequence=reservation.sequence)
-            if report_blob.mode != CANONICAL_MODE or fragment_blob.mode != CANONICAL_MODE:
-                _fail("mode", report_path if report_blob.mode != CANONICAL_MODE else fragment_path, "reflection files must be regular mode 100644")
-            documents[report_path] = report_blob.content
-            documents[fragment_path] = fragment_blob.content
-    return admit_reflection_documents(manifest, documents)
+    admitted = admit_reflection_git_tree(root, source=commit, plan_id=manifest.plan_id)
+    if render_manifest(admitted.manifest) != render_manifest(manifest):
+        _fail("manifest-immutable", manifest.manifest_path, "source admission manifest differs from the immutable base manifest")
+    return admitted
 
 
 def reflection_fuse_preview(cwd: Path | str = ".", *, plan_id: str, branch: str, base: str = "HEAD") -> ReflectionFuseResult:

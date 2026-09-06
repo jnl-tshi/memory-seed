@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from dataclasses import replace
+from hashlib import sha512
 from pathlib import Path
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -11,9 +13,9 @@ import pytest
 
 from memory_seed.reflection_ledger import (
     REFLECTION_ROOT,
+    EarlyExpiryApprovalReceipt,
     ReflectionChainClose,
     ReflectionFragment,
-    LiveUserExpiryApproval,
     ReflectionManifest,
     ReflectionParticipant,
     ReflectionReceipt,
@@ -21,9 +23,12 @@ from memory_seed.reflection_ledger import (
     ReflectionReport,
     ReflectionReservation,
     _apply_reflection_fuse_plan,
-    admit_reflection_documents,
+    admit_reflection_closeout,
+    admit_reflection_git_tree,
     canonical_id,
     common_view,
+    ed25519_verify,
+    early_expiry_approval_payload,
     eligible_expiry_paths,
     live_heads,
     parse_closeout,
@@ -35,6 +40,7 @@ from memory_seed.reflection_ledger import (
     record_id,
     reflection_fuse,
     render_closeout,
+    render_early_expiry_approval,
     render_fragment,
     render_manifest,
     render_receipt,
@@ -53,9 +59,11 @@ KERNEL = "ledger-kernel"
 BRANCH = "codex/feature/reflection-ledger-kernel"
 TRACK = "kernel"
 CHAIN = "rlc_0123456789abcdefghjk"
+TEST_APPROVAL_KEY_ID = "test-host-key"
+TEST_APPROVAL_PUBLIC_KEY = "ed25519:d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
 
 
-def make_manifest(*, base_sha=BASE, state="active", people=None):
+def make_manifest(*, base_sha=BASE, state="active", people=None, early_expiry_approval_public_key=TEST_APPROVAL_PUBLIC_KEY):
     people = people or (
         (KERNEL, "worker", BRANCH, TRACK),
         ("codex-orchestrator", "orchestrator", "codex/feature/reflection-ledger-integration", "integration"),
@@ -68,9 +76,11 @@ def make_manifest(*, base_sha=BASE, state="active", people=None):
         participants.append(ReflectionParticipant(participant, role, branch, track, (reservation,)))
     orchestrator = next(item for item in participants if item.role == "orchestrator")
     provisional = ReflectionManifest(PLAN, "main", base_sha, state, "2026-09-06T12:00:00Z", 7, "sha256-crockford-v1", SEED, "0" * 64,
+                                     TEST_APPROVAL_KEY_ID, early_expiry_approval_public_key,
                                      {"participant": orchestrator.participant, "branch": orchestrator.branch}, tuple(participants))
     return ReflectionManifest(PLAN, "main", base_sha, state, provisional.created_at, 7, "sha256-crockford-v1", SEED,
-                              participants_seal(provisional), provisional.orchestrator, provisional.participants)
+                              participants_seal(provisional), provisional.early_expiry_approval_key_id,
+                              provisional.early_expiry_approval_public_key, provisional.orchestrator, provisional.participants)
 
 
 def make_report(manifest, participant=KERNEL, *, branch=BRANCH, track=TRACK):
@@ -97,22 +107,32 @@ def reports_for(manifest):
             for person in manifest.participants]
 
 
-def admitted_for(manifest, fragments):
-    documents = {}
+def admitted_for(tmp_path, manifest, fragments, close=None):
+    root = Path(tempfile.mkdtemp(prefix="reflection-admission-", dir=tmp_path))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.com"], check=True, capture_output=True)
+    base = root / manifest.active_dir
+    base.mkdir(parents=True)
+    (base / "manifest.yaml").write_text(render_manifest(manifest), encoding="utf-8")
     for fragment in fragments:
         reservation = manifest.reservation(fragment.participant, fragment.sequence)
-        documents[f"{manifest.active_dir}/{reservation.report_path}"] = render_report(
-            make_report(manifest, fragment.participant, branch=fragment.working_branch, track=fragment.track)
-        )
-        documents[f"{manifest.active_dir}/{reservation.fragment_path}"] = render_fragment(fragment)
-    return admit_reflection_documents(manifest, documents)
-
-
-def admitted_close(manifest, close):
-    plan_id, closes = parse_closeout(render_closeout(manifest.plan_id, [close]))
-    assert plan_id == manifest.plan_id
+        report_path = base / reservation.report_path
+        fragment_path = base / reservation.fragment_path
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        fragment_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(render_report(make_report(manifest, fragment.participant, branch=fragment.working_branch, track=fragment.track)), encoding="utf-8")
+        fragment_path.write_text(render_fragment(fragment), encoding="utf-8")
+    if close is not None:
+        (base / "closeout.md").write_text(render_closeout(manifest.plan_id, [close]), encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "reflection evidence"], check=True, capture_output=True)
+    admitted = admit_reflection_git_tree(root, source="HEAD", plan_id=manifest.plan_id)
+    if close is None:
+        return root, admitted, None
+    closes = admit_reflection_closeout(admitted)
     assert len(closes) == 1
-    return closes[0]
+    return root, admitted, closes[0]
 
 
 def test_ids_match_published_vectors_and_reject_forgery():
@@ -121,6 +141,16 @@ def test_ids_match_published_vectors_and_reject_forgery():
     assert record_id(SEED, "rfl_14h1h37xrrp19qb9s1kd", 1) == "rlr_1an0dh39bsnjxfnpqtqh"
     assert record_id(SEED, "rfl_14h1h37xrrp19qb9s1kd", 2) == "rlr_0v66ws242aeshw23ppwr"
     assert canonical_id("rrc_", SEED, "x") != canonical_id("rrc_", SEED, "y")
+
+
+def test_ed25519_approval_verifier_matches_rfc8032_vector():
+    public_key = bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+    signature = bytes.fromhex(
+        "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e06522490155"
+        "5fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+    )
+    assert ed25519_verify(public_key, b"", signature)
+    assert not ed25519_verify(public_key, b"forged", signature)
 
 
 def test_manifest_report_fragment_canonical_bytes_and_ownership():
@@ -156,7 +186,7 @@ def test_relationships_keep_divergent_heads_and_select_all_descendants():
         validate_relationships([make_fragment(manifest, [first, bad])], manifest)
 
 
-def test_close_and_expiry_require_independent_coverage_and_closed_at_window():
+def test_close_and_expiry_require_independent_coverage_and_closed_at_window(tmp_path):
     reviewer = "ledger-auditor"
     manifest = make_manifest(people=(
         (KERNEL, "worker", BRANCH, TRACK),
@@ -174,11 +204,10 @@ def test_close_and_expiry_require_independent_coverage_and_closed_at_window():
     assert parse_receipt(render_receipt(receipt)) == receipt
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker_record.record_id,), (reviewer_record.record_id,),
                                  (orch_record.record_id,), orch_record.record_id, (worker_record.record_id, reviewer_record.record_id, orch_record.record_id), (), "validation:ok", (receipt.receipt_id,), "closeout.md")
-    admitted = admitted_for(manifest, [worker_fragment, reviewer_fragment, orch_fragment])
-    close = admitted_close(manifest, close)
-    validate_chain_close(close, admitted, manifest, [receipt])
-    assert eligible_expiry_paths([close], admitted, manifest, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == ("closeout.md",)
-    assert eligible_expiry_paths([close], admitted, manifest, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, [worker_fragment, reviewer_fragment, orch_fragment], close)
+    validate_chain_close(git_close, admitted, [receipt])
+    assert eligible_expiry_paths([git_close], admitted, [receipt], now=datetime(2026, 9, 13, 12, 6, tzinfo=timezone.utc)) == (git_close.closeout_path,)
+    assert eligible_expiry_paths([git_close], admitted, [receipt], now=datetime(2026, 9, 13, 12, 5, tzinfo=timezone.utc)) == ()
     assert parse_closeout(render_closeout(PLAN, [close])) == (PLAN, (close,))
 
 
@@ -195,7 +224,7 @@ def test_admissible_views_refuse_missing_reports_forged_fragments_and_path_alias
         parse_manifest(render_manifest(manifest).replace("reports/kernel/", "reports//kernel/"))
 
 
-def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts():
+def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts(tmp_path):
     reviewer = "ledger-auditor"
     manifest = make_manifest(people=(
         (KERNEL, "worker", BRANCH, TRACK),
@@ -214,28 +243,30 @@ def test_close_parser_and_validation_refuse_retention_and_topology_shortcuts():
                                 (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,),
                                  (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
-    admitted = admitted_for(manifest, fragments)
-    with pytest.raises(ValueError, match="canonically parsed closeout"):
-        validate_chain_close(close, admitted, manifest, [receipt])
-    close = admitted_close(manifest, close)
-    with pytest.raises(ValueError, match="canonically admitted reflection documents"):
-        validate_chain_close(close, fragments, manifest, [receipt])
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close)
+    with pytest.raises(ValueError, match="Git-admitted closeout"):
+        validate_chain_close(close, admitted, [receipt])
+    with pytest.raises(ValueError, match="Git-admitted reflection documents"):
+        validate_chain_close(git_close, fragments, [receipt])
+    with pytest.raises(ValueError, match="immutable Git tree"):
+        validate_chain_close(replace(git_close, closeout_oid="0" * 40), admitted, [receipt])
     forged_record = replace(worker, conclusion="Agent supplied a different conclusion.")
-    forged_documents = replace(admitted, fragments=(replace(fragments[0], records=(forged_record,)),) + fragments[1:])
-    with pytest.raises(ValueError, match="differ from their canonical bytes"):
-        validate_chain_close(close, forged_documents, manifest, [receipt])
+    fabricated_canonical_fragment = parse_fragment(render_fragment(replace(fragments[0], records=(forged_record,))))
+    forged_documents = replace(admitted, fragments=(fabricated_canonical_fragment,) + fragments[1:])
+    with pytest.raises(ValueError, match="immutable Git tree"):
+        validate_chain_close(git_close, forged_documents, [receipt])
+    _root, bad_retention_admitted, bad_retention_close = admitted_for(tmp_path, manifest, fragments, replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"))
     with pytest.raises(ValueError, match="manifest policy"):
-        validate_chain_close(admitted_close(manifest, replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z")), admitted, manifest, [receipt])
-    with pytest.raises(ValueError, match="differs from its admitted canonical bytes"):
-        validate_chain_close(replace(close, retention_days=6, expires_at="2026-09-12T12:06:00Z"), admitted, manifest, [receipt])
+        validate_chain_close(bad_retention_close, bad_retention_admitted, [receipt])
     with pytest.raises(ValueError, match="positive integer"):
         parse_closeout(render_closeout(PLAN, [close]).replace("retention_days: 7", "retention_days: seven"))
     unrelated = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution")
     unrelated_fragment = make_fragment(manifest, [unrelated], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration")
     unrelated_close = replace(close, orchestrator_record_ids=(unrelated.record_id,), synthesis_record_id=unrelated.record_id,
                               resolved_head_ids=(worker.record_id, reviewer_record.record_id, unrelated.record_id))
+    _root, unrelated_admitted, unrelated_git_close = admitted_for(tmp_path, manifest, fragments[:2] + (unrelated_fragment,), unrelated_close)
     with pytest.raises(ValueError, match="not connected to reviewer"):
-        validate_chain_close(admitted_close(manifest, unrelated_close), admitted_for(manifest, fragments[:2] + (unrelated_fragment,)), manifest, [receipt])
+        validate_chain_close(unrelated_git_close, unrelated_admitted, [receipt])
 
 
 class AlwaysTrueAgentVerifier:
@@ -243,30 +274,91 @@ class AlwaysTrueAgentVerifier:
         return True
 
 
-def test_early_expiry_needs_host_verification_and_a_valid_complete_close():
+def host_sign_for_test(seed, message):
+    """Test-only trusted-host signer; production code has verification only."""
+    prime = 2**255 - 19
+    order = 2**252 + 27742317777372353535851937790883648493
+    curve_d = (-121665 * pow(121666, prime - 2, prime)) % prime
+    base_y = (4 * pow(5, prime - 2, prime)) % prime
+    base_x_squared = ((base_y * base_y - 1) * pow(curve_d * base_y * base_y + 1, prime - 2, prime)) % prime
+    base_x = pow(base_x_squared, (prime + 3) // 8, prime)
+    if base_x & 1:
+        base_x = prime - base_x
+
+    def add(left, right):
+        x1, y1 = left
+        x2, y2 = right
+        dx = pow((1 + curve_d * x1 * x2 * y1 * y2) % prime, prime - 2, prime)
+        dy = pow((1 - curve_d * x1 * x2 * y1 * y2) % prime, prime - 2, prime)
+        return ((x1 * y2 + x2 * y1) * dx % prime, (y1 * y2 + x1 * x2) * dy % prime)
+
+    def multiply(point, scalar):
+        total = (0, 1)
+        while scalar:
+            if scalar & 1:
+                total = add(total, point)
+            point = add(point, point)
+            scalar >>= 1
+        return total
+
+    def encode(point):
+        x, y = point
+        return (y | ((x & 1) << 255)).to_bytes(32, "little")
+
+    digest = sha512(seed).digest()
+    scalar = int.from_bytes(bytes([digest[0] & 248]) + digest[1:31] + bytes([(digest[31] & 63) | 64]), "little")
+    nonce = int.from_bytes(sha512(digest[32:] + message).digest(), "little") % order
+    encoded_r = encode(multiply((base_x, base_y), nonce))
+    public_key = encode(multiply((base_x, base_y), scalar))
+    challenge = int.from_bytes(sha512(encoded_r + public_key + message).digest(), "little") % order
+    return public_key, encoded_r + ((nonce + challenge * scalar) % order).to_bytes(32, "little")
+
+
+def signed_approval(signing_seed, manifest, close, member_ids):
+    unsigned = EarlyExpiryApprovalReceipt(
+        TEST_APPROVAL_KEY_ID, manifest.plan_id, close.chain_id, tuple(member_ids), "User approved early cleanup.",
+        "2026-09-07T12:06:00Z", close.expires_at, "ed25519:" + "0" * 128,
+    )
+    _public_key, signature = host_sign_for_test(signing_seed, early_expiry_approval_payload(unsigned))
+    signed = replace(unsigned, signature="ed25519:" + signature.hex())
+    return render_early_expiry_approval(signed)
+
+
+def test_early_expiry_needs_verified_host_receipt_and_a_valid_complete_close(tmp_path):
     reviewer = "ledger-auditor"
+    signing_seed = secrets.token_bytes(32)
+    public_key, _signature = host_sign_for_test(signing_seed, b"")
     manifest = make_manifest(people=(
         (KERNEL, "worker", BRANCH, TRACK),
         (reviewer, "validator", "codex/feature/reflection-ledger-audit", "verification"),
         ("codex-orchestrator", "orchestrator", "codex/feature/reflection-ledger-integration", "integration"),
-    ))
+    ), early_expiry_approval_public_key="ed25519:" + public_key.hex())
     worker = make_record(manifest, manifest.reservation(KERNEL, 1).fragment_id)
     reviewer_record = make_record(manifest, manifest.reservation(reviewer, 1).fragment_id, relationship="responds", parents=(worker.record_id,), created="2026-09-06T12:03:00Z", no_related_thread=False)
     orchestrator = make_record(manifest, manifest.reservation("codex-orchestrator", 1).fragment_id, kind="resolution", relationship="responds", parents=(reviewer_record.record_id,), created="2026-09-06T12:04:00Z", no_related_thread=False)
     fragments = (make_fragment(manifest, [worker]), make_fragment(manifest, [reviewer_record], participant=reviewer, branch="codex/feature/reflection-ledger-audit", track="verification"), make_fragment(manifest, [orchestrator], participant="codex-orchestrator", branch="codex/feature/reflection-ledger-integration", track="integration"))
     receipt = ReflectionReceipt("rrc_0123456789abcdefghjk", PLAN, CHAIN, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (worker.record_id, reviewer_record.record_id, orchestrator.record_id), "Settled.", "expired-unpromoted", (), "2026-09-06T12:05:00Z", "sha256:" + "c" * 64)
     close = ReflectionChainClose(CHAIN, "2026-09-06T12:06:00Z", 7, "2026-09-13T12:06:00Z", (worker.record_id,), (reviewer_record.record_id,), (orchestrator.record_id,), orchestrator.record_id, (worker.record_id, reviewer_record.record_id, orchestrator.record_id), (), "validation:ok", (receipt.receipt_id,))
-    admitted = admitted_for(manifest, fragments)
-    close = admitted_close(manifest, close)
+    _root, admitted, git_close = admitted_for(tmp_path, manifest, fragments, close)
     now = datetime(2026, 9, 7, 12, 6, tzinfo=timezone.utc)
-    with pytest.raises(ValueError, match="sealed trusted-host approval"):
-        eligible_expiry_paths([close], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True)
-    with pytest.raises(ValueError, match="sealed trusted-host approval"):
-        eligible_expiry_paths([close], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True, approval=AlwaysTrueAgentVerifier())
-    with pytest.raises(TypeError, match="issued only by the trusted"):
-        LiveUserExpiryApproval(object(), "agent-forged", PLAN, CHAIN, (worker.record_id,), close.expires_at)
+    member_ids = (worker.record_id, reviewer_record.record_id, orchestrator.record_id)
+    with pytest.raises(ValueError, match="canonical signed approval"):
+        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True)
+    with pytest.raises(ValueError, match="canonical signed approval"):
+        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=AlwaysTrueAgentVerifier())
+    with pytest.raises(ValueError, match="canonical signed approval"):
+        eligible_expiry_paths(
+            [git_close], admitted, [receipt], now=now, chain=CHAIN, early=True,
+            approval_receipt=EarlyExpiryApprovalReceipt(TEST_APPROVAL_KEY_ID, PLAN, CHAIN, member_ids, "forged", "2026-09-07T12:06:00Z", git_close.close.expires_at, "ed25519:" + "0" * 128),
+        )
+    valid_approval = signed_approval(signing_seed, manifest, git_close.close, member_ids)
+    tampered_approval = valid_approval[:-2] + ("0" if valid_approval[-2] != "0" else "1") + "\n"
+    with pytest.raises(ValueError, match="does not verify"):
+        eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=tampered_approval)
+    assert eligible_expiry_paths([git_close], admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=valid_approval) == (git_close.closeout_path,)
     with pytest.raises(ValueError, match="unavailable durable receipt"):
-        eligible_expiry_paths([admitted_close(manifest, replace(close, receipt_ids=("rrc_1123456789abcdefghjk",)))], admitted, manifest, [receipt], now=now, chain=CHAIN, early=True)
+        _root, bad_admitted, bad_close = admitted_for(tmp_path, manifest, fragments, replace(close, receipt_ids=("rrc_1123456789abcdefghjk",)))
+        eligible_expiry_paths([bad_close], bad_admitted, [receipt], now=now, chain=CHAIN, early=True, approval_receipt=signed_approval(signing_seed, manifest, bad_close.close, member_ids))
 
 
 class TestFuse:
