@@ -4,16 +4,16 @@ date: "2026-09-06"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Review the temporary-ledger contract and the three dispatch drafts; then land the serial foundation before any worker creates a reflection fragment."
+next_action: "Independently review the revised active-board, ESR promotion, embedded-receipt, and approved-expiry contract before implementation."
 source:
   - "docs/CONSTITUTION.md"
   - ".memory-seed/skills/agent_collaboration.md"
   - ".memory-seed/skills/session_logging.md"
   - "experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md"
   - "docs/2_Todo/task-packet-hardening-progressive-provenance-plan.md"
-scope: "Add a plan-scoped, multi-writer reflection ledger with a guarded fuse, derived common view, Task Packet handoffs, and explicit promotion of reusable lessons into ordinary sessions."
+scope: "Add a plan-scoped, multi-writer reflection board with a guarded fuse, topic-aware active retrieval, ESR promotion into ordinary sessions, embedded durable receipts, and approved expiry of temporary detail."
 non_goals:
-  - "Do not place reflection records in .memory-seed/sessions/ or alter past session history."
+  - "Do not place active reflection records in .memory-seed/sessions/ or alter past session history."
   - "Do not make the ledger a permanent retrieval corpus, ADR source, index, or database."
   - "Do not add worker dispatch, worktree creation, provider, network, or autonomous decision authority."
   - "Do not infer a durable lesson or session entry from a worker report without an orchestrator decision."
@@ -26,7 +26,10 @@ acceptance_criteria:
   - "The reflection fuse rejects every membership, ownership, sequence, ID, report-provenance, correction, duplicate, or collision violation before an integration write."
   - "A derived common view exposes all admitted opinions and their corrections without silently selecting an opinion as truth."
   - "Only the orchestrator can author resolution or promotion records, and durable lessons are written through the ordinary guarded session append path during the plan."
-  - "Sealing retains the completed temporary ledger as append-only archive evidence after all promoted lessons are evidenced; only derived views may be discarded."
+  - "Each reflection starts with a concise conclusion and carries enough reasoning, assumptions, uncertainty, and alternatives for another worker to challenge or refine it without reconstructing the author's work."
+  - "ESR finds unresolved reflections, groups overlaps, checks existing decisions, and presents promotion and cleanup candidates without making the durable judgment automatically."
+  - "Promoted conclusions become compact ordinary Memory Seed decisions containing embedded reflection receipts; non-promoted dispositions are embedded in the ESR session entry, so no separate authoritative receipt sidecar is introduced."
+  - "After the retention window, approved temporary detail may be removed from the active tree without breaking durable references; the derived receipt index remains rebuildable from session entries."
 ---
 
 # Plan-scoped reflection ledger
@@ -34,18 +37,23 @@ acceptance_criteria:
 ## Outcome and decision
 
 Create a narrowly scoped reflection facility for a single approved plan. It collects independent worker
-opinions and first-hand handoff evidence while the plan is active, then becomes a sealed, explicitly
-addressed archive after the orchestrator has resolved the plan and selectively promoted reusable lessons into
-normal append-only sessions.
+reasoning while the plan is active, lets overlapping tracks challenge and refine the working proposal, and
+uses ESR to promote only reusable conclusions into normal append-only sessions. The active board is working
+memory, not a second permanent memory corpus.
 
 This is deliberately not a second session layout. Durable sessions remain the chronological rationale
-authority. The reflection ledger is temporary coordination evidence: it is Markdown/YAML while live, is fused
-with the same fail-closed principles as sessions, is visible to humans and agents through a derived common
-view, and is not discovered by ordinary memory retrieval. A lesson becomes durable only through the
-existing guarded session writer and an explicit orchestrator promotion record. Temporary means no durable
-memory or retrieval role after closure, not destroyable evidence: Constitution invariants #2, #3, #4, #6,
-and #7 require the canonical attributable history to remain. Only generated views/exports are disposable; no
-constitutional amendment is assumed.
+authority. The reflection board is temporary coordination material: it is Markdown/YAML while live, is fused
+with fail-closed identity and ownership checks, is visible through a derived common view, and is excluded from
+ordinary memory retrieval. A lesson becomes durable only through the existing guarded session writer after
+orchestrator judgment. Its compact receipt is embedded in the resulting decision; a reflection that is
+superseded or intentionally discarded gets its receipt in the ESR closeout entry. A rebuildable derived index
+may collect those receipts for lookup, but it owns no truth.
+
+Temporary detail has a default seven-day review window. ESR may extend unresolved or disputed reflections to
+14 or 30 days. Once ESR shows the user what was promoted, already covered, unresolved, and safe to remove,
+deletion requires live user approval. Approved expiry removes detailed blocks from the active tree; ordinary
+Git history may still retain earlier committed blobs, so this is active-state cleanup rather than a promise of
+privacy-grade erasure. Any hard-erasure capability is a separate security and governance concern.
 
 The five-question test: this primarily improves **Validation**, **Trust**, and **Application**. It makes
 parallel opinions inspectable and attributable before an orchestrator acts on them, without pretending that
@@ -77,7 +85,7 @@ worker agreement creates authority.
 | `memory_seed/core.py`: `session_merge_branch()` | Follow the one-step sequence: preview, no-ff merge, reset protected paths to base, apply only an approved fuse plan, stage, commit, and abort a refusal before a usable merge exists. | Reflection fusion is an additional plan-family phase, not a fallback raw merge and not a Git merge driver. |
 | `tests/test_session_fuse_and_merge.py` | Reuse its temporary-Git-project fixtures and negative-control style for chronology, sidecar parentage, immutable base records, source decoding, duplicate keys, and apply-only-in-merge behavior. | Add a dedicated `tests/test_reflection_ledger.py`; do not turn session tests into reflection-format tests. |
 | `memory_seed/task_packet.py`: `normalize_task_dispatch()`, `compile_task_packet()`, measured `runtime_binding`, `expected_absent`, acceptance observables, `execution_defaults` | Use existing semantic dispatches to give a worker exact reflection output paths, expected report artifact, preflight, validation, and handoff contract. Packets remain derived and ephemeral. | V1 initially needs no new dispatch field: exact paths and observables express the reflection contract. A future native field is out of scope unless the pilot proves repetition or ambiguity. |
-| `memory_seed/cli.py` and `memory_seed/mcp_server.py` | Mirror existing parser/handler and structured-preview conventions; preserve CLI/MCP canonical-result parity. | MCP read operations are inline and non-mutating; any writer calls the same core validation used by CLI. No MCP operation merges a branch or seals a ledger without the same gates as CLI. |
+| `memory_seed/cli.py` and `memory_seed/mcp_server.py` | Mirror existing parser/handler and structured-preview conventions; preserve CLI/MCP canonical-result parity. | MCP read operations are inline and non-mutating; any writer calls the same core validation used by CLI. No MCP operation merges a branch, closes a board, or expires detail without the same gates as CLI. |
 | `.memory-seed/skills/agent_collaboration.md` and the Seed twin | Reuse Task Packet ownership, clean-session, worktree, worker-checkpoint, final-handoff, and serial-integration rules. | Extend the runbook only after core behavior passes tests; a reflection fragment is not a worker permission to write a durable session. |
 | `experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md` | Preserve its useful dimensions: source coverage, authority fidelity, extra-hop classification, scope accuracy, exact receipts, and independently reviewed limitations. | It remains an experiment-specific log. The plan ledger is not a general-purpose replacement for it. |
 
@@ -113,12 +121,12 @@ cross-cutting packet contract; it must not duplicate Kernel or integration refle
 
 ## Plan family, storage, and lifecycle
 
-The canonical family is distinct from `sessions/` and starts in its permanent archive location; later closure
-does not delete or move evidence. The following names are a **deterministic planning vector**, not a live
+The active family is distinct from `sessions/` and exists only for the plan's working and review window.
+The following names are a **deterministic planning vector**, not a live
 manifest or pre-dispatch authority:
 
 ```text
-.memory-seed/reflections/archive/reflection-ledger-v1/
+.memory-seed/reflections/active/reflection-ledger-v1/
   manifest.yaml
   reports/ledger-kernel/rpr_14fyc35b2ze6e1ygw4ft.md
   fragments/kernel/ledger-kernel/001-rfl_14h1h37xrrp19qb9s1kd.md
@@ -128,13 +136,13 @@ manifest or pre-dispatch authority:
   fragments/verification/ledger-auditor/001-rfl_0bxzy7ezgekptyqgpv12.md
   reports/codex-orchestrator/rpr_14t6r8y0wmsnt0dthw68.md
   fragments/integration/codex-orchestrator/001-rfl_0efanjnv9sxj2hxarpbk.md
-  seal.md
+  closeout.md
 ```
 
-Archive means retained evidence, not session membership or a reusable retrieval corpus. Reflection commands
-address a sealed plan only by explicit ID. `reflection view` writes no stored view: canonical Markdown goes
+Active reflection material is coordination state, not session membership or a reusable retrieval corpus.
+`reflection view` writes no stored view: canonical Markdown goes
 to stdout; a guarded explicit output path is a disposable derived export. JSON is non-authoritative transport
-or export only.
+or export only. After approved expiry, durable lookup uses embedded session receipts rather than these paths.
 
 `reflection init` is orchestrator-only and runs only after the Kernel parser/fuse lands. It generates a
 cryptographically random 256-bit `reservation_seed`, creates canonical `manifest.yaml`, validates it, and
@@ -194,7 +202,7 @@ version: 1
 plan_id: reflection-ledger-v1
 base_branch: main
 base_sha: <40-character resolved SHA>
-state: active                         # active -> sealed; never reopened
+state: active                         # active -> review -> closed; never reopened
 reservation_algorithm: sha256-crockford-v1
 reservation_seed: <64-lowercase-hex>
 participants_seal: <sha256 canonical participant-roster bytes>
@@ -225,8 +233,8 @@ participants:
 ```
 
 The participant roster bytes are the canonical YAML rendering of `plan_id`, `base_branch`, `base_sha`, and
-ordered participant/reservation tuples; `participants_seal` is their SHA-256. The manifest is authoritative;
-the seal detects alteration, and both are checked against the base tree. A worker cannot self-enrol, amend a
+ordered participant/reservation tuples; `participants_seal` is their SHA-256. The manifest is authoritative
+while the board is active; its digest detects alteration and is checked against the base tree. A worker cannot self-enrol, amend a
 reservation, write an unreserved path, or use a new sequence. More slots require a serial manifest revision
 and recompiled packets before dispatch. The family is ignored by retrieval, session-target resolution,
 compacting, links, ADR membership, and seed initialization unless an explicit reflection command is invoked.
@@ -238,10 +246,12 @@ Lifecycle:
 2. **Initialize.** Orchestrator commits the manifest and compiles packets with its exact reservations.
 3. **Collect/fuse.** Subsequent workers and the auditor commit their reserved pair; each is admitted by the
    coordinated integration primitive.
-4. **Resolve/promote/seal.** Orchestrator writes its reserved pair, promotes reusable lessons immediately,
-   and appends `seal.md` when every disposition resolves.
-5. **Close.** Derived views/exports may disappear. Canonical Markdown/YAML archive evidence remains
-   read-only and explicitly inspectable.
+4. **Resolve/promote.** ESR groups overlapping records, checks existing decisions, and presents promotion,
+   extension, and cleanup candidates. The orchestrator judges; it never promotes automatically.
+5. **Close.** The orchestrator appends `closeout.md`, embeds compact receipts in promoted decisions or the
+   ESR session entry, and moves the plan to `closed`.
+6. **Expire.** After 7 days by default (or an approved 14/30-day extension), ESR may propose removing the
+   detailed active family. Removal requires live user approval and never removes the embedded receipts.
 
 ## Fragment and report schema
 
@@ -275,7 +285,7 @@ Concise implementation/audit handoff and measured limitations.
 
 Canonical authority is UTF-8 without BOM, Unicode NFC, LF, no trailing spaces, fixed schema-field order,
 two-space YAML indentation, preserved list order, and exactly one final LF. The strict parser re-renders the
-file and requires byte equality with the Git blob. Canonical report/fragment/manifest/seal files must be
+file and requires byte equality with the Git blob. Canonical report/fragment/manifest/closeout files must be
 regular mode `100644`; symlinks, executables, submodules, directories, and every mode drift refuse. Kernel
 owns byte-exact golden fixtures for all four forms.
 
@@ -315,13 +325,39 @@ base_sha: <manifest base SHA>
 record_id: rlr_<20-crockford>
 ordinal: 1
 kind: opinion
-subject: parser-boundary
+area: reflection-ledger
+activity: implementation-review
+topics: [agent-collaboration, reflection]
+related_decisions: []
+responds_to: []
 confidence: medium
 ```
 
-The session fuse parser is a safety-pattern reference, but reflection files must not be returned by
-`iter_session_documents()` or ordinary retrieval.
+#### Conclusion
+
+Keep the temporary reflection parser outside session discovery.
+
+#### Reasoning
+
+The session fuse is a useful safety-pattern reference, but treating reflections as sessions would create a
+second durable memory route. Reflection files therefore stay outside `iter_session_documents()` and ordinary
+retrieval.
+
+#### Assumptions and uncertainty
+
+The active-board query can satisfy cross-branch collaboration without widening durable memory retrieval.
+
+#### Challenge or next step
+
+Test whether topic and plan filters let another worker find this conclusion without knowing its branch.
 ```
+
+The conclusion is required and comes first, acting as an abstract for humans and agents. Reasoning is required
+and may be more detailed than the promoted decision because it exists to expose assumptions and let peers
+challenge the proposal during implementation. Assumptions/uncertainty, alternatives/objections, and a question
+or next step are optional structured sections. `area`, `activity`, and `topics` support active-board grouping;
+`responds_to` creates a reflection dialogue. Related decisions are optional. Files, commits, patches, and test
+logs are not standard reflection fields and appear only when the thought cannot be understood without them.
 
 Record kinds have intentionally narrow authority:
 
@@ -333,10 +369,10 @@ Record kinds have intentionally narrow authority:
 | `correction` | yes, own prior record only | yes, own prior record only | New record with `corrects: <record_id>` and reason; original remains visible. |
 | `resolution` | no | yes | Explicit plan-level choice, citing the opinions/risks it considered and rejected. |
 | `promotion` | no | yes | Links a selected reusable lesson to a newly written ordinary session `entry_id` and decision reference when applicable. |
-| `seal` | no | yes | Declares every fragment/report disposition and successful closure preconditions without deleting evidence. |
+| `closeout` | no | yes | Declares every reflection disposition, retention choice, and embedded-receipt destination before expiry can be proposed. |
 
 Every record carries a stable ID, explicit subject, source (`write-time` or `derived`), and report provenance
-unless it is an orchestrator resolution, promotion, or seal. Corrections must target an earlier record
+unless it is an orchestrator resolution, promotion, or closeout. Corrections must target an earlier record
 from the same participant; they cannot erase it, alter another participant's evidence, or turn an opinion
 into a resolution. A derived record may fill a missing statement but never silently override a write-time
 record; an attempted override requires a correction citing the exact prior record and resolution evidence.
@@ -347,8 +383,8 @@ record; an attempted override requires a correction citing the exact prior recor
 validates the base-established manifest/participant seal, examines three-dot changes, and rejects a manifest
 edit, foreign family, unknown participant, wrong branch/base/track/sequence/ID/path, unreserved record,
 malformed or noncanonical bytes, uncited/missing report, duplicate/collision, invalid correction/authority,
-or a source not descended from manifest base. It also rejects changed bytes, deletion, rename/copy, extra
-canonical path, and every mode change of base/archive evidence. `already_present` requires equal canonical
+or a source not descended from manifest base. While active, it also rejects changed bytes, deletion, rename/copy, extra
+canonical path, and every mode change of base reflection material. `already_present` requires equal canonical
 bytes **and** mode, not merely an equal ID.
 
 The preview produces only approved canonical additions plus its measured admission receipt. Its `--apply`
@@ -369,13 +405,14 @@ The only integration route for a branch that changes reflections is
 5. stage only approved paths plus ordinary non-protected merge changes, post-check, and create one merge
    commit containing `Session-Fuse` and `Reflection-Fuse` trailers (plan, manifest digest, participant, tip).
 
-`.gitattributes` marks canonical reflection paths non-mergeable. The integration checker rejects any merge
-commit changing archive reflection paths without a successful matching reflection-fuse trailer; raw merge,
+`.gitattributes` marks active reflection paths non-mergeable. The integration checker rejects any merge
+commit changing reflection paths without a successful matching reflection-fuse trailer; raw merge,
 manual post-merge edit, and standalone reflection apply therefore fail closed.
 
-`reflection view --plan <id>` consumes the same parsed records and writes canonical Markdown only to stdout:
+`reflection view --plan <id> [--area ...] [--activity ...] [--topic ...] [--related-decision ...]` consumes the same parsed records and writes canonical Markdown only to stdout:
 raw records, measured source-tip receipt, correction chains, risks, resolutions, promotions, and participant
-coverage, sorted by `(created_at, participant, sequence, fragment_id, record_ordinal)`. It may group but
+coverage, sorted by `(created_at, participant, sequence, fragment_id, record_ordinal)`. Filters are confined
+to active reflections and allow a worker to pull relevant thinking from other branches without broad discovery. It may group but
 must show every source record and label grouping derived. It never picks a majority or effective winner.
 JSON/MCP structured data are non-authoritative projections of this same result.
 
@@ -386,34 +423,43 @@ JSON/MCP structured data are non-authoritative projections of this same result.
 | CLI | `memory-seed reflection init --manifest-file …` | Orchestrator-only; validates identity, reservation paths/IDs, and roster seal before the initial manifest commit. |
 | CLI | `reflection append --report-file … --fragment … [--dry-run]` | Checks guarded worktree, reservation ownership, sequence/IDs, and canonical bytes. Dry run returns exact rendered Markdown/YAML bytes. |
 | CLI | `reflection check --plan`, `reflection view --plan`, `reflection fuse --plan --branch --preview` | Read-only. View is stdout Markdown; `--json` is transport only. Apply is internal to the coordinated merge primitive. |
-| CLI | `reflection seal --plan --apply` | Orchestrator-only; validates dispositions/promotions and appends seal evidence. It deletes no canonical path. |
+| CLI | `reflection close --plan --apply` | Orchestrator-only; validates dispositions/promotions and appends closeout evidence. |
+| CLI | `reflection expire --plan --preview` | Read-only ESR proposal showing age, unresolved records, receipt destinations, and exact paths eligible for removal. Apply requires separate live user approval. |
 | MCP | `memory_reflection_view`, `memory_reflection_fuse_preview` | Non-mutating projections of the same core result as CLI. |
-| MCP | `memory_reflection_append`, `memory_reflection_seal` | Added only with success/error parity tests; call shared validators and cannot merge or bypass live approval. |
-| Orchestrator | Task Packet compile + coordinated integration | Compiles exact pre-reserved paths, checks binding/admission receipt, and owns resolution, promotion, integration, and seal. |
+| MCP | `memory_reflection_append`, `memory_reflection_close` | Added only with success/error parity tests; call shared validators and cannot merge or bypass live approval. |
+| Orchestrator | Task Packet compile + coordinated integration | Compiles exact pre-reserved paths, checks binding/admission receipt, and owns resolution, promotion, integration, closeout, and approved expiry. |
 
 CLI and MCP must expose identical valid core result dictionaries/rendered bytes and identical structured
 errors `{code, path, message, details}` for every shared fixture. No MCP writer hand-writes files. No export
 path exists except stdout or a caller-scoped derived file guarded by the normal worktree policy. No new
 dispatch engine is introduced: the ledger is evidence inside the existing flow.
 
-## Authority, promotion, and sealing rules
+## Authority, ESR promotion, receipts, and expiry
 
 - Workers can state only first-hand observations, opinions, risks, and corrections within their assigned
   prefix. They cannot resolve a cross-track disagreement, promote a lesson, modify the manifest, change
-  another participant's record, integrate, or seal the plan.
+  another participant's record, integrate, or close the plan.
 - The orchestrator's `resolution` names the considered record IDs, the chosen conclusion, the rejected or
   deferred alternatives, and any remaining risk owner. It never rewrites a worker's prose.
-- Promotion is selective and happens during the plan. The orchestrator uses ordinary `session append` / MCP
+- Promotion is selective and happens during ESR or earlier when a conclusion is already settled. ESR mechanically
+  finds unresolved records, groups overlap, and checks whether an existing decision already covers the lesson;
+  the orchestrator makes every durable judgment. The orchestrator uses ordinary `session append` / MCP
   append with normal chronology, DRAFT, topic, linkage, ADR-review, and branch guards. The durable session
   must retain a human-readable `D:`/`R:` explanation of conclusion and reason plus plan and source
-  fragment/record IDs in `F:` prose; a bare pointer is invalid. The promotion record stores the resulting
-  session `entry_id`, explanatory decision ID, and exact source records.
+  explanation plus an embedded `reflection_receipts` block. Each receipt contains the reflection ID, authored
+  timestamp, author, area/activity/topics, one-sentence conclusion, content digest, disposition, and promoted
+  decision references. The decision does not point to a temporary path.
 - A promotion is not automatic consolidation. One-off status, duplicate opinion, transient debugging,
-  personal data, and unresolved disagreement are explicitly `not-promoted` with a concise disposition.
-- Sealing is an explicit closure record, not cleanup. It is allowed only after `seal.md` covers every reserved
-  and admitted fragment/report with blob/hash/mode receipt, every required durable promotion/disposition
-  resolves, and no resolution is unresolved. It changes no old canonical byte or name. Runtime readers do not
-  treat a sealed plan as active, but explicit inspection remains available.
+  personal data, and unresolved disagreement are explicitly disposed. Receipts for non-promoted reflections
+  live in the ESR session entry rather than a separate receipt sidecar.
+- A rebuildable receipt index may accelerate lookup by reflection ID, topic, or decision ref. It is derived
+  solely from ordinary session entries, can be deleted at any time, and owns no authority.
+- Closing is distinct from expiry. `closeout.md` must cover every admitted reflection and name its promotion,
+  existing-decision coverage, approved extension, or non-promotion disposition. ESR may propose expiry only
+  after every record has a durable receipt and no unresolved record is inside its review window.
+- Expiry is never automatic. ESR shows the user concise promoted summaries and the exact detailed paths that
+  would be removed; only live approval authorizes removal. Default eligibility is 7 days, with 14- or 30-day
+  extensions for unfinished or disputed work. Git may retain historical blobs; no hard-erasure claim is made.
 
 ## Delivery sequence and ownership
 
@@ -425,7 +471,7 @@ dispatch engine is introduced: the ledger is evidence inside the existing flow.
    genuinely neutral Git/ref-diff helpers from `core.py` if reuse cannot stay internal without circular
    imports.
 2. Add `reflection` CLI routes and the one coordinated session/reflection integration sequencing. Add
-   `.gitattributes` protection for the sealed archive family so a raw line merge fails rather than fabricates
+   `.gitattributes` protection for the active reflection family so a raw line merge fails rather than fabricates
    a valid-looking record.
 3. Add the read-only MCP preview/view surfaces. Add writers only after the shared validator and CLI behavior
    are fully covered.
@@ -434,13 +480,13 @@ dispatch engine is introduced: the ledger is evidence inside the existing flow.
 
 | Track | Owned files | Deliverable | Dependency |
 | --- | --- | --- | --- |
-| Kernel fuse (serialized bootstrap) | `memory_seed/reflection_ledger.py`, minimal shared `memory_seed/core.py` helper extraction, `.gitattributes`, `tests/test_reflection_ledger.py`, canonical fixtures | Schema, manifest IDs, report validation, view, preview/internal apply fuse, coordinated merge, seal preconditions. It emits no ledger record. | Foundation base only. |
+| Kernel fuse (serialized bootstrap) | `memory_seed/reflection_ledger.py`, minimal shared `memory_seed/core.py` helper extraction, `.gitattributes`, `tests/test_reflection_ledger.py`, canonical fixtures | Schema, manifest IDs, report validation, conclusion-first records, topic filters, preview/internal apply fuse, coordinated merge, and closeout/expiry preconditions. It emits no ledger record. | Foundation base only. |
 | Surfaces and packets | `memory_seed/cli.py`, `memory_seed/mcp_server.py`, `memory_seed/task_packet.py`, `tests/test_reflection_ledger_surfaces.py`, `tests/test_task_packet.py`, packet/worker documentation and its Seed twin | CLI/MCP parity, active-rules/session-logging packet baseline, pre-reserved paths, handoff validation, then its reserved pair. | Kernel API frozen and manifest committed. |
-| Orchestrator integration test | `tests/test_reflection_ledger_integration.py` and integration fixture helpers | Multi-worktree simulation, dual-fuse reset/application, archive sealing, and negative controls. | Kernel + surfaces integrated; serialized owner only. |
+| Orchestrator integration test | `tests/test_reflection_ledger_integration.py` and integration fixture helpers | Multi-worktree simulation, cross-branch topic retrieval, ESR promotion, embedded receipts, approved expiry, and negative controls. | Kernel + surfaces integrated; serialized owner only. |
 | Independent auditor | Its pre-reserved report/fragment only | Read-only integrated-tree verdict and evidence handoff. | Kernel + surfaces integrated; no product/test edits. |
 
-The orchestrator owns `.memory-seed/reflections/archive/<plan_id>/manifest.yaml`, the integration fragment,
-branch ordering, resolution/promotion, durable session appends, seal, and the integration test. No worker
+The orchestrator owns `.memory-seed/reflections/active/<plan_id>/manifest.yaml`, the integration fragment,
+branch ordering, resolution/promotion, durable session appends, closeout, approved expiry, and the integration test. No worker
 owns shared control-plane files, dependency files, existing sessions, ADRs, policy, index, or seed files.
 This assigns each test file to one owner. The auditor writes only its reserved evidence pair and otherwise
 reviews the integrated diff.
@@ -456,23 +502,25 @@ reviews the integrated diff.
    each merge. No octopus merge or raw conflict resolution for reflection paths.
 5. Have an independent validator review the integrated behavior and negative controls. Route rework to the
    owning worker up to the existing bounded review-loop limit.
-6. The orchestrator writes resolution/promotion/seal records, runs ordinary session promotion, validates
-   sealing, leaves canonical archive evidence intact, then validates the integrated tree again.
+6. The orchestrator runs the ESR reflection review, writes resolutions and promotions, embeds receipts in
+   ordinary session entries, closes the board, and validates the integrated tree again.
+7. At the eligible review date, ESR previews unresolved state and exact cleanup paths. Only live user approval
+   permits expiry; the integration test proves every durable link resolves through an embedded receipt afterward.
 
 ## Test matrix and acceptance observables
 
 | Area | Required proof |
 | --- | --- |
 | Manifest and ownership | Unknown/duplicate participant, roster-seal mismatch, changed manifest, foreign plan, wrong branch/base/track/reservation, a worker writing an orchestrator kind, and an uncited resolution all refuse. |
-| Canonical IDs/bytes | Manifest-derived dry-run IDs; malformed/forged IDs; duplicate source ID; base collision same bytes/mode=`already_present`; changed bytes/mode refusal; duplicate sequence; invalid UTF-8/NFC/LF/final LF; golden manifest/report/fragment/seal bytes. |
+| Canonical IDs/bytes | Manifest-derived dry-run IDs; malformed/forged IDs; duplicate source ID; base collision same bytes/mode=`already_present`; changed bytes/mode refusal; duplicate sequence; invalid UTF-8/NFC/LF/final LF; golden manifest/report/fragment/closeout bytes. |
 | Report provenance | Missing report, wrong plan/participant/branch/base, unreserved path, malformed fingerprint, uncited report, changed source tip, and altered measured blob/hash/mode all refuse. Reports cannot claim a head SHA. |
-| Archive immutability | Delete, rename, copy, source-only extra path, symlink/executable/submodule, and any mode change of an archive report/fragment/manifest refuse. |
+| Active immutability | Before approved expiry, delete, rename, copy, source-only extra path, symlink/executable/submodule, and any mode change of a report/fragment/manifest refuse. |
 | Corrections and derived view | Correction cannot edit or target another participant; original and correction remain visible; derived cannot outrank write-time without explicit correction; stdout Markdown and transport JSON are deterministic; disagreement is visible rather than collapsed. |
 | Coordinated application | Both previews are required; no-commit merge resets every union path and removes additions; second apply failure aborts; raw/post-merge reflection integration fails closed; one commit has both receipts. |
 | CLI/MCP parity | Same valid rendered fragment/result and `{code,path,details}` errors from both paths; MCP read surfaces and stdout view are non-mutating; unsupported export arguments fail closed; no writer bypasses core validation. |
 | Packet governance baseline | Every worker packet materializes active agent-rules; worker-checkpoint/session-path packets also materialize session_logging, reject direct session Markdown/future timestamp overrides, preserve lazy orientation, and account both components in input/cost tokens. |
 | Task Packet integration | Exact pre-reserved worker paths/IDs and expected-absent paths are materialized; stale binding blocks; packet evidence is not refetched; compilation is measured for all three drafts. |
-| Promotion and seal | Promotion requires existing ordinary session entry, exact source, and durable explanatory conclusion/reason; invalid promotion/disposition blocks seal; archive bytes remain; only derived exports may be removed. |
+| ESR promotion and expiry | ESR finds uncaptured reflections without auto-promoting; promoted decisions and non-promoted ESR entries embed complete compact receipts; expiry refuses without live approval, unresolved records, missing receipts, or an unelapsed retention window; durable references still resolve afterward. |
 | Regression | Existing `session_fuse`, `session_merge_branch`, Task Packet, docs, and MCP tests stay green. Add a negative control that deliberately corrupts a fragment/report and proves the new checker refuses it. |
 
 Minimum final commands (run from the integration checkout using the checkout's own module) are:
@@ -513,11 +561,11 @@ execution:
   persona: none
   capability_tier: frontier
   write_intent: writing
-  allowed_files: [memory_seed/reflection_ledger.py, memory_seed/core.py, .gitattributes, tests/test_reflection_ledger.py, tests/fixtures/reflection_ledger/canonical/manifest.yaml, tests/fixtures/reflection_ledger/canonical/report.md, tests/fixtures/reflection_ledger/canonical/fragment.md, tests/fixtures/reflection_ledger/canonical/seal.md]
+  allowed_files: [memory_seed/reflection_ledger.py, memory_seed/core.py, .gitattributes, tests/test_reflection_ledger.py, tests/fixtures/reflection_ledger/canonical/manifest.yaml, tests/fixtures/reflection_ledger/canonical/report.md, tests/fixtures/reflection_ledger/canonical/fragment.md, tests/fixtures/reflection_ledger/canonical/closeout.md]
   forbidden_files: [AGENTS.md, .memory-seed/agent-rules.md, .memory-seed/index.md, .memory-seed/policy.md, docs/CONSTITUTION.md, memory_seed/seed/AGENTS.md, memory_seed/cli.py, memory_seed/mcp_server.py, tests/test_reflection_ledger_integration.py]
   validation: ["python -X utf8 -m pytest -q tests/test_reflection_ledger.py tests/test_session_fuse_and_merge.py", "git diff --check"]
-  output_contract: ["Return a committed kernel checkpoint and measured validation; no reflection report/fragment is allowed before the parser exists.", "Do not merge, resolve, promote, or seal."]
-  expected_absent: [memory_seed/reflection_ledger.py, tests/test_reflection_ledger.py, tests/fixtures/reflection_ledger/canonical/manifest.yaml, tests/fixtures/reflection_ledger/canonical/report.md, tests/fixtures/reflection_ledger/canonical/fragment.md, tests/fixtures/reflection_ledger/canonical/seal.md]
+  output_contract: ["Return a committed kernel checkpoint and measured validation; no reflection report/fragment is allowed before the parser exists.", "Do not merge, resolve, promote, close, or expire."]
+  expected_absent: [memory_seed/reflection_ledger.py, tests/test_reflection_ledger.py, tests/fixtures/reflection_ledger/canonical/manifest.yaml, tests/fixtures/reflection_ledger/canonical/report.md, tests/fixtures/reflection_ledger/canonical/fragment.md, tests/fixtures/reflection_ledger/canonical/closeout.md]
   acceptance_observables:
     - {name: reflection-kernel-tests, command: "python -X utf8 -m pytest -q tests/test_reflection_ledger.py", expected_exit_code: 0}
     - {name: session-fuse-regression, command: "python -X utf8 -m pytest -q tests/test_session_fuse_and_merge.py", expected_exit_code: 0}
@@ -552,7 +600,7 @@ project_context:
   relevant_subsystem: "This track adapts frozen reflection core results to CLI/MCP parity, makes full active agent-rules mandatory in every worker packet, and adds full session-logging plus automatic-clock append guards for session-writing packets."
   task_fit: "Operators need identical valid/error behavior, while workers need pre-reserved evidence paths rather than content-derived output names."
   downstream_use: "Auditors compare surfaces and the orchestrator uses the report/fragment only as evidence, never as an integration shortcut."
-  non_goals: ["Do not alter the Task Packet semantic schema.", "Do not write sessions, governance files, manifest, resolution, promotion, or seal."]
+  non_goals: ["Do not alter the Task Packet semantic schema.", "Do not write sessions, governance files, manifest, resolution, promotion, closeout, or expiry state."]
 execution:
   role: worker
   persona: none
@@ -561,7 +609,7 @@ execution:
   allowed_files: [memory_seed/cli.py, memory_seed/mcp_server.py, memory_seed/task_packet.py, tests/test_reflection_ledger_surfaces.py, tests/test_task_packet.py, .memory-seed/skills/agent_collaboration.md, memory_seed/seed/.memory-seed/skills/agent_collaboration.md]
   forbidden_files: [AGENTS.md, .memory-seed/agent-rules.md, .memory-seed/index.md, .memory-seed/policy.md, docs/CONSTITUTION.md, tests/test_reflection_ledger.py, tests/test_reflection_ledger_integration.py]
   validation: ["python -X utf8 -m pytest -q tests/test_reflection_ledger_surfaces.py tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_mcp_server.py", "git diff --check"]
-  output_contract: ["Return committed CLI/MCP parity and packet-baseline evidence (full active agent-rules; full session-logging/automatic-clock guard where applicable).", "After init, use only the generator-injected reserved report/fragment paths; do not merge, resolve, promote, or seal."]
+  output_contract: ["Return committed CLI/MCP parity and packet-baseline evidence (full active agent-rules; full session-logging/automatic-clock guard where applicable).", "After init, use only the generator-injected reserved report/fragment paths; do not merge, resolve, promote, close, or expire."]
   expected_absent: [tests/test_reflection_ledger_surfaces.py]
   acceptance_observables:
     - {name: reflection-surface-parity, command: "python -X utf8 -m pytest -q tests/test_reflection_ledger_surfaces.py", expected_exit_code: 0}
@@ -590,14 +638,14 @@ from the planning vector.
 ~~~yaml
 schema: memory-seed/task-dispatch
 version: 1
-objective: "Independently verify the integrated reflection ledger for provenance, collision, coordinated merge, explanatory promotion, and sealed-retention behavior; write only the pre-reserved audit evidence pair."
+objective: "Independently verify the integrated reflection board for provenance, collision, coordinated merge, cross-branch retrieval, ESR promotion, embedded receipts, and approved-expiry behavior; write only the pre-reserved audit evidence pair."
 constitution_refs: [constitution:v1#append-only, constitution:v1#provenance, constitution:v1#markdown-authority, constitution:v1#authority]
 project_context:
   project_type_and_purpose: "Memory Seed retains attributable project reasoning as local Markdown while integration tools fail closed on malformed concurrent history."
-  relevant_subsystem: "The auditor exercises merged kernel/surfaces, coordinated fuse receipts, session-promotion boundary, and archive seal without owning product code."
+  relevant_subsystem: "The auditor exercises merged kernel/surfaces, coordinated fuse receipts, active-board retrieval, session-promotion boundary, embedded receipts, and expiry gate without owning product code."
   task_fit: "Cross-worktree collision, post-merge bypass, the immutable future-timestamp decision mse_6pj7hkwwp5va9jaq:d1, and a separately captured Ada packet-context fixture require an independent verdict."
-  downstream_use: "The orchestrator uses the verdict for bounded rework or promotion/seal; the auditor cannot perform either action."
-  non_goals: ["Do not edit implementation, tests, control-plane, seed, session, manifest, resolution, promotion, or seal.", "Do not equate packet compilation with implementation correctness."]
+  downstream_use: "The orchestrator uses the verdict for bounded rework or promotion/closeout; the auditor cannot perform either action."
+  non_goals: ["Do not edit implementation, tests, control-plane, seed, session, manifest, resolution, promotion, closeout, or expiry state.", "Do not equate packet compilation with implementation correctness."]
 execution:
   role: validator
   persona: none
@@ -606,7 +654,7 @@ execution:
   allowed_files: []
   forbidden_files: [AGENTS.md, .memory-seed/agent-rules.md, .memory-seed/index.md, .memory-seed/policy.md, docs/CONSTITUTION.md, memory_seed/reflection_ledger.py, memory_seed/core.py, memory_seed/cli.py, memory_seed/mcp_server.py, tests/test_reflection_ledger.py, tests/test_reflection_ledger_surfaces.py, tests/test_reflection_ledger_integration.py]
   validation: ["python -X utf8 -m pytest -q tests/test_reflection_ledger.py tests/test_reflection_ledger_integration.py tests/test_reflection_ledger_surfaces.py tests/test_session_fuse_and_merge.py tests/test_task_packet.py tests/test_task_packet_surfaces.py", "python -X utf8 -m memory_seed.cli docs check", "python -X utf8 -m memory_seed.cli docs index --check", "git diff --check"]
-  output_contract: ["Return a read-only PASS, FAIL, or NEEDS_CONTEXT pre-init verdict with exact command results; cite mse_6pj7hkwwp5va9jaq:d1 only for future timestamps and require the separately committed Ada packet fixture before asserting missing context.", "State separately what was tested, inferred, and still requires live orchestrator action; do not merge, promote, seal, or claim an evidence path before init."]
+  output_contract: ["Return a read-only PASS, FAIL, or NEEDS_CONTEXT pre-init verdict with exact command results; cite mse_6pj7hkwwp5va9jaq:d1 only for future timestamps and require the separately committed Ada packet fixture before asserting missing context.", "State separately what was tested, inferred, and still requires live orchestrator action; do not merge, promote, close, expire, or claim an evidence path before init."]
   expected_absent: []
   acceptance_observables:
     - {name: integrated-reflection-suite, command: "python -X utf8 -m pytest -q tests/test_reflection_ledger.py tests/test_reflection_ledger_integration.py tests/test_reflection_ledger_surfaces.py", expected_exit_code: 0}
@@ -655,36 +703,43 @@ Actual compilation has staged committed inputs and receipts:
 ## Migration, compatibility, and explicit non-goals
 
 There is no migration or backfill. Existing sessions, diagrams, links, topics, ADRs, Task Packets, and
-experiment reflection logs retain their current readers and semantics. The first ledger is an opt-in pilot
+experiment reflection logs retain their current readers and semantics. The first board is an opt-in pilot
 with no automatic initialization and no change to `memory-seed init` or seed payloads. A completed pilot is
-sealed in its canonical archive while promoted session lessons carry reusable explanation. Any later decision
+closed, its durable receipts live inside ordinary sessions, and its detailed active files become eligible for
+approved expiry. Any later decision
 to make the family reusable across projects, include it in retrieval, add native Task Dispatch schema, or add
 a server/sync layer needs separate evidence and a new proposal.
 
 Known risks to hold visible during implementation:
 
-- Cleanup can look like history deletion; seal retention, promotion receipt, and archive byte immutability
-  must be testable and visible in preview.
+- Cleanup can look like guaranteed erasure. The preview must state that expiry removes active-tree detail,
+  while ordinary Git history may retain committed blobs; privacy-grade erasure is out of scope.
+- Receipt summaries can become too large or duplicate the reflection. Enforce a compact one-sentence
+  conclusion plus identity, topics, disposition, digest, and decision links only.
 - Reporting fields can become decorative. Negative controls must prove wrong branch/base/source-tip/blob/path
   provenance blocks fusion.
 - A common view can accidentally become an authority projection. Tests must assert it retains dissent and
   does not expose a winner/effective decision field.
 - The format cannot be introduced and used on one branch; parser/CLI/MCP capability lands before any ledger
   data, just as session/ADR fuse rules require.
-- Reflection reports may include private worker details. Treat sealed archive evidence as potentially
+- Reflection reports may include private worker details. Treat active board content as potentially
   publishable, write minimally, and promote only sanitized reusable lessons.
 
 ## Review checkpoint
 
 The plan is ready for independent review when the reviewer can answer yes to all of these:
 
-1. Reflection storage is distinct from durable sessions and has a bounded active lifecycle with a retained,
-   sealed archive.
+1. Reflection storage is distinct from durable sessions, defaults to a seven-day active review window, and
+   cannot expire until ESR has produced complete embedded receipts and the user approves cleanup.
 2. Every writer is manifest-authorized and every fragment is traceable to a committed, binding-matched
    report.
 3. The fuse blocks unsafe state before merge/apply, while the common view exposes disagreement rather than
    manufacturing consensus.
-4. Resolution/promotion/seal remain orchestrator-only, and promotion uses ordinary session safeguards and
-   retains an explanatory durable rationale.
+4. Resolution, promotion, closeout, and expiry remain orchestrator-only; promotion uses ordinary session
+   safeguards, and decisions reference embedded receipts rather than temporary paths.
 5. Task Packet drafts compile from pre-reserved exact paths/IDs plus measured binding; no hidden
    dispatch, worktree, provider, or authority feature is implied.
+6. Active retrieval can find overlapping reflections across branches by plan, area, activity, topic, related
+   decision, or response link without making the board part of ordinary long-term memory retrieval.
+7. The review explicitly adjudicates whether approved deletion of a non-authoritative working board is
+   compatible with the current Constitution or requires a narrow amendment before implementation.
