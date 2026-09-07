@@ -18,6 +18,44 @@ from memory_seed.adr import promote_decision
 
 
 class SessionFuseAndMergeTests(unittest.TestCase):
+    def test_unsupported_reflection_refuses_all_local_integration_before_mutation(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-reflection")
+        path = cwd / ".memory-seed/reflections/active/unknown/manifest.yaml"
+        path.parent.mkdir(parents=True)
+        path.write_text("schema: memory-seed/reflection-plan\nversion: 1\n", encoding="utf-8")
+        self._commit_all(cwd, "unsupported data")
+        source = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        prepared = session_prepare_pr_branch(cwd, branch="feature-reflection", base_branch="main")
+        self.assertTrue(prepared.issues)
+        self.assertIn("unsupported-reflection-format", " ".join(prepared.issues))
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), source)
+        self._git(cwd, "switch", "main")
+        before = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        for result in (session_fuse(cwd, branch="feature-reflection"),
+                       session_merge_branch(cwd, branch="feature-reflection", dry_run=True),
+                       session_merge_branch(cwd, branch="feature-reflection")):
+            self.assertIn("unsupported-reflection-format", " ".join(result.issues))
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), before)
+        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
+        from memory_seed.mcp_server import call_tool
+        for name, args in (("memory_session_fuse_preview", {}),
+                           ("memory_session_integrate", {"dry_run": True}),
+                           ("memory_session_integrate", {})):
+            response = call_tool(name, {"cwd": str(cwd), "branch": "feature-reflection", **args})
+            self.assertFalse(response["ok"])
+            self.assertIn("unsupported-reflection-format", " ".join(response["issues"]))
+        from memory_seed.cli import main as cli_main
+        from contextlib import chdir
+        for command in ("fuse", "merge-branch", "integrate"):
+            with chdir(cwd):
+                self.assertNotEqual(cli_main(["session", command, "--branch", "feature-reflection"]), 0)
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), before)
+        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
+
     NO_MERGE_ATTR = ".memory-seed/sessions/** -merge\n"
 
     def make_project(self):

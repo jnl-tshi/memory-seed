@@ -588,7 +588,11 @@ def _new_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str]:
     _git(root, "config", "user.name", "Reflection test")
     _git(root, "config", "user.email", "reflection@example.test")
     (root / "README.md").write_text("base\n", encoding="utf-8")
-    _git(root, "add", "README.md")
+    (root / ".gitattributes").write_bytes(b"* text=auto eol=lf\n.memory-seed/reflections/active/** -merge\n")
+    sessions = root / ".memory-seed/sessions"
+    sessions.mkdir(parents=True)
+    (sessions / ".gitkeep").write_text("", encoding="utf-8")
+    _git(root, "add", "README.md", ".gitattributes", ".memory-seed/sessions/.gitkeep")
     _git(root, "commit", "--quiet", "-m", "base")
     base = _git(root, "rev-parse", "HEAD")
     _git(root, "checkout", "--quiet", "-b", "codex/feature/example")
@@ -599,6 +603,102 @@ def _new_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str]:
     ledger_path = workstream_ledger_path(ledger.header.workstream_id)
     _commit_ledger(root, ledger_path, ledger, "reflection: init")
     return root, ledger, ledger_path
+
+
+def _admission_state(root):
+    return (_git(root, "rev-parse", "HEAD"), _git(root, "show-ref"), _git(root, "ls-files", "--stage"),
+            {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()})
+
+
+def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_writes(tmp_path):
+    from memory_seed.core import session_merge_branch
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch, base_ref="HEAD")
+    assert preview.proposed == preview.source and preview.base == preview.ancestor == ()
+    before = _admission_state(root)
+    recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+    result = session_merge_branch(root, branch=ledger.header.working_branch)
+    assert result.committed, result.issues
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="HEAD", ledger_path=path)
+    assert loaded.ledger == ledger
+    assert preview.source_commit in _git(root, "rev-list", "--parents", "-n", "1", "HEAD")
+
+
+@pytest.mark.parametrize("change", ["source-ref", "base-ref", "ignored-file", "unknown-directory"])
+def test_reflection_integration_preview_binding_changes_refuse_without_mutation(tmp_path, change):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch, base_ref="HEAD")
+    if change == "source-ref":
+        _git(root, "update-ref", "refs/heads/" + ledger.header.working_branch, ledger.header.base_sha)
+    elif change == "base-ref":
+        _git(root, "commit", "--allow-empty", "-m", "race")
+    else:
+        target = root / ".memory-seed/reflections/active/unknown"
+        target.mkdir(parents=True)
+        if change == "ignored-file":
+            (target / "manifest.yaml").write_text("unsupported\n", encoding="utf-8")
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError):
+        recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+
+
+@pytest.mark.parametrize("hostile", ["format", "mixed", "case", "nested", "symlink", "raw-delete", "two-parents"])
+def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile):
+    from memory_seed.reflection_ledger import preview_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
+    target = root / path
+    if hostile == "format":
+        target.write_bytes(target.read_bytes().replace(b"version: 1\n", b"version: 2\n", 1))
+    elif hostile == "mixed":
+        (target.parent / "manifest.yaml").write_text("unsupported\n", encoding="utf-8")
+    elif hostile in {"case", "nested"}:
+        other = (".MEMORY-SEED/REFLECTIONS/unknown.md" if hostile == "case" else
+                 "pod/.memory-seed/reflections/unknown.md")
+        extra = root / other
+        extra.parent.mkdir(parents=True, exist_ok=True)
+        extra.write_text("unsupported\n", encoding="utf-8")
+    elif hostile == "symlink":
+        oid = _git(root, "hash-object", "-w", "--stdin", input="../../outside\n")
+        _git(root, "update-index", "--cacheinfo", f"120000,{oid},{path}")
+    elif hostile == "raw-delete":
+        _git(root, "branch", "integration", "HEAD")
+        target.unlink()
+    else:
+        _git(root, "branch", "integration", "HEAD")
+        _git(root, "commit", "--allow-empty", "-m", "child inherits ledger")
+    if hostile != "two-parents":
+        if hostile != "symlink":
+            _git(root, "add", "-A")
+        _git(root, "commit", "-m", "hostile tree fixture")
+    if hostile not in {"raw-delete", "two-parents"}:
+        _git(root, "branch", "integration", ledger.header.base_sha)
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError):
+        preview_reflection_integration(root, source_ref=ledger.header.working_branch, base_ref="integration")
+    assert _admission_state(root) == before
+
+
+def test_reflection_integration_index_tamper_blocks_fuse_apply_without_writes(tmp_path):
+    from memory_seed.core import session_fuse
+    root, ledger, path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    preview = session_fuse(root, branch=ledger.header.working_branch)
+    assert not preview.issues
+    _git(root, "merge", "--no-ff", "--no-commit", ledger.header.working_branch)
+    extra = root / ".memory-seed/reflections/unknown.md"
+    extra.write_text("unsupported\n", encoding="utf-8")
+    _git(root, "add", extra.relative_to(root).as_posix())
+    before = _admission_state(root)
+    result = session_fuse(root, branch=ledger.header.working_branch, apply=True,
+                          reflection_admission=preview.reflection_admission)
+    assert not result.changed and result.issues
+    assert _admission_state(root) == before
 
 
 @pytest.mark.parametrize("extra_path", (
