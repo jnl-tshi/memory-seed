@@ -7,6 +7,7 @@ history. Durable receipt evidence is read from ordinary append-only sessions.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -390,8 +391,9 @@ class GitBlob:
     content: bytes
 
 
-def _git(root: Path, *args: str, binary: bool = False) -> tuple[int, bytes | str]:
-    result = subprocess.run(["git", "-C", str(root), *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def _git(root: Path, *args: str, binary: bool = False, input: bytes | None = None) -> tuple[int, bytes | str]:
+    result = subprocess.run(["git", "-C", str(root), *args], input=input,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if binary:
         return result.returncode, result.stdout
     return result.returncode, result.stdout.decode("utf-8", errors="replace").strip()
@@ -3321,38 +3323,113 @@ def resolve_trusted_workstream_dependency(dependency: WorkstreamDependency, *, s
 
 
 @dataclass(frozen=True)
-class WorkstreamAppendCommitPreview:
-    """Opaque, host-owned normal-append transaction plan."""
+class WorkstreamCommitPreview:
+    """Inspectable receipt for a kernel-owned, single-use transaction plan."""
 
     token: str
     trusted_ref: str
     expected_head: str
     ledger_path: str
-    expected_ledger_blob: str
+    expected_ledger_blob: str | None
     pre_ledger_digest: str
     history_fingerprint: str
     suffix_bytes: bytes
-    record_id: str
+    record_id: str | None
     post_ledger_digest: str
+    operation: str = "append"
 
 
 @dataclass(frozen=True)
-class WorkstreamAppendCommitResult:
+class WorkstreamAppendCommitPreview(WorkstreamCommitPreview):
+    """Normal append preview; shares the canonical transaction implementation."""
+
+
+@dataclass(frozen=True)
+class WorkstreamCommitResult:
     new_head: str
     new_ledger_blob: str
     post_ledger_digest: str
     history_fingerprint: str
-    record_id: str
+    record_id: str | None
     ledger: WorkstreamLedger
+    integration_witness: TrustedIntegrationWitness | None = None
 
 
 @dataclass(frozen=True)
-class _StoredWorkstreamAppendPlan:
-    preview: WorkstreamAppendCommitPreview
-    post_ledger: WorkstreamLedger
+class WorkstreamAppendCommitResult(WorkstreamCommitResult):
+    """Result of the normal append entry point."""
 
 
-_WORKSTREAM_APPEND_PLANS: dict[str, _StoredWorkstreamAppendPlan] = {}
+@dataclass(frozen=True)
+class _StoredWorkstreamCommitPlan:
+    preview: WorkstreamCommitPreview
+    repository: str
+    post_raw: bytes
+    revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]]
+    verify_refs: tuple[tuple[str, str], ...]
+
+
+_WORKSTREAM_COMMIT_PLANS: dict[str, _StoredWorkstreamCommitPlan] = {}
+
+
+def _transaction_context(root: Path, full_ref: str) -> tuple[str, tuple[tuple[str, str, str], ...]]:
+    code, top = _git(root, "rev-parse", "--show-toplevel")
+    if code or not isinstance(top, str) or Path(top).resolve() != root:
+        _fail("transaction-worktree", str(root), "transaction requires the exact Git worktree root")
+    _require_clean_append_worktree(root)
+    code, attached = _git(root, "symbolic-ref", "--quiet", "HEAD")
+    if code or not attached:
+        _fail("append-detached-head", str(root), "transaction requires attached HEAD")
+    if attached != full_ref:
+        _fail("append-wrong-branch", str(root), "HEAD is not attached to the transaction branch")
+    head = _commit(root, full_ref)
+    if head is None:
+        _fail("stale_head", str(root), "transaction branch does not resolve to a commit")
+    inventory = _reflection_tree_inventory(root, head)
+    _check_reflection_worktree(root, inventory)
+    return head, inventory
+
+
+def _store_workstream_commit(root: Path, full_ref: str, head: str, operation: str,
+                             loaded: TrustedWorkstreamLedger | None,
+                             revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]], *,
+                             verify_refs: tuple[tuple[str, str], ...] = ()) -> WorkstreamCommitPreview:
+    post, _witness = revalidate()
+    post_raw = render_workstream_ledger(post).encode("utf-8")
+    relative = workstream_ledger_path(post.header.workstream_id)
+    pre_raw = loaded.raw if loaded is not None else b""
+    if loaded is not None and not post_raw.startswith(pre_raw):
+        _fail("append-commit-failed", relative, "planned transaction is not an exact canonical suffix")
+    preview_type = WorkstreamAppendCommitPreview if operation == "append" else WorkstreamCommitPreview
+    preview = preview_type(
+        secrets.token_urlsafe(32), full_ref, head, relative, loaded.ledger_blob if loaded else None,
+        workstream_ledger_digest(pre_raw) if loaded else "", loaded.history_fingerprint if loaded else "",
+        post_raw[len(pre_raw):], post.entries[-1].record_id if post.entries else None,
+        workstream_ledger_digest(post_raw), operation,
+    )
+    # Keep a distinct copy: even object.__setattr__ on a frozen public receipt
+    # must not mutate the authority copy used by apply.
+    _WORKSTREAM_COMMIT_PLANS[preview.token] = _StoredWorkstreamCommitPlan(
+        deepcopy(preview), str(root), post_raw, revalidate, verify_refs,
+    )
+    return preview
+
+
+def _require_unretired_workstream_owner(root: Path, loaded: TrustedWorkstreamLedger) -> None:
+    """A surviving source checkout cannot resume writing after a local rebind."""
+    code, tips = _git(root, "for-each-ref", "--format=%(objectname)", "refs/heads/")
+    if code or not isinstance(tips, str):
+        _fail("branch-owner", loaded.ledger_path, "could not inspect local ownership transfers")
+    for tip in set(tips.splitlines()) - {loaded.head}:
+        blob = _tree_blob(root, tip, loaded.ledger_path)
+        if blob is None or blob.content == loaded.raw:
+            continue
+        other = load_trusted_workstream_ledger(root, trusted_ref=tip, ledger_path=loaded.ledger_path)
+        known = {entry.record_id for entry in loaded.ledger.entries}
+        for rebind in other.ledger.rebinds:
+            if (rebind.record_id not in known and rebind.from_branch == loaded.ledger.effective_branch
+                    and rebind.to_branch != rebind.from_branch):
+                _fail("branch-owner", loaded.ledger_path, "source branch was retired by a committed ownership transfer")
 
 
 def _full_local_branch_ref(root: Path, ref: str) -> str:
@@ -3380,29 +3457,278 @@ def preview_workstream_append_commit(cwd: Path | str, *, trusted_ref: str, works
     """Create the opaque plan for one later adapter-owned ledger-only commit."""
     root = Path(cwd).resolve()
     full_ref = _full_local_branch_ref(root, trusted_ref)
+    head, _inventory = _transaction_context(root, full_ref)
     relative = workstream_ledger_path(workstream_id)
     loaded = load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=relative)
     if loaded.ledger.header.workstream_id != workstream_id:
         _fail("path", relative, "trusted ledger path and workstream ID differ")
     if full_ref[len("refs/heads/"):] != loaded.ledger.effective_branch:
         _fail("append-wrong-branch", relative, "trusted ref is not the effective ledger owner branch")
-    post = _plan_trusted_workstream_append(loaded, request, clock=clock, active_ledgers=active_ledgers,
-                                           durable_receipts=durable_receipts, receipt_verifier=receipt_verifier)
-    post_raw = render_workstream_ledger(post).encode("utf-8")
-    if not post_raw.startswith(loaded.raw):
-        _fail("append-commit-failed", relative, "planned append is not an exact canonical suffix")
-    token = secrets.token_urlsafe(32)
-    preview = WorkstreamAppendCommitPreview(
-        token, full_ref, loaded.head, relative, loaded.ledger_blob, workstream_ledger_digest(loaded.raw),
-        loaded.history_fingerprint, post_raw[len(loaded.raw):], post.records[-1].record_id,
-        workstream_ledger_digest(post_raw),
+    request = deepcopy(request)
+    durable_receipts = deepcopy(tuple(durable_receipts))
+    active_ledgers = deepcopy(tuple(active_ledgers))
+    created = _as_utc(_clock_timestamp(clock))
+
+    def revalidate():
+        current = _reload_trusted_workstream_ledger(loaded)
+        _require_unretired_workstream_owner(root, current)
+        # Active dependency facts come from Git; caller data can only narrow
+        # that context, never substitute a fabricated active ledger.
+        board = dict(_trusted_active_ledgers_at_commit(root, current.head))
+        if any(board.get(workstream_ledger_path(item.header.workstream_id)) != item for item in active_ledgers):
+            _fail("dependency-context", relative, "supplied active ledger differs from trusted Git")
+        return _plan_trusted_workstream_append(
+            current, request, clock=lambda: created, active_ledgers=board.values(),
+            durable_receipts=durable_receipts, receipt_verifier=receipt_verifier,
+        ), None
+
+    return _store_workstream_commit(root, full_ref, head, "append", loaded, revalidate)
+
+
+def preview_workstream_init_commit(cwd: Path | str, *, trusted_ref: str, retention_days: int = 7,
+                                   retention_preflight_handle: object | None = None,
+                                   retention_verifier: RetentionPreflightVerifier | None = None,
+                                   clock: Callable[[], datetime] | None = None) -> WorkstreamCommitPreview:
+    """Mint initialization from the attached branch and its measured current base.
+
+    Identity, entropy, base SHA, bytes and commit metadata are kernel-owned.
+    Extended retention retains the existing host-issued approval requirement.
+    """
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, trusted_ref)
+    head, _inventory = _transaction_context(root, full_ref)
+    branch = full_ref[len("refs/heads/"):]
+    ledger = initialize_workstream_ledger(
+        working_branch=branch, base_sha=head, retention_days=retention_days, clock=clock,
+        retention_preflight_handle=retention_preflight_handle, retention_verifier=retention_verifier,
     )
-    _WORKSTREAM_APPEND_PLANS[token] = _StoredWorkstreamAppendPlan(preview, post)
-    return preview
+    frozen_raw = render_workstream_ledger(ledger)
+
+    def revalidate():
+        post = parse_workstream_ledger(frozen_raw)
+        if retention_days != 7:
+            renewed = initialize_workstream_ledger(
+                working_branch=branch, base_sha=head, retention_days=retention_days,
+                retention_preflight_handle=retention_preflight_handle, retention_verifier=retention_verifier,
+            )
+            if renewed != post:
+                _fail("retention-approval", "ledger init", "approval changed after initialization planning")
+        validate_workstream_init_collisions(root, working_branch=branch, workstream_id=post.header.workstream_id)
+        return post, None
+
+    return _store_workstream_commit(root, full_ref, head, "init", None, revalidate)
 
 
-def _restore_append_worktree(root: Path, path: Path, raw: bytes, blob: GitBlob) -> bool:
+def _transaction_active_ledgers(root: Path, full_ref: str, head: str) -> tuple[TrustedWorkstreamLedger, ...]:
+    return tuple(load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=path)
+                 for path, _mode, _oid in _reflection_tree_inventory(root, head))
+
+
+def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, workstream_id: str,
+                                     token: TrustedRebindToken, verifier: TrustedRebindVerifier,
+                                     reason: str, clock: Callable[[], datetime] | None = None) -> WorkstreamCommitPreview:
+    """Persist a host-admitted integration token through the shared transaction.
+
+    The host supplies its existing integration capability, not a post-ledger,
+    rebind record ID, witness, current tip or commit plan.
+    """
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, trusted_ref)
+    head, _inventory = _transaction_context(root, full_ref)
+    relative = workstream_ledger_path(workstream_id)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=relative)
+    if not isinstance(token, TrustedRebindToken):
+        _fail("rebind", relative, "rebind requires the host's integration token")
+    token = deepcopy(token)
+    source_ref = _full_local_branch_ref(root, "refs/heads/" + token.source_branch)
+    created = _as_utc(_clock_timestamp(clock))
+
+    def revalidate():
+        current = _reload_trusted_workstream_ledger(loaded)
+        _require_unretired_workstream_owner(root, current)
+        if token.target_branch != full_ref[len("refs/heads/"):]:
+            _fail("rebind", relative, "integration target differs from the attached transaction branch")
+        if (_commit(root, "refs/heads/" + token.source_branch) != token.source_tip
+                or not _git_is_ancestor(root, token.source_tip, current.head)
+                or not _git_is_ancestor(root, token.target_pre_merge_tip, current.head)):
+            _fail("rebind", relative, "integration token does not bind reachable current branch facts")
+        source_blob = _tree_blob(root, token.source_tip, relative)
+        if source_blob is None or source_blob.mode != CANONICAL_MODE or source_blob.content != current.raw:
+            _fail("rebind", relative, "integrated ledger differs from the token's source tip")
+        for item in _transaction_active_ledgers(root, full_ref, current.head):
+            if item.ledger_path != relative and item.ledger.effective_branch == token.target_branch:
+                _fail("branch-collision", relative, "rebind target branch already has a ledger")
+        result = apply_trusted_rebind(
+            current.ledger, token, integration_commit=current.head, current_target_tip=current.head,
+            verifier=verifier, reason=reason, clock=lambda: created,
+        )
+        return result.ledger, result.witness
+
+    return _store_workstream_commit(root, full_ref, head, "rebind", loaded, revalidate,
+                                    verify_refs=((source_ref, token.source_tip),))
+
+
+def plan_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id: str, session_path: str,
+                                    entry_id: str, decision_id: str, disposition: str) -> tuple[WorkstreamReceipt, ...]:
+    """Draft exact member receipts for an ordinary session writer; grants no admission.
+
+    The receipt digest uses the existing detail domain over the ordered member
+    mapping with its own digest zeroed, just as record detail digests do.
+    """
+    current = _reload_trusted_workstream_ledger(loaded)
+    records = _records_by_chain(current.ledger).get(chain_id)
+    if not records:
+        _fail("receipt", current.ledger_path, "receipt draft requires an existing chain")
+    result = []
+    for record in records:
+        receipt = WorkstreamReceipt(
+            current.ledger.header.workstream_id, chain_id, record.record_id, record.detail_digest,
+            session_path, entry_id, decision_id,
+            workstream_receipt_id(current.ledger.header.id_salt, current.ledger.header.workstream_id, chain_id, record.detail_digest),
+            "sha256:" + "0" * 64, disposition,
+        )
+        _validate_workstream_receipt(receipt)
+        mapping = _member_session_mapping(receipt.workstream_id, receipt)
+        digest = workstream_detail_digest(_workstream_yaml_mapping(tuple(mapping.items())))
+        result.append(WorkstreamReceipt(**{**receipt.__dict__, "receipt_digest": digest}))
+    return tuple(result)
+
+
+def render_workstream_receipt(receipt: WorkstreamReceipt) -> str:
+    """Render one member mapping for embedding in a normal decision YAML fence."""
+    _validate_workstream_receipt(receipt)
+    return _workstream_yaml_mapping(tuple(_member_session_mapping(receipt.workstream_id, receipt).items()))
+
+
+def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamReceipt, integration_commit: str) -> None:
+    """Every contributing receipt history must descend from this integration.
+
+    Merely citing a newer commit containing an old receipt blob does not make
+    that evidence post-integration. Full path history follows every merge
+    parent and crosses periods of absence: deleting and restoring the exact
+    mapping must not reset its origin. Unchanged snapshots need not be scanned
+    because the earlier introduction of their mapping is retained in history.
+    """
+    receipt = admitted.receipt
+    mapping = _member_session_mapping(receipt.workstream_id, receipt)
+    code, output = _git(root, "rev-list", "--full-history",
+                        f"--max-count={MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS + 1}",
+                        admitted.commit, "--", receipt.session_path)
+    commits = output.splitlines() if code == 0 and isinstance(output, str) else []
+    if not commits or any(not re.fullmatch(r"[0-9a-f]{40}", commit) for commit in commits):
+        _fail("receipt-history-missing", receipt.session_path, "could not resolve complete receipt path history")
+    commits = tuple(dict.fromkeys((admitted.commit, *commits)))
+    if len(commits) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+        _fail("receipt-history-limit", receipt.session_path, "receipt provenance exceeds the bounded history scan")
+    for commit in commits:
+        blob = _tree_blob(root, commit, receipt.session_path)
+        if (blob is not None and blob.mode == CANONICAL_MODE
+                and _session_has_exact_yaml_mapping(blob.content, receipt.session_path, mapping,
+                                                   entry_id=receipt.entry_id, decision_id=receipt.decision_id)
+                and (commit == integration_commit or not _git_is_ancestor(root, integration_commit, commit))):
+            _fail("receipt-integration", receipt.session_path, "durable receipt evidence must originate after the validated integration")
+
+
+def _validated_receipt_integration(current: TrustedWorkstreamLedger, witness: TrustedIntegrationWitness,
+                                   verifier: TrustedRebindVerifier) -> str:
+    if not isinstance(witness, TrustedIntegrationWitness):
+        _fail("close-authority", current.ledger_path, "receipts require an admitted integration witness")
+    rebind = _validate_integration_witness(current.ledger, witness, verifier)
+    if not _git_is_ancestor(Path(current.repository), rebind.integration_commit, current.head):
+        _fail("close-authority", current.ledger_path, "integration witness is not reachable from the receipt branch")
+    return rebind.integration_commit
+
+
+def _check_transaction_receipts(root: Path, head: str, receipts: Iterable[AdmittedWorkstreamReceipt], *,
+                                 integration_commit: str) -> None:
+    for admitted in receipts:
+        if not isinstance(admitted, AdmittedWorkstreamReceipt):
+            _fail("receipt", str(root), "close requires admitted session receipts")
+        receipt = admitted.receipt
+        _validate_workstream_receipt(receipt)
+        raw = _read_session_blob(root, admitted.commit, receipt.session_path, admitted.blob, before=head)
+        if not _session_has_exact_yaml_mapping(raw, receipt.session_path, _member_session_mapping(receipt.workstream_id, receipt),
+                                               entry_id=receipt.entry_id, decision_id=receipt.decision_id):
+            _fail("receipt", receipt.session_path, "committed decision lacks the exact member receipt")
+        _require_post_integration_receipt(root, admitted, integration_commit)
+
+
+def admit_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id: str, session_path: str,
+                                     entry_id: str, decision_id: str, disposition: str,
+                                     session_ref: str, integration_witness: TrustedIntegrationWitness,
+                                     integration_verifier: TrustedRebindVerifier) -> tuple[AdmittedWorkstreamReceipt, ...]:
+    """Measure committed receipt locators, avoiding caller-built receipt internals."""
+    current = _reload_trusted_workstream_ledger(loaded)
+    integration_commit = _validated_receipt_integration(current, integration_witness, integration_verifier)
+    root = Path(current.repository)
+    commit = _commit(root, session_ref)
+    blob = _tree_blob(root, commit, session_path) if commit else None
+    if blob is None or blob.mode != CANONICAL_MODE:
+        _fail("receipt", session_path, "session ref lacks a canonical receipt blob")
+    receipts = tuple(AdmittedWorkstreamReceipt(receipt, commit, blob.oid) for receipt in plan_workstream_chain_receipts(
+        current, chain_id=chain_id, session_path=session_path, entry_id=entry_id, decision_id=decision_id, disposition=disposition,
+    ))
+    _check_transaction_receipts(root, current.head, receipts, integration_commit=integration_commit)
+    return receipts
+
+
+def preview_workstream_close_commit(cwd: Path | str, *, trusted_ref: str, workstream_id: str, chain_id: str,
+                                    receipts: Iterable[AdmittedWorkstreamReceipt], receipt_verifier: WorkstreamReceiptVerifier,
+                                    integration_witness: TrustedIntegrationWitness, integration_verifier: TrustedRebindVerifier,
+                                    conclusion: str, reasoning: str, source: str, confidence: str,
+                                    clock: Callable[[], datetime] | None = None) -> WorkstreamCommitPreview:
+    """Plan a trusted chain close, deriving complete board context from Git."""
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, trusted_ref)
+    head, _inventory = _transaction_context(root, full_ref)
+    relative = workstream_ledger_path(workstream_id)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=relative)
+    if loaded.ledger.effective_branch != full_ref[len("refs/heads/"):]:
+        _fail("close-authority", relative, "only the effective integration branch may close")
+    receipts = deepcopy(tuple(receipts))
+    integration_witness = deepcopy(integration_witness)
+    created = _as_utc(_clock_timestamp(clock))
+
+    def revalidate():
+        current = _reload_trusted_workstream_ledger(loaded)
+        _require_unretired_workstream_owner(root, current)
+        integration_commit = _validated_receipt_integration(current, integration_witness, integration_verifier)
+        _check_transaction_receipts(root, current.head, receipts, integration_commit=integration_commit)
+        if len(workstream_chain_heads(current.ledger, chain_id)) != 1:
+            _fail("close", relative, "resolve or explicitly dispose divergent heads before close")
+        return plan_trusted_workstream_chain_close(
+            current, chain_id=chain_id, receipts=receipts, receipt_verifier=receipt_verifier,
+            integration_witness=integration_witness, integration_verifier=integration_verifier,
+            conclusion=conclusion, reasoning=reasoning, source=source, confidence=confidence, clock=lambda: created,
+            active_ledgers=_transaction_active_ledgers(root, full_ref, current.head),
+        ), None
+
+    return _store_workstream_commit(root, full_ref, head, "close", loaded, revalidate)
+
+
+def _restore_workstream_worktree(root: Path, path: Path, raw: bytes, blob: GitBlob | None,
+                                 created_directories: Sequence[Path], *, restore_path: bool) -> bool:
     try:
+        for candidate in (path, *path.parents):
+            if candidate == root:
+                break
+            if not candidate.exists() and not candidate.is_symlink():
+                continue
+            metadata = candidate.lstat()
+            if (stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_reparse_tag", None)
+                    == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)):
+                return False
+        if blob is None:
+            if restore_path:
+                path.unlink(missing_ok=True)
+            relative = path.relative_to(root).as_posix()
+            code, _output = _git(root, "update-index", "--force-remove", "--", relative)
+            if code:
+                return False
+            for directory in reversed(created_directories):
+                directory.rmdir()
+            code, index = _git(root, "ls-files", "-s", "--", relative)
+            return code == 0 and not index and not path.exists()
         path.write_bytes(raw)
         code, _output = _git(root, "update-index", "--cacheinfo", f"{blob.mode},{blob.oid},{blob.path}")
         if code:
@@ -3415,30 +3741,42 @@ def _restore_append_worktree(root: Path, path: Path, raw: bytes, blob: GitBlob) 
         return False
 
 
-def _append_commit_message(preview: WorkstreamAppendCommitPreview, workstream_id: str) -> str:
+def _workstream_commit_message(preview: WorkstreamCommitPreview, workstream_id: str) -> str:
     return (
-        f"reflection: append {preview.record_id}\n\n"
+        f"reflection: {preview.operation} {preview.record_id or workstream_id}\n\n"
         f"Reflection-Workstream: {workstream_id}\n"
-        f"Reflection-Record: {preview.record_id}\n"
-        f"Reflection-Pre-Ledger-Digest: {preview.pre_ledger_digest}\n"
+        + (f"Reflection-Record: {preview.record_id}\n" if preview.record_id else "")
+        +
+        f"Reflection-Pre-Ledger-Digest: {preview.pre_ledger_digest or 'absent'}\n"
         f"Reflection-Post-Ledger-Digest: {preview.post_ledger_digest}"
     )
 
 
 def apply_workstream_append_commit(cwd: Path | str, preview: WorkstreamAppendCommitPreview, *,
                                    fault_injector: Callable[[str], None] | None = None) -> WorkstreamAppendCommitResult:
-    """Persist a preview as one ledger-only off-ref commit then branch CAS.
+    """Append entry point into the single kernel transaction writer."""
+    if not isinstance(preview, WorkstreamAppendCommitPreview) or preview.operation != "append":
+        _fail("append-commit-failed", "ledger append", "append apply requires a host-issued append preview")
+    result = apply_workstream_commit(cwd, preview, fault_injector=fault_injector)
+    return WorkstreamAppendCommitResult(**result.__dict__)
+
+
+def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *,
+                            fault_injector: Callable[[str], None] | None = None) -> WorkstreamCommitResult:
+    """Persist init, append, close or rebind via one ledger-only commit/ref-CAS.
 
     ``fault_injector`` is test-only adapter instrumentation; it receives no
     authority fields and makes rollback paths observable without broadening the
     public plan surface.
     """
-    if not isinstance(preview, WorkstreamAppendCommitPreview):
-        _fail("append-commit-failed", "ledger append", "append apply requires a host-issued opaque preview")
-    stored = _WORKSTREAM_APPEND_PLANS.get(preview.token)
+    if not isinstance(preview, WorkstreamCommitPreview):
+        _fail("append-commit-failed", "ledger transaction", "apply requires a kernel-issued opaque preview")
+    stored = _WORKSTREAM_COMMIT_PLANS.get(preview.token)
     if stored is None or stored.preview != preview:
         _fail("append-commit-failed", "ledger append", "append preview is unknown, replaced, or expired")
     root = Path(cwd).resolve()
+    if str(root) != stored.repository:
+        _fail("transaction-worktree", str(root), "preview belongs to a different exact worktree")
     _require_clean_append_worktree(root)
     code, attached = _git(root, "symbolic-ref", "--quiet", "HEAD")
     if code or not isinstance(attached, str) or not attached:
@@ -3450,33 +3788,54 @@ def apply_workstream_append_commit(cwd: Path | str, preview: WorkstreamAppendCom
     if head != preview.expected_head:
         _fail("stale_head", preview.ledger_path, "trusted ref changed after append preview",
               expected=preview.expected_head, actual=head)
-    loaded = load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
-    if loaded.ledger_blob != preview.expected_ledger_blob or workstream_ledger_digest(loaded.raw) != preview.pre_ledger_digest:
+    _transaction_context(root, preview.trusted_ref)
+    loaded = (load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
+              if preview.operation != "init" else None)
+    pre_raw = loaded.raw if loaded is not None else b""
+    if ((loaded.ledger_blob if loaded else None) != preview.expected_ledger_blob
+            or (workstream_ledger_digest(pre_raw) if loaded else "") != preview.pre_ledger_digest):
         _fail("stale_ledger_digest", preview.ledger_path, "trusted ledger blob changed after append preview")
-    if loaded.history_fingerprint != preview.history_fingerprint:
+    if (loaded.history_fingerprint if loaded else "") != preview.history_fingerprint:
         _fail("stale_ledger_history", preview.ledger_path, "trusted ledger history changed after append preview")
-    post_raw = loaded.raw + preview.suffix_bytes
+    post, witness = stored.revalidate()
+    post_raw = pre_raw + preview.suffix_bytes
     if workstream_ledger_digest(post_raw) != preview.post_ledger_digest:
         _fail("append-commit-failed", preview.ledger_path, "preview suffix no longer has its predicted canonical digest")
-    if render_workstream_ledger(stored.post_ledger).encode("utf-8") != post_raw:
+    if stored.post_raw != post_raw or render_workstream_ledger(post).encode("utf-8") != post_raw:
         _fail("append-commit-failed", preview.ledger_path, "preview suffix does not match its stored canonical post-image")
     path = root / Path(preview.ledger_path)
-    if not path.is_file() or path.read_bytes() != loaded.raw:
+    if loaded is not None and (not path.is_file() or path.read_bytes() != loaded.raw):
         _fail("append-worktree-not-clean", preview.ledger_path, "working-tree ledger is not the trusted committed blob")
     expected_blob = _tree_blob(root, preview.expected_head, preview.ledger_path)
-    if expected_blob is None:
+    if (expected_blob is None) != (preview.operation == "init"):
         _fail("append-commit-failed", preview.ledger_path, "preview head no longer exposes its ledger blob")
+    if loaded is None and (path.exists() or path.is_symlink()):
+        _fail("workstream-collision", preview.ledger_path, "initialization path is already occupied")
     wrote_candidate = False
+    created_directories: list[Path] = []
     try:
-        path.write_bytes(post_raw)
-        wrote_candidate = True
+        if loaded is None:
+            missing = []
+            directory = path.parent
+            while not directory.exists():
+                missing.append(directory)
+                directory = directory.parent
+            for directory in reversed(missing):
+                directory.mkdir()
+                created_directories.append(directory)
+            with path.open("xb") as stream:
+                wrote_candidate = True
+                stream.write(post_raw)
+        else:
+            wrote_candidate = True
+            path.write_bytes(post_raw)
         code, _output = _git(root, "add", "--", preview.ledger_path)
         if code:
             raise RuntimeError("git add failed")
         code, tree = _git(root, "write-tree")
         if code or not isinstance(tree, str) or not re.fullmatch(r"[0-9a-f]{40}", tree):
             raise RuntimeError("git write-tree failed")
-        message = _append_commit_message(preview, loaded.ledger.header.workstream_id)
+        message = _workstream_commit_message(preview, post.header.workstream_id)
         if fault_injector is not None:
             fault_injector("before-commit")
         code, candidate = _git(root, "commit-tree", tree, "-p", preview.expected_head, "-m", message)
@@ -3490,21 +3849,42 @@ def apply_workstream_append_commit(cwd: Path | str, preview: WorkstreamAppendCom
             raise RuntimeError("candidate append commit is not canonical")
         if fault_injector is not None:
             fault_injector("before-cas")
-        code, _output = _git(root, "update-ref", preview.trusted_ref, candidate, preview.expected_head)
+        code, attached = _git(root, "symbolic-ref", "--quiet", "HEAD")
+        if code or attached != preview.trusted_ref:
+            _fail("append-wrong-branch", str(root), "HEAD attachment changed during transaction")
+        # Detect index/worktree mutation after staging, including ignored
+        # reserved paths and links. The branch itself is checked by ref CAS.
+        _check_reflection_worktree(root, _reflection_tree_inventory(root, candidate))
+        code, current_tree = _git(root, "write-tree")
+        if code or current_tree != tree:
+            _fail("append-worktree-not-clean", str(root), "index changed during transaction")
+        # Git holds all participating ref locks through prepare/commit. Rebind
+        # verifies its source in the very transaction that advances the target;
+        # an extra pre-CAS read would leave the same race window open.
+        commands = ["start"]
+        for ref, expected in stored.verify_refs:
+            if ref != preview.trusted_ref:
+                commands.append(f"verify {ref} {expected}")
+            elif expected != preview.expected_head:
+                _fail("stale_ref", preview.ledger_path, "source and target expectations disagree")
+        commands.extend((f"update {preview.trusted_ref} {candidate} {preview.expected_head}", "prepare", "commit"))
+        code, _output = _git(root, "update-ref", "--stdin", input=("\n".join(commands) + "\n").encode("utf-8"))
         if code:
-            _fail("stale_ref", preview.ledger_path, "trusted ref changed during append compare-and-swap")
+            _fail("stale_ref", preview.ledger_path, "a bound source or target ref changed during transaction compare-and-swap")
     except Exception as exc:
-        if wrote_candidate and not _restore_append_worktree(root, path, loaded.raw, expected_blob):
+        if (wrote_candidate or created_directories) and not _restore_workstream_worktree(
+            root, path, pre_raw, expected_blob, created_directories, restore_path=wrote_candidate,
+        ):
             _fail("append-rollback-failed", preview.ledger_path, "append failure left an unsafe worktree", reason=str(exc))
         if isinstance(exc, ReflectionValidationError):
             raise
         _fail("append-commit-failed", preview.ledger_path, "could not construct canonical ledger-only append commit", reason=str(exc))
-    _WORKSTREAM_APPEND_PLANS.pop(preview.token, None)
+    _WORKSTREAM_COMMIT_PLANS.pop(preview.token, None)
     final = load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
     if final.head != candidate or final.ledger_blob != candidate_blob.oid:
         _fail("append-commit-failed", preview.ledger_path, "successful CAS is not immediately visible to trusted readers")
-    return WorkstreamAppendCommitResult(final.head, final.ledger_blob, workstream_ledger_digest(final.raw),
-                                        final.history_fingerprint, preview.record_id, final.ledger)
+    return WorkstreamCommitResult(final.head, final.ledger_blob, workstream_ledger_digest(final.raw),
+                                  final.history_fingerprint, preview.record_id, final.ledger, witness)
 
 
 RETENTION_PREFLIGHT_FIELDS = (
