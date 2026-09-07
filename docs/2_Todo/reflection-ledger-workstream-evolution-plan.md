@@ -4,7 +4,7 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Finish reviewed v2 core hardening; independently review the v1 authoring-retirement amendment before removing legacy writers and launching v2 surfaces."
+next_action: "Finish reviewed v2 core hardening; re-review v1 retirement integration/packet guards and obtain ratification of its narrow Constitution transition before removing legacy writers."
 source:
   - "docs/2_Todo/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
@@ -35,6 +35,8 @@ acceptance_criteria:
 The 2026-09-07 [v1 authoring-retirement amendment](reflection-v1-authoring-retirement-plan.md)
 narrows compatibility to historical reading and verification. Its removal boundary requires independent
 review before implementation; new work receives no v1 authoring, reservation, fuse, close, or expiry route.
+Its proposed exception to Constitution 1.12 for already-closed v1 chains is still unratified; v1 cleanup
+retirement cannot land until that explicit governance gate passes. Version 2 expiry remains unchanged.
 
 The landed participant-fragment and fuse kernel remains historical truth. It was the right safety model for
 the original plan's independent, parallel participant branches. The next architecture has a different
