@@ -3,7 +3,7 @@
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [seed-pod-p0-reconciliation-plan.md](seed-pod-p0-reconciliation-plan.md) | P0 | independent plan review approval | Independently review this reconciliation plan before staging any Seed Pod P0 implementation wor… |
+| [seed-pod-p0-reconciliation-plan.md](seed-pod-p0-reconciliation-plan.md) | P0 | G0 independent re-review approval and stabilized Reflection… | Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance… |
 | [task-packet-hardening-progressive-provenance-plan.md](task-packet-hardening-progressive-provenance-plan.md) | P0 | — | Harden and independently review Task Packet compilation, then dogfood the improved packets whil… |
 | [transitive-session-fusion-refinement-plan.md](transitive-session-fusion-refinement-plan.md) | P0 | independent plan review approval | Re-review this evidence contract before any implementation change is staged. |
 | [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence E… |
