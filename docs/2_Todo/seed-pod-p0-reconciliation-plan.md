@@ -4,13 +4,13 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P0"
-blocked_by: "G0 independent re-review approval and stabilized Reflection Ledger v2/retirement foundation"
-next_action: "Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain all reflection retirement/governance prerequisites before implementation dispatch."
+blocked_by: "G0 independent re-review approval and stabilized Reflection Board v1/prototype-retirement foundation"
+next_action: "Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain reviewed Reflection Board v1/prototype-retirement prerequisites before implementation dispatch."
 source:
   - "Approved Seed Pod P0 contract recorded on historical branch b7e623b"
   - "docs/2_Todo/task-packet-hardening-progressive-provenance-plan.md"
   - "docs/2_Todo/reflection-ledger-workstream-evolution-plan.md"
-  - "docs/2_Todo/reflection-v1-authoring-retirement-plan.md"
+  - "docs/2_Todo/reflection-prototype-retirement-plan.md"
   - "docs/CONSTITUTION.md"
 scope: "Reconstruct Seed Pod P0 on current main: governed .memory-seed-pod boundaries, pod-owned provenance, selected-pod Task Packets, root-only P0 reflections, root promotion summaries, explicit inspection, receipted lifecycle transactions, qualified session fusion, migration compatibility, and verification."
 non_goals:
@@ -21,14 +21,14 @@ dependencies:
   - "Ratified Constitution v1.12: append-only, evidence-first, and identical write-surface invariants."
   - "adr_subproject_scoping, adr_branch_session_fuse, adr_worktree_convention, and adr_session_decision_authority."
   - "Task-Packet hardening prerequisite and its independent review gate."
-  - "Merged Reflection Ledger v2 core; reviewed v2 surfaces/packet guards and v1 retirement, including explicit ratification of its v1 expiry transition."
+  - "Reviewed Reflection Board v1 core, surfaces/packet guards, and complete prototype retirement after the zero-board inventory; no constitutional transition amendment."
 acceptance_criteria:
   - "An independently reviewed implementation can establish the approved .memory-seed-pod hierarchy without treating a nested .memory-seed runtime as a pod."
   - "A pod writes and reads its own provenance ledger; roots retain only promoted summaries and explicit, pod-qualified navigation."
   - "Selected-pod Task Packets carry the exact pod identity and inherited root worker governance, while root-default compilation performs zero pod traversal."
   - "Generic root Task Packet compilation and activation work without runtime.id or a provenance ledger; only selected-pod and explicitly identity-dependent operations require root identity initialization."
   - "Root provenance migration preserves v1 bindings.md bytes and explicitly creates a separate v2/bindings.md ledger through a receipted recoverable transaction."
-  - "P0 reflection state uses one sequential v2 ledger per root workstream; pod-originated writes fail with pod-reflection-not-supported-p0 and historical v1 remains read-only."
+  - "P0 reflection state uses one sequential v1 ledger per root workstream; pod-originated writes fail with pod-reflection-not-supported-p0 and the unused prototype has no runtime."
   - "Legacy root-owned provisional pod ledgers remain readable evidence but cannot receive writes or become implicit authority."
   - "All lifecycle, CLI, MCP, ESR, session-fuse, docs, and real-Git verification gates specified here pass on the reconstructed current-main work."
 ---
@@ -56,7 +56,7 @@ contracts: selected-pod Task Packets are supported rather than refused, P0
 reflection remains root-only, all fusable pod records are classified and
 receipted, and adoption replaces destructive fixture conversion.  These are
 constraints on future implementation, not permission to begin it. This revision
-aligns reflection with the merged v2 core and the v1 retirement plan while
+aligns reflection with the sequential Reflection Board v1 and complete prototype-retirement plans while
 preserving those P0 constraints. G0 approval is still missing.
 
 G0 returned **REVISE** on this branch's first review commit `2a45090c`.
@@ -64,14 +64,13 @@ This follow-up separates generic root Task Packets from identity-dependent
 operations and specifies a distinct-path root provenance migration. Both
 changes require focused independent re-review; no implementation gate is closed.
 
-The branch for this document is based directly on `main` at
-`12186feb062c70fe1f88df357c4c02698be76ae0`. This baseline contains the v2
-core and the retirement planning document; it does not establish that v1
-retirement, its public surfaces, or its constitutional transition have shipped.
-The [retirement plan](reflection-v1-authoring-retirement-plan.md) retains its
-focused re-review and explicit maintainer-ratification gates. Seed Pod P0
-must consume that stabilized foundation; it must not implement retirement or
-infer ratification itself. This branch stops for independent re-review.
+The earlier P0 revision was based on main `12186feb062c70fe1f88df357c4c02698be76ae0`.
+This reflection correction is measured at `590481ed339831b0e537c9bc69b5d84871403ac9`.
+The merged sequential core still carries internal v2 labels until the reviewed v1 rename/removal
+work lands. The [retirement plan](reflection-prototype-retirement-plan.md) records no real
+prototype boards and withdraws the proposed constitutional transition. P0 waits for reviewed
+complete prototype removal, sequential v1 names and stabilized public surfaces; it does not
+implement that foundation itself. G0 independent re-review remains open.
 No product code, fixture adoption, merge, push, release, or P1 work
 is authorised by this plan document.
 
@@ -641,7 +640,7 @@ fixtures discoverable.
 
 ### P0 reflection is root-only
 
-Each root workstream uses exactly one v2 ledger at
+Each root workstream uses exactly one v1 ledger at
 `.memory-seed/reflections/active/<workstream_id>/ledger.md`. Planner,
 implementer, reviewer, and orchestrator append sequentially to that ledger
 under its existing per-chain role/phase and branch-ownership rules. Parallel
@@ -649,7 +648,7 @@ root workstreams use separate ledgers; combined inspection is derived and
 read-only. No root reflection operation discovers pod memory, and P0 creates
 no `.memory-seed-pod/reflections/` authority.
 
-Reuse the merged v2 core's trusted Git-history admission, expected tip/blob/
+Reuse the stabilized v1 core's trusted Git-history admission, expected tip/blob/
 digest/history checks, ledger-only append commit transaction, explicit rebind,
 durable session receipts, closure, and proof-checked expiry. P0 adds only the
 physical root/pod boundary checks; it must not weaken those guards or introduce
@@ -657,7 +656,7 @@ a second persistence mechanism. Normal session fusion remains distinct from
 reflection integration: it never fuses participant fragments or merges two
 workstream ledgers into one authority.
 
-Before planning or applying any v2 reflection mutation (init, append, close,
+Before planning or applying any v1 reflection mutation (init, append, close,
 expire, or rebind), its shared planner must reject a caller resolved inside a
 pod, a pod target selector, or a pod-local reflection path with
 `pod-reflection-not-supported-p0`. CLI, MCP, Task Packet compile/activation,
@@ -672,26 +671,23 @@ A selected-pod packet may cite explicitly supplied root reflection evidence,
 but cannot carry a reflection write capability or authorize a root ledger
 path. Generic Task Packet schema v1 is unrelated to reflection format v1 and
 must remain valid. Root reflection-writing packets use the retirement plan's
-exact v2 capability/scope validator through compile, activation, and artifact
+exact `workstream-v1` capability/scope validator through compile, activation, and artifact
 loading; P0 adds the measured runtime check to that shared admission path.
 
-New work has no v1 manifest, reservation, fragment authoring, fuse, closeout,
-or expiry path. Historical v1 remains explicit read-only inspection and
-verification, with its IDs, bytes, receipts, and attribution preserved.
-After the retirement foundation lands, root-originated legacy mutation
-requests retain `legacy-reflection-read-only` (or the documented removed-
-command error), while pod-originated writes use the P0 code above. Historical
-v1 carry-through uses the retirement plan's destination-resident exact-tree
-integration preflight; it is not permission to import absent v1 records.
+The unused shared-document prototype has no manifest/reservation/fragment/fuse/closeout/expiry
+runtime, historical reader, compatibility fixture corpus, or destination-resident carry-through.
+Unsupported root reflection input uses `unsupported-reflection-format` (or the ordinary removed-command
+error), while pod-originated writes use the P0 code above. Neither error authorizes deleting input.
+Only sequential v1 ledgers may enter active reflection state through sanctioned integration.
 
 The **Packet/reflection track** exclusively owns `memory_seed/task_packet.py`,
 `memory_seed/reflection_ledger.py`, `tests/test_task_packet.py`,
-`tests/test_task_packet_surfaces.py`, `tests/test_reflection_ledger.py`, and
+`tests/test_task_packet_surfaces.py`, and
 `tests/test_reflection_workstream_ledger.py`. It adds root-only caller/target
 checks, no-discovery spies, real-Git admission probes, and receipt-preservation
-tests. Keep v2 trusted-history, stale-write, role/phase, rebind, closure,
-expiry, and two-workstream isolation tests green; retain only historical v1
-read/verify and mutation-refusal assertions, not obsolete v1 write successes.
+tests. Keep v1 trusted-history, stale-write, role/phase, rebind, closure,
+expiry, and two-workstream isolation tests green. Assert complete prototype removal
+and unsupported-input refusal; do not retain prototype fixture builders or success tests.
 The **Fuse/transaction track** is the
 sole owner of `.gitattributes`: it preserves the existing root reflection
 `-merge` rule and adds the pod memory `-merge` rules below.  No other track
@@ -751,10 +747,10 @@ packet may cite its reports and tests as evidence.
 
 | Stage | Depends on | Exclusive owner and files | Deliverable / hand-off gate |
 |---|---|---|---|
-| 0. Baseline | G0 approval and prerequisite receipts | **Integration owner:** fresh packet, branch/base receipt, stale-branch evidence table, baseline tests. | Freeze the exact base and reflection API/test inventory; verify retirement and ratification receipts, protected primary-checkout exclusions, and root-default zero pod discovery. |
+| 0. Baseline | G0 approval and prerequisite receipts | **Integration owner:** fresh packet, branch/base receipt, stale-branch evidence table, baseline tests. | Freeze the exact base and reflection API/test inventory; verify complete prototype-removal, v1-format and review receipts, protected primary-checkout exclusions, and root-default zero pod discovery. |
 | 1. Boundary/lifecycle core | 0 | **Core/fuse owner:** all `memory_seed/core.py` P0 edits, `memory_seed/situate.py`, `tests/test_seed_pod_core.py`, `tests/test_project_lifecycle.py`, and core temporary-Git helpers. | Typed physical resolver, root-id initialization, discovery exclusions, adoption/detachment/update journals, and the interface consumed by every later track. No other track edits `core.py`. |
 | 2. Provenance ownership | 1; transaction interface frozen | **Provenance owner:** `memory_seed/provenance.py`, `memory_seed/provenance_git.py` only where required, `tests/test_provenance.py`, `tests/test_provenance_engine.py`, `tests/test_provenance_surfaces.py`. | Distinct v1/v2 root paths, grammar, migration/read-routing receipts, and identity/caller checks use the Stage 1 journal/recovery API before adapters consume them. Explicit provenance activation remains separate from generic Task Packet attribution. |
-| 3. Packet/reflection | 1; target-runtime and reflection interfaces frozen | **Packet/reflection owner:** `memory_seed/task_packet.py`, `memory_seed/reflection_ledger.py`, `tests/test_task_packet.py`, `tests/test_task_packet_surfaces.py`, `tests/test_reflection_ledger.py`, `tests/test_reflection_workstream_ledger.py`. | Selected-pod compile/activation and inherited governance work; root-default zero traversal, root-only v2 reflection, historical v1 read-only behavior, and pod-write refusal are real-Git proven. |
+| 3. Packet/reflection | 1; target-runtime and reflection interfaces frozen | **Packet/reflection owner:** `memory_seed/task_packet.py`, `memory_seed/reflection_ledger.py`, `tests/test_task_packet.py`, `tests/test_task_packet_surfaces.py`, `tests/test_reflection_workstream_ledger.py`. | Selected-pod compile/activation and inherited governance work; root-default zero traversal, root-only v1 reflection, complete prototype removal and unsupported-input refusal, and pod-write refusal are real-Git proven. |
 | 4. Fuse/transaction integration | 1; classifier interface frozen | **Core/fuse owner:** remaining `memory_seed/core.py` fuse changes, `tests/test_session_fuse_and_merge.py`, `tests/test_seed_pod_surfaces.py`, and **only this track** edits `.gitattributes`. | Root/pod record classification, reset/stage/render proof, `-merge` protection, qualified receipts, and adoption/detachment recovery probes pass. |
 | 5. Public adapters | 2–4 | **Surfaces owner:** `memory_seed/cli.py`, `memory_seed/mcp_server.py`, `memory_seed/esr.py`, `tests/test_mcp_read_parity.py`, `tests/test_mcp_session_append.py`, and adapter portions of `tests/test_seed_pod_surfaces.py`. | CLI/MCP/ESR are thin, shared-planner adapters with equivalent result shapes and refusal codes. |
 | 6. Maintained demo and docs | 1–5 interface freeze | **Fixtures/docs owner:** `demo/`, generated fixture definitions, `tests/test_seed_pod_fixtures.py`, docs/spec/audit/index entries. | Demo adopts through a receipted transaction; generated standalone runtimes remain explicit independent roots; docs state only verified delivery. |
@@ -899,7 +895,7 @@ The following are release-blocking P0 observables, not aspirational examples.
 | Root provenance migration | Explicit preview/apply preserves v1 `provenance/bindings.md` and creates v2 `provenance/v2/bindings.md`; complete receipts control routing, and matching retries after valid appends are read-only/idempotent. | No identity, wrong caller/owner, source or destination alias, occupied destination, stale/tampered preview or source, mixed grammar, interrupted publication, and recovery over divergent bytes refuse or remain explicitly recoverable; no automatic rewrite/fallback. |
 | Version and caller boundary | Root identity initialization precedes a v2 root/pod ledger; the physical target pod migrates its derived v1 legacy source through one receipt. | Mixed v1/v2 grammar, v2 path fields, absent/forged root id, root/sibling/retired/detached migration caller, arbitrary source path, and target/runtime activation mismatch fail before write. |
 | Task Packet | Generic root compile/activation/artifact loading preserve legacy canonical behavior without root identity or a provenance ledger and do zero pod reads; a selected active pod receives measured identity, inherited governance, and one exact session target. | Missing identity for a selected-pod or explicit identity-bound root request; forged id; pod caller downgrading to generic root; invalid selected target/session path; wildcard/alias; direct write/timestamp override; stale fingerprint/binding; and read-only activation refuse with CLI/MCP parity. |
-| Reflection | One sequential v2 ledger per root workstream preserves trusted history, phase/ownership checks, append commits, receipts, rebind, close, and expiry; historical v1 is read-only. | A pod caller (including one naming a root ledger), pod selector/path, or selected-pod reflection-writing packet returns `pod-reflection-not-supported-p0` before any write; root v1 authoring/fuse/reservation paths remain unavailable. |
+| Reflection | One sequential v1 ledger per root workstream preserves trusted history, phase/ownership checks, append commits, receipts, rebind, close, and expiry; no prototype runtime remains. | A pod caller (including one naming a root ledger), pod selector/path, or selected-pod reflection-writing packet returns `pod-reflection-not-supported-p0` before any write; prototype authoring/fuse/reservation paths remain unavailable. |
 | Fuse | Root and pod sessions, decisions, link/topic/diagram sidecars are rendered/staged by qualified identity and retain normal entry trailers plus a qualified receipt. | Unclassified marker path, duplicate bare entry id, parentless/cross-pod sidecar, changed historical record, raw merge, missing staged blob, receipt mismatch, or unrelated-pod discovery aborts without dropping bytes. |
 | Explicit inspection | The named pod decision is readable through the CLI and MCP and returns its physical owner and labelled state. | Missing `--pod-id`, different-pod id/decision mismatch, retired write attempt, detached active lookup, and root default traversal into a pod fail or return no pod data as specified. |
 | Session and diagnostics | Situate, doctor, ESR, Task Packet, CLI, and MCP expose the same boundary/provenance reason codes without crashing. | A malformed boundary and an unavailable Git repository return structured diagnostics; no surface falls back to the old implicit nested-runtime interpretation. |
@@ -914,9 +910,9 @@ outcome, not merely both returning a non-error response.
 
 | Gate | Independent reviewer must inspect | Evidence required before proceeding |
 |---|---|---|
-| G0 — plan | Focused re-review of generic root Task Packet compatibility and distinct-path root provenance migration, plus the retained v2 reflection/governance and historical reconciliation boundaries. | Prior verdict: REVISE. Independent approval is still missing; record the verdict and prerequisite receipts before implementation dispatch. |
+| G0 — plan | Focused re-review of generic root Task Packet compatibility and distinct-path root provenance migration, plus the v1 reflection/prototype-retirement and historical reconciliation boundaries. | Prior verdict: REVISE. Independent approval is still missing; record the verdict and prerequisite receipts before implementation dispatch. |
 | G1 — boundary/schema | Resolver API, root-id initialization, distinct root ledger paths, v2 schemas, migration receipt/routing, atomic publication/recovery, and compatibility refusals. | Focused core/provenance positive/negative and failure-injection tests plus a written interface-freeze receipt. |
-| G2 — packet/reflection | No-id generic root compilation/activation/artifact loading; explicit selected-pod/identity-bound root admission; inherited baselines, exact sessions, zero traversal, and root-only v2 reflection. | CLI/MCP/compiler/activation compatibility and refusal matrix; real-Git no-discovery, pod-refusal/no-write, v2 authority/receipt, and historical v1 tests. |
+| G2 — packet/reflection | No-id generic root compilation/activation/artifact loading; explicit selected-pod/identity-bound root admission; inherited baselines, exact sessions, zero traversal, and root-only v1 reflection. | CLI/MCP/compiler/activation compatibility and refusal matrix; real-Git no-discovery, pod-refusal/no-write, v1 authority/receipt and prototype-removal/refusal tests. |
 | G3 — surface/lifecycle/fuse | CLI/MCP shared planner, receipted adoption/detachment/update, diagnostics, explicit inspection, `-merge`, reset/stage, and qualified sidecars. | Real-Git positive/negative matrix, dry-run/write parity, recovery proof, and staged-blob/receipt evidence. |
 | G4 — integration | Changed-path ownership, session-fuse preview, sidecar parents, no P1 expansion, and docs truthfulness. | Current-main rebase, clean fuse preview, full verification matrix, and diff review. |
 | G5 — closure | Final review of implementation evidence and cleanup boundaries. | Explicit user integration/release direction; neither is implied by this plan. |
@@ -925,7 +921,7 @@ For the future implementation, run the focused suites at each track hand-off,
 then on the reconstructed integration candidate run:
 
 ```powershell
-python -B -X utf8 -m pytest -q tests/test_seed_pod_core.py tests/test_seed_pod_fixtures.py tests/test_seed_pod_surfaces.py tests/test_project_lifecycle.py tests/test_context_derivation_strategies.py tests/test_session_fuse_and_merge.py tests/test_provenance.py tests/test_provenance_engine.py tests/test_provenance_surfaces.py tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_reflection_ledger.py tests/test_reflection_workstream_ledger.py tests/test_hooks.py tests/test_mcp_read_parity.py tests/test_mcp_session_append.py
+python -B -X utf8 -m pytest -q tests/test_seed_pod_core.py tests/test_seed_pod_fixtures.py tests/test_seed_pod_surfaces.py tests/test_project_lifecycle.py tests/test_context_derivation_strategies.py tests/test_session_fuse_and_merge.py tests/test_provenance.py tests/test_provenance_engine.py tests/test_provenance_surfaces.py tests/test_task_packet.py tests/test_task_packet_surfaces.py tests/test_reflection_workstream_ledger.py tests/test_hooks.py tests/test_mcp_read_parity.py tests/test_mcp_session_append.py
 python -B -X utf8 -m pytest -q
 python -X utf8 -c "from memory_seed.cli import main; raise SystemExit(main())" docs check
 python -X utf8 -c "from memory_seed.cli import main; raise SystemExit(main())" docs index --check
@@ -960,8 +956,8 @@ review; it is not cleaned up merely because this document is committed.
 
 Obtain a focused independent G0 re-review of generic root Task Packet
 compatibility and distinct-path root provenance migration, retaining the
-merged v2 core and retirement contract. Record the verdict and verify the prerequisite implementation and
-ratification receipts; approval of this document alone does not satisfy those
+Reflection Board v1 and complete prototype-retirement contract. Record the verdict and verify the prerequisite implementation and
+review receipts; approval of this document alone does not satisfy those
 foundation gates. Only then compile fresh Task Packets from the reviewed
 contract and begin Stage 0. Do not resume or import an old Seed Pod branch,
 integrate this planning change, or start P1 federated retrieval.

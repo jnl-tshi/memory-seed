@@ -51,6 +51,7 @@ mechanical migration.
 | [memory-seed-semantic-workflow-exploration-index.md](memory-seed-semantic-workflow-exploration-index.md) | — | — | mse_ddba1ztxqhasfbwf |
 | [memory-seed-typed-entries-adr-sidecar-proposal.md](memory-seed-typed-entries-adr-sidecar-proposal.md) | — | — | ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md |
 | [memory-signal-hierarchy-exploration.md](memory-signal-hierarchy-exploration.md) | — | — | ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md |
+| [plan-reflection-ledger.md](plan-reflection-ledger.md) | P1 | — | Documentary evidence only. Do not compile or launch these prototype dispatches; use the sequent… |
 | [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | ../2_Todo/document-lifecycle-system-plan.md |
 | [sidecar-lens-architecture-exploration.md](sidecar-lens-architecture-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [type-specific-trace-projections-exploration.md](type-specific-trace-projections-exploration.md) | — | — | ../2_Todo/memory-trace-semantic-projections-plan.md |

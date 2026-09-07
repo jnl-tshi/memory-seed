@@ -4,9 +4,9 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Finish reviewed v2 core hardening; re-review v1 retirement integration/packet guards and obtain ratification of its narrow Constitution transition before removing legacy writers."
+next_action: "Independently review complete prototype retirement and the Reflection Board v1 schema/domain correction, then finish the retained sequential core and public surfaces."
 source:
-  - "docs/2_Todo/plan-reflection-ledger.md"
+  - "docs/7_Replaced/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
   - "memory_seed/reflection_ledger.py"
   - "tests/test_reflection_ledger.py"
@@ -25,24 +25,23 @@ acceptance_criteria:
   - "A write refuses a stale branch tip, stale ledger digest, invalid target-chain phase successor, malformed append, or a writer not authorised for that chain."
   - "Active cross-workstream inspection is read-only and derived; it never fuses records or makes a combined view authoritative."
   - "Promotion, receipt resolution, closeout, and per-chain expiry preserve the Constitution 1.12 boundary and work after the active ledger is removed."
-  - "Old fragment/fuse boards remain readable and verifiable through compatibility readers without conversion."
+  - "The unused participant-fragment prototype is removed completely; the first real sequential board is v1, with no compatibility runtime."
 ---
 
 # Reflection ledger workstream evolution
 
 ## Decision and boundary
 
-The 2026-09-07 [v1 authoring-retirement amendment](reflection-v1-authoring-retirement-plan.md)
-narrows compatibility to historical reading and verification. Its removal boundary requires independent
-review before implementation; new work receives no v1 authoring, reservation, fuse, close, or expiry route.
-Its proposed exception to Constitution 1.12 for already-closed v1 chains is still unratified; v1 cleanup
-retirement cannot land until that explicit governance gate passes. Version 2 expiry remains unchanged.
+The 2026-09-07 [prototype-retirement amendment](reflection-prototype-retirement-plan.md) owns
+the complete removal and naming boundary. No prototype boards exist in the inspected repository,
+local branch tips, reachable history, or worktrees. The unused participant-fragment code and tests are
+retired completely; the first real sequential workstream board is **Reflection Board v1**. The proposed
+constitutional retirement transition is withdrawn. Constitution 1.12 applies without an added exception.
 
-The landed participant-fragment and fuse kernel remains historical truth. It was the right safety model for
-the original plan's independent, parallel participant branches. The next architecture has a different
-operating fact: within one feature workstream, planner, implementer, reviewer, and orchestrator phases are
-sequential. Therefore each feature branch owns one authoritative temporary reflection ledger. Each role
-appends dated, conclusion-first blocks to that same ledger in its turn.
+Within one feature workstream, planner, implementer, reviewer, and orchestrator phases are sequential.
+Each feature branch therefore owns one authoritative temporary ledger and each role appends dated,
+conclusion-first blocks to it in turn. The renamed v1 schema, hash domains, approval payloads, and vectors
+below replace the internal pre-launch v2 designation before any real board or public CLI/MCP launch.
 
 Parallel features have different ledgers. A combined board is a read-only derived index or view over active
 ledgers, not a fused source of truth. A cross-ledger link is permitted only when the writer records a real
@@ -53,8 +52,8 @@ writer, carries the human-readable result and an embedded reflection receipt. Th
 outside normal session discovery and retrieval, and chains expire only through the ratified governed
 lifecycle.
 
-This is an evolution plan. It does not revise `plan-reflection-ledger.md`, reclassify its past decisions, or
-change the meaning of existing `manifest.yaml`, report, fragment, fuse, closeout, or receipt evidence.
+This is an implementation evolution within the existing Constitution. The original plan is preserved in
+`docs/7_Replaced/plan-reflection-ledger.md` as documentary history; its dispatches are retired.
 
 ### 2026-09-07 architecture amendment — admitted compaction
 
@@ -63,7 +62,7 @@ changes the preceding bytes of a later surviving block. Its immutable `pre_ledge
 fail a normal standalone re-check, even though rewriting that block would violate the frozen byte rule. This
 is a real contradiction in the original expiry wording, not permission to make normal validation permissive.
 
-This amendment adds one narrow, separately admitted read path for a compacted v2 ledger. It keeps both
+This amendment adds one narrow, separately admitted read path for a compacted v1 ledger. It keeps both
 frozen rules: every surviving header and block is byte-identical, and a fresh normal ledger still requires
 every `pre_ledger_digest` to bind the exact preceding canonical bytes. Shannon's review adds the necessary
 history rule: a successful standalone parse never by itself proves that a trusted Git-backed image is normal.
@@ -109,7 +108,7 @@ New boards live at one canonical path:
 `base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`,
 `retention_approval_key_id`, and `id_salt`. State and phase are derived from the
 validated ordered blocks; they are not mutable header fields. Normal operation has append-only dated blocks.
-The only sanctioned non-append rewrite is the compare-and-swap expiry compaction specified in the frozen v2
+The only sanctioned non-append rewrite is the compare-and-swap expiry compaction specified in the frozen v1
 annex below. Every block contains:
 
 - a globally stable `record_id` and the clock-owned `created_at` timestamp;
@@ -123,8 +122,8 @@ annex below. Every block contains:
 
 `record_id` and `chain_id` are generated by the canonical writer, not supplied by callers. The annex freezes
 their framing, prefixes, and golden vectors. The record's canonical content digest makes identity auditable
-after expiry. Existing `rlr_` and `rlc_` identifiers remain valid compatibility forms, but a v2 identifier is
-never inferred from a v1 object.
+after expiry. Prefixes remain `rwl_`, `rlr_`, `rlc_`, and `rrc_`; their version-1 domains and
+vectors below define fresh identities. No prototype or pre-launch version-2 ID is reinterpreted or aliased.
 
 ### Sequential-writer enforcement
 
@@ -155,7 +154,7 @@ branch. Branches are never treated as evidence of a different person's identity.
 
 ### Guarded append persistence
 
-The ratified outcome-level composition principle applies to ordinary v2 append: the one governed CLI/MCP
+The ratified outcome-level composition principle applies to ordinary v1 append: the one governed CLI/MCP
 operation owns deterministic Git persistence, so a caller does **not** make a second, manual commit to make
 its record visible to trusted readers. This is a normal append transaction only; promotion, close, and expiry
 retain their existing receipt and cleanup rules.
@@ -244,23 +243,17 @@ integration order and durable receipts, never by copying another branch's ledger
 
 ## Retain, simplify, retire
 
-| Landed component | Next treatment | Reason |
-| --- | --- | --- |
-| Canonical UTF-8/NFC/LF parser/renderer and structured diagnostics | Retain | The same byte-stable, fail-closed boundary protects a single ledger. |
-| Conclusion-first record shape, local relationships, divergent-head view | Retain, simplified to ledger blocks | They directly support review without manufacturing consensus. |
-| Git-admitted receipt resolution, chain close validation, retention from `closed_at`, and per-chain expiry | Retain | They implement Constitution 1.12 and survive temporary-detail removal. |
-| Early unpromoted expiry approval verification | Retain; adapt its Ed25519 host-signing and Git-admission mechanics for v2 retention extensions | Arbitrary caller text must not authorise either early disposal or longer retention. |
-| `ReflectionManifest` roster, participant seal, reservation seed, report/fragment IDs and paths | Retire for new boards; retain readers | A single branch needs no participant allocation or pre-dispatch pair. |
-| Worker reports paired with fragments and report-provenance admission | Simplify | A record carries measured evidence/commit references directly; optional handoff reports remain Task Packet artifacts, not ledger authority. |
-| Per-participant fragment ownership and source-branch fuse | Remove active writer/fuse infrastructure; retain historical verification only | They solve concurrent same-plan writers, which the new design disallows. |
-| Coordinated session/reflection fuse and reflection trailers | Simplify to branch append/integration receipt | There is one current ledger writer, so no union of independently authored reflection paths is required. |
-| Per-plan active common view | Retain as a derived one-ledger view | It still exposes all local records and dissent. |
-| Cross-branch common view | Replace with derived board view | It inspects separately authoritative ledgers; it never fuses them. |
-| Pre-reserved Task Packet reflection paths/IDs | Retire | A workstream writer receives the canonical ledger path and expected digest at append time; no content-independent participant reservation is needed. |
+The [retirement inventory](reflection-prototype-retirement-plan.md#removal-inventory-and-helper-proof)
+requires complete removal of prototype-only production and test code. Retain the sequential ledger's
+conclusion-first records, relationships, divergent-head display, trusted history, receipt/close/expiry
+guards and derived board. Low-level canonical byte, Git, digest, session-locator and Ed25519 helpers stay
+only with demonstrated sequential reachability. Delete participant manifests/rosters/seals/reservations,
+report/fragment models and codecs, admission/common-view readers, prototype receipt/close/approval
+verification, fuse/expiry operations, aliases, fixture builders and success tests.
 
-The implementation exposes old-format inspection only as read-only `v1` compatibility in help and
-reference docs; old authoring and fuse operations are retired. It must not silently reinterpret a v1 manifest as a workstream ledger or write a v2 record
-into a v1 directory.
+No prototype historical reader, compatibility family, destination carry-through, or alternative writer
+remains. Unknown schemas and reserved-family files are unsupported inputs, reported without mutation.
+Standalone hostile literals may exercise refusal; they do not justify keeping a prototype implementation.
 
 ## Promotion, receipt, closure, and expiry
 
@@ -284,7 +277,7 @@ unreviewed, unelapsed, incomplete, or cross-ledger-dependent chain. Early remova
 unpromoted, otherwise valid chain with a verified live-user approval and durable disposition. A board-wide
 wipe remains forbidden.
 
-Receipt resolution accepts both v1 and new ledger receipts. It scans ordinary sessions only, rejects
+Receipt resolution accepts only the sequential v1 ledger's durable receipt contract. It scans ordinary sessions only, rejects
 conflicting duplicate receipts, and proves that a cross-ledger dependency still has a durable target after
 active detail expires. The derived receipt index may accelerate this lookup but is rebuildable and never
 authoritative.
@@ -293,26 +286,24 @@ authoritative.
 
 | Surface | Required evolution |
 | --- | --- |
-| Core | Add a versioned standalone parser, canonical append planner/preview, append transaction result, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Preserve only v1 historical parser, receipt, closeout, and committed-tree verification behind explicit read-only compatibility routing; remove v1 fuse/write machinery. |
-| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7. `append --apply` owns the ledger-only commit/ref-CAS transaction and returns its new committed identity; callers make no external Git commit. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Expose historical v1 inspection only; old fragment/fuse authoring commands are absent or refuse without writes. |
+| Core | Add a versioned standalone parser, canonical append planner/preview, append transaction result, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Remove all prototype-only code and retain only proven sequential dependencies under the retirement inventory. |
+| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7. `append --apply` owns the ledger-only commit/ref-CAS transaction and returns its new committed identity; callers make no external Git commit. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Offer only sequential v1 operations; unsupported families refuse without writes. |
 | MCP | Add parity read operations for ledger and board views and guarded append/close/expire paths that call the same history-aware core loader, planner, and Git/session adapter. The append operation owns the identical ledger-only commit/ref-CAS transaction; it never asks the caller to commit. Return identical rendered bytes and `{code, path, message, details}` errors. MCP accepts no raw proof, commit/blob, post-image, or arbitrary file-write input; it has no merge or early-expiry-approval bypass. |
-| ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, per-chain expiry candidates, and each trusted ledger's `normal` or `admitted-compaction` history classification/proof diagnostic. It reads only the trusted committed blob, so it observes a successful append immediately and never treats an uncommitted worktree suffix as state. It must distinguish v1 fragment boards from fresh and admitted-compacted v2 ledgers. |
+| ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, per-chain expiry candidates, and each trusted ledger's `normal` or `admitted-compaction` history classification/proof diagnostic. It reads only the trusted committed blob, so it observes a successful append immediately and never treats an uncommitted worktree suffix as state. It reports unsupported candidates, including manifest-only directories, instead of silently excluding them. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
-| `session_logging.md` and Seed twin | Specify the compact embedded receipt locator for the new ledger and preserve v1 receipt reading. Do not make a reflection append a session write. |
+| `session_logging.md` and Seed twin | Specify the compact embedded receipt locator for the sequential v1 ledger. Do not make a reflection append a session write. |
 | `end_of_turn.md` and Seed twin | Add ESR discovery of a current workstream ledger and promotion/close/expiry review prompts. |
 | `policy.md`, `agent-rules.md`, Constitution | No change is planned: the current append-only, write-parity, workstream, and Constitution 1.12 rules already authorize this evolution. Amend only if implementation finds a real contradiction, not to restate mechanics. |
 | Documentation | Add a live spec only after implementation and ratified review; update the new plan, generated Todo/front-door indexes, CLI/MCP references, and task-packet guidance together. |
 
-## Migration and compatibility posture
+## Non-migration boundary
 
-There is no migration, conversion, or backfill. Existing v1 plans keep their participant fragments, manifests,
-fuse trailers, closeouts, recorded expiry evidence, record IDs, and receipts. Their historical readers and verifier tests
-remain required regression coverage. A new workstream ledger begins only through the new explicit init path.
-
-The compatibility boundary is a discriminator, not heuristic detection: v1 paths retain `manifest.yaml` and
-`memory-seed/reflection-plan`; v2 paths contain only the declared workstream-ledger schema. A path that mixes
-forms or asks a v2 command to write v1 data fails closed. No existing Task Packet or experiment log is
-rewritten.
+No real prototype boards exist in the measured local inventory. There is no migration, conversion,
+backfill, historical-reader retention, ID alias, or prototype carry-through. All fresh boards use the
+explicit sequential v1 init path. Re-run the inventory before implementation; discovery of real data
+stops destructive cleanup and renaming for a separately scoped decision. Existing ordinary sessions and
+documentary experiment logs stay unchanged. Exact schema plus version discriminates supported input;
+the integer 1 alone cannot identify a Reflection Board.
 
 ## Test matrix and acceptance criteria
 
@@ -327,25 +318,25 @@ rewritten.
 | Promotion and receipts | Many chains to one decision and one chain to several decisions resolve from ordinary sessions alone. | Temporary path reference, missing member coverage, conflicting duplicate receipt, bad decision locator, malformed digest, and receipt from an uncommitted session blob refuse. |
 | Close and expiry | Validated reviewed chains close independently and expire at that chain's `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, a retention value outside 7/14/30, missing/forged/replayed/expired or Git-unadmitted extension approval, early promoted cleanup, and cleanup of a dependency target still required by an open chain refuse. |
 | Admitted compaction proof | Real-Git fixtures prove both strict-invalid middle removal and strict-valid tail-chain or sole-chain/header-only removal are admitted only by their canonical two-commit session/Git proof. The loader proves every pre/post blob and digest, chain/member closure receipts, byte-removal derivation, then accepts a fresh suffix append whose predecessor binds the compacted bytes. Repeated tail and header-only compactions recurse through each earlier proof. | Raw tail-chain or sole-chain/header-only deletion without a proof; missing/uncommitted/noncanonical receipt; wrong session trailer, entry, decision, path, workstream, pre-tip, commit, blob, mode, digest, parent, reachability, or restricted diff; receipt/event replay, conflicting duplicate/incomparable proof, stale non-prefix bytes, missing/forged close or member receipt, partial-chain/extra-ID/rebind removal, re-rendered retained block/header, inserted cleanup block, altered separator derivation, raw `verify_predecessors=False`, and caller-supplied CLI/MCP proof all refuse. |
-| History-aware readers and board | Ledger check/view, guarded append/close/expiry, dependency resolution, ESR, and a board with normal plus compacted candidates all route through the same trusted-history loader; a normal image is so labelled only after append/rebind-only history proof, while a proven compacted candidate is `valid` with `validation: admitted-compaction`. The board remains read-only. | A strict-valid tail or sole deletion classified as normal; a reader that bypasses history/admission, chooses an ambiguous proof, hides a missing/forged proof candidate, converts v1, writes a cache as authority, or lets a stale append/cleanup write fails. |
-| Compatibility | Existing v1 fixtures still parse, view, and verify recorded close/expiry/fuse evidence without mutation. | Any new v1 authoring/fuse/close/expiry operation, v2 writer pointed at v1 data, or mixed family directory is absent or refuses. |
+| History-aware readers and board | Ledger check/view, guarded append/close/expiry, dependency resolution, ESR, and a board with normal plus compacted candidates all route through the same trusted-history loader; a normal image is so labelled only after append/rebind-only history proof, while a proven compacted candidate is `valid` with `validation: admitted-compaction`. The board remains read-only. | A strict-valid tail or sole deletion classified as normal; a reader that bypasses history/admission, chooses an ambiguous proof, hides a missing/forged proof candidate, converts prototype, writes a cache as authority, or lets a stale append/cleanup write fails. |
+| Prototype removal | No prototype models, codecs, readers, verifiers, writers, aliases, fixtures or success tests remain; every retained helper has a sequential call site. | Unsupported prototype/version-2/mixed input refuses without mutation; manifest-only candidates cannot be hidden from discovery. |
 | Surface parity | CLI and MCP return the same valid result, rendered bytes, committed append identity, normal/admitted classification, and diagnostics for shared fixtures. | One surface accepting an invalid append, requiring a manual commit, observing an uncommitted suffix, or bypassing phase/approval/history validation fails parity tests. |
 
-Acceptance is complete only when the existing v1 suite and new focused ledger, real-Git compaction, surfaces,
+Acceptance is complete only when the supported v1 focused ledger, real-Git compaction, surfaces,
 ESR, session, and worktree integration suites pass; `docs check`, `docs index --check`, `links check`, and
-`git diff --check` pass; and an independent reviewer confirms that no v2 path reintroduces per-participant
+`git diff --check` pass; and an independent reviewer confirms that no v1 path reintroduces per-participant
 fusion as authority or a general predecessor-validation bypass.
 
 ## Delivery sequence and owners
 
-1. **Architecture gate — independent amendment review required.** The v2 schema, phase policy, record/chain
-   vectors, dependency semantics, and v1 boundary remain frozen. The review must approve this narrowly scoped
+1. **Architecture gate — independent amendment review required.** The corrected v1 schema, phase policy, record/chain
+   vectors, dependency semantics, and complete prototype removal boundary govern implementation. The review must approve this narrowly scoped
    history-aware admitted-compaction correction before implementation restarts; it must not turn a
    structural-only check into a public parser mode or classify a strict-valid deletion as normal.
 2. **Core ledger track — one implementation owner.** Add standalone strict versus trusted-history loading,
    canonical raw-block removal derivation, bounded Git path-history classification, real-Git proof-pair
    verification, recursive repeated-compaction validation, append preview/etag/phase checks, local chain logic,
-   dependency resolver, derived board view, close/expiry adaptation, and v1 routing. Own focused
+   dependency resolver, derived board view, close/expiry adaptation, and complete prototype removal. Own focused
    normal/admitted and real-Git negative tests. No CLI/MCP/control-plane edits in this track.
 3. **Surface track — one owner after core API freeze.** Add the shared CLI/MCP Git-session adapter, including
    the ledger-only append commit/ref-CAS and protected two-commit expiry composition, parity reads/writes, ESR
@@ -354,12 +345,12 @@ fusion as authority or a general predecessor-validation bypass.
 4. **Workflow track — one owner after surface behavior is tested.** Update active/seed skill twins and
    Task Packet materialization only where the old fragment reservation instruction would mislead new work.
    Do not broaden worker authority or add a dispatcher.
-5. **Integration and compatibility gate — orchestrator.** Run a real multi-worktree simulation with two
+5. **Integration and removal gate — orchestrator.** Run a real multi-worktree simulation with two
    parallel feature ledgers and a genuine dependency, then promote/close/expire one chain while the other
-   remains active. Run all v1 regressions before landing.
+   remains active. Run the supported v1 and removal/refusal regressions before landing.
 6. **Independent final review.** Review the final diff, receipts after simulated expiry, CLI/MCP error
-   parity, and absence of a fused or combined authority. Any format change lands before the first v2 ledger
-   data, and no v2 data is authored on the format branch.
+   parity, and absence of a fused or combined authority. Any format change lands before the first v1 ledger
+   data, and no v1 data is authored on the format branch.
 
 The orchestrator owns workstream initialization, branch integration, durable session append, promotion,
 closeout, and cleanup. Planner, implementer, and reviewer own only their sequential blocks in the branch
@@ -371,24 +362,24 @@ from an unmerged implementer assumption when an integrated branch is available.
 The implementation review must report these counts before and after, with a short explanation for every
 exception:
 
-| Measure | v1 baseline | v2 target |
+| Measure | Unused prototype | Reflection Board v1 |
 | --- | ---: | ---: |
 | Authoritative active files required for one workstream contribution | manifest + report + fragment (3) | one ledger (1) |
 | Per-worker identifiers/paths that must be reserved before work | report ID/path + fragment ID/path (4) | none |
-| Cross-branch reflection integration mechanism | participant fuse plus coordinated merge | none for v2; normal branch integration plus ledger receipt |
+| Cross-branch reflection integration mechanism | participant fuse plus coordinated merge | none for v1; normal branch integration plus ledger receipt |
 | Authoring round trips before a record can be written | manifest reservation, report, fragment, fuse | one guarded append with expected tip/digest |
 | New-board writer roles that can mutate authority concurrently | multiple reserved participants | exactly one CAS-protected append at a time, authorised per target chain |
 | New-board authoritative combined views | one plan common view built from fused fragments | zero; all multi-ledger views are derived |
 
 The target is not fewer safeguards. It is fewer independently coordinated artifacts while preserving canonical
-append validation, ownership, provenance, receipt coverage, and controlled expiry. If the v2 implementation
+append validation, ownership, provenance, receipt coverage, and controlled expiry. If the v1 implementation
 does not reach one active file and one guarded append for the ordinary sequential path, it must document why
-and return to architecture review rather than retaining v1 machinery by habit.
+and return to architecture review rather than retaining prototype machinery by habit.
 
 ## Review questions
 
 1. Does one ledger per branch accurately match the actual writer sequence without preventing a review/rework loop?
-2. Are old fragment/fuse boards preserved as read-only historical truth, with no hidden migration?
+2. Is the unused prototype completely removed, with only proven sequential dependencies retained and no hidden compatibility runtime?
 3. Can a real cross-workstream dependency resolve after the source chain expires, without importing or
    ranking its temporary detail?
 4. Does every writer surface share the same append, phase, stale-write, receipt, and early-expiry checks?
@@ -397,30 +388,29 @@ and return to architecture review rather than retaining v1 machinery by habit.
 6. Does every compacted read prove its exact committed pre-image, deletion derivation, and ordinary-session
    receipt pair while leaving fresh normal validation unchanged?
 
-## V2 schema annex — frozen implementation contract
+## V1 schema annex — frozen implementation contract
 
-This is the normative v2 contract; it controls over earlier illustrative text. It does not alter v1
-`memory-seed/reflection-plan`, historical plans, or past session evidence.
+This is the normative Reflection Board v1 contract; it controls over earlier illustrative text.
+The prototype has no supported product version. Documentary history remains unchanged.
 
 ### Family, bytes, and identity
 
 | Item | Frozen rule |
 | --- | --- |
-| Discriminator | v2 front matter is exactly `schema: memory-seed/reflection-workstream-ledger` and `version: 2`; v1 remains `memory-seed/reflection-plan` at version 1. Absent, duplicate, mixed, or unsupported forms are malformed, never inferred. |
-| Path | The only active v2 path is `.memory-seed/reflections/active/<workstream_id>/ledger.md`; its directory contains no `manifest.yaml`. v2 commands reject v1 paths and conversely. |
+| Discriminator | v1 front matter is exactly `schema: memory-seed/reflection-workstream-ledger` and `version: 1`; the unused `memory-seed/reflection-plan` schema is unsupported regardless of its version. Absent, duplicate, mixed, or unsupported forms are malformed, never inferred. |
+| Path | The only active v1 path is `.memory-seed/reflections/active/<workstream_id>/ledger.md`; its directory contains no `manifest.yaml`. v1 commands reject prototype, mixed, or unknown paths. |
 | Bytes | UTF-8 without BOM, Unicode NFC, LF only, no trailing whitespace, exactly one final LF. YAML has two-space indentation and the exact field order below. Digests are lowercase `sha256:` plus 64 hex. |
 | Header order | `schema`, `version`, `workstream_id`, `working_branch`, `base_sha`, `created_at`, `reflection_retention_days`, `retention_extension_receipt`, `retention_approval_key_id`, `id_salt`. No other header field is accepted. `base_sha` is 40 lowercase hex; every timestamp is UTC RFC 3339 in `YYYY-MM-DDTHH:MM:SSZ` form; `id_salt` is 64 lowercase hex from OS entropy. Header bytes never change. State and phase derive per chain from validated blocks. |
 | Retention | `reflection_retention_days` is exactly integer `7`, `14`, or `30`. At `7`, `retention_extension_receipt` and `retention_approval_key_id` are literal `null`. At `14` or `30`, both are required and must pass the admitted host-approval contract below. No other value, caller string, or environment variable is an authority. |
-| Digests | Ledger digest is `sha256(LEDGER_DOMAIN || canonical_ledger_bytes)` and detail digest is `sha256(DETAIL_DOMAIN || canonical_record_block_bytes)`. `LEDGER_DOMAIN` is ASCII `memory-seed/reflection-workstream-ledger/v2/ledger` plus NUL; `DETAIL_DOMAIN` substitutes `detail` for `ledger`. |
+| Digests | Ledger digest is `sha256(LEDGER_DOMAIN || canonical_ledger_bytes)` and detail digest is `sha256(DETAIL_DOMAIN || canonical_record_block_bytes)`. `LEDGER_DOMAIN` is ASCII `memory-seed/reflection-workstream-ledger/v1/ledger` plus NUL; `DETAIL_DOMAIN` substitutes `detail` for `ledger`. |
 
 ### Retention extension approval — admitted host contract
 
-The v2 extension gate normatively reuses the landed v1 model: an Ed25519 private key stays with the approving
+The v1 extension gate uses the proven low-level signature and Git-admission mechanics: an Ed25519 private key stays with the approving
 host; the repository receives only canonical signed bytes; and a verifier trusts the key only through a
-Git-admitted immutable anchor. This retention-setting approval is distinct from the existing v1 early-expiry
-approval; neither form can substitute for the other.
+Git-admitted immutable anchor. This retention-setting approval does not authorize early expiry; prototype approval objects are unsupported.
 
-The v2 trust anchor is `.memory-seed/reflections/trust/retention-approval.yaml` as it exists at the ledger's
+The v1 trust anchor is `.memory-seed/reflections/trust/retention-approval.yaml` as it exists at the ledger's
 immutable `base_sha`. It is a Git-admitted UTF-8/NFC/LF document with this exact YAML mapping and no extra
 keys:
 
@@ -450,9 +440,9 @@ The persisted preflight has this exact ordered YAML mapping and no extra keys:
 
 ```yaml
 schema: memory-seed/reflection-retention-preflight
-version: 2
+version: 1
 key_id: <stable-token>
-id_domain: memory-seed/reflection-workstream-ledger/v2
+id_domain: memory-seed/reflection-workstream-ledger/v1
 id_kind: workstream
 workstream_id: <computed-rwl_...>
 working_branch: <exact-origin-branch>
@@ -478,15 +468,15 @@ and at most 24 hours later. The planned path/entry must equal the entry actually
 session writer.
 
 After that session entry is committed, the host reloads it from Git, resolves its `commit` and exact `blob`,
-and signs this canonical v2 payload. It has the preflight fields plus the complete admitted locator; no caller
+and signs this canonical v1 payload. It has the preflight fields plus the complete admitted locator; no caller
 may render, complete, or recompute it. The signature covers canonical UTF-8 bytes through `blob`, excluding
 only `signature`:
 
 ```yaml
 schema: memory-seed/reflection-retention-approval
-version: 2
+version: 1
 key_id: <stable-token>
-id_domain: memory-seed/reflection-workstream-ledger/v2
+id_domain: memory-seed/reflection-workstream-ledger/v1
 id_kind: workstream
 workstream_id: <computed-rwl_...>
 working_branch: <exact-immutable-origin-branch>
@@ -531,7 +521,7 @@ contains the exact preflight; `commit` is reachable from the init checkout; and 
 object at that commit.
 
 The exact nonce replay identity is `(schema, version, key_id, nonce)` from the signed approval. The exact
-locator replay identity is `(session_path, entry_id, commit, blob)`. The verifier scans Git-admitted v2 headers
+locator replay identity is `(session_path, entry_id, commit, blob)`. The verifier scans Git-admitted v1 headers
 and refuses if either identity is already bound by another immutable ledger header; the preflight session's
 single original occurrence is not itself consumption. A successful init reserves both identities for exactly
 one header. Any missing anchor, untrusted key, noncanonical/mismatched preflight or payload, malformed locator,
@@ -545,7 +535,7 @@ The normal seven-day path needs no extension approval: the canonical init writer
 renders `retention_extension_receipt: null` and `retention_approval_key_id: null`. It accepts no caller
 preimage material and does no preflight/session/host-signature/trust-anchor lookup.
 
-The ID domain is ASCII `memory-seed/reflection-workstream-ledger/v2` plus NUL. For each ID,
+The ID domain is ASCII `memory-seed/reflection-workstream-ledger/v1` plus NUL. For each ID,
 `frame = ID_DOMAIN || hex_decode(id_salt) || components`, where each component is
 `uint32_be(len(UTF-8(component))) || UTF-8(component)`. SHA-256 the frame, interpret the first 12 digest
 bytes as one unsigned 96-bit big-endian integer, then encode that integer as exactly 20 lowercase Crockford
@@ -562,11 +552,11 @@ are zero padding, not additional digest bits.
 
 Golden vector: with `id_salt` = `8f` repeated 32 times, branch `codex/feature/example`, `base_sha` = `a`
 repeated 40 times, and creation at `2026-09-06T12:00:00Z`, workstream ID is
-`rwl_1j3nf0zkee6vx8zgg4v3`. With pre-digest `sha256:` + 64 zeroes and time `2026-09-06T12:01:00Z`, record ID
-is `rlr_0fcr9wh0xh9yn0nhyqyn`; chain ID is `rlc_1mhbzbsjzv646b2k845s`; with detail digest `sha256:` + 64
-ones, receipt ID is `rrc_0hge300ydfdke03v8hfh`. For exact bytes `example\n`, vectors are
-`sha256:aa964f81fd64a3e391f79079266e4e8f5e4dfe27a36f29078228a57762af46fc` under `LEDGER_DOMAIN` and
-`sha256:520584969953ed7b72863bf987e267e297e4afed3ed2af2f6691e6bd6915014c` under `DETAIL_DOMAIN`.
+`rwl_11rhq07tksmxd99ykzsw`. With pre-digest `sha256:` + 64 zeroes and time `2026-09-06T12:01:00Z`, record ID
+is `rlr_0xegtr9rzcmq6d4b29sc`; chain ID is `rlc_0t3xm63n908fptt0r43s`; with detail digest `sha256:` + 64
+ones, receipt ID is `rrc_1h61t1efah5tgv33eaa4`. For exact bytes `example\n`, vectors are
+`sha256:ad5b96d4e9aa88dc1ffc4db4ab46c6d09bd0623105534b1f1b57466fe9caee88` under `LEDGER_DOMAIN` and
+`sha256:c47a5d99516451af52a675db116b1465f35163def20dff2ab64833959d8b9aa9` under `DETAIL_DOMAIN`.
 
 ### Records, chains, and transitions
 
@@ -622,7 +612,7 @@ structured diagnostic.
 Only valid ledgers enter the derived graph. The command returns the complete view and non-zero if any candidate
 is malformed or unsupported: it must not hide an unhealthy active ledger.
 
-Exactly one valid active v2 ledger may effectively own a branch (the immutable header branch until a validated
+Exactly one valid active v1 ledger may effectively own a branch (the immutable header branch until a validated
 trusted rebind, then the rebind target). Init rejects a second claim, copied directory, duplicate workstream
 ID, or malformed candidate whose recoverable header claims the branch. A malformed ownerless candidate blocks
 init rather than being ignored. Rebind rejects any active or ambiguous target claim. Required negatives cover
@@ -656,7 +646,7 @@ cannot manufacture it.
 ### Safe expiry and compaction
 
 Expiry replaces only complete eligible chain blocks; it never changes durable sessions, header bytes, retained
-blocks, v1 data, or a whole board. Preview reads current HEAD and canonical bytes and returns `expected_head`,
+blocks or a whole board; unsupported input is never a cleanup target. Preview reads current HEAD and canonical bytes and returns `expected_head`,
 `pre_ledger_digest`, sorted `removed_chain_ids`, sorted `removed_record_ids`, exact `post_ledger_digest`, and
 the fixed disclosure `git_blobs_remain: true`, `privacy_grade_erasure: false`. Thus every preview states that
 Git history/blob retention may preserve removed data and that expiry is lifecycle cleanup, not privacy-grade
@@ -666,7 +656,7 @@ post-image remains normally self-validating.
 
 #### Standalone parser and trusted-history loader
 
-`parse_workstream_ledger` is the **standalone** v2 parser. It continues to reject any block whose
+`parse_workstream_ledger` is the **standalone** v1 parser. It continues to reject any block whose
 `pre_ledger_digest` is not the digest of the preceding canonical bytes. Its public validator has no
 `verify_predecessors=False` escape hatch. It answers only whether supplied bytes are a canonical standalone
 ledger; it does not read Git history and must not label a strict-valid image as a trusted normal ledger.
@@ -692,7 +682,7 @@ or the only chain leaving a header-only ledger all require compaction admission.
 compacted image retains that admitted classification even if the resulting bytes pass the standalone parser.
 
 `admit_compacted_workstream_ledger` is the internal branch of that loader for a non-monotonic transition. It
-is not a permissive parser: it accepts an otherwise structurally valid v2 byte sequence only after it
+is not a permissive parser: it accepts an otherwise structurally valid v1 byte sequence only after it
 reconstructs a chain of committed compaction proofs from ordinary sessions and Git. Its structural helper is
 private and receives no caller-selected boolean or raw proof. A returned `AdmittedCompactedLedger` carries the
 exact current bytes, ordered verified proof chain, and ordinary suffixes after each proof; callers cannot turn
@@ -835,7 +825,7 @@ then-admitted pre-image, so the returned proof stack contains every prior cleanu
 
 #### Reader routing, continuations, and refusal
 
-Every trusted v2 consumer uses `load_trusted_workstream_ledger`: `reflection ledger check` and `view`, guarded
+Every trusted v1 consumer uses `load_trusted_workstream_ledger`: `reflection ledger check` and `view`, guarded
 append/close/expiry, dependency resolution, ESR, and `reflection board view --active`. The loader evaluates
 both the strict standalone result and the full history classification on every Git-backed load; it never uses
 strict success as an early return. A board still returns every candidate: an append/rebind-only ledger is
@@ -860,9 +850,9 @@ suffixes; and unreachable, non-parent, merge, wrong-tree, ambiguous-lineage, ove
 Git evidence. There is no fallback to `verify_predecessors=False`, an arbitrary Git ref, a raw CLI/MCP proof
 object, or a cache assertion.
 
-The family discriminator remains the v1 boundary. These receipts and this reader apply only to the declared
-v2 ledger path/schema. A v1 manifest, fragment, fuse, closeout, or receipt cannot supply a v2 compaction
-proof; v1 retains historical readers and verification of recorded expiry evidence without conversion or new mutation.
+The family discriminator accepts only the declared sequential v1 schema. A prototype manifest, fragment,
+fuse, closeout, receipt, or pre-launch version-2 ledger cannot supply a compaction proof. No prototype
+reader or verification runtime remains.
 
 ### Gates and reduction proof
 
@@ -892,7 +882,7 @@ cases. A real-Git append sequence must prove `append -> check/view/ESR/board -> 
 returned committed identity with no external manual commit; it must also prove dirty ledger and staged
 unrelated refusal, commit-construction rollback, ref-race rollback, detached/wrong-branch refusal, and no
 partial ref/worktree/index mutation. Board tests additionally prove malformed candidates are reported and
-non-zero. The v1 reader/verification tests remain; obsolete mutation successes become removal/refusal tests. The normal v2 path is accepted only with one active authority file,
-one guarded adapter-owned append commit, zero participant reservations, zero v2 fuse operations,
+non-zero. Prototype fixtures and success tests are deleted; supported v1 tests prove removal and refusal. The normal v1 path is accepted only with one active authority file,
+one guarded adapter-owned append commit, zero participant reservations, zero v1 fuse operations,
 append/rebind-only trusted history, and no public predecessor-validation bypass; every exception is counted
-and justified as v1 reader/receipt compatibility, never hidden v2 coordination.
+and justified by a demonstrated sequential dependency, never by hypothetical compatibility.
