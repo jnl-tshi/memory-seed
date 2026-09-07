@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
+import subprocess
 
 import pytest
 
+from memory_seed import reflection_ledger as reflection_ledger_module
 from memory_seed.reflection_ledger import (
     ReflectionValidationError,
     RetentionApproval,
@@ -22,6 +26,9 @@ from memory_seed.reflection_ledger import (
     WorkstreamAppendRequest,
     WorkstreamDependency,
     WorkstreamDependencyReceipt,
+    WorkstreamCompactionClosureReceipt,
+    WorkstreamCompactionMemberReceipt,
+    WorkstreamCompactionReceipt,
     WorkstreamLedgerHeader,
     WorkstreamLedger,
     WorkstreamReceipt,
@@ -30,6 +37,7 @@ from memory_seed.reflection_ledger import (
     guarded_apply_trusted_rebind,
     guarded_init_workstream_ledger,
     initialize_workstream_ledger,
+    load_trusted_workstream_ledger,
     parse_retention_approval,
     parse_retention_preflight,
     parse_workstream_ledger,
@@ -37,9 +45,14 @@ from memory_seed.reflection_ledger import (
     plan_workstream_chain_close,
     preview_trusted_rebind,
     preview_workstream_expiry,
+    preview_trusted_workstream_expiry,
+    preview_workstream_append_commit,
+    apply_workstream_append_commit,
+    plan_trusted_workstream_chain_close,
     render_retention_approval,
     render_retention_preflight,
     render_workstream_ledger,
+    render_workstream_compaction_receipt,
     render_workstream_record,
     reflection_ledger_family,
     resolve_workstream_dependency,
@@ -461,3 +474,364 @@ def test_guarded_append_refuses_a_second_effective_branch_owner(tmp_path):
                                          expected_head=HEAD, actual_head=HEAD,
                                          pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)),
                                          branch=ledger.header.working_branch)
+
+
+# The trusted-history contract is deliberately exercised against real Git
+# trees.  These helpers use ordinary porcelain only to make adversarial tree
+# shapes; production code never receives their caller-controlled raw bytes.
+def _git(root: Path, *args: str, input: str | None = None) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(root), *args], input=input, text=True, encoding="utf-8",
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+def _commit_ledger(root: Path, ledger_path: str, ledger: WorkstreamLedger, message: str) -> str:
+    path = root / Path(ledger_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(render_workstream_ledger(ledger).encode("utf-8"))
+    _git(root, "add", "--", ledger_path)
+    _git(root, "commit", "--quiet", "-m", message)
+    return _git(root, "rev-parse", "HEAD")
+
+
+def _new_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str]:
+    root = tmp_path / "repo"
+    root.mkdir(parents=True)
+    _git(root, "init", "--quiet")
+    _git(root, "config", "user.name", "Reflection test")
+    _git(root, "config", "user.email", "reflection@example.test")
+    (root / "README.md").write_text("base\n", encoding="utf-8")
+    _git(root, "add", "README.md")
+    _git(root, "commit", "--quiet", "-m", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "--quiet", "-b", "codex/feature/example")
+    ledger = initialize_workstream_ledger(
+        working_branch="codex/feature/example", base_sha=base, clock=fixed_clock(START),
+        entropy=lambda _: bytes.fromhex(SALT),
+    )
+    ledger_path = workstream_ledger_path(ledger.header.workstream_id)
+    _commit_ledger(root, ledger_path, ledger, "reflection: init")
+    return root, ledger, ledger_path
+
+
+def _quoted_yaml(mapping: dict[str, str]) -> str:
+    return "".join(f"{key}: {json.dumps(value)}\n" for key, value in mapping.items())
+
+
+def _session_entry(title: str, entry_id: str, mappings: tuple[dict[str, str], ...] = ()) -> str:
+    body = f"## {title}\n\n```yaml\nentry_id: {json.dumps(entry_id)}\n```\n"
+    for mapping in mappings:
+        body += f"\n### Receipt evidence\n\n```yaml\n{_quoted_yaml(mapping)}```\n"
+    return body + "\n"
+
+
+class _LocalBranchRebind(TrustedRebindVerifier):
+    def verify(self, token, *, integration_commit, current_target_tip):
+        return integration_commit == current_target_tip
+
+    def admit_witness(self, token, rebind, *, integration_commit):
+        return TrustedIntegrationWitness(
+            token.workstream_id, rebind.record_id, rebind.from_branch, rebind.to_branch,
+            rebind.source_tip, rebind.target_pre_merge_tip, integration_commit, rebind.pre_ledger_digest,
+        )
+
+    def verify_witness(self, witness):
+        return witness.target_branch == "codex/feature/example"
+
+
+def _closed_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str, str]:
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    ledger = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                    now=START + timedelta(minutes=1))
+    chain = ledger.records[-1].chain_id
+    root_record = ledger.records[-1].record_id
+    _commit_ledger(root, ledger_path, ledger, "reflection: open")
+    ledger = append(ledger, "planner", chain, parents=(root_record,), now=START + timedelta(minutes=2))
+    _commit_ledger(root, ledger_path, ledger, "reflection: plan")
+    ledger = append(ledger, "implementer", chain, parents=(ledger.records[-1].record_id,), now=START + timedelta(minutes=3))
+    _commit_ledger(root, ledger_path, ledger, "reflection: implement")
+    ledger = append(ledger, "reviewer", chain, parents=(ledger.records[-1].record_id,), to_phase="orchestrate",
+                    now=START + timedelta(minutes=4))
+    integration = _commit_ledger(root, ledger_path, ledger, "reflection: review")
+    verifier = _LocalBranchRebind()
+    token = preview_trusted_rebind(
+        ledger, source_tip=integration, target_branch="codex/feature/example", target_pre_merge_tip=integration,
+        token_factory=lambda: "local-git-rebind",
+    )
+    rebound = apply_trusted_rebind(
+        ledger, token, integration_commit=integration, current_target_tip=integration, verifier=verifier,
+        reason="local integration", clock=fixed_clock(START + timedelta(minutes=5)),
+    )
+    ledger = rebound.ledger
+    _commit_ledger(root, ledger_path, ledger, "reflection: rebind")
+    receipts = [admitted_receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    ledger = plan_workstream_chain_close(
+        ledger, chain_id=chain, receipts=receipts, receipt_verifier=AdmitReceipts(), integration_witness=rebound.witness,
+        integration_verifier=verifier, expected_head=integration, actual_head=integration,
+        pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)), branch="codex/feature/example",
+        conclusion="closed", reasoning="durably reviewed", source="real-git-test", confidence="high",
+        clock=fixed_clock(START + timedelta(minutes=6)),
+    )
+    _commit_ledger(root, ledger_path, ledger, "reflection: close")
+    return root, ledger, ledger_path, chain
+
+
+def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path: str, chain: str, *,
+                               evidence_entry: str = "mse_0123456789abcdef",
+                               receipt_entry: str = "mse_1111111111111111") -> tuple[WorkstreamCompactionReceipt, str]:
+    """Create the exact ordinary-session / ledger-only two-commit proof pair."""
+    session_path = ".memory-seed/sessions/2026-09/2026-09-06.md"
+    session_file = root / Path(session_path)
+    records = tuple(record for record in ledger.records if record.chain_id == chain)
+    close = records[-1]
+    preliminary_members = tuple(
+        WorkstreamCompactionMemberReceipt(
+            chain, record.record_id, record.detail_digest, session_path, evidence_entry, "D1",
+            workstream_receipt_id(ledger.header.id_salt, ledger.header.workstream_id, chain, record.detail_digest),
+            "sha256:" + "1" * 64, "0" * 40, "0" * 40, "expired-unpromoted",
+        )
+        for record in sorted(records, key=lambda item: item.record_id)
+    )
+    preliminary_closure = WorkstreamCompactionClosureReceipt(
+        chain, close.record_id, close.detail_digest, session_path, evidence_entry, "D1", "0" * 40, "0" * 40,
+        "sha256:" + "2" * 64,
+    )
+    evidence_mappings = tuple(
+        reflection_ledger_module._member_session_mapping(ledger.header.workstream_id, member)
+        for member in preliminary_members
+    ) + (reflection_ledger_module._closure_session_mapping(preliminary_closure),)
+    session_file.parent.mkdir(parents=True, exist_ok=True)
+    previous_session = session_file.read_text(encoding="utf-8") if session_file.exists() else ""
+    session_file.write_text(previous_session + ("\n" if previous_session else "")
+                            + _session_entry("Evidence", evidence_entry, evidence_mappings), encoding="utf-8")
+    _git(root, "add", "--", session_path)
+    _git(root, "commit", "--quiet", "-m", "reflection: durable evidence")
+    evidence_commit = _git(root, "rev-parse", "HEAD")
+    evidence_blob = _git(root, "rev-parse", f"{evidence_commit}:{session_path}")
+    members = tuple(replace(item, commit=evidence_commit, blob=evidence_blob) for item in preliminary_members)
+    closure = replace(preliminary_closure, commit=evidence_commit, blob=evidence_blob)
+    pre_tip = evidence_commit
+    pre_blob = _git(root, "rev-parse", f"{pre_tip}:{ledger_path}")
+    post_raw = reflection_ledger_module._derive_compaction_post_bytes(
+        render_workstream_ledger(ledger).encode("utf-8"), ledger, (chain,), ledger_path,
+    )
+    ledger_file = root / Path(ledger_path)
+    ledger_file.write_bytes(post_raw)
+    _git(root, "add", "--", ledger_path)
+    _git(root, "commit", "--quiet", "-m", "reflection: compact closed chain")
+    cleanup = _git(root, "rev-parse", "HEAD")
+    post_blob = _git(root, "rev-parse", f"{cleanup}:{ledger_path}")
+    receipt = WorkstreamCompactionReceipt(
+        ledger.header.workstream_id, ledger_path, workstream_ledger_digest(render_workstream_ledger(ledger)),
+        workstream_ledger_digest(post_raw), pre_tip, pre_blob, cleanup, post_blob, (chain,),
+        tuple(sorted(record.record_id for record in records)), (closure,), members,
+        "closed chain retention expiry",
+    )
+    receipt_block = (
+        _session_entry("Compaction", receipt_entry)
+        + "### Reflection workstream compaction\n\n```yaml\n"
+        + render_workstream_compaction_receipt(receipt) + "```\n"
+    )
+    session_file.write_text(session_file.read_text(encoding="utf-8") + "\n" + receipt_block, encoding="utf-8")
+    _git(root, "add", "--", session_path)
+    _git(root, "commit", "--quiet", "-m", "reflection: record compaction", "-m", f"Memory-Entry: {receipt_entry}")
+    return receipt, _git(root, "rev-parse", "HEAD")
+
+
+def test_trusted_history_rejects_raw_sole_deletion_and_admits_exact_proof_pair(tmp_path):
+    root, ledger, ledger_path, chain = _closed_git_workstream(tmp_path)
+    raw = render_workstream_ledger(ledger)
+    (root / Path(ledger_path)).write_text(raw.split("## Record", 1)[0], encoding="utf-8")
+    _git(root, "add", "--", ledger_path)
+    _git(root, "commit", "--quiet", "-m", "forged tail deletion")
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert refused.value.diagnostic.code == "compaction-proof-missing"
+
+    # Reset this isolated test repository by constructing a separate valid proof
+    # path in a sibling repository rather than making the loader forgive a bad
+    # deletion that is reachable from the trusted ref.
+    valid_root, valid_ledger, valid_path, valid_chain = _closed_git_workstream(tmp_path / "valid")
+    _receipt, proof_head = _admit_real_git_compaction(valid_root, valid_ledger, valid_path, valid_chain)
+    loaded = load_trusted_workstream_ledger(
+        valid_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=valid_path,
+    )
+    assert loaded.validation == "admitted-compaction"
+    assert loaded.head == proof_head
+    assert len(loaded.proofs) == 1
+    assert loaded.raw == (valid_root / Path(valid_path)).read_bytes()
+    assert workstream_board_view(valid_root).exit_code == 1
+    trusted_board = workstream_board_view(valid_root, trusted_ref="refs/heads/codex/feature/example")
+    assert trusted_board.exit_code == 0 and trusted_board.items[0].ledger == loaded.ledger
+    suffix = preview_workstream_append_commit(
+        valid_root, trusted_ref="refs/heads/codex/feature/example", workstream_id=valid_ledger.header.workstream_id,
+        request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "fresh root", "reason", "real-git", "high"),
+        clock=fixed_clock(START + timedelta(minutes=7)),
+    )
+    assert apply_workstream_append_commit(valid_root, suffix).record_id == suffix.record_id
+    reloaded = load_trusted_workstream_ledger(
+        valid_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=valid_path,
+    )
+    assert reloaded.validation == "admitted-compaction"
+    assert reloaded.suffix_record_ids[-1] == suffix.record_id
+
+
+def test_trusted_history_rejects_raw_tail_deletion(tmp_path):
+    root, ledger, ledger_path, _chain = _closed_git_workstream(tmp_path)
+    raw = render_workstream_ledger(ledger)
+    # The closeout record is an exact final block, so removing it leaves
+    # otherwise canonical bytes but must still be history-classified.
+    tail_deleted = raw.rsplit("\n## Record ", 1)[0] + "\n"
+    (root / Path(ledger_path)).write_text(tail_deleted, encoding="utf-8")
+    _git(root, "add", "--", ledger_path)
+    _git(root, "commit", "--quiet", "-m", "forged tail deletion")
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert refused.value.diagnostic.code == "compaction-proof-missing"
+
+
+def test_trusted_history_rejects_raw_middle_chain_deletion(tmp_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    ledger = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                    now=START + timedelta(minutes=1))
+    removed_chain = ledger.records[-1].chain_id
+    _commit_ledger(root, ledger_path, ledger, "reflection: first root")
+    ledger = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                    now=START + timedelta(minutes=2))
+    _commit_ledger(root, ledger_path, ledger, "reflection: second root")
+    raw = reflection_ledger_module._derive_compaction_post_bytes(
+        render_workstream_ledger(ledger).encode("utf-8"), ledger, (removed_chain,), ledger_path,
+    )
+    (root / Path(ledger_path)).write_bytes(raw)
+    _git(root, "add", "--", ledger_path)
+    _git(root, "commit", "--quiet", "-m", "forged middle deletion")
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert refused.value.diagnostic.code == "compaction-proof-missing"
+
+
+def test_real_git_append_transaction_is_opaque_atomic_and_immediately_reloads(tmp_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    request = WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "real-git", "high")
+    first = preview_workstream_append_commit(
+        root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+        request=request, clock=fixed_clock(START + timedelta(minutes=1)),
+    )
+    result = apply_workstream_append_commit(root, first)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert result.new_head == loaded.head and result.record_id == loaded.ledger.records[-1].record_id
+
+    second = preview_workstream_append_commit(
+        root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+        request=WorkstreamAppendRequest("planner", loaded.ledger.records[-1].chain_id, "refines",
+                                        (loaded.ledger.records[-1].record_id,), False, "next", "reason", "real-git", "high"),
+        clock=fixed_clock(START + timedelta(minutes=2)),
+    )
+    assert apply_workstream_append_commit(root, second).ledger.records[-1].record_id == second.record_id
+
+    dirty = preview_workstream_append_commit(
+        root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+        request=WorkstreamAppendRequest("implementer", loaded.ledger.records[-1].chain_id, "refines",
+                                        (loaded.ledger.records[-1].record_id,), False, "later", "reason", "real-git", "high"),
+        clock=fixed_clock(START + timedelta(minutes=3)),
+    )
+    (root / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+    with pytest.raises(ReflectionValidationError) as dirty_error:
+        apply_workstream_append_commit(root, dirty)
+    assert dirty_error.value.diagnostic.code == "append-worktree-not-clean"
+    (root / "untracked.txt").unlink()
+    with pytest.raises(ReflectionValidationError) as failed_commit:
+        apply_workstream_append_commit(root, dirty, fault_injector=lambda stage: (_ for _ in ()).throw(RuntimeError("boom")) if stage == "before-commit" else None)
+    assert failed_commit.value.diagnostic.code == "append-commit-failed"
+    assert _git(root, "status", "--porcelain") == ""
+    (root / "staged.txt").write_text("staged\n", encoding="utf-8")
+    _git(root, "add", "staged.txt")
+    with pytest.raises(ReflectionValidationError) as staged_error:
+        apply_workstream_append_commit(root, dirty)
+    assert staged_error.value.diagnostic.code == "append-worktree-not-clean"
+
+
+def test_real_git_append_refuses_detached_head_and_cas_race_without_ledger_leak(tmp_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    request = WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "real-git", "high")
+    preview = preview_workstream_append_commit(
+        root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+        request=request, clock=fixed_clock(START + timedelta(minutes=1)),
+    )
+    head = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "--quiet", "--detach")
+    with pytest.raises(ReflectionValidationError) as detached:
+        apply_workstream_append_commit(root, preview)
+    assert detached.value.diagnostic.code == "append-detached-head"
+    _git(root, "checkout", "--quiet", "codex/feature/example")
+
+    preview = preview_workstream_append_commit(
+        root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+        request=request, clock=fixed_clock(START + timedelta(minutes=1)),
+    )
+    original = (root / Path(ledger_path)).read_bytes()
+    base = _git(root, "rev-parse", "HEAD^")
+
+    def move_ref(stage: str) -> None:
+        if stage == "before-cas":
+            _git(root, "update-ref", "refs/heads/codex/feature/example", base, head)
+
+    with pytest.raises(ReflectionValidationError) as raced:
+        apply_workstream_append_commit(root, preview, fault_injector=move_ref)
+    assert raced.value.diagnostic.code == "stale_ref"
+    assert (root / Path(ledger_path)).read_bytes() == original
+
+
+def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path):
+    root, initial, ledger_path, first_chain = _closed_git_workstream(tmp_path)
+    _admit_real_git_compaction(root, initial, ledger_path, first_chain)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+
+    def persist(request: WorkstreamAppendRequest, at: datetime) -> WorkstreamLedger:
+        preview = preview_workstream_append_commit(
+            root, trusted_ref="refs/heads/codex/feature/example", workstream_id=loaded.ledger.header.workstream_id,
+            request=request, clock=fixed_clock(at),
+        )
+        return apply_workstream_append_commit(root, preview).ledger
+
+    ledger = persist(WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "new root", "reason", "real-git", "high"),
+                     START + timedelta(minutes=7))
+    second_chain = ledger.records[-1].chain_id
+    root_record = ledger.records[-1].record_id
+    ledger = persist(WorkstreamAppendRequest("planner", second_chain, "refines", (root_record,), False,
+                                             "plan", "reason", "real-git", "high"), START + timedelta(minutes=8))
+    plan_record = ledger.records[-1].record_id
+    ledger = persist(WorkstreamAppendRequest("implementer", second_chain, "refines", (plan_record,), False,
+                                             "implement", "reason", "real-git", "high"), START + timedelta(minutes=9))
+    implement_record = ledger.records[-1].record_id
+    ledger = persist(WorkstreamAppendRequest("reviewer", second_chain, "refines", (implement_record,), False,
+                                             "review", "reason", "real-git", "high", to_phase="orchestrate"),
+                     START + timedelta(minutes=10))
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    rebind = loaded.ledger.rebinds[-1]
+    witness = TrustedIntegrationWitness(
+        loaded.ledger.header.workstream_id, rebind.record_id, rebind.from_branch, rebind.to_branch, rebind.source_tip,
+        rebind.target_pre_merge_tip, rebind.integration_commit, rebind.pre_ledger_digest,
+    )
+    receipts = [admitted_receipt_for(loaded.ledger, record) for record in loaded.ledger.records if record.chain_id == second_chain]
+    closed = plan_trusted_workstream_chain_close(
+        loaded, chain_id=second_chain, receipts=receipts, receipt_verifier=AdmitReceipts(), integration_witness=witness,
+        integration_verifier=_LocalBranchRebind(), conclusion="closed", reasoning="reviewed", source="real-git", confidence="high",
+        clock=fixed_clock(START + timedelta(minutes=11)),
+    )
+    _commit_ledger(root, ledger_path, closed, "reflection: close second chain")
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    expiry = preview_trusted_workstream_expiry(
+        loaded, chain_ids=(second_chain,), now=START + timedelta(days=8), receipts=[
+            admitted_receipt_for(loaded.ledger, record) for record in loaded.ledger.records if record.chain_id == second_chain
+        ], receipt_verifier=AdmitReceipts(), integration_witness=witness, integration_verifier=_LocalBranchRebind(),
+    )
+    assert expiry.removed_chain_ids == (second_chain,)
+    _admit_real_git_compaction(root, loaded.ledger, ledger_path, second_chain,
+                                evidence_entry="mse_2222222222222222", receipt_entry="mse_3333333333333333")
+    reloaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert reloaded.validation == "admitted-compaction"
+    assert len(reloaded.proofs) == 2

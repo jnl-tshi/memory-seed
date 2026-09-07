@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from hashlib import sha256, sha512
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping, Sequence
 import json
 import os
 import re
+import secrets
 import subprocess
 import unicodedata
 
@@ -1752,7 +1754,10 @@ def _commit(root: Path, ref: str) -> str | None:
     return output if code == 0 and isinstance(output, str) and re.fullmatch(r"[0-9a-f]{40}", output) else None
 
 
-def _tree_blob(root: Path, commit: str, path: str) -> ReflectionBlob | None:
+@lru_cache(maxsize=32768)
+def _cached_tree_blob(repository: str, commit: str, path: str) -> ReflectionBlob | None:
+    """Read immutable Git tree evidence; cache is derived-only and bounded."""
+    root = Path(repository)
     code, line = _git(root, "ls-tree", commit, "--", path)
     if code or not isinstance(line, str) or not line:
         return None
@@ -1765,6 +1770,10 @@ def _tree_blob(root: Path, commit: str, path: str) -> ReflectionBlob | None:
     if code or not isinstance(content, bytes):
         _fail("git", path, "could not read Git blob")
     return ReflectionBlob(path, match.group("oid"), sha256(content).hexdigest(), match.group("mode"), content)
+
+
+def _tree_blob(root: Path, commit: str, path: str) -> ReflectionBlob | None:
+    return _cached_tree_blob(str(root.resolve()), commit, path)
 
 
 def _changed_paths(root: Path, base: str, source: str, family: str) -> list[tuple[str, tuple[str, ...]]]:
@@ -2519,6 +2528,23 @@ def parse_workstream_ledger(raw: bytes | str, path: str = "ledger.md") -> Workst
     return ledger
 
 
+def _parse_compacted_workstream_ledger(raw: bytes | str, path: str) -> WorkstreamLedger:
+    """Parse canonical v2 bytes after, and only after, a trusted removal proof.
+
+    This deliberately has no public switch or caller-provided proof.  The
+    history loader invokes it only after binding the post-image to an admitted
+    cleanup pair and a byte-for-byte raw-block derivation.
+    """
+    header_value, blocks, text = _split_workstream_ledger(raw, path)
+    header = _header_from_dict(header_value, path)
+    entries = tuple(_parse_v2_entry(block, path) for block in blocks)
+    ledger = WorkstreamLedger(header, entries)
+    _validate_compacted_workstream_ledger(ledger, path)
+    if render_workstream_ledger(ledger) != text:
+        _fail("canonical-bytes", path, "ledger does not use the canonical v2 renderer")
+    return ledger
+
+
 def _detail_digest_for_record(record: WorkstreamRecord) -> str:
     return workstream_detail_digest(render_workstream_record(record, zero_detail_digest=True))
 
@@ -2550,8 +2576,8 @@ def workstream_chain_phase(ledger: WorkstreamLedger, chain_id: str) -> str:
     return records[-1].to_phase
 
 
-def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md", *, verify_predecessors: bool = True) -> None:
-    """Validate all v2 invariants that can be established from ledger bytes alone."""
+def _validate_workstream_ledger(ledger: WorkstreamLedger, path: str, *, verify_predecessors: bool) -> None:
+    """Internal structural validator; only trusted history admission may skip predecessors."""
     # Header construction is deliberately repeated so direct dataclass use cannot
     # evade schema, frozen preimage, or retention checks.
     _header_from_dict(ledger.header.as_dict(), path)
@@ -2635,6 +2661,16 @@ def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md"
             _fail("closed-at", entry_path, "closed_at is invalid")
         chains[entry.chain_id].append(entry)
         records_by_id[entry.record_id] = entry
+
+
+def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md") -> None:
+    """Strict standalone v2 validation, including every predecessor digest."""
+    _validate_workstream_ledger(ledger, path, verify_predecessors=True)
+
+
+def _validate_compacted_workstream_ledger(ledger: WorkstreamLedger, path: str) -> None:
+    """Private post-proof structural check; never a public parser escape hatch."""
+    _validate_workstream_ledger(ledger, path, verify_predecessors=False)
 
 
 @dataclass(frozen=True)
@@ -2790,8 +2826,12 @@ def _append_pre_digest(ledger: WorkstreamLedger) -> str:
 def _append_record(ledger: WorkstreamLedger, request: WorkstreamAppendRequest, *, created_at: str,
                    pre_ledger_digest: str, branch: str, active_ledgers: Iterable[WorkstreamLedger],
                    durable_receipts: Iterable[AdmittedWorkstreamReceipt],
-                   receipt_verifier: WorkstreamReceiptVerifier | None) -> WorkstreamRecord:
-    validate_workstream_ledger(ledger)
+                   receipt_verifier: WorkstreamReceiptVerifier | None,
+                   trusted_compacted: bool = False) -> WorkstreamRecord:
+    if trusted_compacted:
+        _validate_compacted_workstream_ledger(ledger, "trusted ledger append")
+    else:
+        validate_workstream_ledger(ledger)
     if branch != ledger.effective_branch:
         _fail("branch-owner", "ledger append", "branch is not the current effective ledger owner", expected=ledger.effective_branch, actual=branch)
     if request.role not in WORKSTREAM_ROLES:
@@ -2890,6 +2930,27 @@ def plan_workstream_append(ledger: WorkstreamLedger, request: WorkstreamAppendRe
                             receipt_verifier=receipt_verifier)
     result = WorkstreamLedger(ledger.header, ledger.entries + (record,))
     validate_workstream_ledger(result)
+    return result
+
+
+def _plan_trusted_workstream_append(loaded: "TrustedWorkstreamLedger", request: WorkstreamAppendRequest, *,
+                                    clock: Callable[[], datetime] | None = None,
+                                    active_ledgers: Iterable[WorkstreamLedger] = (),
+                                    durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                                    receipt_verifier: WorkstreamReceiptVerifier | None = None) -> WorkstreamLedger:
+    """Private planner for a ledger already admitted by trusted Git history."""
+    ledger = loaded.ledger
+    actual_digest = workstream_ledger_digest(loaded.raw)
+    created_at = _clock_timestamp(clock)
+    record = _append_record(ledger, request, created_at=created_at, pre_ledger_digest=actual_digest,
+                            branch=ledger.effective_branch, active_ledgers=active_ledgers,
+                            durable_receipts=durable_receipts, receipt_verifier=receipt_verifier,
+                            trusted_compacted=isinstance(loaded, AdmittedCompactedLedger))
+    result = WorkstreamLedger(ledger.header, ledger.entries + (record,))
+    if isinstance(loaded, AdmittedCompactedLedger):
+        _validate_compacted_workstream_ledger(result, "trusted ledger append")
+    else:
+        validate_workstream_ledger(result)
     return result
 
 
@@ -3089,8 +3150,15 @@ def _recover_v2_header(raw: bytes, path: str) -> tuple[str | None, str | None, s
         header.get("schema") if isinstance(header.get("schema"), str) else None
 
 
-def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTION_ROOT) -> WorkstreamBoardView:
-    """Read-only, complete projection of every immediate active-ledger candidate."""
+def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTION_ROOT,
+                          trusted_ref: str | None = None) -> WorkstreamBoardView:
+    """Read every active candidate, admitting compacted images only from a trusted ref.
+
+    Without ``trusted_ref`` the projection remains predecessor-strict and
+    therefore marks a compacted image malformed rather than treating an
+    arbitrary structural rewrite as valid.  A supplied ref never trusts the
+    worktree bytes: they must match the freshly classified committed blob.
+    """
     root = Path(cwd).resolve()
     active = root / Path(active_root)
     if not active.exists():
@@ -3109,9 +3177,20 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
         try:
             ledger = parse_workstream_ledger(raw, relative)
         except ReflectionValidationError as exc:
-            status = "unsupported" if schema is not None and schema != WORKSTREAM_LEDGER_SCHEMA else "malformed"
-            items.append(WorkstreamBoardItem(relative, status, raw_digest, workstream, branch, None, exc.diagnostic))
-            continue
+            if trusted_ref is not None and schema == WORKSTREAM_LEDGER_SCHEMA and workstream is not None:
+                try:
+                    trusted = load_trusted_workstream_ledger(root, trusted_ref=trusted_ref, ledger_path=relative)
+                    if trusted.raw != raw:
+                        _fail("stale_ledger_digest", relative, "working-tree board bytes differ from trusted ref")
+                    ledger = trusted.ledger
+                except ReflectionValidationError as trusted_exc:
+                    items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, workstream, branch, None,
+                                                      trusted_exc.diagnostic))
+                    continue
+            else:
+                status = "unsupported" if schema is not None and schema != WORKSTREAM_LEDGER_SCHEMA else "malformed"
+                items.append(WorkstreamBoardItem(relative, status, raw_digest, workstream, branch, None, exc.diagnostic))
+                continue
         if candidate.name != ledger.header.workstream_id:
             items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, ledger.header.workstream_id,
                                               ledger.header.working_branch, ledger.effective_branch,
@@ -3292,14 +3371,16 @@ def _receipt_coverage(ledger: WorkstreamLedger, receipts: Iterable[AdmittedWorks
     return covered
 
 
-def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[AdmittedWorkstreamReceipt],
-                                receipt_verifier: WorkstreamReceiptVerifier,
-                                integration_witness: TrustedIntegrationWitness,
-                                integration_verifier: TrustedRebindVerifier,
-                                expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
-                                conclusion: str, reasoning: str, source: str, confidence: str,
-                                clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
-    """Create the post-integration orchestrator close record for exactly one chain."""
+def _plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[AdmittedWorkstreamReceipt],
+                                 receipt_verifier: WorkstreamReceiptVerifier,
+                                 integration_witness: TrustedIntegrationWitness,
+                                 integration_verifier: TrustedRebindVerifier,
+                                 expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
+                                 conclusion: str, reasoning: str, source: str, confidence: str,
+                                 clock: Callable[[], datetime] | None = None,
+                                 verify_predecessors: bool = True) -> WorkstreamLedger:
+    """Internal close planner; predecessor relaxation is loader-owned only."""
+    _validate_workstream_ledger(ledger, "chain close", verify_predecessors=verify_predecessors)
     if branch != ledger.effective_branch:
         _fail("close-authority", "chain close", "close requires a trusted rebind on its integration branch")
     _validate_integration_witness(ledger, integration_witness, integration_verifier)
@@ -3322,8 +3403,24 @@ def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, rece
                              actual_digest, "sha256:" + "0" * 64, conclusion, reasoning)
     close = WorkstreamRecord(**{**draft.__dict__, "detail_digest": _detail_digest_for_record(draft)})
     result = WorkstreamLedger(ledger.header, ledger.entries + (close,))
-    validate_workstream_ledger(result)
+    _validate_workstream_ledger(result, "chain close", verify_predecessors=verify_predecessors)
     return result
+
+
+def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, receipts: Iterable[AdmittedWorkstreamReceipt],
+                                receipt_verifier: WorkstreamReceiptVerifier,
+                                integration_witness: TrustedIntegrationWitness,
+                                integration_verifier: TrustedRebindVerifier,
+                                expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
+                                conclusion: str, reasoning: str, source: str, confidence: str,
+                                clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    """Create the post-integration orchestrator close record for a strict v2 ledger."""
+    return _plan_workstream_chain_close(
+        ledger, chain_id=chain_id, receipts=receipts, receipt_verifier=receipt_verifier,
+        integration_witness=integration_witness, integration_verifier=integration_verifier,
+        expected_head=expected_head, actual_head=actual_head, pre_ledger_digest=pre_ledger_digest, branch=branch,
+        conclusion=conclusion, reasoning=reasoning, source=source, confidence=confidence, clock=clock,
+    )
 
 
 @dataclass(frozen=True)
@@ -3357,13 +3454,14 @@ def _validate_expiry_dependencies(ledger: WorkstreamLedger, removed_chain_ids: s
                 _fail("dependency", "ledger expiry", "open dependent lacks a durable fallback for removed target", record_id=record.record_id)
 
 
-def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, chain_ids: Iterable[str], now: datetime,
-                               receipts: Iterable[AdmittedWorkstreamReceipt], receipt_verifier: WorkstreamReceiptVerifier,
-                               integration_witness: TrustedIntegrationWitness,
-                               integration_verifier: TrustedRebindVerifier,
-                               early_approval: EarlyExpiryApproval | None = None,
-                               early_approval_verifier: EarlyExpiryApprovalVerifier | None = None) -> WorkstreamExpiryPreview:
-    validate_workstream_ledger(ledger)
+def _preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, chain_ids: Iterable[str], now: datetime,
+                                receipts: Iterable[AdmittedWorkstreamReceipt], receipt_verifier: WorkstreamReceiptVerifier,
+                                integration_witness: TrustedIntegrationWitness,
+                                integration_verifier: TrustedRebindVerifier,
+                                early_approval: EarlyExpiryApproval | None = None,
+                                early_approval_verifier: EarlyExpiryApprovalVerifier | None = None,
+                                verify_predecessors: bool = True) -> WorkstreamExpiryPreview:
+    _validate_workstream_ledger(ledger, "ledger expiry", verify_predecessors=verify_predecessors)
     _validate_integration_witness(ledger, integration_witness, integration_verifier)
     early = early_approval is not None
     selected = tuple(sorted(set(chain_ids)))
@@ -3390,13 +3488,26 @@ def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, c
     _validate_expiry_dependencies(ledger, set(selected))
     retained = tuple(entry for entry in ledger.entries if not (isinstance(entry, WorkstreamRecord) and entry.chain_id in set(selected)))
     post = WorkstreamLedger(ledger.header, retained)
-    # Compaction deliberately removes historical blocks without rewriting the
-    # surviving immutable record IDs/preimages.  Normal parser/append paths
-    # always recompute predecessor digests; this one-shot post-image has just
-    # been derived from a verified pre-image and is checked structurally here.
-    validate_workstream_ledger(post, verify_predecessors=False)
+    # The resulting image can only become readable through the trusted-history
+    # admission proof.  Public parsing and validation remain predecessor-strict.
+    _validate_compacted_workstream_ledger(post, "ledger expiry post-image")
     removed = tuple(sorted(record.record_id for record in ledger.records if record.chain_id in set(selected)))
     return WorkstreamExpiryPreview(expected_head, _append_pre_digest(ledger), selected, removed, _append_pre_digest(post), post)
+
+
+def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, chain_ids: Iterable[str], now: datetime,
+                               receipts: Iterable[AdmittedWorkstreamReceipt], receipt_verifier: WorkstreamReceiptVerifier,
+                               integration_witness: TrustedIntegrationWitness,
+                               integration_verifier: TrustedRebindVerifier,
+                               early_approval: EarlyExpiryApproval | None = None,
+                               early_approval_verifier: EarlyExpiryApprovalVerifier | None = None) -> WorkstreamExpiryPreview:
+    """Preview expiry for a predecessor-strict v2 ledger image."""
+    return _preview_workstream_expiry(
+        ledger, expected_head=expected_head, chain_ids=chain_ids, now=now, receipts=receipts,
+        receipt_verifier=receipt_verifier, integration_witness=integration_witness,
+        integration_verifier=integration_verifier, early_approval=early_approval,
+        early_approval_verifier=early_approval_verifier,
+    )
 
 
 def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryPreview, *, actual_head: str,
@@ -3412,6 +3523,965 @@ def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryP
     if _append_pre_digest(preview.post_ledger) != preview.post_ledger_digest:
         _fail("expiry", "ledger expiry", "expiry preview post bytes no longer match their digest")
     return preview.post_ledger
+
+
+# --- Trusted v2 compaction history ----------------------------------------
+#
+# A compacted image is intentionally not a second ledger format.  These types
+# describe Git/session evidence for a single, already-rendered v2 image; all
+# authority remains in the committed tree and ordinary session entry.
+
+MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS = 4096
+TRUSTED_LEDGER_HISTORY_PAGE_SIZE = 128
+TRUSTED_LEDGER_HISTORY_VERSION = 1
+WORKSTREAM_COMPACTION_SCHEMA = "memory-seed/reflection-workstream-compaction"
+WORKSTREAM_COMPACTION_FIELDS = (
+    "schema", "version", "workstream_id", "ledger_path", "pre_ledger_digest", "post_ledger_digest",
+    "pre_tip", "pre_blob", "cleanup_commit", "post_blob", "removed_chain_ids", "removed_record_ids",
+    "closure_receipts", "member_receipts", "reason", "git_blobs_remain", "privacy_grade_erasure",
+)
+WORKSTREAM_COMPACTION_CLOSURE_FIELDS = (
+    "chain_id", "closed_record_id", "closed_record_digest", "session_path", "entry_id", "decision_id",
+    "commit", "blob", "receipt_digest",
+)
+WORKSTREAM_COMPACTION_MEMBER_FIELDS = (
+    "chain_id", "record_id", "detail_digest", "session_path", "entry_id", "decision_id", "receipt_id",
+    "receipt_digest", "commit", "blob", "disposition",
+)
+
+
+def _git_oid_40(value: Any, path: str, field_name: str) -> str:
+    value = _text(value, path, field_name)
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        _fail("git-oid", path, "field must be a 40-character lowercase Git object ID", field=field_name, value=value)
+    return value
+
+
+def _compaction_entry_id(value: Any, path: str) -> str:
+    value = _text(value, path, "entry_id")
+    if not SESSION_ENTRY_ID_RE.fullmatch(value):
+        _fail("compaction-proof", path, "entry_id is not a canonical session entry ID")
+    return value
+
+
+def _compaction_decision_id(value: Any, path: str) -> str:
+    value = _text(value, path, "decision_id")
+    if not SESSION_DECISION_ID_RE.fullmatch(value):
+        _fail("compaction-proof", path, "decision_id is not a canonical session decision locator")
+    return value
+
+
+def _compaction_ledger_path(value: Any, path: str) -> str:
+    value = _text(value, path, "ledger_path")
+    candidate = PurePosixPath(value)
+    if (candidate.is_absolute() or ".." in candidate.parts or "\\" in value or value != candidate.as_posix()
+            or not value.startswith(f"{REFLECTION_ROOT}/") or not value.endswith(f"/{WORKSTREAM_LEDGER_NAME}")):
+        _fail("compaction-proof", path, "ledger_path is not the canonical active v2 ledger path")
+    return value
+
+
+@dataclass(frozen=True)
+class WorkstreamCompactionClosureReceipt:
+    chain_id: str
+    closed_record_id: str
+    closed_record_digest: str
+    session_path: str
+    entry_id: str
+    decision_id: str
+    commit: str
+    blob: str
+    receipt_digest: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "chain_id": self.chain_id, "closed_record_id": self.closed_record_id,
+            "closed_record_digest": self.closed_record_digest, "session_path": self.session_path,
+            "entry_id": self.entry_id, "decision_id": self.decision_id, "commit": self.commit,
+            "blob": self.blob, "receipt_digest": self.receipt_digest,
+        }
+
+
+@dataclass(frozen=True)
+class WorkstreamCompactionMemberReceipt:
+    chain_id: str
+    record_id: str
+    detail_digest: str
+    session_path: str
+    entry_id: str
+    decision_id: str
+    receipt_id: str
+    receipt_digest: str
+    commit: str
+    blob: str
+    disposition: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "chain_id": self.chain_id, "record_id": self.record_id, "detail_digest": self.detail_digest,
+            "session_path": self.session_path, "entry_id": self.entry_id, "decision_id": self.decision_id,
+            "receipt_id": self.receipt_id, "receipt_digest": self.receipt_digest, "commit": self.commit,
+            "blob": self.blob, "disposition": self.disposition,
+        }
+
+
+@dataclass(frozen=True)
+class WorkstreamCompactionReceipt:
+    workstream_id: str
+    ledger_path: str
+    pre_ledger_digest: str
+    post_ledger_digest: str
+    pre_tip: str
+    pre_blob: str
+    cleanup_commit: str
+    post_blob: str
+    removed_chain_ids: tuple[str, ...]
+    removed_record_ids: tuple[str, ...]
+    closure_receipts: tuple[WorkstreamCompactionClosureReceipt, ...]
+    member_receipts: tuple[WorkstreamCompactionMemberReceipt, ...]
+    reason: str
+    git_blobs_remain: bool = True
+    privacy_grade_erasure: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": WORKSTREAM_COMPACTION_SCHEMA, "version": 1, "workstream_id": self.workstream_id,
+            "ledger_path": self.ledger_path, "pre_ledger_digest": self.pre_ledger_digest,
+            "post_ledger_digest": self.post_ledger_digest, "pre_tip": self.pre_tip, "pre_blob": self.pre_blob,
+            "cleanup_commit": self.cleanup_commit, "post_blob": self.post_blob,
+            "removed_chain_ids": list(self.removed_chain_ids), "removed_record_ids": list(self.removed_record_ids),
+            "closure_receipts": [item.as_dict() for item in self.closure_receipts],
+            "member_receipts": [item.as_dict() for item in self.member_receipts], "reason": self.reason,
+            "git_blobs_remain": self.git_blobs_remain, "privacy_grade_erasure": self.privacy_grade_erasure,
+        }
+
+
+def _compaction_closure_from_dict(value: Any, path: str) -> WorkstreamCompactionClosureReceipt:
+    if not isinstance(value, Mapping):
+        _fail("compaction-proof", path, "closure receipt must be a mapping")
+    _required(value, WORKSTREAM_COMPACTION_CLOSURE_FIELDS, path)
+    _only(value, WORKSTREAM_COMPACTION_CLOSURE_FIELDS, path)
+    return WorkstreamCompactionClosureReceipt(
+        _id(value["chain_id"], "rlc_", path, "chain_id"), _id(value["closed_record_id"], "rlr_", path, "closed_record_id"),
+        _digest(value["closed_record_digest"], path, "closed_record_digest"),
+        _session_path(value["session_path"], path, "session_path"), _compaction_entry_id(value["entry_id"], path),
+        _compaction_decision_id(value["decision_id"], path), _git_oid_40(value["commit"], path, "commit"),
+        _git_oid_40(value["blob"], path, "blob"), _digest(value["receipt_digest"], path, "receipt_digest"),
+    )
+
+
+def _compaction_member_from_dict(value: Any, path: str) -> WorkstreamCompactionMemberReceipt:
+    if not isinstance(value, Mapping):
+        _fail("compaction-proof", path, "member receipt must be a mapping")
+    _required(value, WORKSTREAM_COMPACTION_MEMBER_FIELDS, path)
+    _only(value, WORKSTREAM_COMPACTION_MEMBER_FIELDS, path)
+    disposition = _text(value["disposition"], path, "disposition")
+    if disposition not in WORKSTREAM_RECEIPT_DISPOSITIONS:
+        _fail("compaction-proof", path, "member receipt disposition is not canonical", disposition=disposition)
+    return WorkstreamCompactionMemberReceipt(
+        _id(value["chain_id"], "rlc_", path, "chain_id"), _id(value["record_id"], "rlr_", path, "record_id"),
+        _digest(value["detail_digest"], path, "detail_digest"), _session_path(value["session_path"], path, "session_path"),
+        _compaction_entry_id(value["entry_id"], path), _compaction_decision_id(value["decision_id"], path),
+        _id(value["receipt_id"], "rrc_", path, "receipt_id"), _digest(value["receipt_digest"], path, "receipt_digest"),
+        _git_oid_40(value["commit"], path, "commit"), _git_oid_40(value["blob"], path, "blob"), disposition,
+    )
+
+
+def _sorted_compaction(values: Iterable[Any], key: Callable[[Any], Any], path: str, field_name: str) -> tuple[Any, ...]:
+    result = tuple(values)
+    keys = tuple(key(item) for item in result)
+    if keys != tuple(sorted(keys)) or len(set(keys)) != len(keys):
+        _fail("canonical-order", path, "receipt collection must be sorted and unique", field=field_name)
+    return result
+
+
+def workstream_compaction_receipt_from_dict(value: Mapping[str, Any], path: str = "compaction.yaml") -> WorkstreamCompactionReceipt:
+    _required(value, WORKSTREAM_COMPACTION_FIELDS, path)
+    _only(value, WORKSTREAM_COMPACTION_FIELDS, path)
+    if value["schema"] != WORKSTREAM_COMPACTION_SCHEMA or value["version"] != 1:
+        _fail("compaction-proof", path, "unsupported compaction receipt schema/version")
+    chains_value, records_value = value["removed_chain_ids"], value["removed_record_ids"]
+    if not isinstance(chains_value, list) or not isinstance(records_value, list):
+        _fail("compaction-proof", path, "removed IDs must be canonical lists")
+    chains = _sorted_unique([_id(item, "rlc_", path, "removed_chain_ids") for item in chains_value], path, "removed_chain_ids")
+    records = _sorted_unique([_id(item, "rlr_", path, "removed_record_ids") for item in records_value], path, "removed_record_ids")
+    closures_value, members_value = value["closure_receipts"], value["member_receipts"]
+    if not isinstance(closures_value, list) or not isinstance(members_value, list) or not closures_value or not members_value:
+        _fail("compaction-proof", path, "compaction receipt requires closure and member receipt coverage")
+    closures = _sorted_compaction((_compaction_closure_from_dict(item, path) for item in closures_value),
+                                  lambda item: item.chain_id, path, "closure_receipts")
+    members = _sorted_compaction((_compaction_member_from_dict(item, path) for item in members_value),
+                                 lambda item: (item.chain_id, item.record_id), path, "member_receipts")
+    if value["git_blobs_remain"] is not True or value["privacy_grade_erasure"] is not False:
+        _fail("compaction-proof", path, "compaction disclosure must state Git blob retention and no privacy erasure")
+    return WorkstreamCompactionReceipt(
+        _id(value["workstream_id"], "rwl_", path, "workstream_id"), _compaction_ledger_path(value["ledger_path"], path),
+        _digest(value["pre_ledger_digest"], path, "pre_ledger_digest"), _digest(value["post_ledger_digest"], path, "post_ledger_digest"),
+        _git_oid_40(value["pre_tip"], path, "pre_tip"), _git_oid_40(value["pre_blob"], path, "pre_blob"),
+        _git_oid_40(value["cleanup_commit"], path, "cleanup_commit"), _git_oid_40(value["post_blob"], path, "post_blob"),
+        chains, records, closures, members, _text(value["reason"], path, "reason"), True, False,
+    )
+
+
+def render_workstream_compaction_receipt(receipt: WorkstreamCompactionReceipt) -> str:
+    parsed = workstream_compaction_receipt_from_dict(receipt.as_dict())
+    values = parsed.as_dict()
+    return _v2_yaml_mapping([(name, values[name]) for name in WORKSTREAM_COMPACTION_FIELDS])
+
+
+def parse_workstream_compaction_receipt(raw: bytes | str, path: str = "compaction.yaml") -> WorkstreamCompactionReceipt:
+    text = _canonical_text(raw, path)
+    receipt = workstream_compaction_receipt_from_dict(_parse_yaml_mapping(text, path), path)
+    if render_workstream_compaction_receipt(receipt) != text:
+        _fail("canonical-bytes", path, "compaction receipt is not canonical")
+    return receipt
+
+
+def _raw_workstream_blocks(raw: bytes, path: str) -> tuple[bytes, tuple[bytes, ...]]:
+    """Return raw immutable header/block spans without re-rendering them."""
+    text = _canonical_text(raw, path)
+    end = text.find("\n---\n", 4)
+    if not text.startswith("---\n") or end < 0:
+        _fail("compaction-proof", path, "ledger has no canonical header span")
+    prefix = text[:end + 5].encode("utf-8")
+    body = text[end + 5:]
+    if not body:
+        return prefix, ()
+    if not body.startswith("\n"):
+        _fail("compaction-proof", path, "ledger blocks lack canonical header separator")
+    body = body[1:]
+    starts = list(re.finditer(r"^## (?:Record|Rebind) [^\n]+\n", body, re.MULTILINE))
+    if not starts or starts[0].start() != 0:
+        _fail("compaction-proof", path, "ledger block scanner found noncanonical body")
+    blocks: list[bytes] = []
+    for index, match in enumerate(starts):
+        stop = starts[index + 1].start() if index + 1 < len(starts) else len(body)
+        part = body[match.start():stop]
+        if index + 1 < len(starts):
+            if not part.endswith("\n\n"):
+                _fail("compaction-proof", path, "intermediate block separator is not canonical")
+            part = part[:-1]
+        if not part.endswith("\n"):
+            _fail("compaction-proof", path, "block has no final LF")
+        blocks.append(part.encode("utf-8"))
+    return prefix, tuple(blocks)
+
+
+def _derive_compaction_post_bytes(pre_raw: bytes, pre_ledger: WorkstreamLedger, removed_chain_ids: Iterable[str], path: str) -> bytes:
+    """Remove whole record-chain spans while preserving every survivor byte."""
+    selected = set(removed_chain_ids)
+    prefix, blocks = _raw_workstream_blocks(pre_raw, path)
+    if len(blocks) != len(pre_ledger.entries):
+        _fail("compaction-proof", path, "raw block scanner and parsed ledger disagree")
+    retained: list[bytes] = []
+    for entry, block in zip(pre_ledger.entries, blocks):
+        if isinstance(entry, TrustedRebind):
+            retained.append(block)
+        elif entry.chain_id not in selected:
+            retained.append(block)
+    if not retained:
+        return prefix
+    return prefix + b"\n" + b"\n".join(retained)
+
+
+@dataclass(frozen=True)
+class WorkstreamCompactionProof:
+    receipt: WorkstreamCompactionReceipt
+    receipt_commit: str
+    receipt_session_path: str
+    receipt_blob: str
+    entry_id: str
+
+
+@dataclass(frozen=True)
+class NormalTrustedLedger:
+    repository: str
+    trusted_ref: str
+    head: str
+    ledger_path: str
+    ledger_blob: str
+    raw: bytes
+    ledger: WorkstreamLedger
+    history_fingerprint: str
+    validation: str = "normal"
+
+
+@dataclass(frozen=True)
+class AdmittedCompactedLedger:
+    repository: str
+    trusted_ref: str
+    head: str
+    ledger_path: str
+    ledger_blob: str
+    raw: bytes
+    ledger: WorkstreamLedger
+    history_fingerprint: str
+    proofs: tuple[WorkstreamCompactionProof, ...]
+    suffix_record_ids: tuple[str, ...]
+    validation: str = "admitted-compaction"
+
+
+TrustedWorkstreamLedger = NormalTrustedLedger | AdmittedCompactedLedger
+
+
+@dataclass(frozen=True)
+class _LedgerTransition:
+    commit: str
+    parent: str
+    parent_blob: ReflectionBlob
+    blob: ReflectionBlob
+
+
+@lru_cache(maxsize=32768)
+def _cached_git_commit_parents(repository: str, commit: str) -> tuple[str, ...]:
+    root = Path(repository)
+    code, output = _git(root, "rev-list", "--parents", "-n", "1", commit)
+    fields = output.split() if code == 0 and isinstance(output, str) else []
+    if not fields or fields[0] != commit or any(not re.fullmatch(r"[0-9a-f]{40}", field) for field in fields):
+        _fail("compaction-proof-history-missing", str(root), "could not resolve Git commit parents", commit=commit)
+    return tuple(fields[1:])
+
+
+def _git_commit_parents(root: Path, commit: str) -> tuple[str, ...]:
+    return _cached_git_commit_parents(str(root.resolve()), commit)
+
+
+@lru_cache(maxsize=32768)
+def _cached_git_is_ancestor(repository: str, ancestor: str, descendant: str) -> bool:
+    root = Path(repository)
+    code, _output = _git(root, "merge-base", "--is-ancestor", ancestor, descendant)
+    return code == 0
+
+
+def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    return _cached_git_is_ancestor(str(root.resolve()), ancestor, descendant)
+
+
+@lru_cache(maxsize=32768)
+def _cached_git_changed_tree_paths(repository: str, parent: str, child: str) -> tuple[str, ...]:
+    root = Path(repository)
+    code, output = _git(root, "diff-tree", "--no-commit-id", "-r", "--name-only", "-z", parent, child, binary=True)
+    if code or not isinstance(output, bytes):
+        _fail("compaction-proof-tree", str(root), "could not inspect restricted Git tree diff")
+    fields = tuple(item for item in output.decode("utf-8", errors="strict").split("\0") if item)
+    return fields
+
+
+def _git_changed_tree_paths(root: Path, parent: str, child: str) -> tuple[str, ...]:
+    return _cached_git_changed_tree_paths(str(root.resolve()), parent, child)
+
+
+@lru_cache(maxsize=32768)
+def _cached_git_commit_message(repository: str, commit: str) -> str:
+    root = Path(repository)
+    code, output = _git(root, "show", "-s", "--format=%B", commit)
+    if code or not isinstance(output, str):
+        _fail("compaction-proof-session", str(root), "could not read receipt commit message", commit=commit)
+    return output
+
+
+def _git_commit_message(root: Path, commit: str) -> str:
+    return _cached_git_commit_message(str(root.resolve()), commit)
+
+
+def clear_trusted_workstream_history_cache() -> None:
+    """Discard derived Git-object caches; never touches authoritative files."""
+    for cached in (_cached_tree_blob, _cached_git_commit_parents, _cached_git_is_ancestor,
+                   _cached_git_changed_tree_paths, _cached_git_commit_message):
+        cached.cache_clear()
+
+
+def _require_memory_entry_trailer(root: Path, commit: str, entry_id: str) -> None:
+    message = _git_commit_message(root, commit).rstrip()
+    trailers = re.findall(r"(?m)^Memory-Entry: ([^\n]+)$", message)
+    if trailers != [entry_id] or not message.endswith(f"Memory-Entry: {entry_id}"):
+        _fail("compaction-proof-session", "commit message", "receipt commit needs one final matching Memory-Entry trailer",
+              commit=commit, entry_id=entry_id)
+
+
+def _session_compaction_entries(raw: bytes, path: str) -> tuple[tuple[str, WorkstreamCompactionReceipt], ...]:
+    """Find canonical receipt fences within individually identified session entries."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        _fail("compaction-proof-session", path, "session receipt is not UTF-8", reason=str(exc))
+    if "\r" in text or unicodedata.normalize("NFC", text) != text:
+        _fail("compaction-proof-session", path, "session receipt must use NFC UTF-8 and LF")
+    starts = list(re.finditer(r"^## [^\n]+\n\n```yaml\n(?P<meta>.*?)```\n", text, re.MULTILINE | re.DOTALL))
+    result: list[tuple[str, WorkstreamCompactionReceipt]] = []
+    for index, start in enumerate(starts):
+        stop = starts[index + 1].start() if index + 1 < len(starts) else len(text)
+        try:
+            metadata = _parse_yaml_mapping(start.group("meta"), path)
+        except ReflectionValidationError:
+            continue
+        entry_id = metadata.get("entry_id")
+        if not isinstance(entry_id, str) or not SESSION_ENTRY_ID_RE.fullmatch(entry_id):
+            continue
+        entry = text[start.start():stop]
+        fences = list(re.finditer(r"^### Reflection workstream compaction\n\n```yaml\n(?P<body>.*?)```\n",
+                                entry, re.MULTILINE | re.DOTALL))
+        if len(fences) > 1:
+            _fail("compaction-proof-session", path, "session entry has multiple compaction receipts", entry_id=entry_id)
+        if not fences:
+            continue
+        body = fences[0].group("body")
+        receipt = parse_workstream_compaction_receipt(body, path)
+        result.append((entry_id, receipt))
+    return tuple(result)
+
+
+def _session_has_exact_yaml_mapping(raw: bytes, path: str, expected: Mapping[str, Any]) -> bool:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    for fence in re.finditer(r"```yaml\n(?P<body>.*?)```", text, re.DOTALL):
+        try:
+            value = _parse_yaml_mapping(fence.group("body"), path)
+        except ReflectionValidationError:
+            continue
+        if value == dict(expected):
+            return True
+    return False
+
+
+def _member_session_mapping(workstream_id_value: str, receipt: WorkstreamCompactionMemberReceipt) -> dict[str, str]:
+    return {
+        "workstream_id": workstream_id_value, "chain_id": receipt.chain_id, "record_id": receipt.record_id,
+        "detail_digest": receipt.detail_digest, "session_path": receipt.session_path, "entry_id": receipt.entry_id,
+        "decision_id": receipt.decision_id, "receipt_id": receipt.receipt_id, "receipt_digest": receipt.receipt_digest,
+        "disposition": receipt.disposition,
+    }
+
+
+def _closure_session_mapping(receipt: WorkstreamCompactionClosureReceipt) -> dict[str, str]:
+    return {
+        "chain_id": receipt.chain_id, "closed_record_id": receipt.closed_record_id,
+        "closed_record_digest": receipt.closed_record_digest, "session_path": receipt.session_path,
+        "entry_id": receipt.entry_id, "decision_id": receipt.decision_id, "receipt_digest": receipt.receipt_digest,
+    }
+
+
+def _read_session_blob(root: Path, commit: str, session_path: str, blob: str, *, before: str) -> bytes:
+    if not _git_is_ancestor(root, commit, before):
+        _fail("compaction-proof-reachability", session_path, "receipt session commit is not reachable before cleanup", commit=commit)
+    item = _tree_blob(root, commit, session_path)
+    if item is None or item.mode != CANONICAL_MODE or item.oid != blob:
+        _fail("compaction-proof-session", session_path, "receipt session locator does not bind its committed blob")
+    return item.content
+
+
+def _validate_compaction_coverage(root: Path, receipt: WorkstreamCompactionReceipt, pre_ledger: WorkstreamLedger,
+                                  cleanup_commit: str) -> None:
+    records_by_id = {record.record_id: record for record in pre_ledger.records}
+    chains = _records_by_chain(pre_ledger)
+    selected = set(receipt.removed_chain_ids)
+    expected_ids = tuple(sorted(record.record_id for chain in selected for record in chains.get(chain, ())))
+    if not selected or tuple(receipt.removed_record_ids) != expected_ids:
+        _fail("compaction-proof-coverage", receipt.ledger_path, "removed record IDs are not exactly the selected complete chains")
+    if any(chain not in chains for chain in selected):
+        _fail("compaction-proof-coverage", receipt.ledger_path, "receipt names an unknown removed chain")
+    expected_closures: dict[str, WorkstreamRecord] = {}
+    for chain in selected:
+        chain_records = chains[chain]
+        close = chain_records[-1]
+        if close.to_phase != "closed" or close.closed_at is None:
+            _fail("compaction-proof-coverage", receipt.ledger_path, "removed chain is not closed", chain_id=chain)
+        expected_closures[chain] = close
+    if {item.chain_id for item in receipt.closure_receipts} != selected:
+        _fail("compaction-proof-coverage", receipt.ledger_path, "closure receipts do not cover every removed chain")
+    if {(item.chain_id, item.record_id) for item in receipt.member_receipts} != {
+        (record.chain_id, record.record_id) for record in records_by_id.values() if record.chain_id in selected
+    }:
+        _fail("compaction-proof-coverage", receipt.ledger_path, "member receipts do not cover every removed record")
+    for closure in receipt.closure_receipts:
+        close = expected_closures[closure.chain_id]
+        if closure.closed_record_id != close.record_id or closure.closed_record_digest != close.detail_digest:
+            _fail("compaction-proof-coverage", receipt.ledger_path, "closure receipt does not bind the closed chain head")
+        raw = _read_session_blob(root, closure.commit, closure.session_path, closure.blob, before=cleanup_commit)
+        if not _session_has_exact_yaml_mapping(raw, closure.session_path, _closure_session_mapping(closure)):
+            _fail("compaction-proof-session", closure.session_path, "committed session lacks exact closure receipt")
+    for member in receipt.member_receipts:
+        record = records_by_id.get(member.record_id)
+        if record is None or record.chain_id != member.chain_id or record.detail_digest != member.detail_digest:
+            _fail("compaction-proof-coverage", receipt.ledger_path, "member receipt does not bind a removed record")
+        raw = _read_session_blob(root, member.commit, member.session_path, member.blob, before=cleanup_commit)
+        if not _session_has_exact_yaml_mapping(raw, member.session_path, _member_session_mapping(receipt.workstream_id, member)):
+            _fail("compaction-proof-session", member.session_path, "committed session lacks exact member receipt")
+
+
+def _session_compaction_candidates(root: Path, trusted_head: str, base_sha: str) -> tuple[tuple[WorkstreamCompactionReceipt, str, str, str], ...]:
+    """Scan only committed ordinary-session changes reachable from the trusted head."""
+    code, output = _git(root, "rev-list", "--reverse", f"{base_sha}..{trusted_head}")
+    commits = output.splitlines() if code == 0 and isinstance(output, str) else []
+    if len(commits) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+        _fail("compaction-proof-history-limit", str(root), "session proof scan exceeds the bounded history limit")
+    result: list[tuple[WorkstreamCompactionReceipt, str, str, str]] = []
+    for commit in commits:
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            _fail("compaction-proof-history-missing", str(root), "history scan returned an invalid commit")
+        parents = _git_commit_parents(root, commit)
+        if len(parents) != 1:
+            continue
+        for changed in _git_changed_tree_paths(root, parents[0], commit):
+            if not changed.startswith(SESSION_ROOT):
+                continue
+            blob = _tree_blob(root, commit, changed)
+            if blob is None or blob.mode != CANONICAL_MODE:
+                continue
+            parent_blob = _tree_blob(root, parents[0], changed)
+            if parent_blob is not None and parent_blob.mode != CANONICAL_MODE:
+                _fail("compaction-proof-session", changed, "prior ordinary-session entry is not a regular Git blob")
+            prior = set(_session_compaction_entries(parent_blob.content, changed)) if parent_blob is not None else set()
+            # A later edit to the same session file must not re-admit every
+            # historic receipt it happens to carry.  Only the canonical receipt
+            # entry introduced by this exact commit is a candidate proof.
+            for entry_id, receipt in _session_compaction_entries(blob.content, changed):
+                if (entry_id, receipt) in prior:
+                    continue
+                result.append((receipt, commit, changed, entry_id))
+    return tuple(result)
+
+
+def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, ReflectionBlob, tuple[_LedgerTransition, ...]]:
+    """Follow the one allowed ledger-bearing parent chain, newest to genesis."""
+    current = head
+    reverse: list[_LedgerTransition] = []
+    seen: set[str] = set()
+    while True:
+        if current in seen:
+            _fail("compaction-proof-history-ambiguous", ledger_path, "ledger Git lineage contains a cycle")
+        seen.add(current)
+        blob = _tree_blob(root, current, ledger_path)
+        if blob is None:
+            _fail("compaction-proof-history-missing", ledger_path, "trusted head lacks the active ledger path", head=current)
+        if blob.mode != CANONICAL_MODE:
+            _fail("mode", ledger_path, "trusted ledger must be a regular 100644 Git blob", mode=blob.mode)
+        parents = _git_commit_parents(root, current)
+        if not parents:
+            return current, blob, tuple(reversed(reverse))
+        parent_blobs = [(parent, _tree_blob(root, parent, ledger_path)) for parent in parents]
+        ledger_parents = [(parent, item) for parent, item in parent_blobs if item is not None]
+        if len(parents) > 1:
+            if len(ledger_parents) != 1:
+                _fail("compaction-proof-history-ambiguous", ledger_path,
+                      "merge must have exactly one ledger-bearing parent", commit=current)
+            parent, parent_blob = ledger_parents[0]
+        else:
+            parent, parent_blob = parent_blobs[0]
+        if parent_blob is None:
+            return current, blob, tuple(reversed(reverse))
+        if parent_blob.mode != CANONICAL_MODE:
+            _fail("mode", ledger_path, "ledger parent must be a regular 100644 Git blob", mode=parent_blob.mode)
+        if parent_blob.oid != blob.oid:
+            reverse.append(_LedgerTransition(current, parent, parent_blob, blob))
+            if len(reverse) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+                _fail("compaction-proof-history-limit", ledger_path, "ledger history exceeds the bounded transition limit")
+        current = parent
+
+
+def _parse_initial_trusted_ledger(raw: bytes, path: str) -> WorkstreamLedger:
+    ledger = parse_workstream_ledger(raw, path)
+    if ledger.entries:
+        _fail("compaction-proof-history-missing", path, "the first committed v2 image must be the canonical header-only init")
+    return ledger
+
+
+def _append_transition_ledger(parent_raw: bytes, parent_ledger: WorkstreamLedger, child_raw: bytes, path: str,
+                              *, admitted: bool) -> WorkstreamLedger | None:
+    """Return a canonical one-block suffix result, never a structural rewrite."""
+    if not child_raw.startswith(parent_raw):
+        return None
+    try:
+        child = _parse_compacted_workstream_ledger(child_raw, path) if admitted else parse_workstream_ledger(child_raw, path)
+    except ReflectionValidationError:
+        return None
+    if child.header != parent_ledger.header or len(child.entries) != len(parent_ledger.entries) + 1:
+        return None
+    if child.entries[:-1] != parent_ledger.entries:
+        return None
+    if child.entries[-1].pre_ledger_digest != workstream_ledger_digest(parent_raw):
+        return None
+    return child
+
+
+def _history_fingerprint(init_commit: str, head: str, ledger_path: str,
+                         facts: Iterable[tuple[str, str, str, str, str, str, str, str]]) -> str:
+    payload = {
+        "version": TRUSTED_LEDGER_HISTORY_VERSION, "init": init_commit, "head": head, "path": ledger_path,
+        "transitions": list(facts),
+    }
+    return "sha256:" + sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _validate_cleanup_pair(root: Path, transition: _LedgerTransition, receipt: WorkstreamCompactionReceipt,
+                           receipt_commit: str, receipt_path: str, entry_id: str,
+                           pre_ledger: WorkstreamLedger, post_raw: bytes) -> WorkstreamCompactionProof:
+    ledger_path = transition.blob.path
+    if receipt.ledger_path != ledger_path or receipt.workstream_id != pre_ledger.header.workstream_id:
+        _fail("compaction-proof-binding", ledger_path, "receipt does not bind this ledger path and workstream")
+    if receipt.pre_tip != transition.parent or receipt.cleanup_commit != transition.commit:
+        _fail("compaction-proof-binding", ledger_path, "receipt pre_tip or cleanup_commit does not bind this lineage transition")
+    if receipt.pre_blob != transition.parent_blob.oid or receipt.post_blob != transition.blob.oid:
+        _fail("compaction-proof-binding", ledger_path, "receipt blob OIDs do not bind this lineage transition")
+    if receipt.pre_ledger_digest != workstream_ledger_digest(transition.parent_blob.content):
+        _fail("compaction-proof-binding", ledger_path, "receipt pre-image digest does not match the committed blob")
+    if receipt.post_ledger_digest != workstream_ledger_digest(post_raw):
+        _fail("compaction-proof-binding", ledger_path, "receipt post-image digest does not match the committed blob")
+    if _git_commit_parents(root, transition.commit) != (transition.parent,):
+        _fail("compaction-proof-tree", ledger_path, "cleanup commit must have the exact pre-tip as its sole parent")
+    if _git_changed_tree_paths(root, transition.parent, transition.commit) != (ledger_path,):
+        _fail("compaction-proof-tree", ledger_path, "cleanup commit must change only ledger.md")
+    if _git_commit_parents(root, receipt_commit) != (transition.commit,):
+        _fail("compaction-proof-tree", receipt_path, "receipt commit must be the sole direct child of cleanup")
+    if _git_changed_tree_paths(root, transition.commit, receipt_commit) != (receipt_path,):
+        _fail("compaction-proof-tree", receipt_path, "receipt commit must change only its ordinary session path")
+    receipt_blob = _tree_blob(root, receipt_commit, receipt_path)
+    if receipt_blob is None or receipt_blob.mode != CANONICAL_MODE:
+        _fail("compaction-proof-session", receipt_path, "receipt commit lacks its regular session blob")
+    _require_memory_entry_trailer(root, receipt_commit, entry_id)
+    expected_post = _derive_compaction_post_bytes(transition.parent_blob.content, pre_ledger, receipt.removed_chain_ids, ledger_path)
+    if expected_post != post_raw:
+        _fail("compaction-proof-derivation", ledger_path, "committed post-image is not the exact canonical raw-block removal")
+    _validate_compaction_coverage(root, receipt, pre_ledger, transition.commit)
+    post_ledger = _parse_compacted_workstream_ledger(post_raw, ledger_path)
+    if post_ledger.header != pre_ledger.header:
+        _fail("compaction-proof-derivation", ledger_path, "compaction changed immutable header bytes")
+    return WorkstreamCompactionProof(receipt, receipt_commit, receipt_path, receipt_blob.oid, entry_id)
+
+
+def _admit_compaction_transition(root: Path, trusted_head: str, transition: _LedgerTransition,
+                                 pre_ledger: WorkstreamLedger, candidates: Iterable[tuple[WorkstreamCompactionReceipt, str, str, str]],
+                                 used: set[tuple[str, str, str]]) -> WorkstreamCompactionProof:
+    matching = [candidate for candidate in candidates if candidate[0].pre_tip == transition.parent
+                and candidate[0].cleanup_commit == transition.commit and candidate[0].ledger_path == transition.blob.path]
+    if not matching:
+        _fail("compaction-proof-missing", transition.blob.path, "non-monotonic ledger transition has no unique reachable cleanup receipt")
+    if len(matching) != 1:
+        _fail("compaction-proof-ambiguous", transition.blob.path, "non-monotonic ledger transition has conflicting cleanup receipts")
+    receipt, receipt_commit, receipt_path, entry_id = matching[0]
+    identity = (receipt_commit, receipt_path, entry_id)
+    if identity in used:
+        _fail("compaction-proof-replay", transition.blob.path, "a compaction receipt locator cannot authorise two transitions")
+    if not _git_is_ancestor(root, receipt_commit, trusted_head):
+        _fail("compaction-proof-reachability", receipt_path, "receipt commit is not reachable from trusted head")
+    proof = _validate_cleanup_pair(root, transition, receipt, receipt_commit, receipt_path, entry_id,
+                                   pre_ledger, transition.blob.content)
+    used.add(identity)
+    return proof
+
+
+def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_path: str) -> TrustedWorkstreamLedger:
+    """Load only a committed, history-classified v2 ledger from a host-selected ref.
+
+    The caller never supplies raw proof bytes or a predecessor-validation mode.
+    A strict-valid deletion is deliberately *not* normal: all path transitions
+    are classified before a result is returned.
+    """
+    root = Path(cwd).resolve()
+    if not isinstance(trusted_ref, str) or not trusted_ref or not isinstance(ledger_path, str):
+        _fail("compaction-proof-history-missing", str(root), "trusted ref and canonical ledger path are required")
+    head = _commit(root, trusted_ref)
+    if head is None:
+        _fail("compaction-proof-history-missing", ledger_path, "trusted ledger ref does not resolve to a commit", trusted_ref=trusted_ref)
+    initial_commit, initial_blob, transitions = _ledger_lineage(root, head, ledger_path)
+    initial = _parse_initial_trusted_ledger(initial_blob.content, ledger_path)
+    if ledger_path != workstream_ledger_path(initial.header.workstream_id):
+        _fail("path", ledger_path, "trusted ledger path does not equal its immutable workstream ID")
+    if not _git_is_ancestor(root, initial.header.base_sha, head):
+        _fail("compaction-proof-history-missing", ledger_path, "ledger immutable base is not an ancestor of trusted head")
+    candidates = _session_compaction_candidates(root, head, initial.header.base_sha)
+    current_raw, current_ledger, admitted = initial_blob.content, initial, False
+    proofs: list[WorkstreamCompactionProof] = []
+    suffix_record_ids: list[str] = []
+    facts: list[tuple[str, str, str, str, str, str, str, str]] = []
+    used: set[tuple[str, str, str]] = set()
+    for transition in transitions:
+        if transition.parent_blob.content != current_raw:
+            _fail("compaction-proof-history-ambiguous", ledger_path, "ledger transition is not continuous with its classified parent")
+        appended = _append_transition_ledger(current_raw, current_ledger, transition.blob.content, ledger_path, admitted=admitted)
+        if appended is not None:
+            current_ledger, current_raw = appended, transition.blob.content
+            suffix_record_ids.append(appended.entries[-1].record_id)
+            kind = "append-rebind" if isinstance(appended.entries[-1], TrustedRebind) else "append"
+        else:
+            proof = _admit_compaction_transition(root, head, transition, current_ledger, candidates, used)
+            current_ledger = _parse_compacted_workstream_ledger(transition.blob.content, ledger_path)
+            current_raw = transition.blob.content
+            proofs.append(proof)
+            admitted = True
+            kind = "admitted-compaction"
+        facts.append((transition.commit, transition.parent, ledger_path, transition.parent_blob.mode,
+                      transition.parent_blob.oid, transition.blob.mode, transition.blob.oid, kind))
+    final_blob = _tree_blob(root, head, ledger_path)
+    if final_blob is None or final_blob.content != current_raw:
+        _fail("compaction-proof-history-ambiguous", ledger_path, "trusted head does not expose the classified final ledger bytes")
+    fingerprint = _history_fingerprint(initial_commit, head, ledger_path, facts)
+    common = (str(root), trusted_ref, head, ledger_path, final_blob.oid, current_raw, current_ledger, fingerprint)
+    if not proofs:
+        return NormalTrustedLedger(*common)
+    return AdmittedCompactedLedger(*common, tuple(proofs), tuple(suffix_record_ids))
+
+
+def _reload_trusted_workstream_ledger(loaded: TrustedWorkstreamLedger) -> TrustedWorkstreamLedger:
+    """Bind an operation to a freshly re-read, host-selected Git ledger image."""
+    if not isinstance(loaded, (NormalTrustedLedger, AdmittedCompactedLedger)):
+        _fail("compaction-proof-history-missing", "trusted ledger", "operation requires a loader-issued trusted ledger")
+    current = load_trusted_workstream_ledger(
+        loaded.repository, trusted_ref=loaded.trusted_ref, ledger_path=loaded.ledger_path,
+    )
+    expected = (loaded.head, loaded.ledger_blob, loaded.raw, loaded.history_fingerprint, loaded.ledger)
+    actual = (current.head, current.ledger_blob, current.raw, current.history_fingerprint, current.ledger)
+    if actual != expected:
+        _fail("stale_ledger_history", loaded.ledger_path, "trusted ledger changed; reload before applying lifecycle action")
+    return current
+
+
+def plan_trusted_workstream_chain_close(loaded: TrustedWorkstreamLedger, *, chain_id: str,
+                                        receipts: Iterable[AdmittedWorkstreamReceipt],
+                                        receipt_verifier: WorkstreamReceiptVerifier,
+                                        integration_witness: TrustedIntegrationWitness,
+                                        integration_verifier: TrustedRebindVerifier,
+                                        conclusion: str, reasoning: str, source: str, confidence: str,
+                                        clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
+    """Plan closeout only from a freshly re-admitted Git/session history image."""
+    current = _reload_trusted_workstream_ledger(loaded)
+    return _plan_workstream_chain_close(
+        current.ledger, chain_id=chain_id, receipts=receipts, receipt_verifier=receipt_verifier,
+        integration_witness=integration_witness, integration_verifier=integration_verifier,
+        expected_head=current.head, actual_head=current.head, pre_ledger_digest=workstream_ledger_digest(current.raw),
+        branch=current.ledger.effective_branch, conclusion=conclusion, reasoning=reasoning, source=source,
+        confidence=confidence, clock=clock, verify_predecessors=isinstance(current, NormalTrustedLedger),
+    )
+
+
+def preview_trusted_workstream_expiry(loaded: TrustedWorkstreamLedger, *, chain_ids: Iterable[str], now: datetime,
+                                      receipts: Iterable[AdmittedWorkstreamReceipt],
+                                      receipt_verifier: WorkstreamReceiptVerifier,
+                                      integration_witness: TrustedIntegrationWitness,
+                                      integration_verifier: TrustedRebindVerifier,
+                                      early_approval: EarlyExpiryApproval | None = None,
+                                      early_approval_verifier: EarlyExpiryApprovalVerifier | None = None) -> WorkstreamExpiryPreview:
+    """Preview compaction only from a freshly re-admitted Git/session history image."""
+    current = _reload_trusted_workstream_ledger(loaded)
+    return _preview_workstream_expiry(
+        current.ledger, expected_head=current.head, chain_ids=chain_ids, now=now, receipts=receipts,
+        receipt_verifier=receipt_verifier, integration_witness=integration_witness,
+        integration_verifier=integration_verifier, early_approval=early_approval,
+        early_approval_verifier=early_approval_verifier, verify_predecessors=isinstance(current, NormalTrustedLedger),
+    )
+
+
+def apply_trusted_workstream_expiry(loaded: TrustedWorkstreamLedger, preview: WorkstreamExpiryPreview, *,
+                                    integration_witness: TrustedIntegrationWitness,
+                                    integration_verifier: TrustedRebindVerifier) -> WorkstreamLedger:
+    """Apply a pre-admitted expiry preview only while the classified head remains exact."""
+    current = _reload_trusted_workstream_ledger(loaded)
+    result = apply_workstream_expiry(
+        current.ledger, preview, actual_head=current.head, integration_witness=integration_witness,
+        integration_verifier=integration_verifier, actual_ledger_digest=workstream_ledger_digest(current.raw),
+    )
+    _validate_workstream_ledger(result, "trusted ledger expiry", verify_predecessors=isinstance(current, NormalTrustedLedger))
+    return result
+
+
+def resolve_trusted_workstream_dependency(dependency: WorkstreamDependency, *, source_workstream_id: str,
+                                          active_ledgers: Iterable[TrustedWorkstreamLedger] = (),
+                                          durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                                          receipt_verifier: WorkstreamReceiptVerifier | None = None) -> DependencyResolution:
+    """Resolve active targets only after their histories are freshly admitted."""
+    current = tuple(_reload_trusted_workstream_ledger(item) for item in active_ledgers)
+    return resolve_workstream_dependency(
+        dependency, source_workstream_id=source_workstream_id, active_ledgers=(item.ledger for item in current),
+        durable_receipts=durable_receipts, receipt_verifier=receipt_verifier,
+    )
+
+
+@dataclass(frozen=True)
+class WorkstreamAppendCommitPreview:
+    """Opaque, host-owned normal-append transaction plan."""
+
+    token: str
+    trusted_ref: str
+    expected_head: str
+    ledger_path: str
+    expected_ledger_blob: str
+    pre_ledger_digest: str
+    history_fingerprint: str
+    suffix_bytes: bytes
+    record_id: str
+    post_ledger_digest: str
+
+
+@dataclass(frozen=True)
+class WorkstreamAppendCommitResult:
+    new_head: str
+    new_ledger_blob: str
+    post_ledger_digest: str
+    history_fingerprint: str
+    record_id: str
+    ledger: WorkstreamLedger
+
+
+@dataclass(frozen=True)
+class _StoredWorkstreamAppendPlan:
+    preview: WorkstreamAppendCommitPreview
+    post_ledger: WorkstreamLedger
+
+
+_WORKSTREAM_APPEND_PLANS: dict[str, _StoredWorkstreamAppendPlan] = {}
+
+
+def _full_local_branch_ref(root: Path, ref: str) -> str:
+    code, output = _git(root, "rev-parse", "--symbolic-full-name", ref)
+    if code or not isinstance(output, str) or not output.startswith("refs/heads/"):
+        _fail("append-wrong-branch", str(root), "trusted append ref must be one local branch ref", trusted_ref=ref)
+    return output
+
+
+def _require_clean_append_worktree(root: Path) -> None:
+    code, output = _git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    if code or not isinstance(output, str) or output:
+        _fail("append-worktree-not-clean", str(root), "append requires a clean worktree and index")
+    for args in (("diff", "--quiet"), ("diff", "--cached", "--quiet", "HEAD")):
+        code, _output = _git(root, *args)
+        if code != 0:
+            _fail("append-worktree-not-clean", str(root), "append requires an index equal to HEAD")
+
+
+def preview_workstream_append_commit(cwd: Path | str, *, trusted_ref: str, workstream_id: str,
+                                     request: WorkstreamAppendRequest, clock: Callable[[], datetime] | None = None,
+                                     active_ledgers: Iterable[WorkstreamLedger] = (),
+                                     durable_receipts: Iterable[AdmittedWorkstreamReceipt] = (),
+                                     receipt_verifier: WorkstreamReceiptVerifier | None = None) -> WorkstreamAppendCommitPreview:
+    """Create the opaque plan for one later adapter-owned ledger-only commit."""
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, trusted_ref)
+    relative = workstream_ledger_path(workstream_id)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=relative)
+    if loaded.ledger.header.workstream_id != workstream_id:
+        _fail("path", relative, "trusted ledger path and workstream ID differ")
+    if full_ref[len("refs/heads/"):] != loaded.ledger.effective_branch:
+        _fail("append-wrong-branch", relative, "trusted ref is not the effective ledger owner branch")
+    post = _plan_trusted_workstream_append(loaded, request, clock=clock, active_ledgers=active_ledgers,
+                                           durable_receipts=durable_receipts, receipt_verifier=receipt_verifier)
+    post_raw = render_workstream_ledger(post).encode("utf-8")
+    if not post_raw.startswith(loaded.raw):
+        _fail("append-commit-failed", relative, "planned append is not an exact canonical suffix")
+    token = secrets.token_urlsafe(32)
+    preview = WorkstreamAppendCommitPreview(
+        token, full_ref, loaded.head, relative, loaded.ledger_blob, workstream_ledger_digest(loaded.raw),
+        loaded.history_fingerprint, post_raw[len(loaded.raw):], post.records[-1].record_id,
+        workstream_ledger_digest(post_raw),
+    )
+    _WORKSTREAM_APPEND_PLANS[token] = _StoredWorkstreamAppendPlan(preview, post)
+    return preview
+
+
+def _restore_append_worktree(root: Path, path: Path, raw: bytes, blob: ReflectionBlob) -> bool:
+    try:
+        path.write_bytes(raw)
+        code, _output = _git(root, "update-index", "--cacheinfo", f"{blob.mode},{blob.oid},{blob.path}")
+        if code:
+            return False
+        code, index = _git(root, "ls-files", "-s", "--", blob.path)
+        if code or not isinstance(index, str) or not re.fullmatch(rf"{blob.mode} {blob.oid} 0\t{re.escape(blob.path)}", index):
+            return False
+        return path.read_bytes() == raw
+    except OSError:
+        return False
+
+
+def _append_commit_message(preview: WorkstreamAppendCommitPreview, workstream_id: str) -> str:
+    return (
+        f"reflection: append {preview.record_id}\n\n"
+        f"Reflection-Workstream: {workstream_id}\n"
+        f"Reflection-Record: {preview.record_id}\n"
+        f"Reflection-Pre-Ledger-Digest: {preview.pre_ledger_digest}\n"
+        f"Reflection-Post-Ledger-Digest: {preview.post_ledger_digest}"
+    )
+
+
+def apply_workstream_append_commit(cwd: Path | str, preview: WorkstreamAppendCommitPreview, *,
+                                   fault_injector: Callable[[str], None] | None = None) -> WorkstreamAppendCommitResult:
+    """Persist a preview as one ledger-only off-ref commit then branch CAS.
+
+    ``fault_injector`` is test-only adapter instrumentation; it receives no
+    authority fields and makes rollback paths observable without broadening the
+    public plan surface.
+    """
+    if not isinstance(preview, WorkstreamAppendCommitPreview):
+        _fail("append-commit-failed", "ledger append", "append apply requires a host-issued opaque preview")
+    stored = _WORKSTREAM_APPEND_PLANS.get(preview.token)
+    if stored is None or stored.preview != preview:
+        _fail("append-commit-failed", "ledger append", "append preview is unknown, replaced, or expired")
+    root = Path(cwd).resolve()
+    _require_clean_append_worktree(root)
+    code, attached = _git(root, "symbolic-ref", "--quiet", "HEAD")
+    if code or not isinstance(attached, str) or not attached:
+        _fail("append-detached-head", str(root), "append requires HEAD attached to the trusted branch")
+    if attached != preview.trusted_ref:
+        _fail("append-wrong-branch", str(root), "HEAD is not attached to the preview's trusted branch",
+              expected=preview.trusted_ref, actual=attached)
+    head = _commit(root, preview.trusted_ref)
+    if head != preview.expected_head:
+        _fail("stale_head", preview.ledger_path, "trusted ref changed after append preview",
+              expected=preview.expected_head, actual=head)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
+    if loaded.ledger_blob != preview.expected_ledger_blob or workstream_ledger_digest(loaded.raw) != preview.pre_ledger_digest:
+        _fail("stale_ledger_digest", preview.ledger_path, "trusted ledger blob changed after append preview")
+    if loaded.history_fingerprint != preview.history_fingerprint:
+        _fail("stale_ledger_history", preview.ledger_path, "trusted ledger history changed after append preview")
+    post_raw = loaded.raw + preview.suffix_bytes
+    if workstream_ledger_digest(post_raw) != preview.post_ledger_digest:
+        _fail("append-commit-failed", preview.ledger_path, "preview suffix no longer has its predicted canonical digest")
+    if render_workstream_ledger(stored.post_ledger).encode("utf-8") != post_raw:
+        _fail("append-commit-failed", preview.ledger_path, "preview suffix does not match its stored canonical post-image")
+    path = root / Path(preview.ledger_path)
+    if not path.is_file() or path.read_bytes() != loaded.raw:
+        _fail("append-worktree-not-clean", preview.ledger_path, "working-tree ledger is not the trusted committed blob")
+    expected_blob = _tree_blob(root, preview.expected_head, preview.ledger_path)
+    if expected_blob is None:
+        _fail("append-commit-failed", preview.ledger_path, "preview head no longer exposes its ledger blob")
+    wrote_candidate = False
+    try:
+        path.write_bytes(post_raw)
+        wrote_candidate = True
+        code, _output = _git(root, "add", "--", preview.ledger_path)
+        if code:
+            raise RuntimeError("git add failed")
+        code, tree = _git(root, "write-tree")
+        if code or not isinstance(tree, str) or not re.fullmatch(r"[0-9a-f]{40}", tree):
+            raise RuntimeError("git write-tree failed")
+        message = _append_commit_message(preview, loaded.ledger.header.workstream_id)
+        if fault_injector is not None:
+            fault_injector("before-commit")
+        code, candidate = _git(root, "commit-tree", tree, "-p", preview.expected_head, "-m", message)
+        if code or not isinstance(candidate, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate):
+            raise RuntimeError("git commit-tree failed")
+        candidate_blob = _tree_blob(root, candidate, preview.ledger_path)
+        if (candidate_blob is None or candidate_blob.mode != CANONICAL_MODE or candidate_blob.content != post_raw
+                or _git_commit_parents(root, candidate) != (preview.expected_head,)
+                or _git_changed_tree_paths(root, preview.expected_head, candidate) != (preview.ledger_path,)
+                or _git_commit_message(root, candidate) != message):
+            raise RuntimeError("candidate append commit is not canonical")
+        if fault_injector is not None:
+            fault_injector("before-cas")
+        code, _output = _git(root, "update-ref", preview.trusted_ref, candidate, preview.expected_head)
+        if code:
+            _fail("stale_ref", preview.ledger_path, "trusted ref changed during append compare-and-swap")
+    except Exception as exc:
+        if wrote_candidate and not _restore_append_worktree(root, path, loaded.raw, expected_blob):
+            _fail("append-rollback-failed", preview.ledger_path, "append failure left an unsafe worktree", reason=str(exc))
+        if isinstance(exc, ReflectionValidationError):
+            raise
+        _fail("append-commit-failed", preview.ledger_path, "could not construct canonical ledger-only append commit", reason=str(exc))
+    _WORKSTREAM_APPEND_PLANS.pop(preview.token, None)
+    final = load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
+    if final.head != candidate or final.ledger_blob != candidate_blob.oid:
+        _fail("append-commit-failed", preview.ledger_path, "successful CAS is not immediately visible to trusted readers")
+    return WorkstreamAppendCommitResult(final.head, final.ledger_blob, workstream_ledger_digest(final.raw),
+                                        final.history_fingerprint, preview.record_id, final.ledger)
 
 
 RETENTION_PREFLIGHT_FIELDS = (
