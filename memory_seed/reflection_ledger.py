@@ -18,6 +18,7 @@ import os
 import posixpath
 import re
 import secrets
+import stat
 import subprocess
 import unicodedata
 
@@ -2545,30 +2546,63 @@ def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str,
 
 
 def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str], ...]) -> None:
-    """Reject dirty/ignored reserved files and symlink traversal without writes."""
+    """Inventory ignored/untracked families within this checkout, without writes.
+
+    Only Git metadata and other registered worktrees are traversal boundaries.
+    Dependency/generated folder names are not exclusions: they can own runtimes.
+    Directory links (including Windows junctions) are never followed.
+    """
+    code, worktrees = _git(root, "worktree", "list", "--porcelain", "-z", binary=True)
+    if code or not isinstance(worktrees, bytes):
+        _fail("reflection-integration-tree", str(root), "could not establish checkout traversal boundaries")
+    nested_worktrees = set()
+    for field in worktrees.split(b"\0"):
+        if field.startswith(b"worktree "):
+            checkout = Path(field[len(b"worktree "):].decode("utf-8", errors="strict")).resolve()
+            if checkout != root and checkout.is_relative_to(root):
+                nested_worktrees.add(checkout)
     actual: dict[str, bytes] = {}
-    allowed_dirs = {REFLECTION_ROOT} | {str(PurePosixPath(path).parent) for path, _mode, _oid in expected}
-    for memory in root.iterdir():
-        if memory.name.rstrip(" .").casefold() != ".memory-seed":
-            continue
-        if memory.name.endswith((".", " ")) or memory.is_symlink() or not memory.is_dir():
-            _fail("unsupported-reflection-format", str(memory), "runtime is not a regular directory")
-        for family in memory.iterdir():
-            if family.name.rstrip(" .").casefold() != "reflections":
+    expected_paths = {path for path, _mode, _oid in expected}
+    allowed_dirs = {".memory-seed/reflections", REFLECTION_ROOT} | {
+        str(PurePosixPath(path).parent) for path in expected_paths
+    }
+
+    def scan_error(error: OSError) -> None:
+        _fail("reflection-integration-tree", str(error.filename), "could not inventory checkout directories")
+
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=scan_error):
+        descend = []
+        directory_names = set(dirs)
+        for name in dirs + files:
+            path = Path(directory) / name
+            folded = name.rstrip(" .").casefold()
+            relative = path.relative_to(root).as_posix()
+            reserved = is_reserved_reflection_path(relative)
+            if folded == ".git" or path in nested_worktrees:
+                if reserved:
+                    _fail("unsupported-reflection-format", relative, "checkout boundaries cannot hide reserved state")
                 continue
-            if family.name.endswith((".", " ")) or family.is_symlink() or not family.is_dir():
-                _fail("unsupported-reflection-format", str(family), "reserved family is not a regular directory")
-            for directory, dirs, files in os.walk(family, followlinks=False):
-                for name in dirs + files:
-                    path = Path(directory) / name
-                    if path.is_symlink():
-                        _fail("unsupported-reflection-format", str(path), "symlinks are forbidden in reserved reflection state")
-                    if name in dirs and path.relative_to(root).as_posix() not in allowed_dirs:
-                        _fail("unsupported-reflection-format", str(path), "unknown reserved directory is not admitted")
-                for name in files:
-                    path = Path(directory) / name
-                    actual[path.relative_to(root).as_posix()] = path.read_bytes()
-    if set(actual) != {path for path, _mode, _oid in expected}:
+            metadata = path.lstat()
+            linked = (stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_reparse_tag", None)
+                      == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003))
+            if folded == ".memory-seed" and (
+                name.endswith((".", " ")) or linked or not stat.S_ISDIR(metadata.st_mode)
+            ):
+                _fail("unsupported-reflection-format", str(path), "runtime is not a regular directory")
+            if reserved:
+                if linked:
+                    _fail("unsupported-reflection-format", relative, "directory links and symlinks are forbidden in reserved state")
+                if stat.S_ISDIR(metadata.st_mode):
+                    if relative not in allowed_dirs:
+                        _fail("unsupported-reflection-format", relative, "unknown or nested reserved directory is not admitted")
+                elif relative not in expected_paths or not stat.S_ISREG(metadata.st_mode):
+                    _fail("unsupported-reflection-format", relative, "unknown reserved file is not admitted")
+                else:
+                    actual[relative] = path.read_bytes()
+            if name in directory_names and not linked:
+                descend.append(name)
+        dirs[:] = descend
+    if set(actual) != expected_paths:
         _fail("reflection-binding-stale", str(root), "working-tree reserved paths differ from the admitted tree")
     for path, _mode, oid in expected:
         code, raw = _git(root, "cat-file", "blob", oid, binary=True)

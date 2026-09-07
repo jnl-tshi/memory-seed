@@ -2518,6 +2518,80 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(any("--force" in args or "-f" in args for args in git_commands))
 
     @pytest.mark.integration
+    def test_session_open_pr_refreshes_stale_ancestor_before_session_provenance_planning(self):
+        from memory_seed import core as core_module
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "A: old remote main")
+        commit_a = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._write_grouped_session(cwd, "2026-07-11", "mse_bbbbbbbbbbbbbbbb", branch="main")
+        self._commit_all(cwd, "B: main advances before feature starts")
+        commit_b = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-12", "mse_cccccccccccccccc", branch="feature-pr")
+        self._commit_all(cwd, "C: feature follows B")
+        self._git(cwd, "remote", "add", "origin", "https://example.test/owner/repo.git")
+        self._git(cwd, "update-ref", "refs/remotes/origin/main", commit_a)
+        original_git = core_module._git_text
+        original_plan = core_module._plan_session_fuse
+        events = []
+
+        def fake_git(root, args):
+            if args[0] == "fetch":
+                events.append("fetch")
+                self._git(cwd, "update-ref", "refs/remotes/origin/main", commit_b)
+                return 0, ""
+            if args[0] == "push":
+                events.append("push")
+                return 0, ""
+            return original_git(root, args)
+
+        def traced_plan(*args, **kwargs):
+            events.append("session-plan")
+            return original_plan(*args, **kwargs)
+
+        def fake_gh(_root, args):
+            events.append("gh:" + args[0])
+            return (0, "https://example.test/owner/repo/pull/1", "")
+
+        with mock.patch("memory_seed.core._git_text", side_effect=fake_git), \
+                mock.patch("memory_seed.core._plan_session_fuse", side_effect=traced_plan), \
+                mock.patch("memory_seed.core._gh_text", side_effect=fake_gh):
+            result = session_open_pr(cwd, branch="feature-pr", base_branch="main")
+        self.assertTrue(result.opened, result.issues)
+        self.assertEqual(result.issues, [])
+        self.assertLess(events.index("fetch"), events.index("session-plan"))
+        self.assertLess(events.index("session-plan"), events.index("push"))
+        self.assertEqual(self._git(cwd, "rev-parse", "origin/main").stdout.strip(), commit_b)
+        self.assertIn("mse_bbbbbbbbbbbbbbbb", (cwd / ".memory-seed/sessions/2026-07/2026-07-11.md").read_text())
+
+    @pytest.mark.integration
+    def test_session_open_pr_refuses_ignored_nested_reflection_before_fetch_or_gh(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_bbbbbbbbbbbbbbbb", branch="feature-pr")
+        self._commit_all(cwd, "feature")
+        self._git(cwd, "remote", "add", "origin", "https://example.test/owner/repo.git")
+        (cwd / ".git/info/exclude").write_text("pod/\n", encoding="utf-8")
+        unsupported = cwd / "pod/.memory-seed/reflections/unknown/manifest.yaml"
+        unsupported.parent.mkdir(parents=True)
+        unsupported.write_text("unsupported\n", encoding="utf-8")
+        before = {p.relative_to(cwd).as_posix(): p.read_bytes() for p in cwd.rglob("*") if p.is_file()}
+        with mock.patch("memory_seed.core._refresh_pr_base_branch", side_effect=AssertionError("fetch before admission")) as refresh, \
+                mock.patch("memory_seed.core._gh_text", side_effect=AssertionError("gh before admission")) as gh:
+            result = session_open_pr(cwd, branch="feature-pr", base_branch="main")
+        self.assertFalse(result.opened)
+        self.assertIn("unsupported-reflection-format", " ".join(result.issues))
+        refresh.assert_not_called()
+        gh.assert_not_called()
+        after = {p.relative_to(cwd).as_posix(): p.read_bytes() for p in cwd.rglob("*") if p.is_file()}
+        self.assertEqual(after, before)
+
+    @pytest.mark.integration
     def test_session_open_pr_refuses_failed_base_refresh_before_branch_modification(self):
         import unittest.mock
 

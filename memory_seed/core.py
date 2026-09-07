@@ -7345,11 +7345,9 @@ def _plan_session_fuse(
     if changed_paths is None:
         return None, [f"could not compute changed session files for source {source_label} against base {base_ref}"]
 
-    from .reflection_ledger import ReflectionValidationError, preview_reflection_integration
-    try:
-        reflection_admission = preview_reflection_integration(root, source_ref=source_ref, base_ref=base_ref)
-    except (ReflectionValidationError, OSError, ValueError) as exc:
-        return None, [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
+    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=source_ref, base_ref=base_ref)
+    if reflection_issues:
+        return None, reflection_issues
     if (reflection_admission.source_commit != source_commit or reflection_admission.base_commit != base_commit):
         return None, ["reflection-binding-stale: integration refs changed while planning"]
 
@@ -8099,6 +8097,15 @@ def _apply_session_fuse_plan(
         removed_sources=removed_sources,
         already_present=already_present,
     )
+
+
+def _preview_session_reflections(root: Path, *, source_ref: str, base_ref: str) -> tuple[Any, list[str]]:
+    """Reflection-only admission; session provenance must use the refreshed base."""
+    from .reflection_ledger import ReflectionValidationError, preview_reflection_integration
+    try:
+        return preview_reflection_integration(root, source_ref=source_ref, base_ref=base_ref), []
+    except (OSError, ValueError) as exc:
+        return None, [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
 
 
 def _recheck_session_reflections(root: Path, admission: Any, *, merged: bool = False) -> list[str]:
@@ -8888,6 +8895,24 @@ def session_open_pr(
             issues=[f"missing remote '{remote_name}'; use local-merge or add that remote first"],
         )
 
+    resolved_base_branch, _base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
+        root, base_branch, source_branch=branch,
+    )
+    if base_issue:
+        return SessionOpenPrResult(
+            opened=False, dry_run=dry_run, source_branch=branch, remote_name=remote_name,
+            remote_url=remote_url, issues=[base_issue],
+        )
+    assert resolved_base_branch is not None and _base_ref is not None
+    # Refuse local reserved state before network-capable gh/fetch operations.
+    # Do not classify ordinary inherited sessions against a stale tracking ref;
+    # the complete provenance/fuse plan runs in preparation after refresh.
+    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=branch, base_ref=_base_ref)
+    if not reflection_issues:
+        reflection_issues = _recheck_session_reflections(root, reflection_admission)
+    if reflection_issues:
+        return SessionOpenPrResult(opened=False, dry_run=dry_run, source_branch=branch, issues=reflection_issues)
+
     code, _out, _err = _gh_text(root, ("--version",))
     if code != 0:
         return SessionOpenPrResult(
@@ -8909,29 +8934,6 @@ def session_open_pr(
             issues=["gh is not authenticated; use local-merge or authenticate gh first"],
         )
 
-    resolved_base_branch, _base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
-        root,
-        base_branch,
-        source_branch=branch,
-    )
-    if base_issue:
-        return SessionOpenPrResult(
-            opened=False,
-            dry_run=dry_run,
-            source_branch=branch,
-            remote_name=remote_name,
-            remote_url=remote_url,
-            issues=[base_issue],
-        )
-    assert resolved_base_branch is not None
-    # Refuse reserved reflection state before fetch changes tracking refs.
-    reflection_plan, reflection_issues = _plan_session_fuse(
-        root, source_ref=branch, base_ref=_base_ref, source_label=branch,
-    )
-    if not reflection_issues and reflection_plan is not None:
-        reflection_issues = _recheck_session_reflections(root, reflection_plan.reflection_admission)
-    if reflection_issues:
-        return SessionOpenPrResult(opened=False, dry_run=dry_run, source_branch=branch, issues=reflection_issues)
     if not dry_run:
         refresh_issue = _refresh_pr_base_branch(
             root,

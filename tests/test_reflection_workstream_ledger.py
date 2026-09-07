@@ -705,6 +705,103 @@ def test_reflection_refusal_preserves_stale_index_stat_cache(tmp_path, consumer,
     assert index.read_bytes() != index_before
 
 
+@pytest.mark.parametrize("consumer", ("merge-branch", "prepare-pr"))
+def test_ignored_nested_reflection_refuses_integration_without_mutation(tmp_path, consumer):
+    from memory_seed.core import session_merge_branch, session_prepare_pr_branch
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    _git(root, "branch", "integration", ledger.header.base_sha)
+    if consumer == "merge-branch":
+        _git(root, "checkout", "integration")
+    (root / ".git/info/exclude").write_text("pod/\n", encoding="utf-8")
+    unsupported = root / "pod/.memory-seed/reflections/unknown/manifest.yaml"
+    unsupported.parent.mkdir(parents=True)
+    unsupported.write_text("unsupported ignored reflection state\n", encoding="utf-8")
+    assert _git(root, "--no-optional-locks", "status", "--short") == ""
+    before = _admission_state(root)
+    if consumer == "merge-branch":
+        result = session_merge_branch(root, branch=ledger.header.working_branch)
+        assert not result.committed
+    else:
+        result = session_prepare_pr_branch(root, branch=ledger.header.working_branch, base_branch="integration")
+        assert not result.ready
+    assert "unsupported-reflection-format" in " ".join(result.issues)
+    assert _admission_state(root) == before
+
+
+@pytest.mark.parametrize("prefix", ("node_modules/package", "build/generated"))
+def test_nested_reflection_discovery_does_not_exclude_dependency_or_generated_paths(tmp_path, prefix):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    (root / ".git/info/exclude").write_text(prefix.split("/")[0] + "/\n", encoding="utf-8")
+    (root / prefix / ".memory-seed/reflections/unknown").mkdir(parents=True)
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch,
+                                             base_ref=ledger.header.base_sha)
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError, match="reserved"):
+        recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+
+
+def test_reflection_discovery_stops_at_git_and_registered_nested_worktrees(tmp_path):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    nested = root / ".codex/worktrees/nested"
+    _git(root, "worktree", "add", "--detach", str(nested), "HEAD")
+    (root / ".git/info/exclude").write_text(".codex/\n", encoding="utf-8")
+    for boundary in (root / ".git", nested):
+        unknown = boundary / "pod/.memory-seed/reflections/unknown/manifest.yaml"
+        unknown.parent.mkdir(parents=True)
+        unknown.write_text("outside this checkout's admission boundary\n", encoding="utf-8")
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch,
+                                             base_ref=ledger.header.base_sha)
+    before = _admission_state(root)
+    recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+
+
+def test_reflection_discovery_cannot_hide_unknown_state_behind_reserved_git_directory(tmp_path):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    (root / ".memory-seed/reflections/.git").mkdir()
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch,
+                                             base_ref=ledger.header.base_sha)
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError, match="boundaries cannot hide reserved"):
+        recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+
+
+@pytest.mark.parametrize("link_name", (".memory-seed", ".memory-seed/reflections"))
+def test_nested_reflection_discovery_refuses_directory_links_without_following_them(tmp_path, monkeypatch, link_name):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    outside = tmp_path / "outside-checkout"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("never traverse or mutate\n", encoding="utf-8")
+    link = root / "pod" / link_name
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)], capture_output=True, text=True)
+        assert made.returncode == 0, made.stderr
+    else:
+        link.symlink_to(outside, target_is_directory=True)
+    preview = preview_reflection_integration(root, source_ref=ledger.header.working_branch,
+                                             base_ref=ledger.header.base_sha)
+    before = _admission_state(root)
+    original_scandir = os.scandir
+
+    def bounded_scandir(path):
+        assert Path(path).resolve().is_relative_to(root), "discovery descended outside the checkout"
+        return original_scandir(path)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "scandir", bounded_scandir)
+        with pytest.raises(ReflectionValidationError):
+            recheck_reflection_integration(root, preview)
+    assert _admission_state(root) == before
+    assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "never traverse or mutate\n"
+
+
 def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_writes(tmp_path):
     from memory_seed.core import session_merge_branch
     from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
