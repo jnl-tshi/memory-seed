@@ -560,9 +560,13 @@ def workstream_ledger_path(workstream: str) -> str:
 
 
 def is_reserved_reflection_path(path: str) -> bool:
-    """Recognize the reserved family using portable case/separator boundaries."""
+    """Recognize the reserved family, including Windows component aliases.
+
+    Alias recognition never grants authority: scope admission rejects ambiguous
+    components and committed inventory still requires canonical ledger paths.
+    """
     parts = PurePosixPath(posixpath.normpath(path.replace("\\", "/"))).parts
-    folded = tuple(part.casefold() for part in parts)
+    folded = tuple(part.rstrip(" .").casefold() for part in parts)
     return any(folded[index:index + 2] == (".memory-seed", "reflections")
                for index in range(len(folded) - 1))
 
@@ -580,9 +584,14 @@ def validate_reflection_capability(execution: Mapping[str, Any]) -> dict[str, An
     if any(not isinstance(path, str) for path in (*allowed, *absent)):
         _fail("reflection-capability-scope", "execution", "file scopes must contain strings")
     reserved = [path for path in allowed if is_reserved_reflection_path(path)]
+    reserved_absent = [path for path in absent if is_reserved_reflection_path(path)]
+    for path in (*reserved, *reserved_absent):
+        if any(part not in {".", ".."} and part.endswith((".", " "))
+               for part in path.replace("\\", "/").split("/")):
+            _fail("reflection-capability-scope", path, "Windows trailing-dot/space component aliases are forbidden")
     capability = execution.get("reflection")
     if capability is None:
-        if execution.get("write_intent") == "writing" and reserved:
+        if execution.get("write_intent") == "writing" and (reserved or reserved_absent):
             _fail("reflection-capability-required", "execution.reflection", "reserved reflection writes require workstream-v1")
         return None
     if not isinstance(capability, Mapping) or set(capability) != {"format", "workstream_id", "ledger_path", "operations"}:
@@ -597,7 +606,7 @@ def validate_reflection_capability(execution: Mapping[str, Any]) -> dict[str, An
         _fail("reflection-capability-scope", "execution.reflection.operations", "requires nonempty unique append/close/expire/rebind operations")
     identity = lambda value: PurePosixPath(value.replace("\\", "/")).as_posix().casefold()
     if (capability["ledger_path"] != path or len(reserved) != 1 or identity(reserved[0]) != path
-            or any(is_reserved_reflection_path(item) for item in absent)):
+            or reserved_absent):
         _fail("reflection-capability-scope", path, "the initialized canonical ledger must be the sole reflection write path")
     return {"format": "workstream-v1", "workstream_id": workstream, "ledger_path": path,
             "operations": sorted(operations)}
@@ -2540,14 +2549,14 @@ def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str],
     actual: dict[str, bytes] = {}
     allowed_dirs = {REFLECTION_ROOT} | {str(PurePosixPath(path).parent) for path, _mode, _oid in expected}
     for memory in root.iterdir():
-        if memory.name.casefold() != ".memory-seed":
+        if memory.name.rstrip(" .").casefold() != ".memory-seed":
             continue
-        if memory.is_symlink() or not memory.is_dir():
+        if memory.name.endswith((".", " ")) or memory.is_symlink() or not memory.is_dir():
             _fail("unsupported-reflection-format", str(memory), "runtime is not a regular directory")
         for family in memory.iterdir():
-            if family.name.casefold() != "reflections":
+            if family.name.rstrip(" .").casefold() != "reflections":
                 continue
-            if family.is_symlink() or not family.is_dir():
+            if family.name.endswith((".", " ")) or family.is_symlink() or not family.is_dir():
                 _fail("unsupported-reflection-format", str(family), "reserved family is not a regular directory")
             for directory, dirs, files in os.walk(family, followlinks=False):
                 for name in dirs + files:
@@ -2625,6 +2634,8 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
 def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrationPreview, *, merged: bool = False) -> None:
     """Recheck preview bindings and actual reserved files before mutation."""
     root = Path(cwd).resolve()
+    if not isinstance(preview, ReflectionIntegrationPreview):
+        _fail("reflection-binding-stale", str(root), "requires the original immutable integration preview")
     measured = preview_reflection_integration(root, source_ref=preview.source_ref, base_ref=preview.base_ref)
     if measured != preview:
         _fail("reflection-binding-stale", str(root), "integration refs or proposed reserved result changed after preview")

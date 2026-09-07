@@ -7243,7 +7243,8 @@ def _current_branch_name(root: Path) -> str | None:
 
 
 def _git_dirty_paths(root: Path) -> list[str] | None:
-    code, status_out = _git_text(root, ("status", "--short"))
+    # Admission preflight must not refresh even the index's stat cache.
+    code, status_out = _git_text(root, ("--no-optional-locks", "status", "--short"))
     if code != 0:
         return None
     return [line.strip() for line in status_out.splitlines() if line.strip()]
@@ -8132,6 +8133,9 @@ def session_fuse(
     ``working_tree_is_base`` is internal: ``session_merge_branch`` sets it after
     resetting branch-touched session paths to base content, so a refusal can say
     which side's copy it validated. It changes no decision, only wording.
+
+    Reflection-bearing apply requires the original preview's immutable
+    ``reflection_admission``. A fresh internal plan cannot replace that binding.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
@@ -8173,6 +8177,12 @@ def session_fuse(
     if issues:
         return SessionFuseResult(changed=False, issues=issues)
     assert plan is not None
+    if apply and reflection_admission is None and any(
+        getattr(plan.reflection_admission, key) for key in ("source", "base", "ancestor", "proposed")
+    ):
+        return SessionFuseResult(changed=False, issues=[
+            "reflection-binding-required: reflection-bearing apply requires the original immutable preview admission"
+        ])
     if reflection_admission is not None:
         reflection_issues = _recheck_session_reflections(root, reflection_admission, merged=apply)
         if reflection_issues or any(getattr(plan.reflection_admission, key) != getattr(reflection_admission, key)
@@ -8365,10 +8375,9 @@ def session_merge_branch(
             merge_in_progress=True,
             issues=["a git merge is already in progress; finish or abort it before session merge-branch"],
         )
-    code, status_out = _git_text(root, ("status", "--short"))
-    if code != 0:
+    dirty_paths = _git_dirty_paths(root)
+    if dirty_paths is None:
         return SessionMergeBranchResult(committed=False, issues=["could not read git status"])
-    dirty_paths = [line.strip() for line in status_out.splitlines() if line.strip()]
     if dirty_paths:
         listing = "; ".join(dirty_paths[:10])
         if len(dirty_paths) > 10:

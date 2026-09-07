@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import ast
 import inspect
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -610,6 +611,100 @@ def _admission_state(root):
             {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()})
 
 
+@pytest.mark.parametrize("component", (".memory-seed", "reflections", "active", "ledger.md"))
+@pytest.mark.parametrize("suffix", (".", " "))
+def test_shared_reflection_scope_rejects_windows_aliases(component, suffix):
+    from memory_seed.reflection_ledger import is_reserved_reflection_path, validate_reflection_capability
+    ledger = make_ledger()
+    path = workstream_ledger_path(ledger.header.workstream_id)
+    cap = {"format": "workstream-v1", "workstream_id": ledger.header.workstream_id,
+           "ledger_path": path, "operations": ["append"]}
+    normalized = {"write_intent": "writing", "allowed_files": [path.upper().replace("/", "\\")],
+                  "expected_absent": [], "reflection": cap}
+    assert validate_reflection_capability(normalized) == cap
+    alias = path.replace(component, component + suffix)
+    assert is_reserved_reflection_path(alias)
+    for field in ("allowed_files", "expected_absent"):
+        for capability in (False, True):
+            execution = {"write_intent": "writing", "allowed_files": [path] if capability else ["ordinary.py"],
+                         "expected_absent": [], **({"reflection": cap} if capability else {})}
+            execution[field] = [alias]
+            with pytest.raises(ReflectionValidationError):
+                validate_reflection_capability(execution)
+
+
+def test_reflection_fuse_apply_requires_original_binding_across_source_changes(tmp_path):
+    from memory_seed.core import session_fuse
+    root, ledger, path = _new_git_workstream(tmp_path)
+    branch = ledger.header.working_branch
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    preview_a = session_fuse(root, branch=branch)
+    assert not preview_a.issues
+    _git(root, "checkout", branch)
+    ledger_b = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True)
+    _commit_ledger(root, path, ledger_b, "reflection: source B")
+    legacy = root / ".memory-seed/sessions/2026-09-06.md"
+    legacy.write_text(
+        "---\ntags: [session-log, memory-seed]\nsession_date: 2026-09-06\n---\n\n"
+        "## 2026-09-06 12:00 - Source B\n\n```yaml\nentry_id: mse_0123456789abcdef\n"
+        f"user_initials: JN\nagent_type: codex\nbranch: {branch}\n```\n\n- Source B body.\n", encoding="utf-8")
+    _git(root, "add", legacy.relative_to(root).as_posix())
+    _git(root, "commit", "-m", "source B session")
+    _git(root, "checkout", "integration")
+    preview_b = session_fuse(root, branch=branch)
+    assert not preview_b.issues and preview_b.planned_entries and preview_b.removed_sources
+    _git(root, "merge", "--no-ff", "--no-commit", branch)
+    before = _admission_state(root)
+    unbound = session_fuse(root, branch=branch, apply=True)
+    assert not unbound.changed and "reflection-binding-required" in " ".join(unbound.issues)
+    assert _admission_state(root) == before
+    stale = session_fuse(root, branch=branch, apply=True, reflection_admission=preview_a.reflection_admission)
+    assert not stale.changed and "reflection-binding-stale" in " ".join(stale.issues)
+    assert _admission_state(root) == before
+    malformed = session_fuse(root, branch=branch, apply=True, reflection_admission={})
+    assert not malformed.changed and "reflection-binding-stale" in " ".join(malformed.issues)
+    assert _admission_state(root) == before
+    current = session_fuse(root, branch=branch, apply=True, reflection_admission=preview_b.reflection_admission)
+    assert current.changed and not current.issues
+    assert not legacy.exists()
+    assert (root / ".memory-seed/sessions/2026-09/2026-09-06.md").is_file()
+    assert (root / path).read_bytes() == render_workstream_ledger(ledger_b).encode("utf-8")
+
+
+@pytest.mark.parametrize("consumer", ("merge-branch", "prepare-pr"))
+@pytest.mark.parametrize("dry_run", (False, True))
+def test_reflection_refusal_preserves_stale_index_stat_cache(tmp_path, consumer, dry_run):
+    from memory_seed.core import session_merge_branch, session_prepare_pr_branch
+    root, ledger, path = _new_git_workstream(tmp_path)
+    extra = (root / path).parent / "manifest.yaml"
+    extra.write_text("unsupported\n", encoding="utf-8")
+    _git(root, "add", extra.relative_to(root).as_posix())
+    _git(root, "commit", "-m", "unsupported reserved state")
+    _git(root, "branch", "integration", ledger.header.base_sha)
+    if consumer == "merge-branch":
+        _git(root, "checkout", "integration")
+    # Content is unchanged, but the cached stat data now needs a refresh.
+    tracked = root / "README.md"
+    stamp = tracked.stat()
+    os.utime(tracked, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 2_000_000_000))
+    index = root / ".git/index"
+    index_before = index.read_bytes()
+    before = _admission_state(root)
+    if consumer == "merge-branch":
+        result = session_merge_branch(root, branch=ledger.header.working_branch, dry_run=dry_run)
+        assert not result.committed
+    else:
+        result = session_prepare_pr_branch(root, branch=ledger.header.working_branch,
+                                          base_branch="integration", dry_run=dry_run)
+        assert not result.ready
+    assert "unsupported-reflection-format" in " ".join(result.issues)
+    assert index.read_bytes() == index_before
+    assert _admission_state(root) == before
+    # Positive control: ordinary status really does rewrite this fixture's index.
+    assert _git(root, "status", "--short") == ""
+    assert index.read_bytes() != index_before
+
+
 def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_writes(tmp_path):
     from memory_seed.core import session_merge_branch
     from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
@@ -648,7 +743,8 @@ def test_reflection_integration_preview_binding_changes_refuse_without_mutation(
     assert _admission_state(root) == before
 
 
-@pytest.mark.parametrize("hostile", ["format", "mixed", "case", "nested", "symlink", "raw-delete", "two-parents"])
+@pytest.mark.parametrize("hostile", ["format", "mixed", "case", "nested", "symlink", "raw-delete", "two-parents",
+                                     "runtime-dot", "runtime-space", "family-dot", "family-space"])
 def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile):
     from memory_seed.reflection_ledger import preview_reflection_integration
     root, ledger, path = _new_git_workstream(tmp_path)
@@ -666,6 +762,13 @@ def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile)
     elif hostile == "symlink":
         oid = _git(root, "hash-object", "-w", "--stdin", input="../../outside\n")
         _git(root, "update-index", "--cacheinfo", f"120000,{oid},{path}")
+    elif hostile in {"runtime-dot", "runtime-space", "family-dot", "family-space"}:
+        component = ".memory-seed" if hostile.startswith("runtime-") else "reflections"
+        alias = path.replace(component, component + ("." if hostile.endswith("-dot") else " "))
+        oid = _git(root, "rev-parse", f"HEAD:{path}")
+        # Build a hostile committed tree without relying on Windows creating
+        # distinct filesystem entries for names which alias a canonical path.
+        _git(root, "-c", "core.protectNTFS=false", "update-index", "--add", "--cacheinfo", f"100644,{oid},{alias}")
     elif hostile == "raw-delete":
         _git(root, "branch", "integration", "HEAD")
         target.unlink()
@@ -673,7 +776,7 @@ def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile)
         _git(root, "branch", "integration", "HEAD")
         _git(root, "commit", "--allow-empty", "-m", "child inherits ledger")
     if hostile != "two-parents":
-        if hostile != "symlink":
+        if hostile not in {"symlink", "runtime-dot", "runtime-space", "family-dot", "family-space"}:
             _git(root, "add", "-A")
         _git(root, "commit", "-m", "hostile tree fixture")
     if hostile not in {"raw-delete", "two-parents"}:

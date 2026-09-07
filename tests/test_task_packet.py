@@ -149,6 +149,41 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "activation_read_only"):
             activate_task_packet(packet, root)
 
+    def test_rehashed_artifact_cannot_hide_reserved_windows_aliases(self):
+        from memory_seed.core import _activated_packet_base_sha
+        from memory_seed.task_packet import _read_activation_artifact, _packet_fingerprint, _activation_receipt
+        root, dispatch, path = self.reflection_writer()
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        artifact = Path(activate_task_packet(packet, root)["activation_artifact"])
+        original = json.loads(artifact.read_text(encoding="utf-8"))
+        aliases = (path.replace("reflections/", "reflections./"),
+                   path.replace(".memory-seed/", ".memory-seed./"),
+                   path.replace("reflections/", "reflections /"),
+                   path.replace(".memory-seed/", ".memory-seed /"),
+                   path + ".", path + " ")
+        for alias in aliases:
+            for field in ("allowed_files", "expected_absent"):
+                for capability in (False, True):
+                    payload = copy.deepcopy(original)
+                    forged = payload["packet"]
+                    execution = forged["dispatch"]["execution"]
+                    execution[field] = [alias]
+                    if not capability:
+                        del execution["reflection"]
+                        del forged["runtime_binding"]["reflection"]
+                        if field == "expected_absent":
+                            execution["allowed_files"] = ["memory_seed/reflection_ledger.py"]
+                    forged["dispatch_fingerprint"] = "sha256:" + hashlib.sha256(
+                        json.dumps(forged["dispatch"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+                    forged["fingerprint"] = _packet_fingerprint(forged)
+                    payload["receipt"] = _activation_receipt(forged, forged["dispatch"], forged["runtime_binding"])
+                    artifact.write_text(json.dumps(payload), encoding="utf-8")
+                    before = artifact.read_bytes()
+                    with self.subTest(alias=alias, field=field, capability=capability):
+                        self.assertIsNone(_read_activation_artifact(artifact, root))
+                        self.assertIsNone(_activated_packet_base_sha(root))
+                        self.assertEqual(artifact.read_bytes(), before)
+
     def test_reserved_reflection_scope_requires_capability_before_lookup(self):
         for path in (".memory-seed/reflections/active/missing/ledger.md",
                      ".MEMORY-SEED\\REFLECTIONS\\missing.md"):
