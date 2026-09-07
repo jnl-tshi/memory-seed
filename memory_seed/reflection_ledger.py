@@ -1,9 +1,7 @@
-"""Strict, temporary reflection-ledger kernel.
+"""Reflection Board v1: one strict sequential ledger per workstream.
 
-This module deliberately has no dependency on the session readers.  A
-reflection board is coordination state, rather than a second source of durable
-memory, so its format, discovery, and fuse are all kept separate from
-``memory_seed.core``.
+Temporary coordination state uses its own canonical format and trusted Git
+history. Durable receipt evidence is read from ordinary append-only sessions.
 """
 
 from __future__ import annotations
@@ -24,18 +22,11 @@ import unicodedata
 
 
 REFLECTION_ROOT = ".memory-seed/reflections/active"
-MANIFEST_NAME = "manifest.yaml"
 CANONICAL_MODE = "100644"
-RESERVATION_ALGORITHM = "sha256-crockford-v1"
-RESERVATION_DOMAIN = b"memory-seed/reflection-reservation/v1\0"
 CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz"
 ID_SUFFIX_RE = re.compile(r"^[0-9abcdefghjkmnpqrstvwxyz]{20}$")
 RFC3339_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 SAFE_SCALAR_RE = re.compile(r"^[A-Za-z0-9_./:+@=-]+$")
-ROLE_VALUES = {"worker", "validator", "orchestrator"}
-RECORD_KINDS = {"observation", "opinion", "risk", "correction", "resolution", "promotion", "closeout"}
-RELATIONSHIPS = {"refines", "responds", "corrects", "challenges", "combines", "orphan"}
-WORKER_KINDS = {"observation", "opinion", "risk", "correction"}
 
 
 @dataclass(frozen=True)
@@ -211,38 +202,6 @@ def _parse_yaml_mapping(text: str, path: str) -> dict[str, Any]:
     return result
 
 
-def _yaml_mapping(items: Sequence[tuple[str, Any]]) -> str:
-    lines: list[str] = []
-    for key, value in items:
-        if isinstance(value, list):
-            if not value:
-                lines.append(f"{key}: []")
-                continue
-            lines.append(f"{key}:")
-            for member in value:
-                if isinstance(member, Mapping):
-                    member_items = list(member.items())
-                    if not member_items:
-                        _fail("schema", "<renderer>", "empty list map is unsupported")
-                    first_key, first_value = member_items[0]
-                    lines.append(f"  - {first_key}: {_yaml_inline(first_value)}")
-                    for nested_key, nested_value in member_items[1:]:
-                        lines.append(f"    {nested_key}: {_yaml_inline(nested_value)}")
-                else:
-                    lines.append(f"  - {_yaml_inline(member)}")
-        else:
-            lines.append(f"{key}: {_yaml_inline(value)}")
-    return "\n".join(lines) + "\n"
-
-
-def _yaml_inline(value: Any) -> str:
-    if isinstance(value, list):
-        return "[" + ", ".join(_yaml_inline(item) for item in value) + "]"
-    if isinstance(value, Mapping):
-        return "{" + ", ".join(f"{key}: {_yaml_inline(item)}" for key, item in value.items()) + "}"
-    return _quote(value)
-
-
 def _required(mapping: Mapping[str, Any], keys: Sequence[str], path: str) -> None:
     missing = [key for key in keys if key not in mapping]
     if missing:
@@ -276,21 +235,6 @@ def _as_utc(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
-def _relative_path(value: Any, path: str, field_name: str) -> str:
-    value = _text(value, path, field_name)
-    candidate = PurePosixPath(value)
-    if (
-        candidate.is_absolute()
-        or ".." in candidate.parts
-        or "\\" in value
-        or value.startswith(".")
-        or value != candidate.as_posix()
-        or "//" in value
-    ):
-        _fail("path", path, "path must be a clean relative POSIX path", field=field_name, value=value)
-    return value
-
-
 def _id(value: Any, prefix: str, path: str, field_name: str) -> str:
     value = _text(value, path, field_name)
     if not value.startswith(prefix) or not ID_SUFFIX_RE.fullmatch(value[len(prefix):]):
@@ -303,804 +247,6 @@ def crockford(raw: bytes) -> str:
         raise ValueError("ID digest must be exactly 12 bytes")
     number = int.from_bytes(raw, "big")
     return "".join(CROCKFORD[(number >> (5 * shift)) & 31] for shift in range(19, -1, -1))
-
-
-def canonical_id(prefix: str, seed: str, *parts: str) -> str:
-    if not re.fullmatch(r"[0-9a-f]{64}", seed):
-        raise ValueError("reservation seed must be 64 lowercase hex characters")
-    frame = RESERVATION_DOMAIN + bytes.fromhex(seed)
-    for part in parts:
-        raw = part.encode("utf-8")
-        frame += len(raw).to_bytes(4, "big") + raw
-    return prefix + crockford(sha256(frame).digest()[:12])
-
-
-def reservation_id(prefix: str, seed: str, plan: str, participant: str, track: str, sequence: int, slot: str) -> str:
-    return canonical_id(prefix, seed, plan, participant, track, str(sequence), slot)
-
-
-def record_id(seed: str, fragment_id: str, ordinal: int) -> str:
-    if not 1 <= ordinal <= 9999:
-        raise ValueError("record ordinal must be 1..9999")
-    return canonical_id("rlr_", seed, "reflection-record-v1", fragment_id, f"record:{ordinal:04d}")
-
-
-@dataclass(frozen=True)
-class ReflectionReservation:
-    sequence: int
-    report_id: str
-    fragment_id: str
-    report_path: str
-    fragment_path: str
-
-    def as_dict(self) -> dict[str, Any]:
-        return {"sequence": self.sequence, "report_id": self.report_id, "fragment_id": self.fragment_id,
-                "report_path": self.report_path, "fragment_path": self.fragment_path}
-
-
-@dataclass(frozen=True)
-class ReflectionParticipant:
-    participant: str
-    role: str
-    branch: str
-    track: str
-    reservations: tuple[ReflectionReservation, ...]
-
-
-@dataclass(frozen=True)
-class ReflectionManifest:
-    plan_id: str
-    base_branch: str
-    base_sha: str
-    state: str
-    created_at: str
-    reflection_retention_days: int
-    reservation_algorithm: str
-    reservation_seed: str
-    participants_seal: str
-    early_expiry_approval_key_id: str
-    early_expiry_approval_public_key: str
-    orchestrator: Mapping[str, str]
-    participants: tuple[ReflectionParticipant, ...]
-
-    @property
-    def active_dir(self) -> str:
-        return f"{REFLECTION_ROOT}/{self.plan_id}"
-
-    @property
-    def manifest_path(self) -> str:
-        return f"{self.active_dir}/{MANIFEST_NAME}"
-
-    def reservation(self, participant: str, sequence: int) -> ReflectionReservation | None:
-        for person in self.participants:
-            if person.participant == participant:
-                return next((item for item in person.reservations if item.sequence == sequence), None)
-        return None
-
-    def participant_for_branch(self, branch: str) -> ReflectionParticipant | None:
-        matches = [item for item in self.participants if item.branch == branch]
-        return matches[0] if len(matches) == 1 else None
-
-
-def roster_bytes(manifest: ReflectionManifest) -> bytes:
-    participants = []
-    for person in manifest.participants:
-        participants.append({
-            "participant": person.participant, "role": person.role, "branch": person.branch, "track": person.track,
-            "reservations": [reservation.as_dict() for reservation in person.reservations],
-        })
-    return _yaml_mapping([
-        ("plan_id", manifest.plan_id), ("base_branch", manifest.base_branch), ("base_sha", manifest.base_sha),
-        ("participants", participants),
-    ]).encode("utf-8")
-
-
-def participants_seal(manifest: ReflectionManifest) -> str:
-    return sha256(roster_bytes(manifest)).hexdigest()
-
-
-def _participant_from_mapping(value: Any, path: str) -> ReflectionParticipant:
-    if not isinstance(value, Mapping):
-        _fail("schema", path, "participant must be a mapping")
-    _required(value, ("participant", "role", "branch", "track", "reservations"), path)
-    _only(value, ("participant", "role", "branch", "track", "reservations"), path)
-    role = _text(value["role"], path, "role")
-    if role not in ROLE_VALUES:
-        _fail("role", path, "unknown participant role", role=role)
-    reservations_value = value["reservations"]
-    if not isinstance(reservations_value, list) or not reservations_value:
-        _fail("schema", path, "participant needs a non-empty reservation list")
-    reservations: list[ReflectionReservation] = []
-    for item in reservations_value:
-        if not isinstance(item, Mapping):
-            _fail("schema", path, "reservation must be a mapping")
-        _required(item, ("sequence", "report_id", "fragment_id", "report_path", "fragment_path"), path)
-        _only(item, ("sequence", "report_id", "fragment_id", "report_path", "fragment_path"), path)
-        if not isinstance(item["sequence"], int) or item["sequence"] < 1:
-            _fail("sequence", path, "reservation sequence must be a positive integer")
-        reservations.append(ReflectionReservation(
-            item["sequence"], _id(item["report_id"], "rpr_", path, "report_id"),
-            _id(item["fragment_id"], "rfl_", path, "fragment_id"),
-            _relative_path(item["report_path"], path, "report_path"),
-            _relative_path(item["fragment_path"], path, "fragment_path"),
-        ))
-    return ReflectionParticipant(_text(value["participant"], path, "participant"), role,
-                                 _text(value["branch"], path, "branch"), _text(value["track"], path, "track"),
-                                 tuple(reservations))
-
-
-def manifest_from_dict(value: Mapping[str, Any], path: str = MANIFEST_NAME) -> ReflectionManifest:
-    fields = ("schema", "version", "plan_id", "base_branch", "base_sha", "state", "created_at",
-              "reflection_retention_days", "reservation_algorithm", "reservation_seed", "participants_seal",
-              "early_expiry_approval_key_id", "early_expiry_approval_public_key", "orchestrator", "participants")
-    _required(value, fields, path)
-    _only(value, fields, path)
-    if value["schema"] != "memory-seed/reflection-plan" or value["version"] != 1:
-        _fail("schema", path, "unsupported reflection manifest schema/version")
-    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", _text(value["base_sha"], path, "base_sha")):
-        _fail("base", path, "base_sha must be a resolved lowercase Git SHA")
-    if value["state"] not in {"active", "review", "closed"}:
-        _fail("state", path, "invalid manifest state")
-    days = value["reflection_retention_days"]
-    if not isinstance(days, int) or days < 1:
-        _fail("retention", path, "reflection_retention_days must be a positive integer")
-    if value["reservation_algorithm"] != RESERVATION_ALGORITHM:
-        _fail("reservation-algorithm", path, "unsupported reservation algorithm")
-    seed = _text(value["reservation_seed"], path, "reservation_seed")
-    if not re.fullmatch(r"[0-9a-f]{64}", seed):
-        _fail("reservation-seed", path, "reservation_seed must be 64 lowercase hex")
-    orchestrator = value["orchestrator"]
-    if not isinstance(orchestrator, Mapping):
-        _fail("schema", path, "orchestrator must be a mapping")
-    _required(orchestrator, ("participant", "branch"), path)
-    _only(orchestrator, ("participant", "branch"), path)
-    participants_value = value["participants"]
-    if not isinstance(participants_value, list) or not participants_value:
-        _fail("schema", path, "manifest needs a non-empty participants list")
-    participants = tuple(_participant_from_mapping(item, path) for item in participants_value)
-    manifest = ReflectionManifest(
-        _text(value["plan_id"], path, "plan_id"), _text(value["base_branch"], path, "base_branch"),
-        _text(value["base_sha"], path, "base_sha"), value["state"], _timestamp(value["created_at"], path, "created_at"),
-        days, RESERVATION_ALGORITHM, seed, _text(value["participants_seal"], path, "participants_seal"),
-        _text(value["early_expiry_approval_key_id"], path, "early_expiry_approval_key_id"),
-        _text(value["early_expiry_approval_public_key"], path, "early_expiry_approval_public_key"),
-        {"participant": _text(orchestrator["participant"], path, "orchestrator.participant"),
-         "branch": _text(orchestrator["branch"], path, "orchestrator.branch")}, participants,
-    )
-    validate_manifest(manifest, path)
-    return manifest
-
-
-def validate_manifest(manifest: ReflectionManifest, path: str = MANIFEST_NAME) -> None:
-    names = [person.participant for person in manifest.participants]
-    branches = [person.branch for person in manifest.participants]
-    if len(names) != len(set(names)) or len(branches) != len(set(branches)):
-        _fail("roster", path, "participants and branches must be unique")
-    orchestrators = [person for person in manifest.participants if person.role == "orchestrator"]
-    if len(orchestrators) != 1 or orchestrators[0].participant != manifest.orchestrator["participant"] or orchestrators[0].branch != manifest.orchestrator["branch"]:
-        _fail("orchestrator", path, "orchestrator mapping must name the sole orchestrator participant")
-    paths: set[str] = set()
-    ids: set[str] = set()
-    sequences: set[tuple[str, int]] = set()
-    for person in manifest.participants:
-        for reservation in person.reservations:
-            key = (person.participant, reservation.sequence)
-            if key in sequences:
-                _fail("sequence", path, "duplicate participant reservation sequence", participant=person.participant, sequence=reservation.sequence)
-            sequences.add(key)
-            expected_report = reservation_id("rpr_", manifest.reservation_seed, manifest.plan_id, person.participant, person.track, reservation.sequence, "report")
-            expected_fragment = reservation_id("rfl_", manifest.reservation_seed, manifest.plan_id, person.participant, person.track, reservation.sequence, "fragment")
-            if reservation.report_id != expected_report or reservation.fragment_id != expected_fragment:
-                _fail("reservation-id", path, "reservation ID does not match deterministic manifest derivation", participant=person.participant, sequence=reservation.sequence)
-            for identifier in (reservation.report_id, reservation.fragment_id):
-                if identifier in ids:
-                    _fail("collision", path, "duplicate reserved identifier", identifier=identifier)
-                ids.add(identifier)
-            for rel_path, expected_prefix, identifier in ((reservation.report_path, "reports/", reservation.report_id), (reservation.fragment_path, "fragments/", reservation.fragment_id)):
-                if not rel_path.startswith(expected_prefix) or not rel_path.endswith(identifier + ".md"):
-                    _fail("reservation-path", path, "reservation path must be a matching canonical reports/fragments path", path=rel_path)
-                if rel_path in paths:
-                    _fail("collision", path, "duplicate reserved path", path=rel_path)
-                paths.add(rel_path)
-    if not re.fullmatch(r"[0-9a-f]{64}", manifest.participants_seal) or manifest.participants_seal != participants_seal(manifest):
-        _fail("roster-seal", path, "participants_seal does not match canonical participant roster")
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", manifest.early_expiry_approval_key_id):
-        _fail("approval-key", path, "early expiry approval key ID must be a stable token")
-    if not re.fullmatch(r"ed25519:[0-9a-f]{64}", manifest.early_expiry_approval_public_key):
-        _fail("approval-key", path, "early expiry approval public key must be ed25519:<32-byte lowercase hex>")
-
-
-def render_manifest(manifest: ReflectionManifest) -> str:
-    validate_manifest(manifest)
-    participants = []
-    for person in manifest.participants:
-        participants.append({"participant": person.participant, "role": person.role, "branch": person.branch,
-                             "track": person.track, "reservations": [item.as_dict() for item in person.reservations]})
-    return _yaml_mapping([
-        ("schema", "memory-seed/reflection-plan"), ("version", 1), ("plan_id", manifest.plan_id),
-        ("base_branch", manifest.base_branch), ("base_sha", manifest.base_sha), ("state", manifest.state),
-        ("created_at", manifest.created_at), ("reflection_retention_days", manifest.reflection_retention_days),
-        ("reservation_algorithm", manifest.reservation_algorithm), ("reservation_seed", manifest.reservation_seed),
-        ("participants_seal", manifest.participants_seal), ("early_expiry_approval_key_id", manifest.early_expiry_approval_key_id),
-        ("early_expiry_approval_public_key", manifest.early_expiry_approval_public_key), ("orchestrator", dict(manifest.orchestrator)),
-        ("participants", participants),
-    ])
-
-
-def parse_manifest(raw: bytes | str, path: str = MANIFEST_NAME) -> ReflectionManifest:
-    text = _canonical_text(raw, path)
-    manifest = manifest_from_dict(_parse_yaml_mapping(text, path), path)
-    if render_manifest(manifest) != text:
-        _fail("canonical-bytes", path, "manifest is valid YAML but not the canonical rendering")
-    return manifest
-
-
-@dataclass(frozen=True)
-class ReflectionReport:
-    report_id: str
-    plan_id: str
-    participant: str
-    track: str
-    working_branch: str
-    base_sha: str
-    task_packet_fingerprint: str
-    status: str
-    created_at: str
-    validation: tuple[Mapping[str, Any], ...]
-    body: str
-
-
-def report_from_dict(value: Mapping[str, Any], body: str, path: str = "report.md") -> ReflectionReport:
-    fields = ("schema", "version", "report_id", "plan_id", "participant", "track", "working_branch", "base_sha",
-              "task_packet_fingerprint", "status", "created_at", "validation")
-    _required(value, fields, path)
-    _only(value, fields, path)
-    if value["schema"] != "memory-seed/reflection-report" or value["version"] != 1:
-        _fail("schema", path, "unsupported reflection report schema/version")
-    validation = value["validation"]
-    if not isinstance(validation, list) or not validation:
-        _fail("validation", path, "report validation must be a non-empty list")
-    normalized: list[Mapping[str, Any]] = []
-    for item in validation:
-        if not isinstance(item, Mapping) or set(item) != {"command", "exit_code"} or not isinstance(item["exit_code"], int):
-            _fail("validation", path, "validation items require command and integer exit_code")
-        normalized.append({"command": _text(item["command"], path, "validation.command"), "exit_code": item["exit_code"]})
-    fingerprint = _text(value["task_packet_fingerprint"], path, "task_packet_fingerprint")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint):
-        _fail("report-provenance", path, "task_packet_fingerprint must be sha256:<64 lowercase hex>")
-    status = _text(value["status"], path, "status")
-    if status not in {"DONE", "DONE_WITH_CONCERNS", "BLOCKED"}:
-        _fail("status", path, "invalid report status", status=status)
-    if not body or not body.strip() or not body.endswith("\n"):
-        _fail("report-body", path, "report body must be non-empty and end in one LF")
-    return ReflectionReport(_id(value["report_id"], "rpr_", path, "report_id"), _text(value["plan_id"], path, "plan_id"),
-                            _text(value["participant"], path, "participant"), _text(value["track"], path, "track"),
-                            _text(value["working_branch"], path, "working_branch"), _text(value["base_sha"], path, "base_sha"),
-                            fingerprint, status, _timestamp(value["created_at"], path, "created_at"), tuple(normalized), body)
-
-
-def render_report(report: ReflectionReport) -> str:
-    header = _yaml_mapping([
-        ("schema", "memory-seed/reflection-report"), ("version", 1), ("report_id", report.report_id),
-        ("plan_id", report.plan_id), ("participant", report.participant), ("track", report.track),
-        ("working_branch", report.working_branch), ("base_sha", report.base_sha),
-        ("task_packet_fingerprint", report.task_packet_fingerprint), ("status", report.status),
-        ("created_at", report.created_at), ("validation", list(report.validation)),
-    ])
-    return "---\n" + header + "---\n\n# Worker report\n\n" + report.body
-
-
-def parse_report(raw: bytes | str, path: str = "report.md") -> ReflectionReport:
-    text = _canonical_text(raw, path)
-    match = re.fullmatch(r"---\n(?P<header>.*?)---\n\n# Worker report\n\n(?P<body>[\s\S]+)", text, re.DOTALL)
-    if not match:
-        _fail("markdown", path, "report must use canonical frontmatter and Worker report heading")
-    report = report_from_dict(_parse_yaml_mapping(match.group("header"), path), match.group("body"), path)
-    if render_report(report) != text:
-        _fail("canonical-bytes", path, "report is valid but not the canonical rendering")
-    return report
-
-
-def validate_report(report: ReflectionReport, manifest: ReflectionManifest, *, branch: str | None = None, path: str = "report.md") -> ReflectionReservation:
-    if report.plan_id != manifest.plan_id or report.base_sha != manifest.base_sha:
-        _fail("report-provenance", path, "report plan/base does not match manifest")
-    participant = next((item for item in manifest.participants if item.participant == report.participant), None)
-    if participant is None or participant.track != report.track or participant.branch != report.working_branch:
-        _fail("ownership", path, "report participant/track/branch does not match manifest")
-    if branch is not None and report.working_branch != branch:
-        _fail("ownership", path, "report branch does not match fused source branch", branch=branch)
-    reservation = next((item for item in participant.reservations if item.report_id == report.report_id), None)
-    if reservation is None:
-        _fail("reservation", path, "report_id is not reserved for participant")
-    return reservation
-
-
-@dataclass(frozen=True)
-class ReflectionRecord:
-    record_id: str
-    ordinal: int
-    kind: str
-    chain_id: str
-    parents: tuple[str, ...]
-    relationship: str
-    area: str
-    activity: str
-    topics: tuple[str, ...]
-    related_decisions: tuple[str, ...]
-    confidence: str
-    source: str
-    created_at: str
-    conclusion: str
-    reasoning: str
-    assumptions: str | None = None
-    alternatives: str | None = None
-    next_step: str | None = None
-    corrects: str | None = None
-    no_related_thread: bool = False
-
-
-@dataclass(frozen=True)
-class ReflectionFragment:
-    fragment_id: str
-    plan_id: str
-    participant: str
-    track: str
-    working_branch: str
-    sequence: int
-    source: str
-    report_id: str
-    base_sha: str
-    created_at: str
-    title: str
-    records: tuple[ReflectionRecord, ...]
-
-
-_FRAGMENT_FIELDS = ("schema", "version", "fragment_id", "plan_id", "participant", "track", "working_branch", "sequence", "source", "report_id", "base_sha")
-_RECORD_FIELDS = ("record_id", "ordinal", "kind", "chain_id", "parents", "relationship", "area", "activity", "topics", "related_decisions", "confidence", "source", "created_at", "corrects", "no_related_thread")
-
-
-def _record_from_dict(value: Mapping[str, Any], sections: Mapping[str, str], path: str) -> ReflectionRecord:
-    _required(value, _RECORD_FIELDS[:14], path)
-    _only(value, _RECORD_FIELDS, path)
-    ordinal = value["ordinal"]
-    if not isinstance(ordinal, int) or not 1 <= ordinal <= 9999:
-        _fail("ordinal", path, "record ordinal must be 1..9999")
-    kind = _text(value["kind"], path, "kind")
-    relationship = _text(value["relationship"], path, "relationship")
-    if kind not in RECORD_KINDS or relationship not in RELATIONSHIPS:
-        _fail("relationship", path, "invalid record kind or relationship", kind=kind, relationship=relationship)
-    for field_name in ("parents", "topics", "related_decisions"):
-        if not isinstance(value[field_name], list) or any(not isinstance(item, str) or not item for item in value[field_name]):
-            _fail("schema", path, "record list field must be a string list", field=field_name)
-    if len(set(value["parents"])) != len(value["parents"]):
-        _fail("relationship", path, "record parents must be unique")
-    if value["confidence"] not in {"low", "medium", "high"}:
-        _fail("confidence", path, "confidence must be low, medium, or high")
-    if value["source"] not in {"write-time", "derived"}:
-        _fail("source", path, "record source must be write-time or derived")
-    conclusion = sections.get("Conclusion", "")
-    reasoning = sections.get("Reasoning", "")
-    if not conclusion.strip() or not reasoning.strip():
-        _fail("conclusion", path, "record requires Conclusion then Reasoning sections")
-    corrects = value.get("corrects")
-    if corrects is not None:
-        corrects = _id(corrects, "rlr_", path, "corrects")
-    no_related_thread = value.get("no_related_thread", False)
-    if not isinstance(no_related_thread, bool):
-        _fail("relationship", path, "no_related_thread must be boolean")
-    return ReflectionRecord(_id(value["record_id"], "rlr_", path, "record_id"), ordinal, kind,
-                            _id(value["chain_id"], "rlc_", path, "chain_id"), tuple(value["parents"]), relationship,
-                            _text(value["area"], path, "area"), _text(value["activity"], path, "activity"),
-                            tuple(value["topics"]), tuple(value["related_decisions"]), value["confidence"], value["source"],
-                            _timestamp(value["created_at"], path, "created_at"), conclusion, reasoning,
-                            sections.get("Assumptions and uncertainty"), sections.get("Alternatives and objections"),
-                            sections.get("Challenge or next step"), corrects, no_related_thread)
-
-
-def _record_metadata(record: ReflectionRecord) -> list[tuple[str, Any]]:
-    return [("record_id", record.record_id), ("ordinal", record.ordinal), ("kind", record.kind), ("chain_id", record.chain_id),
-            ("parents", list(record.parents)), ("relationship", record.relationship), ("area", record.area),
-            ("activity", record.activity), ("topics", list(record.topics)), ("related_decisions", list(record.related_decisions)),
-            ("confidence", record.confidence), ("source", record.source), ("created_at", record.created_at),
-            ("corrects", record.corrects), ("no_related_thread", record.no_related_thread)]
-
-
-def _render_sections(record: ReflectionRecord) -> str:
-    sections = [("Conclusion", record.conclusion), ("Reasoning", record.reasoning),
-                ("Assumptions and uncertainty", record.assumptions), ("Alternatives and objections", record.alternatives),
-                ("Challenge or next step", record.next_step)]
-    return "\n".join(f"#### {title}\n\n{body.rstrip()}" for title, body in sections if body is not None) + "\n"
-
-
-def render_fragment(fragment: ReflectionFragment) -> str:
-    header = _yaml_mapping([
-        ("schema", "memory-seed/reflection-fragment"), ("version", 1), ("fragment_id", fragment.fragment_id),
-        ("plan_id", fragment.plan_id), ("participant", fragment.participant), ("track", fragment.track),
-        ("working_branch", fragment.working_branch), ("sequence", fragment.sequence), ("source", fragment.source),
-        ("report_id", fragment.report_id), ("base_sha", fragment.base_sha),
-    ])
-    pieces = [f"## {fragment.created_at} - {fragment.title}\n\n```yaml\n{header}```\n"]
-    for record in fragment.records:
-        pieces.append(f"\n### R{record.ordinal} - {record.kind}\n\n```yaml\n{_yaml_mapping(_record_metadata(record))}```\n\n{_render_sections(record)}")
-    return "".join(pieces)
-
-
-def _parse_sections(text: str, path: str) -> dict[str, str]:
-    matches = list(re.finditer(r"^#### (Conclusion|Reasoning|Assumptions and uncertainty|Alternatives and objections|Challenge or next step)\n\n", text, re.MULTILINE))
-    sections: dict[str, str] = {}
-    for index, match in enumerate(matches):
-        name = match.group(1)
-        if name in sections:
-            _fail("markdown", path, "duplicate record section", section=name)
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        body = text[match.end():end].rstrip("\n")
-        sections[name] = body
-    return sections
-
-
-def parse_fragment(raw: bytes | str, path: str = "fragment.md") -> ReflectionFragment:
-    text = _canonical_text(raw, path)
-    prefix = re.match(r"^## (?P<created>[^\n]+) - (?P<title>[^\n]+)\n\n```yaml\n(?P<header>.*?)```\n", text, re.DOTALL)
-    if not prefix:
-        _fail("markdown", path, "fragment must start with a timestamped heading and YAML envelope")
-    created_at = _timestamp(prefix.group("created"), path, "heading.created_at")
-    header = _parse_yaml_mapping(prefix.group("header"), path)
-    _required(header, _FRAGMENT_FIELDS, path)
-    _only(header, _FRAGMENT_FIELDS, path)
-    if header["schema"] != "memory-seed/reflection-fragment" or header["version"] != 1:
-        _fail("schema", path, "unsupported reflection fragment schema/version")
-    body = text[prefix.end():]
-    blocks = list(re.finditer(r"^\n### R(?P<ordinal>\d+) - (?P<title>[^\n]+)\n\n```yaml\n(?P<meta>.*?)```\n\n", body, re.MULTILINE | re.DOTALL))
-    if not blocks:
-        _fail("records", path, "fragment needs at least one canonical record")
-    records: list[ReflectionRecord] = []
-    for index, block in enumerate(blocks):
-        end = blocks[index + 1].start() if index + 1 < len(blocks) else len(body)
-        record_body = body[block.end():end]
-        if record_body.endswith("\n"):
-            record_body = record_body[:-1]
-        metadata = _parse_yaml_mapping(block.group("meta"), path)
-        if metadata.get("ordinal") != int(block.group("ordinal")) or metadata.get("kind") != block.group("title"):
-            _fail("records", path, "record heading must match record metadata")
-        records.append(_record_from_dict(metadata, _parse_sections(record_body, path), path))
-    fragment = ReflectionFragment(
-        _id(header["fragment_id"], "rfl_", path, "fragment_id"), _text(header["plan_id"], path, "plan_id"),
-        _text(header["participant"], path, "participant"), _text(header["track"], path, "track"),
-        _text(header["working_branch"], path, "working_branch"), header["sequence"], _text(header["source"], path, "source"),
-        _id(header["report_id"], "rpr_", path, "report_id"), _text(header["base_sha"], path, "base_sha"),
-        created_at, prefix.group("title"), tuple(records),
-    )
-    if not isinstance(fragment.sequence, int) or fragment.sequence < 1 or fragment.source not in {"write-time", "derived"}:
-        _fail("schema", path, "invalid fragment sequence or source")
-    if render_fragment(fragment) != text:
-        _fail("canonical-bytes", path, "fragment is valid but not the canonical rendering")
-    return fragment
-
-
-def validate_fragment(fragment: ReflectionFragment, manifest: ReflectionManifest, report: ReflectionReport, *, branch: str | None = None, path: str = "fragment.md") -> ReflectionReservation:
-    if fragment.plan_id != manifest.plan_id or fragment.base_sha != manifest.base_sha:
-        _fail("ownership", path, "fragment plan/base does not match manifest")
-    participant = next((item for item in manifest.participants if item.participant == fragment.participant), None)
-    if participant is None or (participant.track, participant.branch) != (fragment.track, fragment.working_branch):
-        _fail("ownership", path, "fragment participant/track/branch does not match manifest")
-    if branch is not None and branch != fragment.working_branch:
-        _fail("ownership", path, "fragment branch does not match fused source branch", branch=branch)
-    reservation = manifest.reservation(fragment.participant, fragment.sequence)
-    if reservation is None or (reservation.fragment_id, reservation.report_id) != (fragment.fragment_id, fragment.report_id):
-        _fail("reservation", path, "fragment sequence/IDs are not reserved for participant")
-    validate_report(report, manifest, branch=branch, path=path)
-    if report.report_id != fragment.report_id or report.participant != fragment.participant:
-        _fail("report-provenance", path, "fragment does not cite its participant's report")
-    ordinals = [record.ordinal for record in fragment.records]
-    if ordinals != list(range(1, len(ordinals) + 1)):
-        _fail("ordinal", path, "fragment record ordinals must start at one and be contiguous")
-    for record in fragment.records:
-        if record.record_id != record_id(manifest.reservation_seed, fragment.fragment_id, record.ordinal):
-            _fail("record-id", path, "record_id does not match deterministic fragment/ordinal derivation", record_id=record.record_id)
-        if participant.role != "orchestrator" and record.kind not in WORKER_KINDS:
-            _fail("authority", path, "non-orchestrator cannot author resolution/promotion/closeout", kind=record.kind)
-        if participant.role == "orchestrator" and record.kind == "correction" and record.source != "write-time":
-            _fail("authority", path, "derived corrections cannot override write-time records")
-    return reservation
-
-
-def _record_index(fragments: Iterable[ReflectionFragment]) -> dict[str, tuple[ReflectionFragment, ReflectionRecord]]:
-    result: dict[str, tuple[ReflectionFragment, ReflectionRecord]] = {}
-    for fragment in fragments:
-        for record in fragment.records:
-            if record.record_id in result:
-                _fail("collision", "<records>", "duplicate reflection record ID", record_id=record.record_id)
-            result[record.record_id] = (fragment, record)
-    return result
-
-
-def validate_relationships(fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest) -> None:
-    index = _record_index(fragments)
-    for record_id_value, (fragment, record) in index.items():
-        if record.relationship == "orphan":
-            if record.parents or not record.no_related_thread:
-                _fail("orphan", fragment.fragment_id, "orphan records need no parents and explicit no-related-thread judgment", record_id=record_id_value)
-        else:
-            if record.no_related_thread or not record.parents:
-                _fail("relationship", fragment.fragment_id, "non-orphan relationship needs parents and cannot assert no-related-thread", record_id=record_id_value)
-            if record.relationship == "combines" and len(record.parents) < 2:
-                _fail("relationship", fragment.fragment_id, "combines requires at least two parents", record_id=record_id_value)
-            if record.relationship != "combines" and len(record.parents) != 1:
-                _fail("relationship", fragment.fragment_id, "relationship requires exactly one parent", record_id=record_id_value)
-        for parent_id in record.parents:
-            parent_pair = index.get(parent_id)
-            if parent_pair is None:
-                _fail("dangling-parent", fragment.fragment_id, "record parent is absent from admitted fragments", record_id=record_id_value, parent_id=parent_id)
-            parent_fragment, parent = parent_pair
-            if parent.chain_id != record.chain_id:
-                _fail("foreign-parent", fragment.fragment_id, "record parent belongs to another chain", record_id=record_id_value, parent_id=parent_id)
-            if parent.created_at > record.created_at or (parent.created_at == record.created_at and parent_id >= record_id_value):
-                _fail("relationship-order", fragment.fragment_id, "parents must precede their child deterministically", record_id=record_id_value, parent_id=parent_id)
-        if record.kind == "correction":
-            if not record.corrects or record.corrects not in index:
-                _fail("correction", fragment.fragment_id, "correction needs an existing corrects record ID", record_id=record_id_value)
-            corrected_fragment, corrected = index[record.corrects]
-            if corrected_fragment.participant != fragment.participant or corrected.created_at >= record.created_at:
-                _fail("correction-ownership", fragment.fragment_id, "correction may target only an earlier record by its participant", record_id=record_id_value)
-            if record.corrects not in record.parents or record.relationship != "corrects":
-                _fail("correction", fragment.fragment_id, "correction must use corrects relationship and name target as parent", record_id=record_id_value)
-        elif record.corrects is not None:
-            _fail("correction", fragment.fragment_id, "only correction records may name corrects")
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    def visit(identifier: str) -> None:
-        if identifier in visiting:
-            _fail("cycle", index[identifier][0].fragment_id, "record relationship graph contains a cycle", record_id=identifier)
-        if identifier in visited:
-            return
-        visiting.add(identifier)
-        for parent_id in index[identifier][1].parents:
-            visit(parent_id)
-        visiting.remove(identifier)
-        visited.add(identifier)
-    for identifier in index:
-        visit(identifier)
-
-
-def validate_admitted_fragments(
-    fragments: Iterable[ReflectionFragment],
-    reports: Iterable[ReflectionReport],
-    manifest: ReflectionManifest,
-    *,
-    branch: str | None = None,
-) -> tuple[ReflectionFragment, ...]:
-    """Validate the admission boundary used by projections and closure.
-
-    A relationship graph alone is not an admission check: the same structurally
-    plausible fragment can have a forged owner, sequence, report, or record ID.
-    """
-    fragments = tuple(fragments)
-    reports_by_id: dict[str, ReflectionReport] = {}
-    for report in reports:
-        existing = reports_by_id.get(report.report_id)
-        if existing is not None and existing != report:
-            _fail("report-collision", "<reports>", "conflicting reports share an ID", report_id=report.report_id)
-        reports_by_id[report.report_id] = report
-    for fragment in fragments:
-        report = reports_by_id.get(fragment.report_id)
-        if report is None:
-            _fail("report-provenance", fragment.fragment_id, "fragment has no admitted report", report_id=fragment.report_id)
-        validate_fragment(fragment, manifest, report, branch=branch)
-    validate_relationships(fragments, manifest)
-    return fragments
-
-
-@dataclass(frozen=True)
-class AdmittedReflectionSet:
-    """Reflection documents loaded from one immutable Git tree.
-
-    This is evidence, not a caller-authored assertion. Every close/expiry use
-    re-loads the stated repository and commit, checks the manifest and every
-    report/fragment blob OID, then compares the resulting value in full.
-    """
-
-    repository: str
-    source_commit: str
-    manifest_path: str
-    manifest_oid: str
-    manifest_sha256: str
-    document_oids: tuple[tuple[str, str], ...]
-    manifest: ReflectionManifest
-    fragments: tuple[ReflectionFragment, ...]
-    reports: tuple[ReflectionReport, ...]
-
-
-def admit_reflection_git_tree(cwd: Path | str, *, source: str, plan_id: str) -> AdmittedReflectionSet:
-    """Load canonical active reflection pairs from an immutable Git commit.
-
-    Raw mappings and parsed dataclasses are intentionally not accepted here:
-    the repository, resolved commit, paths, modes, and object IDs are the
-    provenance proof consumed by closeout validation.
-    """
-    root = Path(cwd).resolve()
-    source_commit = _commit(root, source)
-    if source_commit is None:
-        _fail("git-ref", str(root), "reflection admission source does not resolve to a commit", source=source)
-    manifest_path = f"{REFLECTION_ROOT}/{plan_id}/{MANIFEST_NAME}"
-    manifest_blob = _tree_blob(root, source_commit, manifest_path)
-    if manifest_blob is None:
-        _fail("manifest", manifest_path, "admission source has no reflection manifest")
-    if manifest_blob.mode != CANONICAL_MODE:
-        _fail("mode", manifest_path, "reflection manifest must be regular mode 100644", mode=manifest_blob.mode)
-    manifest = parse_manifest(manifest_blob.content, manifest_path)
-    if manifest.plan_id != plan_id:
-        _fail("manifest", manifest_path, "admission manifest plan_id does not match requested plan")
-    reports: list[ReflectionReport] = []
-    fragments: list[ReflectionFragment] = []
-    document_oids: list[tuple[str, str]] = []
-    for participant in manifest.participants:
-        for reservation in participant.reservations:
-            report_path = f"{manifest.active_dir}/{reservation.report_path}"
-            fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
-            report_blob = _tree_blob(root, source_commit, report_path)
-            fragment_blob = _tree_blob(root, source_commit, fragment_path)
-            if report_blob is None and fragment_blob is None:
-                continue
-            if report_blob is None or fragment_blob is None:
-                _fail("report-provenance", manifest.active_dir, "admitted reservation must contain both report and fragment", sequence=reservation.sequence)
-            if report_blob.mode != CANONICAL_MODE or fragment_blob.mode != CANONICAL_MODE:
-                _fail("mode", report_path if report_blob.mode != CANONICAL_MODE else fragment_path, "reflection files must be regular mode 100644")
-            reports.append(parse_report(report_blob.content, report_path))
-            fragments.append(parse_fragment(fragment_blob.content, fragment_path))
-            document_oids.extend(((report_path, report_blob.oid), (fragment_path, fragment_blob.oid)))
-    admitted = validate_admitted_fragments(fragments, reports, manifest)
-    return AdmittedReflectionSet(
-        str(root), source_commit, manifest_path, manifest_blob.oid, manifest_blob.raw_sha256,
-        tuple(sorted(document_oids)), manifest, admitted, tuple(reports),
-    )
-
-
-def _verified_admitted_set(admitted: AdmittedReflectionSet) -> AdmittedReflectionSet:
-    if not isinstance(admitted, AdmittedReflectionSet):
-        _fail("admission", "closeout.md", "closeout validation requires Git-admitted reflection documents")
-    if (
-        not isinstance(admitted.repository, str)
-        or not re.fullmatch(r"[0-9a-f]{40}", admitted.source_commit)
-        or not isinstance(admitted.manifest, ReflectionManifest)
-    ):
-        _fail("admission", "closeout.md", "Git admission evidence has malformed repository or commit identity")
-    fresh = admit_reflection_git_tree(admitted.repository, source=admitted.source_commit, plan_id=admitted.manifest.plan_id)
-    if admitted != fresh:
-        _fail("admission", "closeout.md", "admission evidence does not match the declared immutable Git tree")
-    return fresh
-
-
-def live_heads(
-    fragments: Iterable[ReflectionFragment],
-    manifest: ReflectionManifest | None = None,
-    *,
-    reports: Iterable[ReflectionReport] | None = None,
-) -> dict[str, tuple[ReflectionRecord, ...]]:
-    fragments = tuple(fragments)
-    if manifest is not None:
-        if reports is None:
-            _fail("admission", "<view>", "manifest-backed live-head projection requires admitted reports")
-        validate_admitted_fragments(fragments, reports, manifest)
-    index = _record_index(fragments)
-    heads = set(index)
-    for record_id_value, (_fragment, record) in index.items():
-        if record.relationship in {"refines", "corrects", "combines"}:
-            heads.difference_update(record.parents)
-    grouped: dict[str, list[ReflectionRecord]] = {}
-    for identifier in sorted(heads):
-        record = index[identifier][1]
-        grouped.setdefault(record.chain_id, []).append(record)
-    return {chain: tuple(sorted(records, key=lambda item: (item.created_at, item.record_id))) for chain, records in grouped.items()}
-
-
-def common_view(fragments: Iterable[ReflectionFragment], manifest: ReflectionManifest | None = None, *, reports: Iterable[ReflectionReport] | None = None, plan_id: str | None = None,
-                area: str | None = None, activity: str | None = None, topic: str | None = None,
-                related_decision: str | None = None, chain: str | None = None, responds_to: str | None = None,
-                transitive: bool = False) -> tuple[ReflectionRecord, ...]:
-    fragments = tuple(fragments)
-    if manifest is not None:
-        if reports is None:
-            _fail("admission", "<view>", "manifest-backed common view requires admitted reports")
-        validate_admitted_fragments(fragments, reports, manifest)
-    index = _record_index(fragments)
-    wanted: set[str] | None = None
-    if responds_to is not None:
-        if responds_to not in index:
-            return ()
-        children: dict[str, list[str]] = {}
-        for identifier, (_fragment, record) in index.items():
-            for parent_id in record.parents:
-                children.setdefault(parent_id, []).append(identifier)
-        direct = set(children.get(responds_to, []))
-        wanted = set(direct)
-        if transitive:
-            stack = list(direct)
-            while stack:
-                current = stack.pop()
-                for child in children.get(current, []):
-                    if child not in wanted:
-                        wanted.add(child)
-                        stack.append(child)
-    selected: list[tuple[ReflectionFragment, ReflectionRecord]] = []
-    for identifier, pair in index.items():
-        fragment, record = pair
-        if wanted is not None and identifier not in wanted:
-            continue
-        if plan_id is not None and fragment.plan_id != plan_id:
-            continue
-        if area is not None and record.area != area:
-            continue
-        if activity is not None and record.activity != activity:
-            continue
-        if topic is not None and topic not in record.topics:
-            continue
-        if related_decision is not None and related_decision not in record.related_decisions:
-            continue
-        if chain is not None and chain != record.chain_id:
-            continue
-        selected.append(pair)
-    return tuple(record for _fragment, record in sorted(selected, key=lambda pair: (pair[1].created_at, pair[0].participant, pair[0].sequence, pair[0].fragment_id, pair[1].ordinal)))
-
-
-def render_common_view(records: Iterable[ReflectionRecord]) -> str:
-    records = tuple(records)
-    lines = ["# Reflection common view", ""]
-    for record in records:
-        lines.extend([f"## {record.record_id} — {record.kind}", "", f"- Chain: `{record.chain_id}`", f"- Relationship: `{record.relationship}`", f"- Area/activity: `{record.area}` / `{record.activity}`", f"- Topics: {', '.join(record.topics)}", "", "### Conclusion", "", record.conclusion, "", "### Reasoning", "", record.reasoning, ""])
-    return "\n".join(lines) + "\n"
-
-
-@dataclass(frozen=True)
-class ReflectionReceipt:
-    receipt_id: str
-    plan_id: str
-    chain_id: str
-    head_record_ids: tuple[str, ...]
-    member_record_ids: tuple[str, ...]
-    conclusion: str
-    disposition: str
-    promoted_to: tuple[str, ...]
-    recorded_at: str
-    detail_digest: str
-
-
-_RECEIPT_FIELDS = ("schema", "version", "receipt_id", "plan_id", "chain_id", "head_record_ids", "member_record_ids", "conclusion", "disposition", "promoted_to", "recorded_at", "detail_digest")
-
-
-def receipt_from_dict(value: Mapping[str, Any], path: str = "receipt.yaml") -> ReflectionReceipt:
-    _required(value, _RECEIPT_FIELDS, path)
-    _only(value, _RECEIPT_FIELDS, path)
-    if value["schema"] != "memory-seed/reflection-receipt" or value["version"] != 1:
-        _fail("schema", path, "unsupported reflection receipt schema/version")
-    for field_name in ("head_record_ids", "member_record_ids", "promoted_to"):
-        if not isinstance(value[field_name], list) or any(not isinstance(item, str) or not item for item in value[field_name]):
-            _fail("receipt", path, "receipt list field must be a string list", field=field_name)
-    receipt = ReflectionReceipt(_id(value["receipt_id"], "rrc_", path, "receipt_id"), _text(value["plan_id"], path, "plan_id"),
-                                _id(value["chain_id"], "rlc_", path, "chain_id"), tuple(value["head_record_ids"]), tuple(value["member_record_ids"]),
-                                _text(value["conclusion"], path, "conclusion"), _text(value["disposition"], path, "disposition"),
-                                tuple(value["promoted_to"]), _timestamp(value["recorded_at"], path, "recorded_at"),
-                                _text(value["detail_digest"], path, "detail_digest"))
-    validate_receipt(receipt, path)
-    return receipt
-
-
-def render_receipt(receipt: ReflectionReceipt) -> str:
-    validate_receipt(receipt)
-    return _yaml_mapping([
-        ("schema", "memory-seed/reflection-receipt"), ("version", 1), ("receipt_id", receipt.receipt_id),
-        ("plan_id", receipt.plan_id), ("chain_id", receipt.chain_id), ("head_record_ids", list(receipt.head_record_ids)),
-        ("member_record_ids", list(receipt.member_record_ids)), ("conclusion", receipt.conclusion),
-        ("disposition", receipt.disposition), ("promoted_to", list(receipt.promoted_to)), ("recorded_at", receipt.recorded_at),
-        ("detail_digest", receipt.detail_digest),
-    ])
-
-
-def parse_receipt(raw: bytes | str, path: str = "receipt.yaml") -> ReflectionReceipt:
-    text = _canonical_text(raw, path)
-    receipt = receipt_from_dict(_parse_yaml_mapping(text, path), path)
-    if render_receipt(receipt) != text:
-        _fail("canonical-bytes", path, "receipt is valid but not the canonical rendering")
-    return receipt
 
 
 SESSION_ROOT = ".memory-seed/sessions/"
@@ -1168,367 +314,6 @@ def _session_decision_scope(scope: str, path: str, entry_id: str, decision_id: s
     return scope[decision.start():decision_end]
 
 
-def _session_receipt_from_blob(raw: bytes, path: str, entry_id: str,
-                               decision_id: str | None) -> ReflectionReceipt:
-    """Find one canonical receipt in one committed SessionStart-style entry."""
-    scope = _session_entry_scope(raw, path, entry_id)
-    if decision_id is not None:
-        scope = _session_decision_scope(scope, path, entry_id, decision_id)
-
-    matches: list[ReflectionReceipt] = []
-    for fenced in re.finditer(r"```yaml\n(?P<document>.*?)```\n", scope, re.DOTALL):
-        document = fenced.group("document")
-        if not document.startswith("schema: memory-seed/reflection-receipt\n"):
-            continue
-        receipt = parse_receipt(document, path)
-        matches.append(receipt)
-    if len(matches) != 1:
-        _fail("session-receipt", path, "receipt evidence must resolve exactly one canonical durable receipt", entry_id=entry_id, decision_id=decision_id)
-    return matches[0]
-
-
-@dataclass(frozen=True)
-class AdmittedReflectionReceipt:
-    """A durable receipt reloaded from one immutable Git session blob."""
-
-    repository: str
-    source_commit: str
-    session_path: str
-    session_blob_oid: str
-    entry_id: str
-    decision_id: str | None
-    receipt: ReflectionReceipt
-
-
-def admit_reflection_receipt(cwd: Path | str = ".", *, source: str, session_path: str,
-                             entry_id: str, decision_id: str | None) -> AdmittedReflectionReceipt:
-    """Load the sole canonical receipt from a committed session entry/decision.
-
-    This verifier deliberately takes no receipt ID or raw receipt object. A
-    later trusted close/promote surface must generate and persist the canonical
-    receipt through the sanctioned session writer, then call this loader to
-    return the evidence it actually committed.
-    """
-    root = Path(cwd).resolve()
-    commit = _commit(root, source)
-    if commit is None:
-        _fail("git-ref", str(root), "receipt evidence source does not resolve to a commit", source=source)
-    session_path = _session_path(session_path, str(root), "session_path")
-    blob = _tree_blob(root, commit, session_path)
-    if blob is None:
-        _fail("session-receipt", session_path, "receipt evidence session path is absent from the declared Git commit")
-    if blob.mode != CANONICAL_MODE:
-        _fail("mode", session_path, "receipt evidence session file must be regular mode 100644", mode=blob.mode)
-    receipt = _session_receipt_from_blob(blob.content, session_path, entry_id, decision_id)
-    return AdmittedReflectionReceipt(str(root), commit, session_path, blob.oid, entry_id, decision_id, receipt)
-
-
-def _verified_admitted_receipts(values: Iterable[AdmittedReflectionReceipt], admitted: AdmittedReflectionSet) -> tuple[AdmittedReflectionReceipt, ...]:
-    """Reopen every receipt evidence reference; objects themselves carry no authority."""
-    evidence = _verified_admitted_set(admitted)
-    result: list[AdmittedReflectionReceipt] = []
-    seen: dict[str, AdmittedReflectionReceipt] = {}
-    for value in values:
-        if not isinstance(value, AdmittedReflectionReceipt):
-            _fail("admission", "closeout.md", "closeout validation requires Git/session-admitted durable receipts")
-        if (
-            not isinstance(value.repository, str)
-            or not isinstance(value.source_commit, str)
-            or not isinstance(value.session_path, str)
-            or not isinstance(value.session_blob_oid, str)
-            or not isinstance(value.entry_id, str)
-            or (value.decision_id is not None and not isinstance(value.decision_id, str))
-            or not isinstance(value.receipt, ReflectionReceipt)
-        ):
-            _fail("admission", "closeout.md", "receipt evidence has malformed immutable Git/session fields")
-        fresh = admit_reflection_receipt(
-            value.repository,
-            source=value.source_commit,
-            session_path=value.session_path,
-            entry_id=value.entry_id,
-            decision_id=value.decision_id,
-        )
-        if value != fresh:
-            _fail("admission", value.session_path, "receipt evidence does not match its declared immutable Git session blob")
-        if fresh.repository != evidence.repository or fresh.source_commit != evidence.source_commit:
-            _fail("admission", value.session_path, "receipt evidence must be admitted from the reflection closeout's trusted integration commit")
-        existing = seen.get(fresh.receipt.receipt_id)
-        if existing is not None and existing != fresh:
-            _fail("receipt-collision", value.session_path, "conflicting durable receipt evidence shares one receipt ID", receipt_id=fresh.receipt.receipt_id)
-        seen[fresh.receipt.receipt_id] = fresh
-        result.append(fresh)
-    return tuple(result)
-
-
-@dataclass(frozen=True)
-class ReflectionChainClose:
-    chain_id: str
-    closed_at: str
-    retention_days: int
-    expires_at: str
-    implementer_record_ids: tuple[str, ...]
-    reviewer_record_ids: tuple[str, ...]
-    orchestrator_record_ids: tuple[str, ...]
-    synthesis_record_id: str
-    resolved_head_ids: tuple[str, ...]
-    disposed_head_ids: tuple[str, ...]
-    validation_receipt: str
-    receipt_ids: tuple[str, ...]
-    path: str = "closeout.md"
-
-
-def _close_shape(close: ReflectionChainClose, path: str | None = None) -> None:
-    """Validate closeout scalar/list shapes before any temporal or graph work."""
-    close_path = path or close.path
-    _id(close.chain_id, "rlc_", close_path, "chain_id")
-    _timestamp(close.closed_at, close_path, "closed_at")
-    _timestamp(close.expires_at, close_path, "expires_at")
-    if not isinstance(close.retention_days, int) or isinstance(close.retention_days, bool) or close.retention_days < 1:
-        _fail("close", close_path, "retention_days must be a positive integer")
-    for field_name, values, prefix, required in (
-        ("implementer_record_ids", close.implementer_record_ids, "rlr_", True),
-        ("reviewer_record_ids", close.reviewer_record_ids, "rlr_", True),
-        ("orchestrator_record_ids", close.orchestrator_record_ids, "rlr_", True),
-        ("resolved_head_ids", close.resolved_head_ids, "rlr_", False),
-        ("disposed_head_ids", close.disposed_head_ids, "rlr_", False),
-        ("receipt_ids", close.receipt_ids, "rrc_", True),
-    ):
-        if not isinstance(values, tuple) or (required and not values) or len(set(values)) != len(values):
-            _fail("close", close_path, "close record list must be a unique tuple with required coverage", field=field_name)
-        for identifier in values:
-            _id(identifier, prefix, close_path, field_name)
-    _id(close.synthesis_record_id, "rlr_", close_path, "synthesis_record_id")
-    _id(close.validation_receipt, "rrc_", close_path, "validation_receipt")
-    if close.validation_receipt not in close.receipt_ids:
-        _fail("close", close_path, "validation_receipt must be included in receipt_ids")
-    _relative_path(close.path, close_path, "path")
-
-
-def render_closeout(plan_id: str, closes: Iterable[ReflectionChainClose]) -> str:
-    closes = tuple(closes)
-    _text(plan_id, "closeout.md", "plan_id")
-    for close in closes:
-        _close_shape(close)
-    header = _yaml_mapping([("schema", "memory-seed/reflection-closeout"), ("version", 1), ("plan_id", plan_id)])
-    pieces = ["---\n" + header + "---\n"]
-    for close in sorted(closes, key=lambda item: (item.chain_id, item.closed_at)):
-        metadata = _yaml_mapping([
-            ("chain_id", close.chain_id), ("closed_at", close.closed_at), ("retention_days", close.retention_days), ("expires_at", close.expires_at),
-            ("implementer_record_ids", list(close.implementer_record_ids)), ("reviewer_record_ids", list(close.reviewer_record_ids)),
-            ("orchestrator_record_ids", list(close.orchestrator_record_ids)), ("synthesis_record_id", close.synthesis_record_id),
-            ("resolved_head_ids", list(close.resolved_head_ids)), ("disposed_head_ids", list(close.disposed_head_ids)),
-            ("validation_receipt", close.validation_receipt), ("receipt_ids", list(close.receipt_ids)),
-        ])
-        pieces.append(f"\n## Chain {close.chain_id}\n\n```yaml\n{metadata}```\n")
-    return "".join(pieces)
-
-
-def parse_closeout(raw: bytes | str, path: str = "closeout.md") -> tuple[str, tuple[ReflectionChainClose, ...]]:
-    text = _canonical_text(raw, path)
-    prefix = re.match(r"^---\n(?P<header>.*?)---\n", text, re.DOTALL)
-    if not prefix:
-        _fail("markdown", path, "closeout needs canonical frontmatter")
-    header = _parse_yaml_mapping(prefix.group("header"), path)
-    if header != {"schema": "memory-seed/reflection-closeout", "version": 1, "plan_id": header.get("plan_id")} or not isinstance(header.get("plan_id"), str):
-        _fail("schema", path, "unsupported reflection closeout schema/version")
-    blocks = list(re.finditer(r"^\n## Chain (?P<chain>rlc_[0-9abcdefghjkmnpqrstvwxyz]{20})\n\n```yaml\n(?P<meta>.*?)```\n", text[prefix.end():], re.MULTILINE | re.DOTALL))
-    closes: list[ReflectionChainClose] = []
-    required = ("chain_id", "closed_at", "retention_days", "expires_at", "implementer_record_ids", "reviewer_record_ids", "orchestrator_record_ids", "synthesis_record_id", "resolved_head_ids", "disposed_head_ids", "validation_receipt", "receipt_ids")
-    for block in blocks:
-        item = _parse_yaml_mapping(block.group("meta"), path)
-        _required(item, required, path)
-        _only(item, required, path)
-        if item["chain_id"] != block.group("chain"):
-            _fail("close", path, "closeout heading and metadata chain differ")
-        for list_key in ("implementer_record_ids", "reviewer_record_ids", "orchestrator_record_ids", "resolved_head_ids", "disposed_head_ids", "receipt_ids"):
-            if not isinstance(item[list_key], list) or any(not isinstance(value, str) for value in item[list_key]):
-                _fail("close", path, "close record list field must be a string list", field=list_key)
-        close = ReflectionChainClose(
-            _id(item["chain_id"], "rlc_", path, "chain_id"), _timestamp(item["closed_at"], path, "closed_at"), item["retention_days"],
-            _timestamp(item["expires_at"], path, "expires_at"), tuple(item["implementer_record_ids"]), tuple(item["reviewer_record_ids"]),
-            tuple(item["orchestrator_record_ids"]), _id(item["synthesis_record_id"], "rlr_", path, "synthesis_record_id"),
-            tuple(item["resolved_head_ids"]), tuple(item["disposed_head_ids"]), _id(item["validation_receipt"], "rrc_", path, "validation_receipt"), tuple(item["receipt_ids"]), path,
-        )
-        _close_shape(close, path)
-        closes.append(close)
-    result = (header["plan_id"], tuple(closes))
-    if render_closeout(result[0], result[1]) != text:
-        _fail("canonical-bytes", path, "closeout is valid but not the canonical rendering")
-    return result
-
-
-def validate_receipt(receipt: ReflectionReceipt, path: str = "receipt") -> None:
-    _id(receipt.receipt_id, "rrc_", path, "receipt_id")
-    _id(receipt.chain_id, "rlc_", path, "chain_id")
-    if not receipt.member_record_ids or not receipt.head_record_ids or receipt.disposition not in {"promoted", "already-covered", "expired-unpromoted", "early-deletion"}:
-        _fail("receipt", path, "receipt needs heads, members, and a valid disposition")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt.detail_digest):
-        _fail("receipt", path, "detail_digest must be sha256:<64 lowercase hex>")
-    _timestamp(receipt.recorded_at, path, "recorded_at")
-
-
-@dataclass(frozen=True)
-class AdmittedChainClose:
-    """One close record loaded from a Git-tracked canonical closeout blob."""
-
-    repository: str
-    source_commit: str
-    closeout_path: str
-    closeout_oid: str
-    close: ReflectionChainClose
-
-
-def admit_reflection_closeout(admitted: AdmittedReflectionSet) -> tuple[AdmittedChainClose, ...]:
-    """Load closeout records from the same immutable tree as an admission."""
-    evidence = _verified_admitted_set(admitted)
-    closeout_path = f"{evidence.manifest.active_dir}/closeout.md"
-    blob = _tree_blob(Path(evidence.repository), evidence.source_commit, closeout_path)
-    if blob is None:
-        _fail("closeout", closeout_path, "Git-admitted reflection tree has no closeout document")
-    if blob.mode != CANONICAL_MODE:
-        _fail("mode", closeout_path, "reflection closeout must be regular mode 100644", mode=blob.mode)
-    plan_id, closes = parse_closeout(blob.content, "closeout.md")
-    if plan_id != evidence.manifest.plan_id:
-        _fail("closeout", closeout_path, "closeout plan_id does not match its admitted manifest")
-    return tuple(AdmittedChainClose(evidence.repository, evidence.source_commit, closeout_path, blob.oid, close) for close in closes)
-
-
-def _verified_admitted_close(value: AdmittedChainClose, admitted: AdmittedReflectionSet) -> ReflectionChainClose:
-    if not isinstance(value, AdmittedChainClose):
-        _fail("admission", "closeout.md", "closeout validation requires a Git-admitted closeout record")
-    evidence = _verified_admitted_set(admitted)
-    fresh = admit_reflection_closeout(evidence)
-    if value not in fresh:
-        _fail("admission", "closeout.md", "closeout evidence does not match the declared immutable Git tree")
-    return value.close
-
-
-def validate_chain_close(value: AdmittedChainClose, admitted: AdmittedReflectionSet,
-                         receipts: Iterable[AdmittedReflectionReceipt]) -> None:
-    """Validate a closeout only against canonically admitted ledger state.
-
-    Parsed records are not sufficient authority here. Both the reflection
-    records and closeout are re-loaded from their declared Git commit.
-    """
-    evidence = _verified_admitted_set(admitted)
-    manifest = evidence.manifest
-    close = _verified_admitted_close(value, evidence)
-    fragments = evidence.fragments
-    _close_shape(close)
-    if close.retention_days != manifest.reflection_retention_days:
-        _fail("retention", close.path, "close retention_days must equal the manifest policy", expected=manifest.reflection_retention_days, actual=close.retention_days)
-    if _as_utc(close.expires_at) != _as_utc(close.closed_at) + timedelta(days=manifest.reflection_retention_days):
-        _fail("close", close.path, "expires_at must equal closed_at plus manifest retention_days")
-    index = _record_index(fragments)
-    members = {identifier for identifier, (_fragment, record) in index.items() if record.chain_id == close.chain_id}
-    if not members:
-        _fail("close", close.path, "close record names an unknown chain")
-    heads = {record.record_id for record in live_heads(fragments).get(close.chain_id, ())}
-    resolved = set(close.resolved_head_ids)
-    disposed = set(close.disposed_head_ids)
-    if resolved & disposed or resolved | disposed != heads:
-        _fail("close", close.path, "all and only divergent live heads must be resolved or explicitly disposed")
-    roles = {"worker": set(close.implementer_record_ids), "validator": set(close.reviewer_record_ids), "orchestrator": set(close.orchestrator_record_ids)}
-    participants = {person.participant: person for person in manifest.participants}
-    for role, identifiers in roles.items():
-        if not identifiers:
-            _fail("close", close.path, "close lacks required independent role coverage", role=role)
-        for identifier in identifiers:
-            pair = index.get(identifier)
-            if pair is None or pair[1].chain_id != close.chain_id:
-                _fail("close", close.path, "role coverage references an absent/foreign record", record_id=identifier)
-            participant = participants.get(pair[0].participant)
-            if participant is None:
-                _fail("ownership", close.path, "close coverage references a fragment participant absent from manifest", record_id=identifier)
-            if participant.role != role:
-                _fail("close", close.path, "role coverage record has wrong participant role", record_id=identifier, role=role)
-
-    def ancestors(identifier: str) -> set[str]:
-        result: set[str] = set()
-        pending = list(index[identifier][1].parents)
-        while pending:
-            current = pending.pop()
-            if current not in result:
-                result.add(current)
-                pending.extend(index[current][1].parents)
-        return result
-
-    for implementer_id in roles["worker"]:
-        if not any(implementer_id in ancestors(reviewer_id) for reviewer_id in roles["validator"]):
-            _fail("close-topology", close.path, "reviewer coverage is not connected to an implementer record", implementer_record_id=implementer_id)
-    for reviewer_id in roles["validator"]:
-        if not any(reviewer_id in ancestors(orchestrator_id) for orchestrator_id in roles["orchestrator"]):
-            _fail("close-topology", close.path, "orchestrator coverage is not connected to reviewer coverage", reviewer_record_id=reviewer_id)
-    synthesis = index.get(close.synthesis_record_id)
-    if synthesis is None or synthesis[1].chain_id != close.chain_id or synthesis[1].kind not in {"resolution", "closeout", "promotion"}:
-        _fail("close", close.path, "close needs an orchestrator synthesis record in its chain")
-    synthesis_participant = participants.get(synthesis[0].participant) if synthesis is not None else None
-    if (
-        synthesis_participant is None
-        or synthesis_participant.role != "orchestrator"
-        or synthesis_participant.participant != manifest.orchestrator["participant"]
-        or close.synthesis_record_id not in roles["orchestrator"]
-    ):
-        _fail("close-topology", close.path, "synthesis must be authored by and declared under the manifest orchestrator")
-    admitted_receipts = _verified_admitted_receipts(receipts, evidence)
-    receipts_by_id = {item.receipt.receipt_id: item.receipt for item in admitted_receipts}
-    validation_receipt = receipts_by_id.get(close.validation_receipt)
-    if validation_receipt is None:
-        _fail("receipt", close.path, "close references an unavailable durable receipt required for validation", receipt_id=close.validation_receipt)
-    covered: set[str] = set()
-    for receipt_id_value in close.receipt_ids:
-        receipt = receipts_by_id.get(receipt_id_value)
-        if receipt is None:
-            _fail("receipt", close.path, "close references an unavailable durable receipt", receipt_id=receipt_id_value)
-        validate_receipt(receipt, close.path)
-        if receipt.plan_id != manifest.plan_id or receipt.chain_id != close.chain_id:
-            _fail("receipt", close.path, "receipt plan/chain does not match close")
-        if not set(receipt.head_record_ids).issubset(heads):
-            _fail("receipt", close.path, "receipt names a non-live head", heads=sorted(set(receipt.head_record_ids) - heads))
-        covered.update(receipt.member_record_ids)
-    if covered != members:
-        _fail("receipt-coverage", close.path, "durable receipts must cover every chain member", missing=sorted(members - covered), foreign=sorted(covered - members))
-
-
-def validate_board_close(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
-                         receipts: Iterable[AdmittedReflectionReceipt]) -> None:
-    evidence = _verified_admitted_set(admitted)
-    fragments = evidence.fragments
-    receipts = tuple(receipts)
-    chains = {record.chain_id for _fragment, record in _record_index(fragments).values()}
-    by_chain: dict[str, AdmittedChainClose] = {}
-    for close in closes:
-        parsed_close = _verified_admitted_close(close, evidence)
-        if parsed_close.chain_id in by_chain:
-            _fail("close-collision", parsed_close.path, "multiple close records name one chain", chain=parsed_close.chain_id)
-        by_chain[parsed_close.chain_id] = close
-    if chains != set(by_chain):
-        _fail("board-close", "closeout.md", "board cannot close until every admitted chain has a close record", missing=sorted(chains - set(by_chain)))
-    for close in by_chain.values():
-        validate_chain_close(close, evidence, receipts)
-
-
-@dataclass(frozen=True)
-class EarlyExpiryApprovalReceipt:
-    """A canonical host-signed receipt for one early-deletion request.
-
-    The signing private key is never accepted or stored by this module. The
-    immutable manifest supplies the corresponding Ed25519 public trust anchor.
-    """
-
-    key_id: str
-    plan_id: str
-    chain_id: str
-    member_record_ids: tuple[str, ...]
-    reason: str
-    approved_at: str
-    expires_at: str
-    signature: str
-
-
-EARLY_EXPIRY_APPROVAL_FIELDS = (
-    "schema", "version", "key_id", "plan_id", "chain_id", "member_record_ids", "reason", "approved_at", "expires_at", "signature",
-)
 ED25519_P = 2**255 - 19
 ED25519_L = 2**252 + 27742317777372353535851937790883648493
 ED25519_D = (-121665 * pow(121666, ED25519_P - 2, ED25519_P)) % ED25519_P
@@ -1595,157 +380,12 @@ def ed25519_verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
     return multiply((base_x, ED25519_BASE_Y), scalar_s) == add(r_point, multiply(public_point, digest))
 
 
-def early_expiry_approval_from_dict(value: Mapping[str, Any], path: str = "early-expiry-approval.yaml") -> EarlyExpiryApprovalReceipt:
-    _required(value, EARLY_EXPIRY_APPROVAL_FIELDS, path)
-    _only(value, EARLY_EXPIRY_APPROVAL_FIELDS, path)
-    if value["schema"] != "memory-seed/reflection-early-expiry-approval" or value["version"] != 1:
-        _fail("schema", path, "unsupported early-expiry approval schema/version")
-    members = value["member_record_ids"]
-    if not isinstance(members, list) or not members or any(not isinstance(item, str) for item in members) or len(set(members)) != len(members):
-        _fail("live-user-approval", path, "approval member_record_ids must be a non-empty unique string list")
-    receipt = EarlyExpiryApprovalReceipt(
-        _text(value["key_id"], path, "key_id"), _text(value["plan_id"], path, "plan_id"),
-        _id(value["chain_id"], "rlc_", path, "chain_id"), tuple(members), _text(value["reason"], path, "reason"),
-        _timestamp(value["approved_at"], path, "approved_at"), _timestamp(value["expires_at"], path, "expires_at"),
-        _text(value["signature"], path, "signature"),
-    )
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", receipt.key_id):
-        _fail("live-user-approval", path, "approval key_id must be a stable token")
-    if any(not re.fullmatch(r"rlr_[0-9abcdefghjkmnpqrstvwxyz]{20}", item) for item in receipt.member_record_ids):
-        _fail("live-user-approval", path, "approval member_record_ids must be reflection record IDs")
-    if not re.fullmatch(r"ed25519:[0-9a-f]{128}", receipt.signature):
-        _fail("live-user-approval", path, "approval signature must be ed25519:<64-byte lowercase hex>")
-    return receipt
-
-
-def early_expiry_approval_payload(receipt: EarlyExpiryApprovalReceipt) -> bytes:
-    return _yaml_mapping([
-        ("schema", "memory-seed/reflection-early-expiry-approval"), ("version", 1), ("key_id", receipt.key_id),
-        ("plan_id", receipt.plan_id), ("chain_id", receipt.chain_id), ("member_record_ids", list(receipt.member_record_ids)),
-        ("reason", receipt.reason), ("approved_at", receipt.approved_at), ("expires_at", receipt.expires_at),
-    ]).encode("utf-8")
-
-
-def render_early_expiry_approval(receipt: EarlyExpiryApprovalReceipt) -> str:
-    early_expiry_approval_from_dict({
-        "schema": "memory-seed/reflection-early-expiry-approval", "version": 1, "key_id": receipt.key_id,
-        "plan_id": receipt.plan_id, "chain_id": receipt.chain_id, "member_record_ids": list(receipt.member_record_ids),
-        "reason": receipt.reason, "approved_at": receipt.approved_at, "expires_at": receipt.expires_at, "signature": receipt.signature,
-    })
-    return _yaml_mapping([
-        ("schema", "memory-seed/reflection-early-expiry-approval"), ("version", 1), ("key_id", receipt.key_id),
-        ("plan_id", receipt.plan_id), ("chain_id", receipt.chain_id), ("member_record_ids", list(receipt.member_record_ids)),
-        ("reason", receipt.reason), ("approved_at", receipt.approved_at), ("expires_at", receipt.expires_at), ("signature", receipt.signature),
-    ])
-
-
-def parse_early_expiry_approval(raw: bytes | str, path: str = "early-expiry-approval.yaml") -> EarlyExpiryApprovalReceipt:
-    text = _canonical_text(raw, path)
-    receipt = early_expiry_approval_from_dict(_parse_yaml_mapping(text, path), path)
-    if render_early_expiry_approval(receipt) != text:
-        _fail("canonical-bytes", path, "early-expiry approval is valid but not the canonical rendering")
-    return receipt
-
-
-def validate_early_expiry_approval(receipt: EarlyExpiryApprovalReceipt, *, manifest: ReflectionManifest,
-                                   close: ReflectionChainClose, member_record_ids: tuple[str, ...]) -> None:
-    if receipt.key_id != manifest.early_expiry_approval_key_id:
-        _fail("live-user-approval", close.path, "approval key_id does not match the manifest trust anchor")
-    if (
-        receipt.plan_id != manifest.plan_id or receipt.chain_id != close.chain_id
-        or tuple(sorted(receipt.member_record_ids)) != member_record_ids or receipt.expires_at != close.expires_at
-    ):
-        _fail("live-user-approval", close.path, "approval receipt does not bind this exact expiry request")
-    public_key = bytes.fromhex(manifest.early_expiry_approval_public_key.removeprefix("ed25519:"))
-    signature = bytes.fromhex(receipt.signature.removeprefix("ed25519:"))
-    if not ed25519_verify(public_key, early_expiry_approval_payload(receipt), signature):
-        _fail("live-user-approval", close.path, "approval receipt signature does not verify against the manifest trust anchor")
-
-
-def eligible_expiry_paths(closes: Iterable[AdmittedChainClose], admitted: AdmittedReflectionSet,
-                          receipts: Iterable[AdmittedReflectionReceipt], *, now: datetime, chain: str | None = None,
-                          early: bool = False, approval_receipt: bytes | str | None = None) -> tuple[str, ...]:
-    if now.tzinfo is None:
-        _fail("expiry", "closeout.md", "expiry comparison requires timezone-aware now")
-    evidence = _verified_admitted_set(admitted)
-    manifest = evidence.manifest
-    fragments = evidence.fragments
-    receipts = _verified_admitted_receipts(receipts, evidence)
-    close_map: dict[str, AdmittedChainClose] = {}
-    for value in closes:
-        close = _verified_admitted_close(value, evidence)
-        if close.chain_id in close_map:
-            _fail("close-collision", close.path, "multiple close records name one chain", chain=close.chain_id)
-        close_map[close.chain_id] = value
-    if chain is None and early:
-        _fail("expiry", "closeout.md", "early expiry requires one exact chain")
-    candidates = [close_map[chain]] if chain is not None and chain in close_map else ([] if chain is not None else list(close_map.values()))
-    if chain is not None and not candidates:
-        _fail("expiry", "closeout.md", "requested chain has no close record", chain=chain)
-    eligible: list[str] = []
-    for value in candidates:
-        close = _verified_admitted_close(value, evidence)
-        # Early disposal has the same closure/receipt gate as ordinary expiry;
-        # a user can approve deletion, not bypass unresolved coordination work.
-        validate_chain_close(value, evidence, receipts)
-        if early:
-            member_ids = tuple(sorted(record.record_id for _fragment, record in _record_index(fragments).values() if record.chain_id == close.chain_id))
-            if not isinstance(approval_receipt, (bytes, str)):
-                _fail("live-user-approval", close.path, "early deletion requires a canonical signed approval receipt")
-            approval = parse_early_expiry_approval(approval_receipt)
-            validate_early_expiry_approval(approval, manifest=manifest, close=close, member_record_ids=member_ids)
-            receipts_by_id = {item.receipt.receipt_id: item.receipt for item in receipts}
-            if any(receipts_by_id[item].disposition == "promoted" for item in close.receipt_ids if item in receipts_by_id):
-                _fail("early-expiry", close.path, "early deletion is limited to unpromoted chains")
-        else:
-            if now < _as_utc(close.expires_at):
-                continue
-        eligible.append(value.closeout_path)
-    return tuple(sorted(set(eligible)))
-
-
 @dataclass(frozen=True)
-class ReflectionBlob:
+class GitBlob:
     path: str
     oid: str
-    raw_sha256: str
     mode: str
     content: bytes
-
-
-@dataclass(frozen=True)
-class _ReflectionFusePlan:
-    plan_id: str
-    source_branch: str
-    base_ref: str
-    source_tip: str
-    base_tip: str
-    manifest_oid: str
-    manifest_sha256: str
-    additions: tuple[ReflectionBlob, ...]
-    already_present: tuple[str, ...]
-    token: str
-    created_at: datetime
-
-
-@dataclass
-class ReflectionFuseResult:
-    changed: bool
-    plan_id: str | None = None
-    source_tip: str | None = None
-    base_tip: str | None = None
-    manifest_sha256: str | None = None
-    planned_paths: list[str] = field(default_factory=list)
-    already_present: list[str] = field(default_factory=list)
-    preview_token: str | None = None
-    issues: list[ReflectionDiagnostic] = field(default_factory=list)
-    _plan: _ReflectionFusePlan | None = field(default=None, repr=False)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {"changed": self.changed, "plan_id": self.plan_id, "source_tip": self.source_tip, "base_tip": self.base_tip,
-                "manifest_sha256": self.manifest_sha256, "planned_paths": list(self.planned_paths),
-                "already_present": list(self.already_present), "preview_token": self.preview_token,
-                "issues": [issue.as_dict() for issue in self.issues]}
 
 
 def _git(root: Path, *args: str, binary: bool = False) -> tuple[int, bytes | str]:
@@ -1761,7 +401,7 @@ def _commit(root: Path, ref: str) -> str | None:
 
 
 @lru_cache(maxsize=32768)
-def _cached_tree_blob(repository: str, commit: str, path: str) -> ReflectionBlob | None:
+def _cached_tree_blob(repository: str, commit: str, path: str) -> GitBlob | None:
     """Read immutable Git tree evidence; cache is derived-only and bounded."""
     root = Path(repository)
     code, line = _git(root, "ls-tree", commit, "--", path)
@@ -1775,181 +415,23 @@ def _cached_tree_blob(repository: str, commit: str, path: str) -> ReflectionBlob
     code, content = _git(root, "cat-file", "blob", match.group("oid"), binary=True)
     if code or not isinstance(content, bytes):
         _fail("git", path, "could not read Git blob")
-    return ReflectionBlob(path, match.group("oid"), sha256(content).hexdigest(), match.group("mode"), content)
+    return GitBlob(path, match.group("oid"), match.group("mode"), content)
 
 
-def _tree_blob(root: Path, commit: str, path: str) -> ReflectionBlob | None:
+def _tree_blob(root: Path, commit: str, path: str) -> GitBlob | None:
     return _cached_tree_blob(str(root.resolve()), commit, path)
 
 
-def _changed_paths(root: Path, base: str, source: str, family: str) -> list[tuple[str, tuple[str, ...]]]:
-    code, output = _git(root, "diff", "--name-status", "-z", "--find-renames", "--find-copies", f"{base}...{source}", "--", family, binary=True)
-    if code or not isinstance(output, bytes):
-        _fail("git-diff", family, "could not compute three-dot reflection changes")
-    fields = output.decode("utf-8", errors="strict").split("\0")
-    result: list[tuple[str, tuple[str, ...]]] = []
-    index = 0
-    while index < len(fields) - 1:
-        status = fields[index]
-        index += 1
-        if not status:
-            break
-        if status.startswith(("R", "C")):
-            result.append((status[0], (fields[index], fields[index + 1])))
-            index += 2
-        else:
-            result.append((status[0], (fields[index],)))
-            index += 1
-    return result
-
-
-def _admitted_fragments_at_commit(root: Path, commit: str, manifest: ReflectionManifest) -> AdmittedReflectionSet:
-    """Load every complete reserved pair visible at one immutable Git commit."""
-    admitted = admit_reflection_git_tree(root, source=commit, plan_id=manifest.plan_id)
-    if render_manifest(admitted.manifest) != render_manifest(manifest):
-        _fail("manifest-immutable", manifest.manifest_path, "source admission manifest differs from the immutable base manifest")
-    return admitted
-
-
-def reflection_fuse_preview(cwd: Path | str = ".", *, plan_id: str, branch: str, base: str = "HEAD") -> ReflectionFuseResult:
-    root = Path(cwd).resolve()
-    source_tip = _commit(root, branch)
-    base_tip = _commit(root, base)
-    if source_tip is None or base_tip is None:
-        issue = ReflectionDiagnostic("git-ref", str(root), "source branch or base ref does not resolve", {"branch": branch, "base": base})
-        return ReflectionFuseResult(False, plan_id=plan_id, issues=[issue])
-    manifest_path = f"{REFLECTION_ROOT}/{plan_id}/{MANIFEST_NAME}"
-    manifest_blob = _tree_blob(root, base_tip, manifest_path)
-    if manifest_blob is None:
-        issue = ReflectionDiagnostic("manifest", manifest_path, "base tree has no reflection manifest", {})
-        return ReflectionFuseResult(False, plan_id=plan_id, source_tip=source_tip, base_tip=base_tip, issues=[issue])
-    try:
-        if manifest_blob.mode != CANONICAL_MODE:
-            _fail("mode", manifest_path, "reflection manifest must be regular mode 100644", mode=manifest_blob.mode)
-        manifest = parse_manifest(manifest_blob.content, manifest_path)
-        if manifest.plan_id != plan_id:
-            _fail("manifest", manifest_path, "manifest plan_id does not match requested plan")
-        code, _ = _git(root, "merge-base", "--is-ancestor", manifest.base_sha, source_tip)
-        if code != 0:
-            _fail("base", manifest_path, "source tip is not descended from manifest base", source_tip=source_tip)
-        participant = manifest.participant_for_branch(branch)
-        if participant is None:
-            _fail("ownership", manifest_path, "source branch has no unique manifest participant", branch=branch)
-        changes = _changed_paths(root, base_tip, source_tip, f"{REFLECTION_ROOT}/{plan_id}")
-        additions: list[ReflectionBlob] = []
-        already_present: list[str] = []
-        allowed_paths = {f"{manifest.active_dir}/{reservation.report_path}": reservation for reservation in participant.reservations}
-        allowed_paths.update({f"{manifest.active_dir}/{reservation.fragment_path}": reservation for reservation in participant.reservations})
-        changed_add_paths: set[str] = set()
-        for status, paths in changes:
-            if status in {"R", "C"}:
-                _fail("path-change", f"{REFLECTION_ROOT}/{plan_id}", "renames and copies of active reflection files are forbidden", status=status, paths=list(paths))
-            rel_path = paths[0]
-            if rel_path == manifest_path:
-                _fail("manifest-immutable", rel_path, "active manifest may not change on a participant branch")
-            base_blob = _tree_blob(root, base_tip, rel_path)
-            source_blob = _tree_blob(root, source_tip, rel_path)
-            if status == "D" or source_blob is None:
-                _fail("active-immutability", rel_path, "active reflection paths may not be deleted")
-            if base_blob is not None:
-                if base_blob.mode == source_blob.mode == CANONICAL_MODE and base_blob.content == source_blob.content:
-                    already_present.append(rel_path)
-                    continue
-                _fail("active-immutability", rel_path, "base reflection path changed bytes or mode")
-            if rel_path not in allowed_paths:
-                _fail("reserved-path", rel_path, "source added an unreserved reflection path")
-            if source_blob.mode != CANONICAL_MODE:
-                _fail("mode", rel_path, "reflection files must be regular mode 100644", mode=source_blob.mode)
-            additions.append(source_blob)
-            changed_add_paths.add(rel_path)
-        if not additions and not already_present:
-            _fail("empty", manifest.active_dir, "source branch has no reflection additions")
-        reservations = {reservation.sequence: reservation for reservation in participant.reservations}
-        for reservation in reservations.values():
-            report_path = f"{manifest.active_dir}/{reservation.report_path}"
-            fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
-            touched = {path for path in (report_path, fragment_path) if path in changed_add_paths}
-            if touched and touched != {report_path, fragment_path}:
-                _fail("report-provenance", manifest.active_dir, "a reservation's report and fragment must arrive together", sequence=reservation.sequence)
-        for reservation in reservations.values():
-            report_path = f"{manifest.active_dir}/{reservation.report_path}"
-            fragment_path = f"{manifest.active_dir}/{reservation.fragment_path}"
-            if report_path not in changed_add_paths:
-                continue
-            report_blob = next(blob for blob in additions if blob.path == report_path)
-            fragment_blob = next(blob for blob in additions if blob.path == fragment_path)
-            report = parse_report(report_blob.content, report_path)
-            fragment = parse_fragment(fragment_blob.content, fragment_path)
-            validate_fragment(fragment, manifest, report, branch=branch, path=fragment_path)
-        # Parse every visible pair, not merely the new pair: a source record may
-        # respond to a base record, and graph validity is an admission property.
-        _admitted_fragments_at_commit(root, source_tip, manifest)
-        token_source = "\0".join([plan_id, branch, base, source_tip, base_tip, manifest_blob.oid] + sorted(blob.oid for blob in additions))
-        token = sha256(token_source.encode("utf-8")).hexdigest()
-        plan = _ReflectionFusePlan(plan_id, branch, base, source_tip, base_tip, manifest_blob.oid, manifest_blob.raw_sha256,
-                                   tuple(sorted(additions, key=lambda item: item.path)), tuple(sorted(already_present)), token,
-                                   datetime.now(timezone.utc))
-        return ReflectionFuseResult(bool(additions), plan_id, source_tip, base_tip, manifest_blob.raw_sha256,
-                                    [blob.path for blob in plan.additions], list(plan.already_present), token, [], plan)
-    except ReflectionValidationError as exc:
-        return ReflectionFuseResult(False, plan_id, source_tip, base_tip, manifest_blob.raw_sha256, issues=[exc.diagnostic])
-
-
-def reflection_fuse(cwd: Path | str = ".", *, plan_id: str, branch: str, base: str = "HEAD", apply: bool = False) -> ReflectionFuseResult:
-    if apply:
-        return ReflectionFuseResult(False, plan_id=plan_id, issues=[ReflectionDiagnostic("internal-only", "reflection fuse", "reflection apply is internal to coordinated session/reflection integration", {})])
-    return reflection_fuse_preview(cwd, plan_id=plan_id, branch=branch, base=base)
-
-
-def _apply_reflection_fuse_plan(cwd: Path | str, plan: _ReflectionFusePlan, *, preview_token: str, max_age_seconds: int = 300) -> ReflectionFuseResult:
-    """Internal coordinated-integration primitive; never exposed as a CLI path."""
-    root = Path(cwd).resolve()
-    if preview_token != plan.token or datetime.now(timezone.utc) - plan.created_at > timedelta(seconds=max_age_seconds):
-        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("preview-token", "reflection fuse", "preview token is invalid or expired", {})])
-    current_tip = _commit(root, plan.source_branch)
-    if current_tip != plan.source_tip:
-        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("source-tip", "reflection fuse", "source tip changed after preview", {"expected": plan.source_tip, "actual": current_tip})])
-    current_base = _commit(root, plan.base_ref)
-    if current_base != plan.base_tip or _commit(root, "HEAD") != plan.base_tip:
-        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("base-tip", "reflection fuse", "base ref or integration HEAD changed after preview", {"expected": plan.base_tip, "base_ref": plan.base_ref, "actual_base": current_base, "actual_head": _commit(root, "HEAD")})])
-    manifest_path = f"{REFLECTION_ROOT}/{plan.plan_id}/{MANIFEST_NAME}"
-    manifest_blob = _tree_blob(root, current_base, manifest_path)
-    if manifest_blob is None or manifest_blob.oid != plan.manifest_oid or manifest_blob.raw_sha256 != plan.manifest_sha256:
-        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("manifest-toctou", manifest_path, "base manifest identity changed after preview", {})])
-    for blob in plan.additions:
-        if _tree_blob(root, current_base, blob.path) is not None:
-            return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[ReflectionDiagnostic("base-state-toctou", blob.path, "planned addition is no longer absent from the base state", {})])
-    written: list[str] = []
-    try:
-        for blob in plan.additions:
-            target = root / Path(blob.path)
-            if target.exists() or target.is_symlink():
-                _fail("base-collision", blob.path, "integration target is unexpectedly occupied")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(blob.content)
-            written.append(blob.path)
-    except ReflectionValidationError as exc:
-        for rel_path in reversed(written):
-            (root / Path(rel_path)).unlink(missing_ok=True)
-        return ReflectionFuseResult(False, plan_id=plan.plan_id, issues=[exc.diagnostic])
-    return ReflectionFuseResult(bool(written), plan.plan_id, plan.source_tip, plan.base_tip, plan.manifest_sha256,
-                                written, list(plan.already_present), plan.token)
-
-
 # ---------------------------------------------------------------------------
-# Reflection workstream ledger v2
+# Reflection workstream ledger v1
 # ---------------------------------------------------------------------------
-#
-# The v1 fragment/fuse format above is intentionally left intact.  New boards
-# are selected by an explicit discriminator and use the types below; there is
-# no heuristic conversion between the two families.
 
 WORKSTREAM_LEDGER_SCHEMA = "memory-seed/reflection-workstream-ledger"
-WORKSTREAM_LEDGER_VERSION = 2
+WORKSTREAM_LEDGER_VERSION = 1
 WORKSTREAM_LEDGER_NAME = "ledger.md"
-WORKSTREAM_LEDGER_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2/ledger\0"
-WORKSTREAM_DETAIL_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2/detail\0"
-WORKSTREAM_ID_DOMAIN = b"memory-seed/reflection-workstream-ledger/v2\0"
+WORKSTREAM_LEDGER_DOMAIN = b"memory-seed/reflection-workstream-ledger/v1/ledger\0"
+WORKSTREAM_DETAIL_DOMAIN = b"memory-seed/reflection-workstream-ledger/v1/detail\0"
+WORKSTREAM_ID_DOMAIN = b"memory-seed/reflection-workstream-ledger/v1\0"
 WORKSTREAM_HEADER_FIELDS = (
     "schema", "version", "workstream_id", "working_branch", "base_sha", "created_at",
     "reflection_retention_days", "retention_extension_receipt", "retention_approval_key_id", "id_salt",
@@ -1978,22 +460,22 @@ SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_OID_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
-def _v2_digest(domain: bytes, raw: bytes) -> str:
+def _workstream_digest(domain: bytes, raw: bytes) -> str:
     return "sha256:" + sha256(domain + raw).hexdigest()
 
 
-def _v2_yaml_inline(value: Any) -> str:
-    """The v2 renderer preserves all-digit IDs/nonces as strings."""
+def _workstream_yaml_inline(value: Any) -> str:
+    """The v1 renderer preserves all-digit IDs/nonces as strings."""
     if isinstance(value, list):
-        return "[" + ", ".join(_v2_yaml_inline(item) for item in value) + "]"
+        return "[" + ", ".join(_workstream_yaml_inline(item) for item in value) + "]"
     if isinstance(value, Mapping):
-        return "{" + ", ".join(f"{key}: {_v2_yaml_inline(item)}" for key, item in value.items()) + "}"
+        return "{" + ", ".join(f"{key}: {_workstream_yaml_inline(item)}" for key, item in value.items()) + "}"
     if isinstance(value, str) and re.fullmatch(r"0|[1-9]\d*", value):
         return json.dumps(value, ensure_ascii=False)
     return _quote(value)
 
 
-def _v2_yaml_mapping(items: Sequence[tuple[str, Any]]) -> str:
+def _workstream_yaml_mapping(items: Sequence[tuple[str, Any]]) -> str:
     lines: list[str] = []
     for key, value in items:
         if isinstance(value, list):
@@ -2007,26 +489,26 @@ def _v2_yaml_mapping(items: Sequence[tuple[str, Any]]) -> str:
                     if not member_items:
                         _fail("schema", "<renderer>", "empty list map is unsupported")
                     first_key, first_value = member_items[0]
-                    lines.append(f"  - {first_key}: {_v2_yaml_inline(first_value)}")
+                    lines.append(f"  - {first_key}: {_workstream_yaml_inline(first_value)}")
                     for nested_key, nested_value in member_items[1:]:
-                        lines.append(f"    {nested_key}: {_v2_yaml_inline(nested_value)}")
+                        lines.append(f"    {nested_key}: {_workstream_yaml_inline(nested_value)}")
                 else:
-                    lines.append(f"  - {_v2_yaml_inline(member)}")
+                    lines.append(f"  - {_workstream_yaml_inline(member)}")
         else:
-            lines.append(f"{key}: {_v2_yaml_inline(value)}")
+            lines.append(f"{key}: {_workstream_yaml_inline(value)}")
     return "\n".join(lines) + "\n"
 
 
 def workstream_ledger_digest(raw: bytes | str) -> str:
     """Return the domain-separated digest of canonical ledger bytes."""
     text = _canonical_text(raw, "ledger.md")
-    return _v2_digest(WORKSTREAM_LEDGER_DOMAIN, text.encode("utf-8"))
+    return _workstream_digest(WORKSTREAM_LEDGER_DOMAIN, text.encode("utf-8"))
 
 
 def workstream_detail_digest(raw: bytes | str) -> str:
     """Return the domain-separated digest of one canonical record/rebind block."""
     text = _canonical_text(raw, "record")
-    return _v2_digest(WORKSTREAM_DETAIL_DOMAIN, text.encode("utf-8"))
+    return _workstream_digest(WORKSTREAM_DETAIL_DOMAIN, text.encode("utf-8"))
 
 
 def _digest(value: Any, path: str, field_name: str) -> str:
@@ -2043,7 +525,7 @@ def _git_sha(value: Any, path: str, field_name: str) -> str:
     return value
 
 
-def _v2_id(prefix: str, id_salt: str, *components: str) -> str:
+def _workstream_id(prefix: str, id_salt: str, *components: str) -> str:
     if not re.fullmatch(r"[0-9a-f]{64}", id_salt):
         raise ValueError("id_salt must be 64 lowercase hex characters")
     frame = WORKSTREAM_ID_DOMAIN + bytes.fromhex(id_salt)
@@ -2056,19 +538,19 @@ def _v2_id(prefix: str, id_salt: str, *components: str) -> str:
 
 
 def workstream_id(id_salt: str, working_branch: str, base_sha: str, created_at: str) -> str:
-    return _v2_id("rwl_", id_salt, "workstream", working_branch, base_sha, created_at)
+    return _workstream_id("rwl_", id_salt, "workstream", working_branch, base_sha, created_at)
 
 
 def workstream_record_id(id_salt: str, workstream: str, created_at: str, pre_ledger_digest: str) -> str:
-    return _v2_id("rlr_", id_salt, "record", workstream, created_at, pre_ledger_digest)
+    return _workstream_id("rlr_", id_salt, "record", workstream, created_at, pre_ledger_digest)
 
 
 def workstream_chain_id(id_salt: str, workstream: str, first_record_id: str) -> str:
-    return _v2_id("rlc_", id_salt, "chain", workstream, first_record_id)
+    return _workstream_id("rlc_", id_salt, "chain", workstream, first_record_id)
 
 
 def workstream_receipt_id(id_salt: str, workstream: str, chain_id: str, detail_digest: str) -> str:
-    return _v2_id("rrc_", id_salt, "receipt", workstream, chain_id, detail_digest)
+    return _workstream_id("rrc_", id_salt, "receipt", workstream, chain_id, detail_digest)
 
 
 def workstream_ledger_path(workstream: str) -> str:
@@ -2095,7 +577,7 @@ def _clock_timestamp(clock: Callable[[], datetime] | None = None) -> str:
 
 @dataclass(frozen=True)
 class RetentionExtensionReceipt:
-    """The six immutable locator fields copied into a v2 ledger header."""
+    """The six immutable locator fields copied into a v1 ledger header."""
 
     nonce: str
     session_path: str
@@ -2261,10 +743,12 @@ def _retention_receipt_from_dict(value: Any, path: str) -> RetentionExtensionRec
 
 
 def _header_from_dict(value: Mapping[str, Any], path: str) -> WorkstreamLedgerHeader:
+    if (value.get("schema") != WORKSTREAM_LEDGER_SCHEMA
+            or type(value.get("version")) is not int
+            or value["version"] != WORKSTREAM_LEDGER_VERSION):
+        _fail("unsupported-reflection-format", path, "unsupported or mixed reflection ledger discriminator")
     _required(value, WORKSTREAM_HEADER_FIELDS, path)
     _only(value, WORKSTREAM_HEADER_FIELDS, path)
-    if value["schema"] != WORKSTREAM_LEDGER_SCHEMA or value["version"] != WORKSTREAM_LEDGER_VERSION:
-        _fail("discriminator", path, "unsupported or mixed reflection ledger discriminator")
     branch = _text(value["working_branch"], path, "working_branch")
     base = value["base_sha"]
     if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}", base):
@@ -2293,7 +777,7 @@ def _header_from_dict(value: Mapping[str, Any], path: str) -> WorkstreamLedgerHe
 
 
 def reflection_ledger_family(raw: bytes | str, path: str = "reflection") -> str:
-    """Return an explicit family discriminator; never infer v2 from a v1 plan."""
+    """Recognize only the exact supported workstream schema and version."""
     text = _canonical_text(raw, path)
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
@@ -2304,16 +788,15 @@ def reflection_ledger_family(raw: bytes | str, path: str = "reflection") -> str:
         mapping = _parse_yaml_mapping(text, path)
     schema = mapping.get("schema")
     version = mapping.get("version")
-    if schema == "memory-seed/reflection-plan" and version == 1:
-        return "v1"
-    if schema == WORKSTREAM_LEDGER_SCHEMA and version == WORKSTREAM_LEDGER_VERSION:
-        return "v2"
-    _fail("discriminator", path, "unsupported, absent, duplicate, or mixed reflection ledger family")
+    if schema == WORKSTREAM_LEDGER_SCHEMA and type(version) is int and version == WORKSTREAM_LEDGER_VERSION:
+        _only(mapping, WORKSTREAM_HEADER_FIELDS, path)
+        return "workstream-v1"
+    _fail("unsupported-reflection-format", path, "unsupported, absent, duplicate, or mixed reflection ledger family")
 
 
 def render_workstream_header(header: WorkstreamLedgerHeader) -> str:
     # Parse the rendered mapping as a final renderer guard, including field order.
-    rendered = _v2_yaml_mapping([(name, header.as_dict()[name]) for name in WORKSTREAM_HEADER_FIELDS])
+    rendered = _workstream_yaml_mapping([(name, header.as_dict()[name]) for name in WORKSTREAM_HEADER_FIELDS])
     parsed = _parse_yaml_mapping(rendered, "ledger header")
     _header_from_dict(parsed, "ledger header")
     return "---\n" + rendered + "---\n"
@@ -2358,7 +841,7 @@ def _dependency_key(value: WorkstreamDependency) -> tuple[str, str, str, str, st
     return (value.workstream_id, value.record_id, value.record_digest, value.reason, receipt)
 
 
-def _record_from_v2_dict(value: Mapping[str, Any], sections: Mapping[str, str], path: str) -> WorkstreamRecord:
+def _record_from_workstream_dict(value: Mapping[str, Any], sections: Mapping[str, str], path: str) -> WorkstreamRecord:
     _required(value, WORKSTREAM_RECORD_FIELDS, path)
     _only(value, WORKSTREAM_RECORD_FIELDS, path)
     record = _id(value["record_id"], "rlr_", path, "record_id")
@@ -2406,7 +889,7 @@ def _record_from_v2_dict(value: Mapping[str, Any], sections: Mapping[str, str], 
                             sections.get("Assumptions"), sections.get("Alternatives"), sections.get("Evidence"), sections.get("Next step"))
 
 
-def _rebind_from_v2_dict(value: Mapping[str, Any], path: str) -> TrustedRebind:
+def _rebind_from_workstream_dict(value: Mapping[str, Any], path: str) -> TrustedRebind:
     _required(value, WORKSTREAM_REBIND_FIELDS, path)
     _only(value, WORKSTREAM_REBIND_FIELDS, path)
     if value["role"] != "orchestrator":
@@ -2420,7 +903,7 @@ def _rebind_from_v2_dict(value: Mapping[str, Any], path: str) -> TrustedRebind:
     )
 
 
-def _render_v2_sections(record: WorkstreamRecord) -> str:
+def _render_workstream_sections(record: WorkstreamRecord) -> str:
     values = (("Conclusion", record.conclusion), ("Reasoning", record.reasoning), ("Assumptions", record.assumptions),
               ("Alternatives", record.alternatives), ("Evidence", record.evidence), ("Next step", record.next_step))
     result: list[str] = []
@@ -2435,16 +918,16 @@ def _render_v2_sections(record: WorkstreamRecord) -> str:
 
 
 def render_workstream_record(record: WorkstreamRecord, *, zero_detail_digest: bool = False) -> str:
-    metadata = _v2_yaml_mapping([(name, record.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_RECORD_FIELDS])
-    return f"## Record {record.record_id}\n\n```yaml\n{metadata}```\n\n{_render_v2_sections(record)}"
+    metadata = _workstream_yaml_mapping([(name, record.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_RECORD_FIELDS])
+    return f"## Record {record.record_id}\n\n```yaml\n{metadata}```\n\n{_render_workstream_sections(record)}"
 
 
 def render_trusted_rebind(rebind: TrustedRebind, *, zero_detail_digest: bool = False) -> str:
-    metadata = _v2_yaml_mapping([(name, rebind.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_REBIND_FIELDS])
+    metadata = _workstream_yaml_mapping([(name, rebind.metadata(zero_detail_digest=zero_detail_digest)[name]) for name in WORKSTREAM_REBIND_FIELDS])
     return f"## Rebind {rebind.record_id}\n\n```yaml\n{metadata}```\n"
 
 
-def _parse_v2_sections(raw: str, path: str) -> dict[str, str]:
+def _parse_workstream_sections(raw: str, path: str) -> dict[str, str]:
     allowed = ("Conclusion", "Reasoning", "Assumptions", "Alternatives", "Evidence", "Next step")
     matches = list(re.finditer(r"^### (Conclusion|Reasoning|Assumptions|Alternatives|Evidence|Next step)\n", raw, re.MULTILINE))
     if not matches or matches[0].start() != 0:
@@ -2466,7 +949,7 @@ def _parse_v2_sections(raw: str, path: str) -> dict[str, str]:
     return result
 
 
-def _parse_v2_entry(raw: str, path: str) -> WorkstreamEntry:
+def _parse_workstream_entry(raw: str, path: str) -> WorkstreamEntry:
     if raw.startswith("## Record "):
         match = re.fullmatch(r"## Record ([^\n]+)\n\n```yaml\n(.*?)```\n\n(.*)", raw, re.DOTALL)
         if not match:
@@ -2474,7 +957,7 @@ def _parse_v2_entry(raw: str, path: str) -> WorkstreamEntry:
         metadata = _parse_yaml_mapping(match.group(2), path)
         if metadata.get("record_id") != match.group(1):
             _fail("record", path, "record heading and metadata ID differ")
-        return _record_from_v2_dict(metadata, _parse_v2_sections(match.group(3), path), path)
+        return _record_from_workstream_dict(metadata, _parse_workstream_sections(match.group(3), path), path)
     if raw.startswith("## Rebind "):
         # Ledger blocks are joined by exactly one separator LF.  Rebind blocks
         # already end in their YAML LF, so an intermediate rebind consequently
@@ -2487,7 +970,7 @@ def _parse_v2_entry(raw: str, path: str) -> WorkstreamEntry:
         metadata = _parse_yaml_mapping(match.group(2), path)
         if metadata.get("record_id") != match.group(1):
             _fail("rebind", path, "rebind heading and metadata ID differ")
-        return _rebind_from_v2_dict(metadata, path)
+        return _rebind_from_workstream_dict(metadata, path)
     _fail("entry", path, "ledger contains an unsupported block")
 
 
@@ -2504,7 +987,8 @@ def render_workstream_ledger(ledger: WorkstreamLedger) -> str:
 def _split_workstream_ledger(raw: bytes | str, path: str) -> tuple[dict[str, Any], list[str], str]:
     text = _canonical_text(raw, path)
     if not text.startswith("---\n"):
-        _fail("discriminator", path, "v2 ledger requires canonical front matter")
+        reflection_ledger_family(text, path)
+        _fail("discriminator", path, "v1 ledger requires canonical front matter")
     end = text.find("\n---\n", 4)
     if end < 0:
         _fail("yaml", path, "front matter is not closed")
@@ -2526,16 +1010,16 @@ def _split_workstream_ledger(raw: bytes | str, path: str) -> tuple[dict[str, Any
 def parse_workstream_ledger(raw: bytes | str, path: str = "ledger.md") -> WorkstreamLedger:
     header_value, blocks, text = _split_workstream_ledger(raw, path)
     header = _header_from_dict(header_value, path)
-    entries = tuple(_parse_v2_entry(block, path) for block in blocks)
+    entries = tuple(_parse_workstream_entry(block, path) for block in blocks)
     ledger = WorkstreamLedger(header, entries)
     validate_workstream_ledger(ledger, path)
     if render_workstream_ledger(ledger) != text:
-        _fail("canonical-bytes", path, "ledger does not use the canonical v2 renderer")
+        _fail("canonical-bytes", path, "ledger does not use the canonical v1 renderer")
     return ledger
 
 
 def _parse_compacted_workstream_ledger(raw: bytes | str, path: str) -> WorkstreamLedger:
-    """Parse canonical v2 bytes after, and only after, a trusted removal proof.
+    """Parse canonical v1 bytes after, and only after, a trusted removal proof.
 
     This deliberately has no public switch or caller-provided proof.  The
     history loader invokes it only after binding the post-image to an admitted
@@ -2543,11 +1027,11 @@ def _parse_compacted_workstream_ledger(raw: bytes | str, path: str) -> Workstrea
     """
     header_value, blocks, text = _split_workstream_ledger(raw, path)
     header = _header_from_dict(header_value, path)
-    entries = tuple(_parse_v2_entry(block, path) for block in blocks)
+    entries = tuple(_parse_workstream_entry(block, path) for block in blocks)
     ledger = WorkstreamLedger(header, entries)
     _validate_compacted_workstream_ledger(ledger, path)
     if render_workstream_ledger(ledger) != text:
-        _fail("canonical-bytes", path, "ledger does not use the canonical v2 renderer")
+        _fail("canonical-bytes", path, "ledger does not use the canonical v1 renderer")
     return ledger
 
 
@@ -2603,7 +1087,7 @@ def _validate_workstream_ledger(ledger: WorkstreamLedger, path: str, *, verify_p
             _fail("id-collision", entry_path, "record IDs must be unique", record_id=entry.record_id)
         seen_ids.add(entry.record_id)
         if isinstance(entry, TrustedRebind):
-            _rebind_from_v2_dict(entry.metadata(), entry_path)
+            _rebind_from_workstream_dict(entry.metadata(), entry_path)
             if entry.from_branch != effective_branch:
                 _fail("rebind", entry_path, "rebind source is not the effective owning branch", expected=effective_branch)
             expected_id = workstream_record_id(ledger.header.id_salt, ledger.header.workstream_id, entry.created_at, entry.pre_ledger_digest)
@@ -2613,7 +1097,7 @@ def _validate_workstream_ledger(ledger: WorkstreamLedger, path: str, *, verify_p
                 _fail("detail-digest", entry_path, "rebind detail digest is invalid")
             effective_branch = entry.to_branch
             continue
-        _record_from_v2_dict(entry.metadata(), {
+        _record_from_workstream_dict(entry.metadata(), {
             name: value for name, value in (("Conclusion", entry.conclusion), ("Reasoning", entry.reasoning),
                                                ("Assumptions", entry.assumptions), ("Alternatives", entry.alternatives),
                                                ("Evidence", entry.evidence), ("Next step", entry.next_step)) if value is not None
@@ -2670,7 +1154,7 @@ def _validate_workstream_ledger(ledger: WorkstreamLedger, path: str, *, verify_p
 
 
 def validate_workstream_ledger(ledger: WorkstreamLedger, path: str = "ledger.md") -> None:
-    """Strict standalone v2 validation, including every predecessor digest."""
+    """Strict standalone v1 validation, including every predecessor digest."""
     _validate_workstream_ledger(ledger, path, verify_predecessors=True)
 
 
@@ -2979,7 +1463,7 @@ class WorkstreamReceipt:
         return WorkstreamDependencyReceipt(self.session_path, self.entry_id, self.decision_id, self.receipt_id, self.receipt_digest)
 
 
-# These are v2 receipt values, not free-form prose.  The two decision-backed
+# These are v1 receipt values, not free-form prose.  The two decision-backed
 # dispositions deliberately share the promoted classification: a chain already
 # covered by a decision is no less promoted than one newly promoted to it.
 WORKSTREAM_RECEIPT_DISPOSITIONS = frozenset({
@@ -3016,7 +1500,7 @@ class WorkstreamReceiptVerifier:
 
 @dataclass(frozen=True)
 class EarlyExpiryApproval:
-    """Compatibility locator shape; v2 early-cleanup admission is disabled."""
+    """Untrusted early-expiry input; v1 early-cleanup admission is disabled."""
 
     workstream_id: str
     chain_id: str
@@ -3029,7 +1513,7 @@ class EarlyExpiryApproval:
 
 
 class EarlyExpiryApprovalVerifier:
-    """Compatibility verifier interface; cannot authorize v2 early cleanup."""
+    """Caller verifier interface; cannot authorize v1 early cleanup."""
 
     def verify(self, approval: EarlyExpiryApproval) -> bool:
         raise NotImplementedError
@@ -3054,7 +1538,7 @@ def _validate_workstream_receipt(receipt: WorkstreamReceipt, path: str = "receip
     _dependency_receipt_from_dict(receipt.dependency_locator().as_dict(), path)
     disposition = _text(receipt.disposition, path, "disposition")
     if disposition not in WORKSTREAM_RECEIPT_DISPOSITIONS:
-        _fail("receipt", path, "receipt disposition is not a canonical v2 disposition", disposition=disposition)
+        _fail("receipt", path, "receipt disposition is not a canonical v1 disposition", disposition=disposition)
 
 
 def _validate_admitted_receipt(value: AdmittedWorkstreamReceipt, verifier: WorkstreamReceiptVerifier,
@@ -3136,7 +1620,7 @@ class WorkstreamBoardView:
         return 0 if all(item.status == "valid" for item in self.items) else 1
 
 
-def _recover_v2_header(raw: bytes, path: str) -> tuple[str | None, str | None, str | None]:
+def _recover_workstream_header(raw: bytes, path: str) -> tuple[str | None, str | None, str | None]:
     """Best-effort information for diagnostics; never turns malformed bytes valid."""
     try:
         text = raw.decode("utf-8")
@@ -3168,12 +1652,15 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
     root = Path(cwd).resolve()
     active = root / Path(active_root)
     candidates: dict[str, set[str]] = {}
-    trusted_ledger_names: set[str] = set()
-    trusted_manifest_names: set[str] = set()
+    trusted_paths: dict[str, set[str]] = {}
+    if active.is_symlink() or (active.exists() and not active.is_dir()):
+        return WorkstreamBoardView((
+            WorkstreamBoardItem(active_root, "malformed", None, None, None, None,
+                                ReflectionDiagnostic("path", active_root, "active board root must be a regular directory", {})),
+        ))
     if active.is_dir():
         for item in active.iterdir():
-            if item.is_dir():
-                candidates.setdefault(item.name, set()).add("worktree")
+            candidates.setdefault(item.name, set()).add("worktree")
     if trusted_ref is not None:
         head = _commit(root, trusted_ref)
         if head is None:
@@ -3187,30 +1674,36 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
                 parts = PurePosixPath(path[len(prefix):]).parts
                 if parts:
                     candidates.setdefault(parts[0], set()).add("trusted")
-                    if len(parts) == 2 and parts[1] == WORKSTREAM_LEDGER_NAME:
-                        trusted_ledger_names.add(parts[0])
-                    if len(parts) == 2 and parts[1] == MANIFEST_NAME:
-                        trusted_manifest_names.add(parts[0])
+                    trusted_paths.setdefault(parts[0], set()).add(path)
     items: list[WorkstreamBoardItem] = []
     for name in sorted(candidates):
         candidate = active / name
         ledger_path = candidate / WORKSTREAM_LEDGER_NAME
         relative = (PurePosixPath(active_root) / name / WORKSTREAM_LEDGER_NAME).as_posix()
+        if candidate.is_symlink() or ledger_path.is_symlink() or (candidate.exists() and not candidate.is_dir()):
+            items.append(WorkstreamBoardItem(relative, "malformed", None, None, None, None,
+                                              ReflectionDiagnostic("path", relative,
+                                                                   "active candidate must be a regular ledger directory", {})))
+            continue
+        unexpected = sorted(
+            {path.name for path in candidate.iterdir() if path.name != WORKSTREAM_LEDGER_NAME}
+            if candidate.is_dir() else set()
+        )
+        extra_trusted_paths = sorted(trusted_paths.get(name, set()) - {relative})
+        if unexpected or extra_trusted_paths:
+            items.append(WorkstreamBoardItem(relative, "malformed", None, None, None, None,
+                                              ReflectionDiagnostic("unsupported-reflection-format", relative,
+                                                                   "active candidate permits only ledger.md",
+                                                                   {"unexpected": unexpected, "trusted_paths": extra_trusted_paths})))
+            continue
         if not ledger_path.is_file():
-            # Historical v1 remains a read-only compatibility family.  It is
-            # deliberately excluded from the v2 board rather than treated as
-            # a v2 mutation candidate or a hidden shared-authority fallback.
-            if name in trusted_manifest_names and name not in trusted_ledger_names:
-                continue
-            if candidate.is_dir() and (candidate / MANIFEST_NAME).is_file() and "trusted" not in candidates[name]:
-                continue
             items.append(WorkstreamBoardItem(relative, "malformed", None, None, None, None,
                                               ReflectionDiagnostic("missing-ledger", relative,
                                                                    "active candidate has no working-tree ledger.md", {})))
             continue
         raw = ledger_path.read_bytes()
         raw_digest = "sha256:" + sha256(raw).hexdigest()
-        workstream, branch, schema = _recover_v2_header(raw, relative)
+        workstream, branch, schema = _recover_workstream_header(raw, relative)
         try:
             # A Git-backed board is a projection of classified committed
             # history, not a fast-path for predecessor-strict working bytes.
@@ -3224,18 +1717,13 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
             else:
                 ledger = parse_workstream_ledger(raw, relative)
         except ReflectionValidationError as exc:
-            status = "unsupported" if schema is not None and schema != WORKSTREAM_LEDGER_SCHEMA else "malformed"
+            status = "unsupported" if exc.diagnostic.code == "unsupported-reflection-format" else "malformed"
             items.append(WorkstreamBoardItem(relative, status, raw_digest, workstream, branch, None, exc.diagnostic))
             continue
         if candidate.name != ledger.header.workstream_id:
             items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, ledger.header.workstream_id,
                                               ledger.header.working_branch, ledger.effective_branch,
                                               ReflectionDiagnostic("path", relative, "ledger directory must equal workstream_id", {})))
-            continue
-        if (candidate / MANIFEST_NAME).exists() or name in trusted_manifest_names:
-            items.append(WorkstreamBoardItem(relative, "malformed", raw_digest, ledger.header.workstream_id,
-                                              ledger.header.working_branch, ledger.effective_branch,
-                                              ReflectionDiagnostic("mixed-family", relative, "v2 ledger directory cannot contain manifest.yaml", {})))
             continue
         items.append(WorkstreamBoardItem(relative, "valid", raw_digest, ledger.header.workstream_id,
                                          ledger.header.working_branch, ledger.effective_branch, None, ledger))
@@ -3250,7 +1738,7 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
             item = items[index]
             items[index] = WorkstreamBoardItem(
                 item.path, "malformed", item.raw_digest, item.workstream_id, item.working_branch, item.effective_branch,
-                ReflectionDiagnostic("branch-collision", item.path, "multiple active v2 ledgers claim one effective branch", {"branch": branch}),
+                ReflectionDiagnostic("branch-collision", item.path, "multiple active v1 ledgers claim one effective branch", {"branch": branch}),
             )
     return WorkstreamBoardView(tuple(items))
 
@@ -3341,7 +1829,7 @@ def preview_trusted_rebind(ledger: WorkstreamLedger, *, source_tip: str, target_
 def apply_trusted_rebind(ledger: WorkstreamLedger, token: TrustedRebindToken, *, integration_commit: str,
                          current_target_tip: str, verifier: TrustedRebindVerifier,
                          reason: str, clock: Callable[[], datetime] | None = None) -> TrustedRebindResult:
-    """Append the only v2 ownership transfer record after verified integration."""
+    """Append the only v1 ownership transfer record after verified integration."""
     validate_workstream_ledger(ledger)
     pre_digest = _append_pre_digest(ledger)
     if token.workstream_id != ledger.header.workstream_id or token.source_branch != ledger.effective_branch or token.pre_ledger_digest != pre_digest:
@@ -3450,7 +1938,7 @@ def plan_workstream_chain_close(ledger: WorkstreamLedger, *, chain_id: str, rece
                                 expected_head: str, actual_head: str, pre_ledger_digest: str, branch: str,
                                 conclusion: str, reasoning: str, source: str, confidence: str,
                                 clock: Callable[[], datetime] | None = None) -> WorkstreamLedger:
-    """Create the post-integration orchestrator close record for a strict v2 ledger."""
+    """Create the post-integration orchestrator close record for a strict v1 ledger."""
     return _plan_workstream_chain_close(
         ledger, chain_id=chain_id, receipts=receipts, receipt_verifier=receipt_verifier,
         integration_witness=integration_witness, integration_verifier=integration_verifier,
@@ -3513,10 +2001,10 @@ def _preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, 
         if early:
             if any(_workstream_receipt_is_promoted(receipt) for receipt in coverage.values()):
                 _fail("early-expiry", "ledger expiry", "a promoted chain can never use early expiry", chain_id=chain)
-            # The locator-only v2 approval and caller verifier cannot establish
+            # The locator-only v1 approval and caller verifier cannot establish
             # host authority, complete-member binding, freshness, or replay.
             _fail("early-expiry", "ledger expiry",
-                  "v2 early cleanup is disabled until canonical Git-admitted host-signed authorization is defined",
+                  "v1 early cleanup is disabled until canonical Git-admitted host-signed authorization is defined",
                   chain_id=chain)
         elif now.astimezone(timezone.utc) < _as_utc(closed_at) + timedelta(days=ledger.header.reflection_retention_days):
             _fail("expiry", "ledger expiry", "chain retention window has not elapsed", chain_id=chain)
@@ -3536,7 +2024,7 @@ def preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, c
                                integration_verifier: TrustedRebindVerifier,
                                early_approval: EarlyExpiryApproval | None = None,
                                early_approval_verifier: EarlyExpiryApprovalVerifier | None = None) -> WorkstreamExpiryPreview:
-    """Preview expiry for a predecessor-strict v2 ledger image."""
+    """Preview expiry for a predecessor-strict v1 ledger image."""
     return _preview_workstream_expiry(
         ledger, expected_head=expected_head, chain_ids=chain_ids, now=now, receipts=receipts,
         receipt_verifier=receipt_verifier, integration_witness=integration_witness,
@@ -3560,10 +2048,10 @@ def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryP
     return preview.post_ledger
 
 
-# --- Trusted v2 compaction history ----------------------------------------
+# --- Trusted v1 compaction history ----------------------------------------
 #
 # A compacted image is intentionally not a second ledger format.  These types
-# describe Git/session evidence for a single, already-rendered v2 image; all
+# describe Git/session evidence for a single, already-rendered v1 image; all
 # authority remains in the committed tree and ordinary session entry.
 
 MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS = 4096
@@ -3613,7 +2101,7 @@ def _compaction_ledger_path(value: Any, path: str) -> str:
     candidate = PurePosixPath(value)
     if (candidate.is_absolute() or ".." in candidate.parts or "\\" in value or value != candidate.as_posix()
             or not value.startswith(f"{REFLECTION_ROOT}/") or not value.endswith(f"/{WORKSTREAM_LEDGER_NAME}")):
-        _fail("compaction-proof", path, "ledger_path is not the canonical active v2 ledger path")
+        _fail("compaction-proof", path, "ledger_path is not the canonical active v1 ledger path")
     return value
 
 
@@ -3762,7 +2250,7 @@ def workstream_compaction_receipt_from_dict(value: Mapping[str, Any], path: str 
 def render_workstream_compaction_receipt(receipt: WorkstreamCompactionReceipt) -> str:
     parsed = workstream_compaction_receipt_from_dict(receipt.as_dict())
     values = parsed.as_dict()
-    return _v2_yaml_mapping([(name, values[name]) for name in WORKSTREAM_COMPACTION_FIELDS])
+    return _workstream_yaml_mapping([(name, values[name]) for name in WORKSTREAM_COMPACTION_FIELDS])
 
 
 def parse_workstream_compaction_receipt(raw: bytes | str, path: str = "compaction.yaml") -> WorkstreamCompactionReceipt:
@@ -3864,8 +2352,8 @@ TrustedWorkstreamLedger = NormalTrustedLedger | AdmittedCompactedLedger
 class _LedgerTransition:
     commit: str
     parent: str
-    parent_blob: ReflectionBlob
-    blob: ReflectionBlob
+    parent_blob: GitBlob
+    blob: GitBlob
 
 
 @lru_cache(maxsize=32768)
@@ -4079,7 +2567,7 @@ def _validate_historical_compaction_retention(root: Path, receipt: WorkstreamCom
 
     Git author/committer dates are caller-controlled, even in immutable commits.
     Session mappings likewise prove recorded bytes, never live-user authority.
-    The frozen v2 contract defines no external elapsed-time anchor or canonical
+    The frozen v1 contract defines no external elapsed-time anchor or canonical
     host-signed early-cleanup authorization. Neither can be invented here.
 
     A future authorization must bind the workstream, chain, complete member IDs
@@ -4089,12 +2577,12 @@ def _validate_historical_compaction_retention(root: Path, receipt: WorkstreamCom
     including apparently old or promoted cleanup, remains inadmissible.
     """
     _fail("compaction-proof-retention", receipt.ledger_path,
-          "v2 historical cleanup is disabled: no trusted elapsed-time anchor or replay-verified host authorization",
+          "v1 historical cleanup is disabled: no trusted elapsed-time anchor or replay-verified host authorization",
           cleanup_commit=cleanup_commit, receipt_commit=receipt_commit)
 
 
 def _trusted_active_ledgers_at_commit(root: Path, commit: str) -> tuple[tuple[str, WorkstreamLedger], ...]:
-    """Build the entire v2 board from one immutable Git tree, fail closed."""
+    """Build the entire v1 board from one immutable Git tree, fail closed."""
     prefix = REFLECTION_ROOT + "/"
     candidates: dict[str, set[str]] = {}
     for path in _git_tree_paths(root, commit):
@@ -4111,21 +2599,15 @@ def _trusted_active_ledgers_at_commit(root: Path, commit: str) -> tuple[tuple[st
     branches: dict[str, str] = {}
     for directory, paths in sorted(candidates.items()):
         ledger_path = (PurePosixPath(REFLECTION_ROOT) / directory / WORKSTREAM_LEDGER_NAME).as_posix()
-        manifest_path = (PurePosixPath(REFLECTION_ROOT) / directory / MANIFEST_NAME).as_posix()
-        if ledger_path not in paths:
-            # A legacy manifest-only candidate remains isolated from v2.  Any
-            # other shape is an ambiguous board and blocks proof admission.
-            if paths == {manifest_path}:
-                continue
-            _fail("dependency-context", ledger_path, "trusted active board has a malformed candidate")
-        if manifest_path in paths:
-            _fail("dependency-context", ledger_path, "trusted active board mixes v1 and v2 candidate files")
+        if paths != {ledger_path}:
+            _fail("unsupported-reflection-format", ledger_path, "trusted active candidate permits only ledger.md",
+                  paths=sorted(paths))
         blob = _tree_blob(root, commit, ledger_path)
         if blob is None or blob.mode != CANONICAL_MODE:
             _fail("dependency-context", ledger_path, "trusted active board ledger is not a regular blob")
-        workstream_id, _branch, schema = _recover_v2_header(blob.content, ledger_path)
+        workstream_id, _branch, schema = _recover_workstream_header(blob.content, ledger_path)
         if schema != WORKSTREAM_LEDGER_SCHEMA or workstream_id is None:
-            _fail("dependency-context", ledger_path, "trusted active board has an unsupported or malformed v2 ledger")
+            _fail("dependency-context", ledger_path, "trusted active board has an unsupported or malformed v1 ledger")
         # Strict-valid bytes can still hide a raw tail/sole-chain deletion.
         # Every candidate, including the cleanup target's pre-image, must pass
         # lineage classification at this exact pre-cleanup commit.
@@ -4208,7 +2690,7 @@ def _session_compaction_candidates(root: Path, trusted_head: str, base_sha: str)
     return tuple(result)
 
 
-def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, ReflectionBlob, tuple[_LedgerTransition, ...]]:
+def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, GitBlob, tuple[_LedgerTransition, ...]]:
     """Follow the one allowed ledger-bearing parent chain, newest to genesis."""
     current = head
     reverse: list[_LedgerTransition] = []
@@ -4248,7 +2730,7 @@ def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, Refle
 def _parse_initial_trusted_ledger(raw: bytes, path: str) -> WorkstreamLedger:
     ledger = parse_workstream_ledger(raw, path)
     if ledger.entries:
-        _fail("compaction-proof-history-missing", path, "the first committed v2 image must be the canonical header-only init")
+        _fail("compaction-proof-history-missing", path, "the first committed v1 image must be the canonical header-only init")
     return ledger
 
 
@@ -4353,7 +2835,7 @@ _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT: ContextVar[_TrustedLedgerClassificationC
 
 
 def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_path: str) -> TrustedWorkstreamLedger:
-    """Load only a committed, history-classified v2 ledger from a host-selected ref.
+    """Load only a committed, history-classified v1 ledger from a host-selected ref.
 
     The caller never supplies raw proof bytes or a predecessor-validation mode.
     A strict-valid deletion is deliberately *not* normal: all path transitions
@@ -4649,7 +3131,7 @@ def preview_workstream_append_commit(cwd: Path | str, *, trusted_ref: str, works
     return preview
 
 
-def _restore_append_worktree(root: Path, path: Path, raw: bytes, blob: ReflectionBlob) -> bool:
+def _restore_append_worktree(root: Path, path: Path, raw: bytes, blob: GitBlob) -> bool:
     try:
         path.write_bytes(raw)
         code, _output = _git(root, "update-index", "--cacheinfo", f"{blob.mode},{blob.oid},{blob.path}")
@@ -4765,8 +3247,8 @@ RETENTION_APPROVAL_FIELDS = RETENTION_PREFLIGHT_FIELDS + ("commit", "blob", "sig
 
 def _retention_preflight_mapping(preflight: RetentionPreflight) -> dict[str, Any]:
     return {
-        "schema": "memory-seed/reflection-retention-preflight", "version": 2, "key_id": preflight.key_id,
-        "id_domain": "memory-seed/reflection-workstream-ledger/v2", "id_kind": "workstream",
+        "schema": "memory-seed/reflection-retention-preflight", "version": 1, "key_id": preflight.key_id,
+        "id_domain": "memory-seed/reflection-workstream-ledger/v1", "id_kind": "workstream",
         "workstream_id": preflight.workstream_id, "working_branch": preflight.working_branch, "base_sha": preflight.base_sha,
         "id_salt": preflight.id_salt, "created_at": preflight.created_at, "retention_days": preflight.retention_days,
         "scope": "ledger", "chain_id": None, "nonce": preflight.nonce, "approved_at": preflight.approved_at,
@@ -4778,13 +3260,13 @@ def _retention_preflight_mapping(preflight: RetentionPreflight) -> dict[str, Any
 def render_retention_preflight(preflight: RetentionPreflight) -> str:
     _validate_retention_preflight(preflight)
     values = _retention_preflight_mapping(preflight)
-    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_PREFLIGHT_FIELDS])
+    return _workstream_yaml_mapping([(name, values[name]) for name in RETENTION_PREFLIGHT_FIELDS])
 
 
 def retention_preflight_from_dict(value: Mapping[str, Any], path: str = "retention-preflight.yaml") -> RetentionPreflight:
     _required(value, RETENTION_PREFLIGHT_FIELDS, path)
     _only(value, RETENTION_PREFLIGHT_FIELDS, path)
-    if value["schema"] != "memory-seed/reflection-retention-preflight" or value["version"] != 2 or value["id_domain"] != "memory-seed/reflection-workstream-ledger/v2" or value["id_kind"] != "workstream" or value["scope"] != "ledger" or value["chain_id"] is not None:
+    if value["schema"] != "memory-seed/reflection-retention-preflight" or type(value["version"]) is not int or value["version"] != 1 or value["id_domain"] != "memory-seed/reflection-workstream-ledger/v1" or value["id_kind"] != "workstream" or value["scope"] != "ledger" or value["chain_id"] is not None:
         _fail("retention-approval", path, "retention preflight discriminator or scope is invalid")
     result = RetentionPreflight(_text(value["key_id"], path, "key_id"), _text(value["workstream_id"], path, "workstream_id"),
                                 _text(value["working_branch"], path, "working_branch"), _text(value["base_sha"], path, "base_sha"),
@@ -4820,12 +3302,12 @@ def render_retention_approval(approval: RetentionApproval) -> str:
     if not re.fullmatch(r"ed25519:[0-9a-f]{128}", approval.signature):
         _fail("retention-approval", "retention approval", "approval signature is invalid")
     values = _retention_approval_mapping(approval, include_signature=True)
-    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS])
+    return _workstream_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS])
 
 
 def retention_approval_payload(approval: RetentionApproval) -> bytes:
     values = _retention_approval_mapping(approval, include_signature=False)
-    return _v2_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS[:-1]]).encode("utf-8")
+    return _workstream_yaml_mapping([(name, values[name]) for name in RETENTION_APPROVAL_FIELDS[:-1]]).encode("utf-8")
 
 
 def retention_approval_from_dict(value: Mapping[str, Any], path: str = "retention-approval.yaml") -> RetentionApproval:
@@ -4946,7 +3428,7 @@ def _refuse_raw_git_backed_mutation(root: Path, trusted_ref: str | None, path: s
     code, output = _git(root, "rev-parse", "--is-inside-work-tree")
     if trusted_ref is not None or (code == 0 and output == "true"):
         _fail("guarded-git-mutation", path,
-              "Git-backed v2 mutation must use the trusted history/commit transaction route", trusted_ref=trusted_ref)
+              "Git-backed v1 mutation must use the trusted history/commit transaction route", trusted_ref=trusted_ref)
 
 
 def guarded_init_workstream_ledger(cwd: Path | str, *, expected_head: str, actual_head: str, working_branch: str,
@@ -4980,7 +3462,7 @@ def guarded_append_workstream_ledger(cwd: Path | str, *, workstream_id: str, req
     relative = workstream_ledger_path(workstream_id)
     path = root / Path(relative)
     if not path.is_file():
-        _fail("path", relative, "active v2 ledger does not exist")
+        _fail("path", relative, "active v1 ledger does not exist")
     raw = path.read_bytes()
     ledger = parse_workstream_ledger(raw, relative)
     if ledger.header.workstream_id != workstream_id:
@@ -5004,7 +3486,7 @@ def guarded_apply_trusted_rebind(cwd: Path | str, *, workstream_id: str, token: 
     relative = workstream_ledger_path(workstream_id)
     path = root / Path(relative)
     if not path.is_file():
-        _fail("path", relative, "active v2 ledger does not exist")
+        _fail("path", relative, "active v1 ledger does not exist")
     raw = path.read_bytes()
     ledger = parse_workstream_ledger(raw, relative)
     validate_workstream_branch_owner(root, ledger)
@@ -5029,7 +3511,7 @@ def guarded_apply_workstream_expiry(cwd: Path | str, *, workstream_id: str, prev
     relative = workstream_ledger_path(workstream_id)
     path = root / Path(relative)
     if not path.is_file():
-        _fail("path", relative, "active v2 ledger does not exist")
+        _fail("path", relative, "active v1 ledger does not exist")
     raw = path.read_bytes()
     ledger = parse_workstream_ledger(raw, relative)
     validate_workstream_branch_owner(root, ledger)
