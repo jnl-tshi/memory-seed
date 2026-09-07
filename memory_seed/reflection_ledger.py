@@ -3604,27 +3604,29 @@ def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamRe
     """Every contributing receipt history must descend from this integration.
 
     Merely citing a newer commit containing an old receipt blob does not make
-    that evidence post-integration. Follow every parent that already contains
-    the exact receipt, including a merge's source parent.
+    that evidence post-integration. Full path history follows every merge
+    parent and crosses periods of absence: deleting and restoring the exact
+    mapping must not reset its origin. Unchanged snapshots need not be scanned
+    because the earlier introduction of their mapping is retained in history.
     """
     receipt = admitted.receipt
     mapping = _member_session_mapping(receipt.workstream_id, receipt)
-    pending, seen = [admitted.commit], set()
-    while pending:
-        commit = pending.pop()
-        if commit in seen:
-            continue
-        seen.add(commit)
-        if len(seen) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
-            _fail("receipt-history-limit", receipt.session_path, "receipt provenance exceeds the bounded history scan")
-        if commit == integration_commit or not _git_is_ancestor(root, integration_commit, commit):
+    code, output = _git(root, "rev-list", "--full-history",
+                        f"--max-count={MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS + 1}",
+                        admitted.commit, "--", receipt.session_path)
+    commits = output.splitlines() if code == 0 and isinstance(output, str) else []
+    if not commits or any(not re.fullmatch(r"[0-9a-f]{40}", commit) for commit in commits):
+        _fail("receipt-history-missing", receipt.session_path, "could not resolve complete receipt path history")
+    commits = tuple(dict.fromkeys((admitted.commit, *commits)))
+    if len(commits) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+        _fail("receipt-history-limit", receipt.session_path, "receipt provenance exceeds the bounded history scan")
+    for commit in commits:
+        blob = _tree_blob(root, commit, receipt.session_path)
+        if (blob is not None and blob.mode == CANONICAL_MODE
+                and _session_has_exact_yaml_mapping(blob.content, receipt.session_path, mapping,
+                                                   entry_id=receipt.entry_id, decision_id=receipt.decision_id)
+                and (commit == integration_commit or not _git_is_ancestor(root, integration_commit, commit))):
             _fail("receipt-integration", receipt.session_path, "durable receipt evidence must originate after the validated integration")
-        for parent in _git_commit_parents(root, commit):
-            blob = _tree_blob(root, parent, receipt.session_path)
-            if (blob is not None and blob.mode == CANONICAL_MODE
-                    and _session_has_exact_yaml_mapping(blob.content, receipt.session_path, mapping,
-                                                       entry_id=receipt.entry_id, decision_id=receipt.decision_id)):
-                pending.append(parent)
 
 
 def _validated_receipt_integration(current: TrustedWorkstreamLedger, witness: TrustedIntegrationWitness,

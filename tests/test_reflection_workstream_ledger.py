@@ -1589,9 +1589,15 @@ def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
         ledger = apply_workstream_append_commit(root, planned).ledger
     locator = dict(chain_id=chain, session_path=".memory-seed/sessions/2026-09/2026-09-06.md",
                    entry_id="mse_0123456789abcdef", decision_id="D1", disposition="promoted-to-decision")
-    if receipt_origin == "source":
+    receipt_snapshot = None
+    if receipt_origin in {"source", "source-deleted"}:
         loaded = load_trusted_workstream_ledger(root, trusted_ref=branch, ledger_path=init.ledger_path)
         _commit_transaction_receipts(root, loaded, locator)
+        receipt_snapshot = ((root / locator["session_path"]).read_bytes(),
+                            _git(root, "rev-parse", "HEAD:" + locator["session_path"]))
+        if receipt_origin == "source-deleted":
+            _git(root, "rm", "--", locator["session_path"])
+            _git(root, "commit", "--quiet", "-m", "delete pre-integration receipt evidence")
     source_tip = _git(root, "rev-parse", "HEAD")
     _git(root, "checkout", "--quiet", "-b", "integration", synthetic.header.base_sha)
     target_tip = _git(root, "rev-parse", "HEAD")
@@ -1602,7 +1608,7 @@ def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
     kwargs = dict(trusted_ref="integration", workstream_id=workstream, token=token, verifier=verifier, reason="verified integration")
     planned = preview_workstream_rebind_commit(root, **kwargs)
     context = {"rebind_kwargs": kwargs, "verifier": verifier, "source_branch": branch, "chain": chain,
-               "receipt_locator": locator}
+               "receipt_locator": locator, "receipt_snapshot": receipt_snapshot}
     if operation == "rebind":
         return root, planned, context
     rebound = apply_workstream_commit(root, planned)
@@ -1876,17 +1882,77 @@ def _assert_preintegration_receipts_refused(root, planned, context, rebound, loc
     assert _transaction_state(root) == before
 
 
-def test_review_postintegration_merge_cannot_launder_preintegration_receipts(tmp_path):
+@pytest.mark.parametrize("deletion_gap", [False, True])
+def test_review_postintegration_merge_cannot_launder_preintegration_receipts(tmp_path, deletion_gap):
     root, planned, context = _planned_transaction(tmp_path, "rebind")
     source = load_trusted_workstream_ledger(root, trusted_ref=context["source_branch"], ledger_path=planned.ledger_path)
     # This receipt branch carries no ledger, so the later merge has exactly
     # one ledger-bearing parent and otherwise remains valid trusted history.
     _git(root, "checkout", "--quiet", "-b", "receipt-source", source.ledger.header.base_sha)
     _commit_transaction_receipts(root, source, context["receipt_locator"])
+    session_path = context["receipt_locator"]["session_path"]
+    original_raw = (root / session_path).read_bytes()
+    original_blob = _git(root, "rev-parse", "HEAD:" + session_path)
+    if deletion_gap:
+        _git(root, "rm", "--", session_path)
+        _git(root, "commit", "--quiet", "-m", "delete old receipt before merging its branch")
     _git(root, "checkout", "--quiet", "integration")
     rebound = apply_workstream_commit(root, planned)
     _git(root, "merge", "--quiet", "--no-ff", "-m", "import old source receipts after integration", "receipt-source")
+    if deletion_gap:
+        assert _git(root, "ls-files", "--", session_path) == ""
+        restored = root / session_path
+        restored.parent.mkdir(parents=True, exist_ok=True)
+        restored.write_bytes(original_raw)
+        _git(root, "add", "--", session_path)
+        _git(root, "commit", "--quiet", "-m", "restore receipt from deleted merge-parent history")
+        assert _git(root, "rev-parse", "HEAD:" + session_path) == original_blob
     _assert_preintegration_receipts_refused(root, planned, context, rebound, "later")
+
+
+@pytest.mark.parametrize("gap_stage", ["before-integration", "after-integration"])
+def test_review_receipt_delete_gap_restore_cannot_launder_origin(tmp_path, gap_stage):
+    root, planned, context = _planned_transaction(
+        tmp_path, "rebind", receipt_origin="source-deleted" if gap_stage == "before-integration" else "source",
+    )
+    rebound = apply_workstream_commit(root, planned)
+    session_path = context["receipt_locator"]["session_path"]
+    original_raw, original_blob = context["receipt_snapshot"]
+    if gap_stage == "after-integration":
+        _git(root, "rm", "--", session_path)
+        _git(root, "commit", "--quiet", "-m", "delete old receipt after integration")
+    assert _git(root, "ls-files", "--", session_path) == ""
+    restored = root / session_path
+    restored.parent.mkdir(parents=True, exist_ok=True)
+    restored.write_bytes(original_raw)
+    _git(root, "add", "--", session_path)
+    _git(root, "commit", "--quiet", "-m", "restore exact pre-integration receipt blob")
+    assert _git(root, "rev-parse", "HEAD:" + session_path) == original_blob
+    _assert_preintegration_receipts_refused(root, planned, context, rebound, "later")
+
+
+def test_review_postintegration_receipt_delete_gap_restore_remains_eligible(tmp_path):
+    root, planned, context = _planned_transaction(tmp_path, "close")
+    locator = context["receipt_locator"]
+    session_path = locator["session_path"]
+    original_raw = (root / session_path).read_bytes()
+    original_blob = _git(root, "rev-parse", "HEAD:" + session_path)
+    _git(root, "rm", "--", session_path)
+    _git(root, "commit", "--quiet", "-m", "delete post-integration receipt")
+    restored = root / session_path
+    restored.parent.mkdir(parents=True, exist_ok=True)
+    restored.write_bytes(original_raw)
+    _git(root, "add", "--", session_path)
+    _git(root, "commit", "--quiet", "-m", "restore genuinely post-integration receipt")
+    assert _git(root, "rev-parse", "HEAD:" + session_path) == original_blob
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=planned.ledger_path)
+    close_kwargs = context["close_kwargs"]
+    receipts = admit_workstream_chain_receipts(loaded, session_ref="HEAD", **locator,
+        integration_witness=close_kwargs["integration_witness"], integration_verifier=context["verifier"])
+    close_kwargs.update(receipts=receipts, receipt_verifier=_TransactionReceiptVerifier(receipts))
+    closed = apply_workstream_commit(root, preview_workstream_close_commit(root, **close_kwargs))
+    assert closed.ledger.records[-1].to_phase == "closed"
+    assert _git(root, "status", "--porcelain") == ""
 
 
 def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path, isolated_compaction_structure):
