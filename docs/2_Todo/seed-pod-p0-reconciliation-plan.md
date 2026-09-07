@@ -5,7 +5,7 @@ project: "memory-seed"
 status: "active"
 priority: "P0"
 blocked_by: "G0 independent re-review approval and stabilized Reflection Ledger v2/retirement foundation"
-next_action: "Independently re-review this v2-aligned P0 plan; record G0 approval and verify the reflection retirement/governance prerequisites before compiling implementation Task Packets."
+next_action: "Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain all reflection retirement/governance prerequisites before implementation dispatch."
 source:
   - "Approved Seed Pod P0 contract recorded on historical branch b7e623b"
   - "docs/2_Todo/task-packet-hardening-progressive-provenance-plan.md"
@@ -26,6 +26,8 @@ acceptance_criteria:
   - "An independently reviewed implementation can establish the approved .memory-seed-pod hierarchy without treating a nested .memory-seed runtime as a pod."
   - "A pod writes and reads its own provenance ledger; roots retain only promoted summaries and explicit, pod-qualified navigation."
   - "Selected-pod Task Packets carry the exact pod identity and inherited root worker governance, while root-default compilation performs zero pod traversal."
+  - "Generic root Task Packet compilation and activation work without runtime.id or a provenance ledger; only selected-pod and explicitly identity-dependent operations require root identity initialization."
+  - "Root provenance migration preserves v1 bindings.md bytes and explicitly creates a separate v2/bindings.md ledger through a receipted recoverable transaction."
   - "P0 reflection state uses one sequential v2 ledger per root workstream; pod-originated writes fail with pod-reflection-not-supported-p0 and historical v1 remains read-only."
   - "Legacy root-owned provisional pod ledgers remain readable evidence but cannot receive writes or become implicit authority."
   - "All lifecycle, CLI, MCP, ESR, session-fuse, docs, and real-Git verification gates specified here pass on the reconstructed current-main work."
@@ -56,6 +58,11 @@ receipted, and adoption replaces destructive fixture conversion.  These are
 constraints on future implementation, not permission to begin it. This revision
 aligns reflection with the merged v2 core and the v1 retirement plan while
 preserving those P0 constraints. G0 approval is still missing.
+
+G0 returned **REVISE** on this branch's first review commit `2a45090c`.
+This follow-up separates generic root Task Packets from identity-dependent
+operations and specifies a distinct-path root provenance migration. Both
+changes require focused independent re-review; no implementation gate is closed.
 
 The branch for this document is based directly on `main` at
 `12186feb062c70fe1f88df357c4c02698be76ae0`. This baseline contains the v2
@@ -188,7 +195,13 @@ and transaction id.  Existing root sessions, decisions, and provenance bytes
 are inventory-only inputs and remain unchanged.  Until that receipt exists,
 P0 pod creation, promotion, detachment, selected-pod compilation, and
 provenance migration refuse with `root-identity-uninitialized`; unrelated
-pre-P0 root commands retain their current behaviour.
+pre-P0 root commands retain their current behaviour. In particular, generic
+root Task Packet preview/compile, activation, and activation-artifact loading
+do not require a root id, an identity receipt, or a provenance ledger. An
+omitted target or `{kind: root}` without `root_id` selects that compatibility
+path. Explicitly identity-bound root targets and v2 provenance init/migration/
+bind operations require the measured id and receipt. A read, generic packet,
+or activation must never initialize either identity or storage implicitly.
 
 ## Exact provenance contract and compatibility boundary
 
@@ -202,10 +215,10 @@ constant so that only runtime/ledger ownership changes:
 |---|---:|---|
 | `memory-seed/provenance-binding` | 1 | Unchanged: Git-object, blob, range, digest, and actor references only; no code or patch text. |
 | `memory-seed/provenance-replacement` | 1 | Unchanged append-by-replacement semantics. |
-| `memory-seed/packet-implements-activation` | 1 | Carries the v2 runtime object but otherwise remains compatible. |
+| `memory-seed/packet-implements-activation` | 1 | Explicit v2 provenance activation carries the v2 runtime object; generic Task Packet commit-attribution activation retains its existing separate contract without a provenance-ledger prerequisite. |
 | `memory-seed/provenance-runtime` | 2 | Replaces caller-selected `runtime_path`/`sidecar_path` authority with resolved runtime identity. |
 | `memory-seed/provenance-ledger` | 2 | Contains a v2 runtime and the existing binding/replacement lists. |
-| `memory-seed/provenance-migration` | 1 | One append-only receipt when a legacy provisional pod ledger is explicitly adopted. |
+| `memory-seed/provenance-migration` | 1 | One embedded append-only receipt when a legacy root or provisional pod ledger is explicitly copied into its distinct v2 destination. |
 
 The canonical v2 runtime event is exactly:
 
@@ -231,12 +244,13 @@ path, sidecar path, leaf-name identity, or user-supplied ownership selector.
 The resolver alone derives the paths:
 
 ```text
-root active ledger:     <root>/.memory-seed/provenance/bindings.md
+legacy root v1:         <root>/.memory-seed/provenance/bindings.md (preserved, read-only)
+root active v2:         <root>/.memory-seed/provenance/v2/bindings.md
 pod active/retired:     <pod>/.memory-seed-pod/provenance/bindings.md
 detached pod snapshot:  <former-root>/.memory-seed/archive/detached-pods/<msp_id>/provenance/bindings.md
 ```
 
-Only the runtime that physically owns the first two paths may append.  A
+Only the runtime that physically owns an active v2 root or pod path may append. A
 retired or detached ledger is inspectable but read-only.  Root audit discovers
 metadata and validates references; it does not become an alternate write
 surface for a pod ledger.
@@ -253,15 +267,34 @@ binding/replacement events:
     "kind": "legacy-root-pod-ledger",
     "path": ".memory-seed/provenance/pods/<legacy-id>.md",
     "file_digest": "sha256:<64 lowercase hex>",
-    "runtime": { "schema": "memory-seed/provenance-runtime", "version": 1 }
+    "runtime": {
+      "schema": "memory-seed/provenance-runtime",
+      "version": 1,
+      "runtime_path": "<pod-relative>",
+      "owner": { "kind": "pod", "id": "<legacy-id>", "state": "active" },
+      "sidecar_path": ".memory-seed/provenance/pods/<legacy-id>.md"
+    }
+  },
+  "destination": {
+    "path": "<pod-relative>/.memory-seed-pod/provenance/bindings.md",
+    "runtime": {
+      "schema": "memory-seed/provenance-runtime",
+      "version": 2,
+      "root_id": "msr_<governing-root-id>",
+      "owner": { "kind": "pod", "id": "msp_<pod-id>", "state": "active" }
+    }
   },
   "binding_ids": ["msb_<sha256>"],
   "replacement_ids": ["msr_<sha256>"]
 }
 ```
 
-`migration_id` is the deterministic SHA-256 identity of every field except
-itself.  The original v1 Markdown bytes remain untouched.  The subsequent
+`migration_id` is the deterministic SHA-256 identity of canonical JSON for
+every field except itself. The source runtime is the full normalized v1
+payload, not only its schema/version. Destination paths are root-relative
+receipt evidence checked against physical resolution; they cannot select a
+write target. The destination runtime must equal the opening v2 runtime event.
+The original v1 Markdown bytes remain untouched. The subsequent
 v1 binding/replacement events are normalised copies, and the receipt declares
 that this local authority is reconstructed from the immutable legacy source.
 It is not a new code claim and it never stores source text.
@@ -271,22 +304,149 @@ It is not a new code claim and it never stores source text.
 The parser selects one grammar from the first runtime event and never infers a
 hybrid ledger.  A v1 runtime event permits only the existing v1 ledger grammar
 (`runtime_path`, `owner`, and `sidecar_path`) and is classified as
-`legacy-provisional` when it names a pod.  It is readable through explicit
-compatibility `show/check` only.  A v2 runtime event requires a v2 ledger and
+`legacy-provisional` when it names a pod. Such pod evidence is readable through
+explicit compatibility `show/check` only; root v1 reading follows the routing
+table below. A v2 runtime event requires a v2 ledger and
 the identity-derived sidecar path in this plan.  A v1 event followed by a v2
 ledger/migration event, a v2 event carrying v1 path fields, a missing initial
 runtime event, an event reorder, or an undeclared version is
 `mixed-provenance-version` and refuses before projection or append.
 
-The only bridge is a newly created v2 pod-local ledger: its first event is the
+The only bridge is a newly created v2 destination ledger: its first event is the
 v2 runtime, its second is the exact v1-source migration receipt above, and
 its later binding/replacement events are normalised copies.  The receipt must
 name the legacy ledger's canonical root-relative path, full file digest,
 normalised v1 runtime payload, sorted binding/replacement ids, and the
-generated v2 owner identity.  It does not alter the v1 file or grant the v1
-file an active status.  A root v1 sidecar receives the analogous one-time
-root-v2 migration only after the receipted root identity initialization; P0
-never invents an `msr_` id while parsing a ledger.
+generated v2 owner identity. It does not alter the v1 file or grant the v1
+file an active status. The nested v1 source-runtime object in the migration
+receipt is evidence under that receipt's grammar, never another top-level
+runtime event. Root migration uses the separate destination and transaction
+below; P0 never invents an `msr_` id while parsing a ledger.
+
+### Root v1 to v2 migration: distinct paths and explicit routing
+
+The existing `provenance_sidecar_path` maps a v1 root owner (`kind: runtime`,
+`id: root`, `state: active`) to `.memory-seed/provenance/bindings.md`. Preserve
+that exact file, mode, and bytes. The new root v2 writer always resolves to
+`.memory-seed/provenance/v2/bindings.md`; no alias, rename, in-place version
+upgrade, or mixed event stream may connect the two storage paths.
+
+`memory-seed provenance migrate-root` is root-only and previews by default.
+`--apply --receipt-file <preview.json>` applies the exact reviewed preview;
+MCP uses the same planner and receipt with explicit `apply: true`. The
+physical caller must resolve to the active root, with its validated identity
+initialization receipt. Pod callers, root/pod selectors, arbitrary source or
+destination paths, and missing root identity refuse before writes. Source
+and destination are fixed by the two paths above; the source must be a valid
+v1 root ledger from that root, not a provisional pod or detached ledger.
+
+Its embedded `memory-seed/provenance-migration` v1 event uses exactly the
+fields in the pod receipt above, with these root-specific values:
+
+```json
+{
+  "source": {
+    "kind": "legacy-root-ledger",
+    "path": ".memory-seed/provenance/bindings.md",
+    "file_digest": "sha256:<64 lowercase hex>",
+    "runtime": {
+      "schema": "memory-seed/provenance-runtime",
+      "version": 1,
+      "runtime_path": ".",
+      "owner": { "kind": "runtime", "id": "root", "state": "active" },
+      "sidecar_path": ".memory-seed/provenance/bindings.md"
+    }
+  },
+  "destination": {
+    "path": ".memory-seed/provenance/v2/bindings.md",
+    "runtime": {
+      "schema": "memory-seed/provenance-runtime",
+      "version": 2,
+      "root_id": "msr_<root-id>",
+      "owner": { "kind": "root", "id": "msr_<root-id>", "state": "active" }
+    }
+  }
+}
+```
+
+This is a field substitution, not a second receipt schema: `schema`,
+`version`, `migration_id`, sorted unique `binding_ids`, and sorted unique
+`replacement_ids` remain required. Copies preserve binding/replacement IDs,
+payloads, and event order. The v2 runtime and single migration event precede
+them. The receipt names every copied event exactly once and makes no new code
+claim. It contains no destination digest of its own bytes; the outer
+transaction receipt records the completed candidate's SHA-256 and byte length.
+
+The preview captures root id, identity-receipt digest, base Git SHA, source
+path/mode/length/digest, normalized v1 runtime, copied IDs, expected-absent
+destination, full candidate digest/length, migration id, and transaction id.
+Application is one root-owned transaction under the shared provenance mutation
+lock, also honored by root init/bind writers:
+
+1. Remeasure physical ownership, identity receipt, Git base, source bytes/mode,
+   and destination absence. Reject any stale input or occupied destination
+   before changing a ledger. Write a journal under
+   `.memory-seed/transactions/<transaction-id>/` containing the preview.
+2. Write and flush the complete candidate to transaction-owned staging on the
+   same filesystem. Parse it using v2 grammar and verify copied events, IDs,
+   opening runtime, receipt, digest, and the unchanged v1 source. Never stage
+   a partial candidate at the active ledger path.
+3. Recheck inputs under the lock, mark the journal `publishing`, and atomically
+   install the complete candidate only if the destination is still absent.
+   An existing file is never replaced. Readers and writers encountering an
+   unfinished transaction for that destination return
+   `provenance-migration-incomplete`; an installed but unreceipted file cannot
+   become implicit authority.
+4. Verify the installed file and source again, then atomically publish the
+   completed transaction receipt. That receipt closes the journal and makes
+   the embedded migration eligible for normal root v2 routing. No source
+   file, source Git history, session record, Git index/ref, or root identity
+   is changed by this transaction.
+
+`provenance recover --transaction <id>` uses the same lock. Before publication
+it may discard only verified transaction-owned staging and abort the journal;
+after publication it finishes the receipt only when destination, source, and
+identity exactly match the journal. It never deletes or overwrites a published
+ledger, restores legacy bytes over a changed source, or rolls back later v2
+appends. A mismatch is `recovery-diverged`, with evidence retained for review.
+Failure injection must cover every journal/install/receipt boundary and prove
+that each outcome is either unchanged storage, a blocked recoverable state,
+or a fully verified migration.
+
+A repeated request with the same source digest, owner, migration event, and
+completed transaction returns `already-migrated` with no writes. Later valid
+v2 appends are allowed: verify the original candidate as an immutable prefix
+and validate the appended suffix. A destination with no matching completed
+receipt is `provenance-destination-occupied`, except when the matching
+unfinished journal requires explicit recovery. A different migration receipt,
+altered candidate prefix, changed source, duplicate copied IDs, or changed
+root identity refuses; never adopt an arbitrary file merely because it parses.
+
+| Root storage state | Default `provenance show/check` | Identity-dependent v2 writer |
+|---|---|---|
+| Only valid v1 source exists | Read it with `compatibility: legacy-root`, `read_only: true`; root id is not required. | Refuse `root-identity-uninitialized` if needed, otherwise `root-provenance-migration-required`; no automatic migration. |
+| No root ledger exists | Return the normal empty root result without creating an id or file. | Explicit root-only `provenance init-root` may preview/apply a new v2 destination after identity initialization; it refuses if a v1 source exists. |
+| Verified completed v2 migration and preserved v1 source exist | Read v2 as active; validate the receipt and preserved source digest. Do not union duplicate v1 records into its projection. | Append only to v2 through existing append-only guards; legacy source remains frozen. |
+| Fresh v2 ledger explicitly initialized with no legacy source | Read the validated v2 owner and ledger; no migration receipt is fabricated. | Append only to v2 after identity/ownership validation. |
+| Malformed/occupied v2 path, stale source digest, identity mismatch, unfinished migration, or legacy source appearing beside an unmigrated fresh v2 ledger | Return the relevant structured error; never fall back to v1 and conceal a failed migration or union conflicting authorities. | Refuse without changing either ledger. |
+
+Explicit `provenance show/check --legacy-root` (MCP `legacy_root: true`) reads
+only the fixed preserved v1 root path, labeled historical and read-only. It
+never becomes a writer selector, unions the ledgers, or opens pod data. The
+same routing applies to root diagnostic/projection consumers; generic Task
+Packet activation does not invoke this provenance routing at all.
+
+Focused tests in `tests/test_provenance.py`, `tests/test_provenance_engine.py`,
+and `tests/test_provenance_surfaces.py` cover v1-only/no-id reads, explicit
+migration to the distinct v2 path, copied-ID/event parity, unchanged source
+hash/mode after preview/apply/retry/recovery, fresh v2 initialization, and
+default versus explicit historical routing. Real-Git negatives cover missing
+identity/receipt, pod caller, mixed grammar, wrong source owner, occupied or
+aliased destination, stale preview/base/source, tampered migration/candidate,
+duplicate IDs, post-migration source tamper, incomplete transaction, every
+failure-injection boundary, recovery over divergent bytes, and idempotency
+after a valid v2 append. CLI/MCP must return equal receipts or refusal codes
+and equal zero-write outcomes.
 
 ### Promotion and explicit inspection
 
@@ -363,8 +523,12 @@ equal the packet's measured selected root or pod.
 
 ### Selected-pod Task Packets are supported
 
-P0 extends the measured runtime binding with one optional, canonical target;
-absence remains the backwards-compatible root target:
+P0 extends the measured runtime binding with an optional target. Omission or
+`{"kind": "root"}` without an id selects the existing generic root path;
+normalization omits `target_runtime` in both cases. It does not inject an id
+even when the root has since been initialized. This keeps existing generic
+packet bytes, fingerprints, artifact validation, and activation receipts
+compatible. Explicit identity-dependent targets have these canonical forms:
 
 ```json
 "target_runtime":
@@ -372,13 +536,17 @@ absence remains the backwards-compatible root target:
   | {"kind": "pod", "root_id": "msr_<...>", "pod_id": "msp_<...>"}
 ```
 
-The compiler must measure the target rather than trust this object.  A root
-target requires the initialized measured root id.  A pod target requires an
+The compiler must measure the target rather than trust this object. An
+explicit root target carrying `root_id` requires the matching initialized
+measured root id and identity receipt; it cannot silently downgrade to the
+generic path. A pod target requires an
 explicit `pod_id`, one active governed pod in that root's measured index, a
 manifest/root-id match, and a canonical physical pod path below the root.
-The packet serializes the measured `target_runtime`, `root_id`, `pod_id` when
-applicable, derived pod-relative path, and the root Git worktree/binding; it
-does not serialize a caller-selected sidecar or reclassify an independent
+An identity-dependent packet serializes the measured `target_runtime`,
+`root_id`, `pod_id` when applicable, derived pod-relative path, and the root
+Git worktree/binding. A generic root packet retains the existing root Git
+worktree/binding without those optional identity fields. Neither form
+serializes a caller-selected sidecar or reclassifies an independent
 root.  `task-packet preview|compile --pod-id <msp>` and MCP
 `memory_task_packet_preview|compile` with the same binding target return the
 same canonical packet or the same structured refusal.
@@ -419,14 +587,25 @@ alias, direct Markdown write instructions, and an explicit timestamp override
 all refuse.  The packet directs the worker to the shared sanctioned append
 surface, whose P0 adapter resolves the current pod before writing.
 
-Activation preserves this target exactly.  `activate_task_packet` remeasures
-the root worktree, target root/pod identity, current active state, and allowed
-file identities; then the provenance activation is checked against the target
-runtime's v2 ledger.  A pod activation cannot stamp a root decision or bind a
-root ledger, and a root activation cannot consume a pod decision.  The local
-Git activation artifact and its history retain the packet fingerprint,
-measured target identity, and normal `Memory-Implements:` receipt; they never
-copy session or source code text.
+Activation preserves the selected contract exactly. Generic root
+`activate_task_packet` remeasures the existing worktree, branch, base, scope,
+evidence, and fingerprint and writes its normal Git-local commit-attribution
+artifact/receipt. It requires neither root identity initialization nor a v2
+provenance ledger. Normal `Memory-Implements:` attribution remains available.
+Read-only packets still refuse activation as `activation_read_only`.
+
+For identity-dependent packets, activation additionally remeasures the target
+root/pod id, identity receipt, and active state. An explicit provenance
+activation/bind validates the target's v2 ledger and exact owned binding IDs;
+ordinary commit-attribution activation is not that ledger operation. Missing
+or forged identity cannot trigger a generic fallback, implicit migration, or
+ledger creation. A physical pod caller cannot omit its target or request
+`{kind: root}` to obtain root authority: it must select its measured pod and
+pass the selected-pod admission contract. A pod activation cannot stamp a root
+decision or bind a root ledger, and a root activation cannot consume a pod
+decision. The local Git activation artifact and its history retain the packet
+fingerprint, measured target identity when explicitly bound, and normal
+`Memory-Implements:` receipt; they never copy session or source code text.
 
 P0 makes that activation contract public on both surfaces rather than leaving
 a selected pod with an undocumented Python-only path: CLI
@@ -441,10 +620,19 @@ worker, create a worktree, export a packet, or bypass the existing
 
 Required focused coverage is in `tests/test_task_packet.py` and
 `tests/test_task_packet_surfaces.py`: root default does zero discovery/read
-into pods; selected active pod has the inherited root baselines and one exact
+into pods; generic root preview/compile/activation/artifact loading work with
+no `runtime.id`, no identity receipt, and no provenance ledger, including
+omitted and explicit generic-root selectors; normalization retains the legacy
+fixture's canonical bytes/fingerprint. Repeat after identity initialization
+and with v1-only provenance to prove neither adds a migration prerequisite.
+Selected active pod has the inherited root baselines and one exact
 admitted path; missing/retired/detached/sibling/independent/template/fixture
 targets refuse; packet token accounting includes inherited baseline material;
-activation detects root/pod identity drift; and CLI/MCP preview, compile, and
+activation detects root/pod identity drift; explicit identity-bound root and
+selected-pod requests without identity/receipt refuse, forged ids refuse,
+and a pod caller cannot downgrade via an omitted/generic-root selector.
+Generic stale fingerprint/branch/scope requests and read-only activation
+still refuse under their existing guards. CLI/MCP preview, compile, and
 activation return byte-equal canonical packets/receipts or matching reason
 codes, including dry-run/no-artifact and apply/artifact cases.  The
 existing Task Packet v1 fixture remains a root fixture; a separate temporary
@@ -565,7 +753,7 @@ packet may cite its reports and tests as evidence.
 |---|---|---|---|
 | 0. Baseline | G0 approval and prerequisite receipts | **Integration owner:** fresh packet, branch/base receipt, stale-branch evidence table, baseline tests. | Freeze the exact base and reflection API/test inventory; verify retirement and ratification receipts, protected primary-checkout exclusions, and root-default zero pod discovery. |
 | 1. Boundary/lifecycle core | 0 | **Core/fuse owner:** all `memory_seed/core.py` P0 edits, `memory_seed/situate.py`, `tests/test_seed_pod_core.py`, `tests/test_project_lifecycle.py`, and core temporary-Git helpers. | Typed physical resolver, root-id initialization, discovery exclusions, adoption/detachment/update journals, and the interface consumed by every later track. No other track edits `core.py`. |
-| 2. Provenance ownership | 1 | **Provenance owner:** `memory_seed/provenance.py`, `memory_seed/provenance_git.py` only where required, `tests/test_provenance.py`, `tests/test_provenance_engine.py`, `tests/test_provenance_surfaces.py`. | V1/v2 grammar split, root identity dependency, target-owned activation, migration receipt, and physical-caller checks are pure before adapters consume them. |
+| 2. Provenance ownership | 1; transaction interface frozen | **Provenance owner:** `memory_seed/provenance.py`, `memory_seed/provenance_git.py` only where required, `tests/test_provenance.py`, `tests/test_provenance_engine.py`, `tests/test_provenance_surfaces.py`. | Distinct v1/v2 root paths, grammar, migration/read-routing receipts, and identity/caller checks use the Stage 1 journal/recovery API before adapters consume them. Explicit provenance activation remains separate from generic Task Packet attribution. |
 | 3. Packet/reflection | 1; target-runtime and reflection interfaces frozen | **Packet/reflection owner:** `memory_seed/task_packet.py`, `memory_seed/reflection_ledger.py`, `tests/test_task_packet.py`, `tests/test_task_packet_surfaces.py`, `tests/test_reflection_ledger.py`, `tests/test_reflection_workstream_ledger.py`. | Selected-pod compile/activation and inherited governance work; root-default zero traversal, root-only v2 reflection, historical v1 read-only behavior, and pod-write refusal are real-Git proven. |
 | 4. Fuse/transaction integration | 1; classifier interface frozen | **Core/fuse owner:** remaining `memory_seed/core.py` fuse changes, `tests/test_session_fuse_and_merge.py`, `tests/test_seed_pod_surfaces.py`, and **only this track** edits `.gitattributes`. | Root/pod record classification, reset/stage/render proof, `-merge` protection, qualified receipts, and adoption/detachment recovery probes pass. |
 | 5. Public adapters | 2–4 | **Surfaces owner:** `memory_seed/cli.py`, `memory_seed/mcp_server.py`, `memory_seed/esr.py`, `tests/test_mcp_read_parity.py`, `tests/test_mcp_session_append.py`, and adapter portions of `tests/test_seed_pod_surfaces.py`. | CLI/MCP/ESR are thin, shared-planner adapters with equivalent result shapes and refusal codes. |
@@ -707,9 +895,10 @@ The following are release-blocking P0 observables, not aspirational examples.
 | Lifecycle | Init classifies root/pod/explicit independent root; root-only update preflights, journals, recovers, and preserves active pod histories; retirement leaves a readable tombstone. | Pod-local update, retired/detached append or promotion, retirement with active descendants, update crossing an independent root, failure after any journal stage, and dry-run/write divergence refuse or recover exactly. |
 | Adoption and detachment | A dry-run receipt inventories/hash-locks the source; apply, recovery, and post-resolver proof preserve every local-history byte and archive/snapshot evidence. | Hand conversion, an independent-root adoption, marker collision, inventory/hash/mode mismatch, active descendants on detach, an interrupted transaction, rollback over divergent bytes, and a missing final receipt refuse. |
 | Promotion | An active descendant promotes a root summary whose every numbered decision has valid `pod_sources`; root search returns only the summary. | Missing ordinal, non-existent source, sibling/independent source, duplicate use, postdated source, wrong root, incomplete mapping, and implicit root search for source text fail. |
-| Provenance | V2 runtime/ledger normalisation, reference-only bindings, local projection, append-only check, migration receipt, and binding verification produce matching CLI/MCP results. | Tampered/reordered event, cross-runtime ledger, mismatched sidecar, v1 write, code-bearing payload, unavailable Git classification, source digest mismatch, duplicate migration, and an in-place legacy rewrite fail without a write. |
+| Provenance | V2 runtime/ledger normalisation, reference-only bindings, local projection, append-only check, migration receipt, and binding verification produce matching CLI/MCP results. | Tampered/reordered event, cross-runtime ledger, mismatched sidecar, v1 write, code-bearing payload, unavailable Git classification, source digest mismatch, conflicting migration, and an in-place legacy rewrite fail without a write. |
+| Root provenance migration | Explicit preview/apply preserves v1 `provenance/bindings.md` and creates v2 `provenance/v2/bindings.md`; complete receipts control routing, and matching retries after valid appends are read-only/idempotent. | No identity, wrong caller/owner, source or destination alias, occupied destination, stale/tampered preview or source, mixed grammar, interrupted publication, and recovery over divergent bytes refuse or remain explicitly recoverable; no automatic rewrite/fallback. |
 | Version and caller boundary | Root identity initialization precedes a v2 root/pod ledger; the physical target pod migrates its derived v1 legacy source through one receipt. | Mixed v1/v2 grammar, v2 path fields, absent/forged root id, root/sibling/retired/detached migration caller, arbitrary source path, and target/runtime activation mismatch fail before write. |
-| Task Packet | Root default compiles without pod reads; an explicit active selected pod produces a measured packet with inherited root agent-rules/session guidance and one exact pod session target. | Missing, malformed, retired, detached, sibling, independent-root, template, or fixture target; unselected-pod/root session path; wildcard/alias; direct write/timestamp override; and activation target drift all refuse with CLI/MCP parity. |
+| Task Packet | Generic root compile/activation/artifact loading preserve legacy canonical behavior without root identity or a provenance ledger and do zero pod reads; a selected active pod receives measured identity, inherited governance, and one exact session target. | Missing identity for a selected-pod or explicit identity-bound root request; forged id; pod caller downgrading to generic root; invalid selected target/session path; wildcard/alias; direct write/timestamp override; stale fingerprint/binding; and read-only activation refuse with CLI/MCP parity. |
 | Reflection | One sequential v2 ledger per root workstream preserves trusted history, phase/ownership checks, append commits, receipts, rebind, close, and expiry; historical v1 is read-only. | A pod caller (including one naming a root ledger), pod selector/path, or selected-pod reflection-writing packet returns `pod-reflection-not-supported-p0` before any write; root v1 authoring/fuse/reservation paths remain unavailable. |
 | Fuse | Root and pod sessions, decisions, link/topic/diagram sidecars are rendered/staged by qualified identity and retain normal entry trailers plus a qualified receipt. | Unclassified marker path, duplicate bare entry id, parentless/cross-pod sidecar, changed historical record, raw merge, missing staged blob, receipt mismatch, or unrelated-pod discovery aborts without dropping bytes. |
 | Explicit inspection | The named pod decision is readable through the CLI and MCP and returns its physical owner and labelled state. | Missing `--pod-id`, different-pod id/decision mismatch, retired write attempt, detached active lookup, and root default traversal into a pod fail or return no pod data as specified. |
@@ -725,9 +914,9 @@ outcome, not merely both returning a non-error response.
 
 | Gate | Independent reviewer must inspect | Evidence required before proceeding |
 |---|---|---|
-| G0 — plan | This revised document, merged v2 core, retirement/governance gates, seven historical entry IDs, stale-branch dispositions, scope, and non-goals. | Independent re-review approval is still missing. Record the verdict and prerequisite receipts before implementation dispatch; this branch stops here. |
-| G1 — boundary/schema | Resolver API, root-id initialization, v2 schemas, mixed-version/migration semantics, ownership table, and compatibility refusals. | Focused core/provenance tests plus a written interface-freeze receipt. |
-| G2 — packet/reflection | Selected-pod target binding, inherited root baselines, exact session admission, root-default zero traversal, activation/artifact loading, one sequential v2 root ledger, and v1 read-only compatibility. | CLI/MCP canonical parity; real-Git no-discovery, pod-refusal/no-write, v2 authority/receipt, and historical v1 tests. |
+| G0 — plan | Focused re-review of generic root Task Packet compatibility and distinct-path root provenance migration, plus the retained v2 reflection/governance and historical reconciliation boundaries. | Prior verdict: REVISE. Independent approval is still missing; record the verdict and prerequisite receipts before implementation dispatch. |
+| G1 — boundary/schema | Resolver API, root-id initialization, distinct root ledger paths, v2 schemas, migration receipt/routing, atomic publication/recovery, and compatibility refusals. | Focused core/provenance positive/negative and failure-injection tests plus a written interface-freeze receipt. |
+| G2 — packet/reflection | No-id generic root compilation/activation/artifact loading; explicit selected-pod/identity-bound root admission; inherited baselines, exact sessions, zero traversal, and root-only v2 reflection. | CLI/MCP/compiler/activation compatibility and refusal matrix; real-Git no-discovery, pod-refusal/no-write, v2 authority/receipt, and historical v1 tests. |
 | G3 — surface/lifecycle/fuse | CLI/MCP shared planner, receipted adoption/detachment/update, diagnostics, explicit inspection, `-merge`, reset/stage, and qualified sidecars. | Real-Git positive/negative matrix, dry-run/write parity, recovery proof, and staged-blob/receipt evidence. |
 | G4 — integration | Changed-path ownership, session-fuse preview, sidecar parents, no P1 expansion, and docs truthfulness. | Current-main rebase, clean fuse preview, full verification matrix, and diff review. |
 | G5 — closure | Final review of implementation evidence and cleanup boundaries. | Explicit user integration/release direction; neither is implied by this plan. |
@@ -769,8 +958,9 @@ review; it is not cleaned up merely because this document is committed.
 
 ## Next action
 
-Obtain an independent G0 re-review against the merged v2 core and retirement
-contract. Record the verdict and verify the prerequisite implementation and
+Obtain a focused independent G0 re-review of generic root Task Packet
+compatibility and distinct-path root provenance migration, retaining the
+merged v2 core and retirement contract. Record the verdict and verify the prerequisite implementation and
 ratification receipts; approval of this document alone does not satisfy those
 foundation gates. Only then compile fresh Task Packets from the reviewed
 contract and begin Stage 0. Do not resume or import an old Seed Pod branch,
