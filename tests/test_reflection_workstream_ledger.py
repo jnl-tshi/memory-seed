@@ -228,6 +228,28 @@ def test_discriminator_refuses_minimal_unsupported_prototype_bytes(raw):
         assert refused.value.diagnostic.code == "unsupported-reflection-format"
 
 
+@pytest.mark.parametrize("retention", ("[]", "{}", "7"))
+def test_board_retention_type_validation_returns_diagnostics(tmp_path, retention):
+    ledger = make_ledger()
+    raw = render_workstream_ledger(ledger).replace("reflection_retention_days: 7\n",
+                                                 f"reflection_retention_days: {retention}\n")
+    path = tmp_path / workstream_ledger_path(ledger.header.workstream_id)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw.encode("utf-8"))
+    board = workstream_board_view(tmp_path)
+    assert len(board.items) == 1
+    if retention == "7":
+        assert parse_workstream_ledger(raw) == ledger
+        assert board.exit_code == 0 and board.items[0].status == "valid"
+    else:
+        with pytest.raises(ReflectionValidationError) as refused:
+            parse_workstream_ledger(raw)
+        assert refused.value.diagnostic.code == "retention"
+        assert board.exit_code == 1 and board.items[0].status == "malformed"
+        assert board.items[0].diagnostic.code == "retention"
+    assert path.read_bytes() == raw.encode("utf-8")
+
+
 def test_per_chain_phase_and_divergent_heads_are_never_hidden():
     ledger, chain = open_chain()
     implementable = ledger.records[-1].record_id
@@ -608,6 +630,36 @@ def test_trusted_board_refuses_symlink_mode_for_ledger(tmp_path):
     with pytest.raises(ReflectionValidationError):
         reflection_ledger_module._trusted_active_ledgers_at_commit(root, _git(root, "rev-parse", "HEAD"))
     assert (root / ledger_path).read_bytes() == render_workstream_ledger(ledger).encode("utf-8")
+
+
+@pytest.mark.parametrize("mode", ("100644", "120000", "160000"))
+@pytest.mark.parametrize("local_root_present", (False, True))
+def test_committed_exact_active_root_is_visible_and_refused(tmp_path, mode, local_root_present):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    active_root = ".memory-seed/reflections/active"
+    object_id = _git(root, "rev-parse", "HEAD" if mode == "160000" else f"HEAD:{ledger_path}")
+    _git(root, "update-index", "--force-remove", "--", ledger_path)
+    _git(root, "update-index", "--add", "--cacheinfo", f"{mode},{object_id},{active_root}")
+    _git(root, "commit", "--quiet", "-m", "hostile committed active root")
+    active = root / active_root
+    if not local_root_present:
+        active.rename(root / "parked-ledger")
+    head = _git(root, "rev-parse", "HEAD")
+    index_before = _git(root, "ls-files", "--stage")
+    status_before = _git(root, "status", "--porcelain")
+    board = workstream_board_view(root, trusted_ref="HEAD")
+    assert board.exit_code == 1 and len(board.items) == 1
+    assert board.items[0].path == active_root and board.items[0].status == "malformed"
+    assert board.items[0].diagnostic.code == "unsupported-reflection-format"
+    with pytest.raises(ReflectionValidationError) as refused:
+        reflection_ledger_module._trusted_active_ledgers_at_commit(root, head)
+    assert refused.value.diagnostic.code == "unsupported-reflection-format"
+    assert refused.value.diagnostic.path == active_root
+    assert _git(root, "rev-parse", "HEAD") == head
+    assert _git(root, "ls-files", "--stage") == index_before
+    assert _git(root, "status", "--porcelain") == status_before
+    saved_ledger = (active if local_root_present else root / "parked-ledger") / ledger.header.workstream_id / "ledger.md"
+    assert saved_ledger.read_bytes() == render_workstream_ledger(ledger).encode("utf-8")
 
 
 def _quoted_yaml(mapping: dict[str, str]) -> str:

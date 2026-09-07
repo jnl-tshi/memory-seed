@@ -761,7 +761,7 @@ def _header_from_dict(value: Mapping[str, Any], path: str) -> WorkstreamLedgerHe
     if identifier != workstream_id(salt, branch, base, created):
         _fail("id", path, "workstream_id does not match its frozen ID preimage")
     retention = value["reflection_retention_days"]
-    if retention not in {7, 14, 30} or isinstance(retention, bool):
+    if type(retention) is not int or retention not in {7, 14, 30}:
         _fail("retention", path, "retention must be exactly 7, 14, or 30 days")
     receipt_value = value["retention_extension_receipt"]
     key_id = value["retention_approval_key_id"]
@@ -1670,6 +1670,12 @@ def workstream_board_view(cwd: Path | str = ".", *, active_root: str = REFLECTIO
             ))
         prefix = active_root.rstrip("/") + "/"
         for path in _git_tree_paths(root, head):
+            if path == active_root.rstrip("/"):
+                return WorkstreamBoardView((
+                    WorkstreamBoardItem(path, "malformed", None, None, None, None,
+                                        ReflectionDiagnostic("unsupported-reflection-format", path,
+                                                             "committed active board root must be a directory", {})),
+                ))
             if path.startswith(prefix):
                 parts = PurePosixPath(path[len(prefix):]).parts
                 if parts:
@@ -2586,6 +2592,8 @@ def _trusted_active_ledgers_at_commit(root: Path, commit: str) -> tuple[tuple[st
     prefix = REFLECTION_ROOT + "/"
     candidates: dict[str, set[str]] = {}
     for path in _git_tree_paths(root, commit):
+        if path == REFLECTION_ROOT:
+            _fail("unsupported-reflection-format", path, "committed active board root must be a directory")
         if not path.startswith(prefix):
             continue
         suffix = path[len(prefix):]
