@@ -3388,12 +3388,12 @@ def validate_retention_approval_admission(header: WorkstreamLedgerHeader, approv
         _fail("retention-approval", "retention approval", "committed session does not contain exact preflight")
     if not ed25519_verify(bytes.fromhex(trust.public_key[len("ed25519:"):]), retention_approval_payload(approval), bytes.fromhex(approval.signature[len("ed25519:"):])):
         _fail("retention-approval", "retention approval", "approval signature does not verify under the admitted key")
-    nonce_identity = ("memory-seed/reflection-retention-approval", 2, preflight.key_id, preflight.nonce)
+    nonce_identity = ("memory-seed/reflection-retention-approval", 1, preflight.key_id, preflight.nonce)
     locator_identity = (preflight.session_path, preflight.entry_id, approval.commit, approval.blob)
     for other in admitted_headers:
         if other.workstream_id == header.workstream_id or other.retention_extension_receipt is None:
             continue
-        other_nonce = ("memory-seed/reflection-retention-approval", 2, other.retention_approval_key_id, other.retention_extension_receipt.nonce)
+        other_nonce = ("memory-seed/reflection-retention-approval", 1, other.retention_approval_key_id, other.retention_extension_receipt.nonce)
         other_locator = (other.retention_extension_receipt.session_path, other.retention_extension_receipt.entry_id,
                          other.retention_extension_receipt.commit, other.retention_extension_receipt.blob)
         if nonce_identity == other_nonce or locator_identity == other_locator:

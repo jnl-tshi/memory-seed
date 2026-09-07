@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import ast
+import inspect
 import json
 from pathlib import Path
 import subprocess
@@ -432,6 +434,19 @@ def test_retention_preflight_and_admission_reject_replay_without_caller_candidat
     assert parse_retention_preflight(render_retention_preflight(preflight)) == preflight
     approval = RetentionApproval(preflight, HEAD, "e" * 40, "ed25519:" + "0" * 128)
     assert parse_retention_approval(render_retention_approval(approval)) == approval
+    signed_fields = reflection_ledger_module._parse_yaml_mapping(
+        reflection_ledger_module.retention_approval_payload(approval).decode("utf-8"), "signed approval")
+    # Replay tuples are internal and both sides could otherwise drift together
+    # without changing equality. Bind their schema/version to the signed bytes.
+    replay_assignments = {
+        node.targets[0].id: node.value
+        for node in ast.walk(ast.parse(inspect.getsource(validate_retention_approval_admission)))
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"nonce_identity", "other_nonce"}
+    }
+    assert set(replay_assignments) == {"nonce_identity", "other_nonce"}
+    for identity in replay_assignments.values():
+        assert tuple(ast.literal_eval(part) for part in identity.elts[:2]) == (signed_fields["schema"], signed_fields["version"])
     for raw, reader in ((render_retention_preflight(preflight), parse_retention_preflight),
                         (render_retention_approval(approval), parse_retention_approval)):
         assert "version: 1\n" in raw
