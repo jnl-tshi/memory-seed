@@ -15,8 +15,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping, Sequence
 import json
 import os
+import posixpath
 import re
 import secrets
+import stat
 import subprocess
 import unicodedata
 
@@ -556,6 +558,86 @@ def workstream_receipt_id(id_salt: str, workstream: str, chain_id: str, detail_d
 def workstream_ledger_path(workstream: str) -> str:
     _id(workstream, "rwl_", "workstream path", "workstream_id")
     return f"{REFLECTION_ROOT}/{workstream}/{WORKSTREAM_LEDGER_NAME}"
+
+
+def is_reserved_reflection_path(path: str) -> bool:
+    """Recognize the reserved family, including Windows component aliases.
+
+    Alias recognition never grants authority: scope admission rejects ambiguous
+    components and committed inventory still requires canonical ledger paths.
+    """
+    parts = PurePosixPath(posixpath.normpath(path.replace("\\", "/"))).parts
+    folded = tuple(part.rstrip(" .").casefold() for part in parts)
+    return any(folded[index:index + 2] == (".memory-seed", "reflections")
+               for index in range(len(folded) - 1))
+
+
+def validate_reflection_capability(execution: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Pure writer-scope admission, reusable by compiler and artifact consumers.
+
+    A capability only narrows access; the operation still owes the ledger's
+    role, phase, expected-identity, integration and approval checks.
+    """
+    allowed = execution.get("allowed_files", ())
+    absent = execution.get("expected_absent", ())
+    if not isinstance(allowed, (list, tuple)) or not isinstance(absent, (list, tuple)):
+        _fail("reflection-capability-scope", "execution", "file scopes must be exact path lists")
+    if any(not isinstance(path, str) for path in (*allowed, *absent)):
+        _fail("reflection-capability-scope", "execution", "file scopes must contain strings")
+    reserved = [path for path in allowed if is_reserved_reflection_path(path)]
+    reserved_absent = [path for path in absent if is_reserved_reflection_path(path)]
+    for path in (*reserved, *reserved_absent):
+        if any(part not in {".", ".."} and part.endswith((".", " "))
+               for part in path.replace("\\", "/").split("/")):
+            _fail("reflection-capability-scope", path, "Windows trailing-dot/space component aliases are forbidden")
+    capability = execution.get("reflection")
+    if capability is None:
+        if execution.get("write_intent") == "writing" and (reserved or reserved_absent):
+            _fail("reflection-capability-required", "execution.reflection", "reserved reflection writes require workstream-v1")
+        return None
+    if not isinstance(capability, Mapping) or set(capability) != {"format", "workstream_id", "ledger_path", "operations"}:
+        _fail("reflection-capability-scope", "execution.reflection", "requires exactly format, workstream_id, ledger_path and operations")
+    if capability["format"] != "workstream-v1":
+        _fail("unsupported-reflection-format", "execution.reflection.format", "only workstream-v1 is supported")
+    workstream = _id(capability["workstream_id"], "rwl_", "execution.reflection", "workstream_id")
+    path = workstream_ledger_path(workstream)
+    operations = capability["operations"]
+    if (not isinstance(operations, list) or not operations or any(not isinstance(op, str) for op in operations)
+            or len(set(operations)) != len(operations) or not set(operations) <= {"append", "close", "expire", "rebind"}):
+        _fail("reflection-capability-scope", "execution.reflection.operations", "requires nonempty unique append/close/expire/rebind operations")
+    identity = lambda value: PurePosixPath(value.replace("\\", "/")).as_posix().casefold()
+    if (capability["ledger_path"] != path or len(reserved) != 1 or identity(reserved[0]) != path
+            or reserved_absent):
+        _fail("reflection-capability-scope", path, "the initialized canonical ledger must be the sole reflection write path")
+    return {"format": "workstream-v1", "workstream_id": workstream, "ledger_path": path,
+            "operations": sorted(operations)}
+
+
+def measure_reflection_capability(cwd: Path | str, execution: Mapping[str, Any], *,
+                                  working_branch: str, expected: Mapping[str, Any] | None = None) -> dict[str, str] | None:
+    """Bind a pure capability to committed state, never to caller-supplied proof."""
+    capability = validate_reflection_capability(execution)
+    if capability is None:
+        if expected is not None:
+            _fail("reflection-capability-scope", "runtime_binding.reflection", "binding has no capability")
+        return None
+    root = Path(cwd).resolve()
+    branch_code, branch = _git(root, "branch", "--show-current")
+    if branch_code or str(branch).strip() != working_branch:
+        _fail("reflection-binding-stale", str(root), "capability branch is not the measured checked-out branch")
+    ref = "refs/heads/" + working_branch
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=ref, ledger_path=capability["ledger_path"])
+    _check_reflection_worktree(root, _reflection_tree_inventory(root, loaded.head))
+    code, changed = _git(root, "diff", "--cached", "--name-only", "-z")
+    if code or any(is_reserved_reflection_path(path) for path in str(changed).split("\0") if path):
+        _fail("reflection-binding-stale", loaded.ledger_path, "index contains unadmitted reserved changes")
+    if loaded.ledger.effective_branch != working_branch:
+        _fail("reflection-binding-stale", loaded.ledger_path, "ledger is owned by another effective branch")
+    measured = {"trusted_ref": ref, "head": loaded.head, "ledger_blob": loaded.ledger_blob,
+                "ledger_digest": workstream_ledger_digest(loaded.raw), "history_fingerprint": loaded.history_fingerprint}
+    if expected is not None and dict(expected) != measured:
+        _fail("reflection-binding-stale", loaded.ledger_path, "measured ledger binding changed; compile a fresh packet")
+    return measured
 
 
 def _sorted_unique(values: Sequence[str], path: str, field_name: str) -> tuple[str, ...]:
@@ -2432,6 +2514,186 @@ def clear_trusted_workstream_history_cache() -> None:
     for cached in (_cached_tree_blob, _cached_git_commit_parents, _cached_git_is_ancestor,
                    _cached_git_changed_tree_paths, _cached_git_tree_paths, _cached_git_commit_message):
         cached.cache_clear()
+
+
+def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
+    """Inventory every reserved blob, including case aliases and nested runtimes."""
+    code, raw = _git(root, "ls-tree", "-rz", "--full-tree", commit, binary=True)
+    if code or not isinstance(raw, bytes):
+        _fail("reflection-integration-tree", commit, "could not inventory the exact Git tree")
+    entries: list[tuple[str, str, str]] = []
+    owners: dict[str, str] = {}
+    for item in raw.split(b"\0"):
+        if not item:
+            continue
+        metadata, path_raw = item.split(b"\t", 1)
+        path = path_raw.decode("utf-8", errors="strict")
+        if not is_reserved_reflection_path(path):
+            continue
+        mode, kind, oid = metadata.decode("ascii").split()
+        match = re.fullmatch(r"\.memory-seed/reflections/active/(rwl_[0-9abcdefghjkmnpqrstvwxyz]{20})/ledger\.md", path)
+        if match is None or mode != CANONICAL_MODE or kind != "blob":
+            _fail("unsupported-reflection-format", path, "reserved tree permits only canonical regular v1 ledgers", mode=mode)
+        loaded = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=path)
+        if loaded.ledger.header.workstream_id != match.group(1):
+            _fail("reflection-integration-tree", path, "directory does not bind its ledger identity")
+        owner = loaded.ledger.effective_branch
+        if owner in owners:
+            _fail("branch-collision", path, "committed board contains duplicate effective owners", other=owners[owner])
+        owners[owner] = path
+        entries.append((path, mode, oid))
+    return tuple(sorted(entries))
+
+
+def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str], ...]) -> None:
+    """Inventory ignored/untracked families within this checkout, without writes.
+
+    Only Git metadata and other registered worktrees are traversal boundaries.
+    Dependency/generated folder names are not exclusions: they can own runtimes.
+    Directory links (including Windows junctions) are never followed.
+    """
+    code, worktrees = _git(root, "worktree", "list", "--porcelain", "-z", binary=True)
+    if code or not isinstance(worktrees, bytes):
+        _fail("reflection-integration-tree", str(root), "could not establish checkout traversal boundaries")
+    nested_worktrees = set()
+    for field in worktrees.split(b"\0"):
+        if field.startswith(b"worktree "):
+            checkout = Path(field[len(b"worktree "):].decode("utf-8", errors="strict")).resolve()
+            if checkout != root and checkout.is_relative_to(root):
+                nested_worktrees.add(checkout)
+    actual: dict[str, bytes] = {}
+    expected_paths = {path for path, _mode, _oid in expected}
+    allowed_dirs = {".memory-seed/reflections", REFLECTION_ROOT} | {
+        str(PurePosixPath(path).parent) for path in expected_paths
+    }
+
+    def scan_error(error: OSError) -> None:
+        _fail("reflection-integration-tree", str(error.filename), "could not inventory checkout directories")
+
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=scan_error):
+        descend = []
+        directory_names = set(dirs)
+        for name in dirs + files:
+            path = Path(directory) / name
+            folded = name.rstrip(" .").casefold()
+            relative = path.relative_to(root).as_posix()
+            reserved = is_reserved_reflection_path(relative)
+            if folded == ".git" or path in nested_worktrees:
+                if reserved:
+                    _fail("unsupported-reflection-format", relative, "checkout boundaries cannot hide reserved state")
+                continue
+            metadata = path.lstat()
+            linked = (stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_reparse_tag", None)
+                      == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003))
+            if folded == ".memory-seed" and (
+                name.endswith((".", " ")) or linked or not stat.S_ISDIR(metadata.st_mode)
+            ):
+                _fail("unsupported-reflection-format", str(path), "runtime is not a regular directory")
+            if reserved:
+                if linked:
+                    _fail("unsupported-reflection-format", relative, "directory links and symlinks are forbidden in reserved state")
+                if stat.S_ISDIR(metadata.st_mode):
+                    if relative not in allowed_dirs:
+                        _fail("unsupported-reflection-format", relative, "unknown or nested reserved directory is not admitted")
+                elif relative not in expected_paths or not stat.S_ISREG(metadata.st_mode):
+                    _fail("unsupported-reflection-format", relative, "unknown reserved file is not admitted")
+                else:
+                    actual[relative] = path.read_bytes()
+            if name in directory_names and not linked:
+                descend.append(name)
+        dirs[:] = descend
+    if set(actual) != expected_paths:
+        _fail("reflection-binding-stale", str(root), "working-tree reserved paths differ from the admitted tree")
+    for path, _mode, oid in expected:
+        code, raw = _git(root, "cat-file", "blob", oid, binary=True)
+        if code or raw != actual[path]:
+            _fail("reflection-binding-stale", path, "working-tree ledger differs from the admitted blob")
+
+
+@dataclass(frozen=True)
+class ReflectionIntegrationPreview:
+    source_ref: str
+    base_ref: str
+    source_commit: str
+    base_commit: str
+    merge_base: str
+    worktree_head: str
+    source: tuple[tuple[str, str, str], ...]
+    base: tuple[tuple[str, str, str], ...]
+    ancestor: tuple[tuple[str, str, str], ...]
+    proposed: tuple[tuple[str, str, str], ...]
+
+
+def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref: str) -> ReflectionIntegrationPreview:
+    """Read exact parents and the determinable reserved result without writes.
+
+    A ledger may enter a new merge through exactly one parent. General Git
+    content merges cannot combine or rewrite reflection histories.
+    """
+    root = Path(cwd).resolve()
+    source_commit, base_commit = _commit(root, source_ref), _commit(root, base_ref)
+    if source_commit is None or base_commit is None:
+        _fail("reflection-integration-tree", str(root), "integration refs must resolve to exact commits")
+    code, ancestors = _git(root, "merge-base", "--all", source_commit, base_commit)
+    bases = str(ancestors).split()
+    if code or len(bases) != 1:
+        _fail("reflection-integration-topology", str(root), "integration requires one unambiguous merge-base")
+    source = _reflection_tree_inventory(root, source_commit)
+    base = _reflection_tree_inventory(root, base_commit)
+    ancestor = _reflection_tree_inventory(root, bases[0])
+    left, right = {item[0]: item for item in base}, {item[0]: item for item in source}
+    for path, _mode, _oid in ancestor:
+        if path not in left or path not in right:
+            _fail("reflection-integration-topology", path, "raw ledger removal is not admitted integration")
+    if _git_is_ancestor(root, source_commit, base_commit):
+        proposed = base
+    else:
+        if left.keys() & right.keys():
+            _fail("reflection-integration-topology", sorted(left.keys() & right.keys())[0],
+                  "merge would have two ledger-bearing parents; use admitted sequential topology")
+        proposed = tuple(sorted((*base, *source)))
+    owners: dict[str, str] = {}
+    for path, _mode, _oid in proposed:
+        commit = base_commit if path in left else source_commit
+        owner = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=path).ledger.effective_branch
+        if owner in owners:
+            _fail("branch-collision", path, "proposed result has duplicate effective ledger owners", other=owners[owner])
+        owners[owner] = path
+    head = _commit(root, "HEAD")
+    if head is None:
+        _fail("reflection-integration-tree", str(root), "worktree HEAD must resolve")
+    return ReflectionIntegrationPreview(source_ref, base_ref, source_commit, base_commit, bases[0], head, source, base, ancestor, proposed)
+
+
+def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrationPreview, *, merged: bool = False) -> None:
+    """Recheck preview bindings and actual reserved files before mutation."""
+    root = Path(cwd).resolve()
+    if not isinstance(preview, ReflectionIntegrationPreview):
+        _fail("reflection-binding-stale", str(root), "requires the original immutable integration preview")
+    measured = preview_reflection_integration(root, source_ref=preview.source_ref, base_ref=preview.base_ref)
+    if measured != preview:
+        _fail("reflection-binding-stale", str(root), "integration refs or proposed reserved result changed after preview")
+    if merged:
+        expected = preview.proposed
+        code, raw = _git(root, "ls-files", "--stage", "-z", binary=True)
+        if code or not isinstance(raw, bytes):
+            _fail("reflection-integration-tree", str(root), "could not inspect proposed index")
+        staged: list[tuple[str, str, str]] = []
+        for item in raw.split(b"\0"):
+            if not item:
+                continue
+            metadata, path_raw = item.split(b"\t", 1)
+            path = path_raw.decode("utf-8", errors="strict")
+            if is_reserved_reflection_path(path):
+                mode, oid, stage = metadata.decode("ascii").split()
+                if stage != "0":
+                    _fail("reflection-integration-topology", path, "reserved merge conflict is not admitted")
+                staged.append((path, mode, oid))
+        if tuple(sorted(staged)) != expected:
+            _fail("reflection-binding-stale", str(root), "proposed index differs from preview")
+    else:
+        expected = _reflection_tree_inventory(root, preview.worktree_head)
+    _check_reflection_worktree(root, expected)
 
 
 def _require_memory_entry_trailer(root: Path, commit: str, entry_id: str) -> None:

@@ -33,6 +33,168 @@ from memory_seed.task_packet import (
 
 
 class TaskPacketTests(unittest.TestCase):
+    def reflection_writer(self):
+        from datetime import datetime, timezone
+        from memory_seed.reflection_ledger import initialize_workstream_ledger, render_workstream_ledger, workstream_ledger_path
+        root = self.make_project()
+        base = self.git(root, "rev-parse", "HEAD")
+        self.git(root, "switch", "-c", "feature-reflection")
+        ledger = initialize_workstream_ledger(working_branch="feature-reflection", base_sha=base,
+                                             clock=lambda: datetime(2026, 9, 7, tzinfo=timezone.utc))
+        path = workstream_ledger_path(ledger.header.workstream_id)
+        target = root / path
+        target.parent.mkdir(parents=True)
+        target.write_text(render_workstream_ledger(ledger), encoding="utf-8", newline="\n")
+        self.git(root, "add", path)
+        self.git(root, "commit", "-m", "initialize fixture ledger")
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["execution"]["allowed_files"] = [path, "memory_seed/reflection_ledger.py"]
+        dispatch["execution"]["reflection"] = {"format": "workstream-v1", "workstream_id": ledger.header.workstream_id,
+                                                 "ledger_path": path, "operations": ["append"]}
+        return root, dispatch, path
+
+    def test_reflection_packet_binding_and_artifact_readers_reject_staleness(self):
+        from memory_seed.core import _activated_packet_base_sha
+        from memory_seed.task_packet import _read_activation_artifact
+        root, dispatch, path = self.reflection_writer()
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        self.assertEqual(packet["packet_version"], 1)
+        self.assertEqual(packet["runtime_binding"]["reflection"]["head"], self.git(root, "rev-parse", "HEAD"))
+        activated = activate_task_packet(packet, root)
+        artifact = Path(activated["activation_artifact"])
+        before = artifact.read_bytes()
+        self.assertIsNotNone(_read_activation_artifact(artifact, root))
+        self.assertEqual(_activated_packet_base_sha(root), self.git(root, "rev-parse", "main"))
+        self.git(root, "commit", "--allow-empty", "-m", "advance expected identity")
+        with self.assertRaisesRegex(TaskPacketValidationError, "reflection-binding-stale"):
+            activate_task_packet(packet, root)
+        self.assertIsNone(_read_activation_artifact(artifact, root))
+        self.assertIsNone(_activated_packet_base_sha(root))
+        self.assertEqual(artifact.read_bytes(), before)
+        fresh = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        with self.assertRaisesRegex(TaskPacketValidationError, "binding_update_required"):
+            activate_task_packet(fresh, root)
+        self.assertTrue(activate_task_packet(fresh, root, binding_update_reason="Refresh the measured reflection identity.")["binding_updated"])
+
+    def test_reflection_packet_rejects_unsupported_wider_absent_and_dirty_state(self):
+        root, dispatch, path = self.reflection_writer()
+        for mutation in ("format", "unknown", "operations", "wider", "absent", "path", "missing"):
+            invalid = copy.deepcopy(dispatch)
+            cap = invalid["execution"]["reflection"]
+            if mutation == "format":
+                cap["format"] = "workstream-v2"
+            elif mutation == "unknown":
+                cap["trusted_ref"] = "main"
+            elif mutation == "operations":
+                cap["operations"] = ["init"]
+            elif mutation == "wider":
+                invalid["execution"]["allowed_files"].append(".memory-seed/reflections/active/other/ledger.md")
+            elif mutation == "absent":
+                invalid["execution"]["expected_absent"] = [path]
+            elif mutation == "path":
+                cap["ledger_path"] = "memory_seed/reflection_ledger.py"
+            else:
+                del invalid["execution"]["reflection"]
+            with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError):
+                compile_task_packet(invalid, self.binding(root, writing=True), root)
+        target = root / path
+        target.write_bytes(target.read_bytes() + b"\n")
+        with self.assertRaisesRegex(TaskPacketValidationError, "reflection-binding-stale"):
+            compile_task_packet(dispatch, self.binding(root, writing=True), root)
+
+    def test_rehashed_artifact_cannot_strip_or_forge_reflection_capability(self):
+        from memory_seed.core import _activated_packet_base_sha
+        from memory_seed.task_packet import _read_activation_artifact, _packet_fingerprint, _activation_receipt
+        root, dispatch, path = self.reflection_writer()
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        activated = activate_task_packet(packet, root)
+        artifact = Path(activated["activation_artifact"])
+        original = json.loads(artifact.read_text(encoding="utf-8"))
+        for change in ("strip", "unsupported", "wider", "stale"):
+            payload = copy.deepcopy(original)
+            forged = payload["packet"]
+            execution = forged["dispatch"]["execution"]
+            if change == "strip":
+                del execution["reflection"]
+                del forged["runtime_binding"]["reflection"]
+            elif change == "unsupported":
+                execution["reflection"]["format"] = "workstream-v2"
+            elif change == "wider":
+                execution["allowed_files"].append(".memory-seed/reflections/extra.md")
+            else:
+                forged["runtime_binding"]["reflection"]["ledger_blob"] = "f" * 40
+            forged["dispatch_fingerprint"] = "sha256:" + hashlib.sha256(
+                json.dumps(forged["dispatch"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+            forged["fingerprint"] = _packet_fingerprint(forged)
+            payload["receipt"] = _activation_receipt(forged, forged["dispatch"], forged["runtime_binding"])
+            artifact.write_text(json.dumps(payload), encoding="utf-8")
+            before = artifact.read_bytes()
+            with self.subTest(change=change):
+                self.assertIsNone(_read_activation_artifact(artifact, root))
+                self.assertIsNone(_activated_packet_base_sha(root))
+                with self.assertRaises(TaskPacketValidationError):
+                    activate_task_packet(forged, root)
+                self.assertEqual(artifact.read_bytes(), before)
+
+    def test_reflection_neighbour_and_read_only_packets_remain_generic_v1(self):
+        for intent in ("read-only", "writing"):
+            dispatch = self.dispatch(write_intent=intent)
+            dispatch["execution"]["allowed_files"] = [".memory-seed/reflections-not-reserved/note.md", "memory_seed/reflection_ledger.py"]
+            self.assertNotIn("reflection", normalize_task_dispatch(dispatch)["execution"])
+        dispatch["execution"]["write_intent"] = "read-only"
+        dispatch["execution"]["allowed_files"] = [".memory-seed/reflections/active/missing/ledger.md"]
+        root = self.make_project()
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertEqual(packet["packet_version"], 1)
+        with self.assertRaisesRegex(TaskPacketValidationError, "activation_read_only"):
+            activate_task_packet(packet, root)
+
+    def test_rehashed_artifact_cannot_hide_reserved_windows_aliases(self):
+        from memory_seed.core import _activated_packet_base_sha
+        from memory_seed.task_packet import _read_activation_artifact, _packet_fingerprint, _activation_receipt
+        root, dispatch, path = self.reflection_writer()
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        artifact = Path(activate_task_packet(packet, root)["activation_artifact"])
+        original = json.loads(artifact.read_text(encoding="utf-8"))
+        aliases = (path.replace("reflections/", "reflections./"),
+                   path.replace(".memory-seed/", ".memory-seed./"),
+                   path.replace("reflections/", "reflections /"),
+                   path.replace(".memory-seed/", ".memory-seed /"),
+                   path + ".", path + " ")
+        for alias in aliases:
+            for field in ("allowed_files", "expected_absent"):
+                for capability in (False, True):
+                    payload = copy.deepcopy(original)
+                    forged = payload["packet"]
+                    execution = forged["dispatch"]["execution"]
+                    execution[field] = [alias]
+                    if not capability:
+                        del execution["reflection"]
+                        del forged["runtime_binding"]["reflection"]
+                        if field == "expected_absent":
+                            execution["allowed_files"] = ["memory_seed/reflection_ledger.py"]
+                    forged["dispatch_fingerprint"] = "sha256:" + hashlib.sha256(
+                        json.dumps(forged["dispatch"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+                    forged["fingerprint"] = _packet_fingerprint(forged)
+                    payload["receipt"] = _activation_receipt(forged, forged["dispatch"], forged["runtime_binding"])
+                    artifact.write_text(json.dumps(payload), encoding="utf-8")
+                    before = artifact.read_bytes()
+                    with self.subTest(alias=alias, field=field, capability=capability):
+                        self.assertIsNone(_read_activation_artifact(artifact, root))
+                        self.assertIsNone(_activated_packet_base_sha(root))
+                        self.assertEqual(artifact.read_bytes(), before)
+
+    def test_reserved_reflection_scope_requires_capability_before_lookup(self):
+        for path in (".memory-seed/reflections/active/missing/ledger.md",
+                     ".MEMORY-SEED\\REFLECTIONS\\missing.md"):
+            for absent in ([], [path]):
+                dispatch = self.dispatch(write_intent="writing")
+                dispatch["execution"]["allowed_files"] = [path]
+                dispatch["execution"]["expected_absent"] = absent
+                with self.subTest(path=path, absent=absent):
+                    with self.assertRaisesRegex(TaskPacketValidationError, "reflection-capability-required"):
+                        normalize_task_dispatch(dispatch)
+
     def make_project(self):
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
