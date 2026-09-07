@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import ast
+import inspect
 import json
 from pathlib import Path
 import subprocess
@@ -158,19 +160,19 @@ def admitted_receipt_for(ledger, record):
     return AdmittedWorkstreamReceipt(receipt_for(ledger, record), HEAD, "e" * 40)
 
 
-def test_v2_ids_and_domain_digests_match_frozen_vectors():
+def test_workstream_ids_and_domain_digests_match_frozen_vectors():
     workstream = workstream_id(SALT, "codex/feature/example", BASE, "2026-09-06T12:00:00Z")
-    assert workstream == "rwl_1j3nf0zkee6vx8zgg4v3"
+    assert workstream == "rwl_11rhq07tksmxd99ykzsw"
     record = workstream_record_id(SALT, workstream, "2026-09-06T12:01:00Z", "sha256:" + "0" * 64)
-    assert record == "rlr_0fcr9wh0xh9yn0nhyqyn"
-    assert workstream_chain_id(SALT, workstream, record) == "rlc_1mhbzbsjzv646b2k845s"
-    assert workstream_receipt_id(SALT, workstream, "rlc_1mhbzbsjzv646b2k845s", "sha256:" + "1" * 64) == "rrc_0hge300ydfdke03v8hfh"
-    assert workstream_ledger_digest(b"example\n") == "sha256:aa964f81fd64a3e391f79079266e4e8f5e4dfe27a36f29078228a57762af46fc"
-    assert workstream_detail_digest(b"example\n") == "sha256:520584969953ed7b72863bf987e267e297e4afed3ed2af2f6691e6bd6915014c"
-    assert reflection_ledger_family("schema: memory-seed/reflection-plan\nversion: 1\n") == "v1"
+    assert record == "rlr_0xegtr9rzcmq6d4b29sc"
+    assert workstream_chain_id(SALT, workstream, record) == "rlc_0t3xm63n908fptt0r43s"
+    assert workstream_receipt_id(SALT, workstream, "rlc_0t3xm63n908fptt0r43s", "sha256:" + "1" * 64) == "rrc_1h61t1efah5tgv33eaa4"
+    assert workstream_ledger_digest(b"example\n") == "sha256:ad5b96d4e9aa88dc1ffc4db4ab46c6d09bd0623105534b1f1b57466fe9caee88"
+    assert workstream_detail_digest(b"example\n") == "sha256:c47a5d99516451af52a675db116b1465f35163def20dff2ab64833959d8b9aa9"
+    assert reflection_ledger_family(render_workstream_ledger(make_ledger())) == "workstream-v1"
 
 
-def test_canonical_v2_header_and_guarded_append_reject_stale_or_manual_phase():
+def test_canonical_workstream_header_and_guarded_append_reject_stale_or_manual_phase():
     ledger = make_ledger()
     raw = render_workstream_ledger(ledger)
     assert parse_workstream_ledger(raw).header == ledger.header
@@ -190,6 +192,64 @@ def test_canonical_v2_header_and_guarded_append_reject_stale_or_manual_phase():
     tampered = render_workstream_ledger(ledger).replace("retention_approval_key_id: null", "extra: no\nretention_approval_key_id: null")
     with pytest.raises(ReflectionValidationError, match="unexpected"):
         parse_workstream_ledger(tampered)
+
+
+@pytest.mark.parametrize("replacement", ("2", "true", '"1"'))
+def test_unsupported_ledger_versions_refuse_without_writes(tmp_path, replacement):
+    ledger = make_ledger()
+    raw = render_workstream_ledger(ledger).replace("version: 1\n", f"version: {replacement}\n")
+    path = tmp_path / workstream_ledger_path(ledger.header.workstream_id)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw.encode("utf-8"))
+    for reader in (parse_workstream_ledger, reflection_ledger_family):
+        with pytest.raises(ReflectionValidationError) as refused:
+            reader(raw)
+        assert refused.value.diagnostic.code == "unsupported-reflection-format"
+    assert workstream_board_view(tmp_path).items[0].status == "unsupported"
+    with pytest.raises(ReflectionValidationError) as refused:
+        guarded_append_workstream_ledger(
+            tmp_path, workstream_id=ledger.header.workstream_id,
+            request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high"),
+            expected_head=HEAD, actual_head=HEAD, pre_ledger_digest=workstream_ledger_digest(raw),
+            branch=ledger.effective_branch,
+        )
+    assert refused.value.diagnostic.code == "unsupported-reflection-format"
+    assert path.read_bytes() == raw.encode("utf-8")
+    assert list(tmp_path.rglob("*.md")) == [path]
+
+
+@pytest.mark.parametrize("raw", (
+    "schema: memory-seed/reflection-plan\nversion: 1\n",
+    "---\nschema: memory-seed/reflection-fragment\nversion: 1\n---\n",
+    "schema: memory-seed/reflection-report\nversion: 1\n",
+))
+def test_discriminator_refuses_minimal_unsupported_prototype_bytes(raw):
+    for reader in (reflection_ledger_family, parse_workstream_ledger):
+        with pytest.raises(ReflectionValidationError) as refused:
+            reader(raw)
+        assert refused.value.diagnostic.code == "unsupported-reflection-format"
+
+
+@pytest.mark.parametrize("retention", ("[]", "{}", "7"))
+def test_board_retention_type_validation_returns_diagnostics(tmp_path, retention):
+    ledger = make_ledger()
+    raw = render_workstream_ledger(ledger).replace("reflection_retention_days: 7\n",
+                                                 f"reflection_retention_days: {retention}\n")
+    path = tmp_path / workstream_ledger_path(ledger.header.workstream_id)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw.encode("utf-8"))
+    board = workstream_board_view(tmp_path)
+    assert len(board.items) == 1
+    if retention == "7":
+        assert parse_workstream_ledger(raw) == ledger
+        assert board.exit_code == 0 and board.items[0].status == "valid"
+    else:
+        with pytest.raises(ReflectionValidationError) as refused:
+            parse_workstream_ledger(raw)
+        assert refused.value.diagnostic.code == "retention"
+        assert board.exit_code == 1 and board.items[0].status == "malformed"
+        assert board.items[0].diagnostic.code == "retention"
+    assert path.read_bytes() == raw.encode("utf-8")
 
 
 def test_per_chain_phase_and_divergent_heads_are_never_hidden():
@@ -335,7 +395,7 @@ def test_early_expiry_refuses_every_canonical_promoted_receipt_disposition(dispo
 
 def test_workstream_receipt_refuses_noncanonical_disposition():
     ledger, chain = open_chain()
-    with pytest.raises(ReflectionValidationError, match="canonical v2 disposition"):
+    with pytest.raises(ReflectionValidationError, match="canonical v1 disposition"):
         resolve_workstream_dependency(
             WorkstreamDependency(ledger.header.workstream_id, ledger.records[-1].record_id, ledger.records[-1].detail_digest,
                                   "needs record", receipt_for(ledger, ledger.records[-1]).dependency_locator()),
@@ -367,13 +427,36 @@ def test_board_includes_malformed_candidate_and_guarded_filesystem_writes(tmp_pa
 
 
 def test_retention_preflight_and_admission_reject_replay_without_caller_candidates():
-    preflight = RetentionPreflight("key-a", "rwl_1j3nf0zkee6vx8zgg4v3", "codex/feature/example", BASE, SALT,
+    preflight = RetentionPreflight("key-a", "rwl_11rhq07tksmxd99ykzsw", "codex/feature/example", BASE, SALT,
                                    "2026-09-06T12:00:00Z", 14, "1" * 64, "2026-09-06T12:01:00Z",
                                    "2026-09-06T12:02:00Z", "approved", ".memory-seed/sessions/2026-09/2026-09-06.md",
                                    "mse_0123456789abcdef")
     assert parse_retention_preflight(render_retention_preflight(preflight)) == preflight
     approval = RetentionApproval(preflight, HEAD, "e" * 40, "ed25519:" + "0" * 128)
     assert parse_retention_approval(render_retention_approval(approval)) == approval
+    signed_fields = reflection_ledger_module._parse_yaml_mapping(
+        reflection_ledger_module.retention_approval_payload(approval).decode("utf-8"), "signed approval")
+    # Replay tuples are internal and both sides could otherwise drift together
+    # without changing equality. Bind their schema/version to the signed bytes.
+    replay_assignments = {
+        node.targets[0].id: node.value
+        for node in ast.walk(ast.parse(inspect.getsource(validate_retention_approval_admission)))
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"nonce_identity", "other_nonce"}
+    }
+    assert set(replay_assignments) == {"nonce_identity", "other_nonce"}
+    for identity in replay_assignments.values():
+        assert tuple(ast.literal_eval(part) for part in identity.elts[:2]) == (signed_fields["schema"], signed_fields["version"])
+    for raw, reader in ((render_retention_preflight(preflight), parse_retention_preflight),
+                        (render_retention_approval(approval), parse_retention_approval)):
+        assert "version: 1\n" in raw
+        assert "id_domain: memory-seed/reflection-workstream-ledger/v1\n" in raw
+        for invalid in (raw.replace("version: 1\n", "version: 2\n"),
+                        raw.replace("version: 1\n", "version: true\n"),
+                        raw.replace("/v1\n", "/v2\n")):
+            with pytest.raises(ReflectionValidationError) as refused:
+                reader(invalid)
+            assert refused.value.diagnostic.code == "retention-approval"
     header = WorkstreamLedgerHeader(preflight.workstream_id, preflight.working_branch, BASE, preflight.created_at, 14,
                                     RetentionExtensionReceipt(preflight.nonce, preflight.session_path, preflight.entry_id,
                                                               HEAD, "e" * 40, approval.signature), "key-a", SALT)
@@ -518,6 +601,82 @@ def _new_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str]:
     return root, ledger, ledger_path
 
 
+@pytest.mark.parametrize("extra_path", (
+    "unsupported/manifest.yaml",
+    "unsupported/fragments/orphan.md",
+    "unsupported/reports/orphan.md",
+    "unsupported/unknown.txt",
+    "loose.txt",
+    "{workstream}/manifest.yaml",
+    "{workstream}/extra.md",
+))
+def test_reserved_family_candidates_are_visible_and_block_trusted_admission(tmp_path, extra_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    active = root / ".memory-seed/reflections/active"
+    unsupported = active / extra_path.format(workstream=ledger.header.workstream_id)
+    unsupported.parent.mkdir(parents=True, exist_ok=True)
+    unsupported.write_bytes(b"unsupported input\n")
+    board = workstream_board_view(root)
+    assert board.exit_code == 1
+    assert any(item.status == "malformed" for item in board.items)
+    assert len(board.items) == (1 if extra_path.startswith("{workstream}") else 2)
+    _git(root, "add", ".memory-seed/reflections/active")
+    _git(root, "commit", "--quiet", "-m", "unsupported reserved-family candidate")
+    head = _git(root, "rev-parse", "HEAD")
+    trusted_board = workstream_board_view(root, trusted_ref="HEAD")
+    assert trusted_board.exit_code == 1 and len(trusted_board.items) == len(board.items)
+    with pytest.raises(ReflectionValidationError) as refused:
+        reflection_ledger_module._trusted_active_ledgers_at_commit(root, head)
+    assert refused.value.diagnostic.code == "unsupported-reflection-format"
+    # Discovery is read-only; committed-only candidates must remain visible too.
+    unsupported.unlink()
+    assert workstream_board_view(root, trusted_ref="HEAD").exit_code == 1
+    assert _git(root, "rev-parse", "HEAD") == head
+    assert (root / ledger_path).read_bytes() == render_workstream_ledger(ledger).encode("utf-8")
+
+
+def test_trusted_board_refuses_symlink_mode_for_ledger(tmp_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    blob = _git(root, "rev-parse", f"HEAD:{ledger_path}")
+    _git(root, "update-index", "--cacheinfo", f"120000,{blob},{ledger_path}")
+    _git(root, "commit", "--quiet", "-m", "hostile symlink mode")
+    board = workstream_board_view(root, trusted_ref="HEAD")
+    assert board.exit_code == 1 and board.items[0].status == "malformed"
+    with pytest.raises(ReflectionValidationError):
+        reflection_ledger_module._trusted_active_ledgers_at_commit(root, _git(root, "rev-parse", "HEAD"))
+    assert (root / ledger_path).read_bytes() == render_workstream_ledger(ledger).encode("utf-8")
+
+
+@pytest.mark.parametrize("mode", ("100644", "120000", "160000"))
+@pytest.mark.parametrize("local_root_present", (False, True))
+def test_committed_exact_active_root_is_visible_and_refused(tmp_path, mode, local_root_present):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    active_root = ".memory-seed/reflections/active"
+    object_id = _git(root, "rev-parse", "HEAD" if mode == "160000" else f"HEAD:{ledger_path}")
+    _git(root, "update-index", "--force-remove", "--", ledger_path)
+    _git(root, "update-index", "--add", "--cacheinfo", f"{mode},{object_id},{active_root}")
+    _git(root, "commit", "--quiet", "-m", "hostile committed active root")
+    active = root / active_root
+    if not local_root_present:
+        active.rename(root / "parked-ledger")
+    head = _git(root, "rev-parse", "HEAD")
+    index_before = _git(root, "ls-files", "--stage")
+    status_before = _git(root, "status", "--porcelain")
+    board = workstream_board_view(root, trusted_ref="HEAD")
+    assert board.exit_code == 1 and len(board.items) == 1
+    assert board.items[0].path == active_root and board.items[0].status == "malformed"
+    assert board.items[0].diagnostic.code == "unsupported-reflection-format"
+    with pytest.raises(ReflectionValidationError) as refused:
+        reflection_ledger_module._trusted_active_ledgers_at_commit(root, head)
+    assert refused.value.diagnostic.code == "unsupported-reflection-format"
+    assert refused.value.diagnostic.path == active_root
+    assert _git(root, "rev-parse", "HEAD") == head
+    assert _git(root, "ls-files", "--stage") == index_before
+    assert _git(root, "status", "--porcelain") == status_before
+    saved_ledger = (active if local_root_present else root / "parked-ledger") / ledger.header.workstream_id / "ledger.md"
+    assert saved_ledger.read_bytes() == render_workstream_ledger(ledger).encode("utf-8")
+
+
 def _quoted_yaml(mapping: dict[str, str]) -> str:
     return "".join(f"{key}: {json.dumps(value)}\n" for key, value in mapping.items())
 
@@ -610,7 +769,7 @@ def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path
     ) + (reflection_ledger_module._closure_session_mapping(preliminary_closure),)
     if include_early_approval:
         # Adversarial unsigned mapping accepted by the former implementation.
-        # It is evidence bytes only, never a valid v2 host authorization.
+        # It is evidence bytes only, never a valid v1 host authorization.
         evidence_mappings += (
             {
                 "workstream_id": ledger.header.workstream_id, "chain_id": chain,
@@ -923,7 +1082,7 @@ def test_trusted_board_classification_bounds_nested_history(tmp_path, monkeypatc
     assert refused.value.diagnostic.code == "dependency-context-limit"
 
 
-def test_raw_guarded_v2_routes_refuse_git_backed_context_before_any_mutation(tmp_path):
+def test_raw_guarded_workstream_routes_refuse_git_backed_context_before_any_mutation(tmp_path):
     root, ledger, ledger_path = _new_git_workstream(tmp_path)
     trusted_ref = "refs/heads/codex/feature/example"
     with pytest.raises(ReflectionValidationError) as implicit_git:
