@@ -23,13 +23,17 @@ and confirm again before writing any edge. The core stays network-free (Constitu
 model calls live entirely in this optional layer, and every stored edge is human-gated and authored as
 an ordinary `:dN` edge with no dependency on the model that suggested it (Invariant #5).
 
+**Model selection.** Use the smallest available model that can reliably apply this fixed rubric, with
+high reasoning enabled. This is an economy-tier capability requirement, not a provider or model-family
+requirement. Escalate only a specific ambiguous gap, and record why a larger model was needed.
+
 ## The pipeline
 
 ```
 memory-seed link audit --json --date <today>     (core, mechanical, network-free)
     -> judgment-ready tasks: each gap carries both ends' decision bodies + criteria
 Workflow fan-out                                 (optional layer, network)
-    -> one haiku agent per candidate gap; each returns a verdict per the criteria below
+    -> one economy-tier agent per candidate gap; each returns a verdict per the criteria below
 orchestrator validation                          (mechanical-first, no new model calls)
     -> drop verdicts that fail a quote-match, a dangling ordinal, or the consistency check
 batch approval                                   (the human gate)
