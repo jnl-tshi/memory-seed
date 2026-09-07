@@ -34,6 +34,7 @@ from memory_seed.reflection_ledger import (
     WorkstreamReceipt,
     apply_trusted_rebind,
     guarded_append_workstream_ledger,
+    guarded_apply_workstream_expiry,
     guarded_apply_trusted_rebind,
     guarded_init_workstream_ledger,
     initialize_workstream_ledger,
@@ -522,7 +523,7 @@ def _quoted_yaml(mapping: dict[str, str]) -> str:
 
 
 def _session_entry(title: str, entry_id: str, mappings: tuple[dict[str, str], ...] = ()) -> str:
-    body = f"## {title}\n\n```yaml\nentry_id: {json.dumps(entry_id)}\n```\n"
+    body = f"## {title}\n\n```yaml\nentry_id: {json.dumps(entry_id)}\n```\n\n### Decisions\n\n#### D1 - Durable evidence\n\n"
     for mapping in mappings:
         body += f"\n### Receipt evidence\n\n```yaml\n{_quoted_yaml(mapping)}```\n"
     return body + "\n"
@@ -581,7 +582,11 @@ def _closed_git_workstream(tmp_path: Path) -> tuple[Path, WorkstreamLedger, str,
 
 def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path: str, chain: str, *,
                                evidence_entry: str = "mse_0123456789abcdef",
-                               receipt_entry: str = "mse_1111111111111111") -> tuple[WorkstreamCompactionReceipt, str]:
+                               receipt_entry: str = "mse_1111111111111111",
+                               member_disposition: str = "early-expired-unpromoted",
+                               include_early_approval: bool = True,
+                               receipt_decision_id: str = "D1",
+                               duplicate_evidence_entry: bool = False) -> tuple[WorkstreamCompactionReceipt, str]:
     """Create the exact ordinary-session / ledger-only two-commit proof pair."""
     session_path = ".memory-seed/sessions/2026-09/2026-09-06.md"
     session_file = root / Path(session_path)
@@ -589,24 +594,32 @@ def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path
     close = records[-1]
     preliminary_members = tuple(
         WorkstreamCompactionMemberReceipt(
-            chain, record.record_id, record.detail_digest, session_path, evidence_entry, "D1",
+            chain, record.record_id, record.detail_digest, session_path, evidence_entry, receipt_decision_id,
             workstream_receipt_id(ledger.header.id_salt, ledger.header.workstream_id, chain, record.detail_digest),
-            "sha256:" + "1" * 64, "0" * 40, "0" * 40, "expired-unpromoted",
+            "sha256:" + "1" * 64, "0" * 40, "0" * 40, member_disposition,
         )
         for record in sorted(records, key=lambda item: item.record_id)
     )
     preliminary_closure = WorkstreamCompactionClosureReceipt(
-        chain, close.record_id, close.detail_digest, session_path, evidence_entry, "D1", "0" * 40, "0" * 40,
+        chain, close.record_id, close.detail_digest, session_path, evidence_entry, receipt_decision_id, "0" * 40, "0" * 40,
         "sha256:" + "2" * 64,
     )
     evidence_mappings = tuple(
         reflection_ledger_module._member_session_mapping(ledger.header.workstream_id, member)
         for member in preliminary_members
     ) + (reflection_ledger_module._closure_session_mapping(preliminary_closure),)
+    if include_early_approval:
+        evidence_mappings += (
+            reflection_ledger_module._historical_early_expiry_mapping(
+                ledger.header.workstream_id, chain, preliminary_closure,
+            ),
+        )
     session_file.parent.mkdir(parents=True, exist_ok=True)
     previous_session = session_file.read_text(encoding="utf-8") if session_file.exists() else ""
-    session_file.write_text(previous_session + ("\n" if previous_session else "")
-                            + _session_entry("Evidence", evidence_entry, evidence_mappings), encoding="utf-8")
+    evidence_body = _session_entry("Evidence", evidence_entry, evidence_mappings)
+    if duplicate_evidence_entry:
+        evidence_body += "\n" + _session_entry("Duplicate evidence", evidence_entry)
+    session_file.write_text(previous_session + ("\n" if previous_session else "") + evidence_body, encoding="utf-8")
     _git(root, "add", "--", session_path)
     _git(root, "commit", "--quiet", "-m", "reflection: durable evidence")
     evidence_commit = _git(root, "rev-parse", "HEAD")
@@ -639,6 +652,30 @@ def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path
     _git(root, "add", "--", session_path)
     _git(root, "commit", "--quiet", "-m", "reflection: record compaction", "-m", f"Memory-Entry: {receipt_entry}")
     return receipt, _git(root, "rev-parse", "HEAD")
+
+
+def _write_open_cross_workstream_dependent(root: Path, source: WorkstreamLedger, target_record, *,
+                                            receipt: WorkstreamDependencyReceipt | None) -> WorkstreamLedger:
+    """Persist a second open workstream that depends on one source record."""
+    dependent = initialize_workstream_ledger(
+        working_branch="codex/feature/dependent", base_sha=source.header.base_sha,
+        clock=fixed_clock(START + timedelta(minutes=20)), entropy=lambda _: bytes.fromhex(SALT),
+    )
+    dependency = WorkstreamDependency(
+        source.header.workstream_id, target_record.record_id, target_record.detail_digest,
+        "cross-workstream cleanup coverage", receipt,
+    )
+    request = WorkstreamAppendRequest(
+        "planner", None, "no_related_thread", (), True, "dependent root", "needs source detail", "real-git", "high",
+        depends_on=(dependency,),
+    )
+    dependent = plan_workstream_append(
+        dependent, request, expected_head=HEAD, actual_head=HEAD,
+        pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(dependent)),
+        branch=dependent.effective_branch, clock=fixed_clock(START + timedelta(minutes=21)), active_ledgers=(source,),
+    )
+    _commit_ledger(root, workstream_ledger_path(dependent.header.workstream_id), dependent, "reflection: cross dependency")
+    return dependent
 
 
 def test_trusted_history_rejects_raw_sole_deletion_and_admits_exact_proof_pair(tmp_path):
@@ -684,13 +721,111 @@ def test_trusted_history_rejects_raw_tail_deletion(tmp_path):
     raw = render_workstream_ledger(ledger)
     # The closeout record is an exact final block, so removing it leaves
     # otherwise canonical bytes but must still be history-classified.
-    tail_deleted = raw.rsplit("\n## Record ", 1)[0] + "\n"
+    last_block = raw.rfind("\n## Record ")
+    tail_deleted = raw[:last_block]
+    assert tail_deleted.endswith("\n") and not tail_deleted.endswith("\n\n")
+    assert parse_workstream_ledger(tail_deleted, ledger_path).records == ledger.records[:-1]
     (root / Path(ledger_path)).write_text(tail_deleted, encoding="utf-8")
     _git(root, "add", "--", ledger_path)
     _git(root, "commit", "--quiet", "-m", "forged tail deletion")
     with pytest.raises(ReflectionValidationError) as refused:
         load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
     assert refused.value.diagnostic.code == "compaction-proof-missing"
+    assert workstream_board_view(root, trusted_ref="refs/heads/codex/feature/example").exit_code == 1
+    with pytest.raises(ReflectionValidationError) as append_refused:
+        preview_workstream_append_commit(
+            root, trusted_ref="refs/heads/codex/feature/example", workstream_id=ledger.header.workstream_id,
+            request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "new", "reason", "test", "high"),
+            clock=fixed_clock(START + timedelta(minutes=9)),
+        )
+    assert append_refused.value.diagnostic.code == "compaction-proof-missing"
+
+
+def test_compaction_requires_scoped_locator_and_early_retention_evidence(tmp_path):
+    locator_root, locator_ledger, locator_path, locator_chain = _closed_git_workstream(tmp_path / "locator")
+    _admit_real_git_compaction(locator_root, locator_ledger, locator_path, locator_chain, receipt_decision_id="D2")
+    with pytest.raises(ReflectionValidationError) as mismatched_locator:
+        load_trusted_workstream_ledger(locator_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=locator_path)
+    assert mismatched_locator.value.diagnostic.code == "compaction-proof-session"
+
+    malformed_root, malformed_ledger, malformed_path, malformed_chain = _closed_git_workstream(tmp_path / "malformed")
+    _admit_real_git_compaction(malformed_root, malformed_ledger, malformed_path, malformed_chain,
+                               duplicate_evidence_entry=True)
+    with pytest.raises(ReflectionValidationError) as malformed:
+        load_trusted_workstream_ledger(malformed_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=malformed_path)
+    assert malformed.value.diagnostic.code == "session-locator"
+
+    retention_root, retention_ledger, retention_path, retention_chain = _closed_git_workstream(tmp_path / "retention")
+    _admit_real_git_compaction(retention_root, retention_ledger, retention_path, retention_chain,
+                               include_early_approval=False)
+    with pytest.raises(ReflectionValidationError) as no_approval:
+        load_trusted_workstream_ledger(retention_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=retention_path)
+    assert no_approval.value.diagnostic.code == "compaction-proof-retention"
+
+    promoted_root, promoted_ledger, promoted_path, promoted_chain = _closed_git_workstream(tmp_path / "promoted")
+    _admit_real_git_compaction(promoted_root, promoted_ledger, promoted_path, promoted_chain,
+                               member_disposition="already-covered-by-decision")
+    with pytest.raises(ReflectionValidationError) as promoted:
+        load_trusted_workstream_ledger(promoted_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=promoted_path)
+    assert promoted.value.diagnostic.code == "early-expiry"
+
+
+def test_compaction_refuses_open_cross_workstream_dependency_without_exact_fallback(tmp_path):
+    naked_root, naked_ledger, naked_path, naked_chain = _closed_git_workstream(tmp_path / "naked")
+    _write_open_cross_workstream_dependent(naked_root, naked_ledger, naked_ledger.records[0], receipt=None)
+    _admit_real_git_compaction(naked_root, naked_ledger, naked_path, naked_chain)
+    with pytest.raises(ReflectionValidationError) as naked:
+        load_trusted_workstream_ledger(naked_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=naked_path)
+    assert naked.value.diagnostic.code == "dependency"
+
+    covered_root, covered_ledger, covered_path, covered_chain = _closed_git_workstream(tmp_path / "covered")
+    source_record = covered_ledger.records[0]
+    receipt = WorkstreamDependencyReceipt(
+        ".memory-seed/sessions/2026-09/2026-09-06.md", "mse_0123456789abcdef", "D1",
+        workstream_receipt_id(covered_ledger.header.id_salt, covered_ledger.header.workstream_id,
+                              covered_chain, source_record.detail_digest), "sha256:" + "1" * 64,
+    )
+    _write_open_cross_workstream_dependent(covered_root, covered_ledger, source_record, receipt=receipt)
+    _admit_real_git_compaction(covered_root, covered_ledger, covered_path, covered_chain)
+    admitted = load_trusted_workstream_ledger(
+        covered_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=covered_path,
+    )
+    assert admitted.validation == "admitted-compaction"
+
+
+def test_raw_guarded_v2_routes_refuse_git_backed_context_before_any_mutation(tmp_path):
+    root, ledger, ledger_path = _new_git_workstream(tmp_path)
+    trusted_ref = "refs/heads/codex/feature/example"
+    with pytest.raises(ReflectionValidationError) as implicit_git:
+        guarded_init_workstream_ledger(root, expected_head=HEAD, actual_head=HEAD, working_branch="codex/feature/new",
+                                       base_sha=BASE)
+    assert implicit_git.value.diagnostic.code == "guarded-git-mutation"
+    with pytest.raises(ReflectionValidationError) as init:
+        guarded_init_workstream_ledger(root, expected_head=HEAD, actual_head=HEAD, working_branch="codex/feature/new",
+                                       base_sha=BASE, trusted_ref=trusted_ref)
+    assert init.value.diagnostic.code == "guarded-git-mutation"
+    with pytest.raises(ReflectionValidationError) as append:
+        guarded_append_workstream_ledger(
+            root, workstream_id=ledger.header.workstream_id,
+            request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "new", "reason", "test", "high"),
+            expected_head=HEAD, actual_head=HEAD, pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(ledger)),
+            branch=ledger.effective_branch, trusted_ref=trusted_ref,
+        )
+    assert append.value.diagnostic.code == "guarded-git-mutation"
+    with pytest.raises(ReflectionValidationError) as rebind:
+        guarded_apply_trusted_rebind(root, workstream_id=ledger.header.workstream_id, token=None,
+                                     integration_commit=HEAD, current_target_tip=HEAD, verifier=AcceptRebind(),
+                                     reason="unused", trusted_ref=trusted_ref)
+    assert rebind.value.diagnostic.code == "guarded-git-mutation"
+    with pytest.raises(ReflectionValidationError) as expiry:
+        guarded_apply_workstream_expiry(root, workstream_id=ledger.header.workstream_id, preview=None,
+                                        actual_head=HEAD, integration_witness=None, integration_verifier=AcceptRebind(),
+                                        trusted_ref=trusted_ref)
+    assert expiry.value.diagnostic.code == "guarded-git-mutation"
+    (root / Path(ledger_path)).unlink()
+    board = workstream_board_view(root, trusted_ref=trusted_ref)
+    assert board.exit_code == 1
+    assert board.items[0].diagnostic is not None and board.items[0].diagnostic.code == "missing-ledger"
 
 
 def test_trusted_history_rejects_raw_middle_chain_deletion(tmp_path):
@@ -820,7 +955,7 @@ def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit
     closed = plan_trusted_workstream_chain_close(
         loaded, chain_id=second_chain, receipts=receipts, receipt_verifier=AdmitReceipts(), integration_witness=witness,
         integration_verifier=_LocalBranchRebind(), conclusion="closed", reasoning="reviewed", source="real-git", confidence="high",
-        clock=fixed_clock(START + timedelta(minutes=11)),
+        clock=fixed_clock(START + timedelta(minutes=11)), active_ledgers=(loaded,),
     )
     _commit_ledger(root, ledger_path, closed, "reflection: close second chain")
     loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
@@ -828,6 +963,7 @@ def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit
         loaded, chain_ids=(second_chain,), now=START + timedelta(days=8), receipts=[
             admitted_receipt_for(loaded.ledger, record) for record in loaded.ledger.records if record.chain_id == second_chain
         ], receipt_verifier=AdmitReceipts(), integration_witness=witness, integration_verifier=_LocalBranchRebind(),
+        active_ledgers=(loaded,),
     )
     assert expiry.removed_chain_ids == (second_chain,)
     _admit_real_git_compaction(root, loaded.ledger, ledger_path, second_chain,
