@@ -4,7 +4,7 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review the history-aware admitted-compaction and adapter-owned append-persistence amendments before any further v2 implementation; do not reopen or implement them without that review."
+next_action: "Finish reviewed v2 core hardening; re-review v1 retirement integration/packet guards and obtain ratification of its narrow Constitution transition before removing legacy writers."
 source:
   - "docs/2_Todo/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
@@ -31,6 +31,12 @@ acceptance_criteria:
 # Reflection ledger workstream evolution
 
 ## Decision and boundary
+
+The 2026-09-07 [v1 authoring-retirement amendment](reflection-v1-authoring-retirement-plan.md)
+narrows compatibility to historical reading and verification. Its removal boundary requires independent
+review before implementation; new work receives no v1 authoring, reservation, fuse, close, or expiry route.
+Its proposed exception to Constitution 1.12 for already-closed v1 chains is still unratified; v1 cleanup
+retirement cannot land until that explicit governance gate passes. Version 2 expiry remains unchanged.
 
 The landed participant-fragment and fuse kernel remains historical truth. It was the right safety model for
 the original plan's independent, parallel participant branches. The next architecture has a different
@@ -246,14 +252,14 @@ integration order and durable receipts, never by copying another branch's ledger
 | Early unpromoted expiry approval verification | Retain; adapt its Ed25519 host-signing and Git-admission mechanics for v2 retention extensions | Arbitrary caller text must not authorise either early disposal or longer retention. |
 | `ReflectionManifest` roster, participant seal, reservation seed, report/fragment IDs and paths | Retire for new boards; retain readers | A single branch needs no participant allocation or pre-dispatch pair. |
 | Worker reports paired with fragments and report-provenance admission | Simplify | A record carries measured evidence/commit references directly; optional handoff reports remain Task Packet artifacts, not ledger authority. |
-| Per-participant fragment ownership and source-branch fuse | Retire for new boards; retain `v1` compatibility fuse | They solve concurrent same-plan writers, which the new design disallows. |
+| Per-participant fragment ownership and source-branch fuse | Remove active writer/fuse infrastructure; retain historical verification only | They solve concurrent same-plan writers, which the new design disallows. |
 | Coordinated session/reflection fuse and reflection trailers | Simplify to branch append/integration receipt | There is one current ledger writer, so no union of independently authored reflection paths is required. |
 | Per-plan active common view | Retain as a derived one-ledger view | It still exposes all local records and dissent. |
 | Cross-branch common view | Replace with derived board view | It inspects separately authoritative ledgers; it never fuses them. |
 | Pre-reserved Task Packet reflection paths/IDs | Retire | A workstream writer receives the canonical ledger path and expected digest at append time; no content-independent participant reservation is needed. |
 
-The implementation must mark all old-format public names as `v1` compatibility behavior in help and
-reference docs. It must not silently reinterpret a v1 manifest as a workstream ledger or write a v2 record
+The implementation exposes old-format inspection only as read-only `v1` compatibility in help and
+reference docs; old authoring and fuse operations are retired. It must not silently reinterpret a v1 manifest as a workstream ledger or write a v2 record
 into a v1 directory.
 
 ## Promotion, receipt, closure, and expiry
@@ -287,8 +293,8 @@ authoritative.
 
 | Surface | Required evolution |
 | --- | --- |
-| Core | Add a versioned standalone parser, canonical append planner/preview, append transaction result, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Preserve v1 parser, fuse, receipt, and closeout readers behind explicit compatibility routing. |
-| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7. `append --apply` owns the ledger-only commit/ref-CAS transaction and returns its new committed identity; callers make no external Git commit. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Make old fragment/fuse commands visibly v1-only. |
+| Core | Add a versioned standalone parser, canonical append planner/preview, append transaction result, phase/etag validator, local-chain resolver, dependency resolver, and derived board projection. Keep `parse_workstream_ledger` and public normal validation strict; the shared trusted-Git loader must classify the complete path history as monotonic normal or proof-admitted compaction before returning either. Put the structural-only primitive behind a private verifier that can run only after its exact Git/session proof succeeds. Preserve only v1 historical parser, receipt, closeout, and committed-tree verification behind explicit read-only compatibility routing; remove v1 fuse/write machinery. |
+| CLI | Add outcome-level `reflection ledger init`, `append`, `check`, `view`, `close`, and `expire`; init permits only retention 7, 14, or 30, reloads a host-owned admitted preflight for 14/30, and mints its own candidate identity for 7. `append --apply` owns the ledger-only commit/ref-CAS transaction and returns its new committed identity; callers make no external Git commit. `check`, `view`, `append`, `close`, and `expire` load through the one history-aware trusted-Git core loader. `expire --apply` owns the protected two-commit proof pair; it accepts no caller-supplied proof fields. Add read-only `reflection board view`. Expose historical v1 inspection only; old fragment/fuse authoring commands are absent or refuse without writes. |
 | MCP | Add parity read operations for ledger and board views and guarded append/close/expire paths that call the same history-aware core loader, planner, and Git/session adapter. The append operation owns the identical ledger-only commit/ref-CAS transaction; it never asks the caller to commit. Return identical rendered bytes and `{code, path, message, details}` errors. MCP accepts no raw proof, commit/blob, post-image, or arbitrary file-write input; it has no merge or early-expiry-approval bypass. |
 | ESR | Report per-chain workstream-ledger phase state, unresolved chains/heads, missing receipt coverage, broken real dependencies, per-chain expiry candidates, and each trusted ledger's `normal` or `admitted-compaction` history classification/proof diagnostic. It reads only the trusted committed blob, so it observes a successful append immediately and never treats an uncommitted worktree suffix as state. It must distinguish v1 fragment boards from fresh and admitted-compacted v2 ledgers. |
 | `agent_collaboration.md` and Seed twin | Replace new-board guidance that assigns fragment reservations with the one-branch sequential handoff: planner -> implementer -> reviewer -> orchestrator; retain separate worktrees for parallel features. |
@@ -300,7 +306,7 @@ authoritative.
 ## Migration and compatibility posture
 
 There is no migration, conversion, or backfill. Existing v1 plans keep their participant fragments, manifests,
-fuse trailers, closeouts, expiry semantics, record IDs, and receipts. Their current readers and verifier tests
+fuse trailers, closeouts, recorded expiry evidence, record IDs, and receipts. Their historical readers and verifier tests
 remain required regression coverage. A new workstream ledger begins only through the new explicit init path.
 
 The compatibility boundary is a discriminator, not heuristic detection: v1 paths retain `manifest.yaml` and
@@ -322,7 +328,7 @@ rewritten.
 | Close and expiry | Validated reviewed chains close independently and expire at that chain's `closed_at + retention`; peers remain active. | Board wipe, open/unreviewed/unresolved chain, a retention value outside 7/14/30, missing/forged/replayed/expired or Git-unadmitted extension approval, early promoted cleanup, and cleanup of a dependency target still required by an open chain refuse. |
 | Admitted compaction proof | Real-Git fixtures prove both strict-invalid middle removal and strict-valid tail-chain or sole-chain/header-only removal are admitted only by their canonical two-commit session/Git proof. The loader proves every pre/post blob and digest, chain/member closure receipts, byte-removal derivation, then accepts a fresh suffix append whose predecessor binds the compacted bytes. Repeated tail and header-only compactions recurse through each earlier proof. | Raw tail-chain or sole-chain/header-only deletion without a proof; missing/uncommitted/noncanonical receipt; wrong session trailer, entry, decision, path, workstream, pre-tip, commit, blob, mode, digest, parent, reachability, or restricted diff; receipt/event replay, conflicting duplicate/incomparable proof, stale non-prefix bytes, missing/forged close or member receipt, partial-chain/extra-ID/rebind removal, re-rendered retained block/header, inserted cleanup block, altered separator derivation, raw `verify_predecessors=False`, and caller-supplied CLI/MCP proof all refuse. |
 | History-aware readers and board | Ledger check/view, guarded append/close/expiry, dependency resolution, ESR, and a board with normal plus compacted candidates all route through the same trusted-history loader; a normal image is so labelled only after append/rebind-only history proof, while a proven compacted candidate is `valid` with `validation: admitted-compaction`. The board remains read-only. | A strict-valid tail or sole deletion classified as normal; a reader that bypasses history/admission, chooses an ambiguous proof, hides a missing/forged proof candidate, converts v1, writes a cache as authority, or lets a stale append/cleanup write fails. |
-| Compatibility | Existing `tests/test_reflection_ledger.py` v1 fixtures still parse, view, close, expire, and fuse. | A v2 writer pointed at a v1 board, v1 fuse pointed at v2 data, or mixed family directory refuses. |
+| Compatibility | Existing v1 fixtures still parse, view, and verify recorded close/expiry/fuse evidence without mutation. | Any new v1 authoring/fuse/close/expiry operation, v2 writer pointed at v1 data, or mixed family directory is absent or refuses. |
 | Surface parity | CLI and MCP return the same valid result, rendered bytes, committed append identity, normal/admitted classification, and diagnostics for shared fixtures. | One surface accepting an invalid append, requiring a manual commit, observing an uncommitted suffix, or bypassing phase/approval/history validation fails parity tests. |
 
 Acceptance is complete only when the existing v1 suite and new focused ledger, real-Git compaction, surfaces,
@@ -856,7 +862,7 @@ object, or a cache assertion.
 
 The family discriminator remains the v1 boundary. These receipts and this reader apply only to the declared
 v2 ledger path/schema. A v1 manifest, fragment, fuse, closeout, or receipt cannot supply a v2 compaction
-proof; v1 retains its existing readers and expiry semantics without conversion.
+proof; v1 retains historical readers and verification of recorded expiry evidence without conversion or new mutation.
 
 ### Gates and reduction proof
 
@@ -886,7 +892,7 @@ cases. A real-Git append sequence must prove `append -> check/view/ESR/board -> 
 returned committed identity with no external manual commit; it must also prove dirty ledger and staged
 unrelated refusal, commit-construction rollback, ref-race rollback, detached/wrong-branch refusal, and no
 partial ref/worktree/index mutation. Board tests additionally prove malformed candidates are reported and
-non-zero. The v1 suite remains unchanged. The normal v2 path is accepted only with one active authority file,
+non-zero. The v1 reader/verification tests remain; obsolete mutation successes become removal/refusal tests. The normal v2 path is accepted only with one active authority file,
 one guarded adapter-owned append commit, zero participant reservations, zero v2 fuse operations,
 append/rebind-only trusted history, and no public predecessor-validation bypass; every exception is counted
 and justified as v1 reader/receipt compatibility, never hidden v2 coordination.

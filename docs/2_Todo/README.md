@@ -21,7 +21,8 @@
 | [memory-trace-ux-m0-interaction-matrix.md](memory-trace-ux-m0-interaction-matrix.md) | P1 | [] | Implement M3 bounded graph perspectives and controlled expansion against the named fixtures. |
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [plan-reflection-ledger.md](plan-reflection-ledger.md) | P1 | — | Independently review the ratified chain-expiry, immediate-promotion, embedded-receipt, and acti… |
-| [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Independently review the history-aware admitted-compaction and adapter-owned append-persistence… |
+| [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Finish reviewed v2 core hardening; re-review v1 retirement integration/packet guards and obtain… |
+| [reflection-v1-authoring-retirement-plan.md](reflection-v1-authoring-retirement-plan.md) | P1 | — | Focused independent re-review of integration and packet guards plus the proposed v1 transition … |
 | [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |

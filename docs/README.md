@@ -107,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 57 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 58 · 3_Spec 9 · 4_Reference 21 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 31 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [seed-pod-p0-reconciliation-plan.md](2_Todo/seed-pod-p0-reconciliation-plan.md) — Independently review this reconciliation plan before staging any Seed Pod P0 implementation work.
@@ -128,7 +128,8 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [plan-reflection-ledger.md](2_Todo/plan-reflection-ledger.md) — Independently review the ratified chain-expiry, immediate-promotion, embedded-receipt, and active-thread retrieval contract before implemen…
-- **P1** [reflection-ledger-workstream-evolution-plan.md](2_Todo/reflection-ledger-workstream-evolution-plan.md) — Independently review the history-aware admitted-compaction and adapter-owned append-persistence amendments before any further v2 implementa…
+- **P1** [reflection-ledger-workstream-evolution-plan.md](2_Todo/reflection-ledger-workstream-evolution-plan.md) — Finish reviewed v2 core hardening; re-review v1 retirement integration/packet guards and obtain ratification of its narrow Constitution tra…
+- **P1** [reflection-v1-authoring-retirement-plan.md](2_Todo/reflection-v1-authoring-retirement-plan.md) — Focused independent re-review of integration and packet guards plus the proposed v1 transition amendment; obtain maintainer ratification be…
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 - **P1** [storyline-gap-tranche-implementation-plan.md](2_Todo/storyline-gap-tranche-implementation-plan.md) — None — R5, R8, and R13 are reconciled from reviewed implementation evidence.
