@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import ast
 import inspect
@@ -8,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import stat
+from types import SimpleNamespace
 
 import pytest
 
@@ -52,6 +55,13 @@ from memory_seed.reflection_ledger import (
     preview_trusted_workstream_expiry,
     preview_workstream_append_commit,
     apply_workstream_append_commit,
+    apply_workstream_commit,
+    preview_workstream_init_commit,
+    preview_workstream_rebind_commit,
+    preview_workstream_close_commit,
+    plan_workstream_chain_receipts,
+    admit_workstream_chain_receipts,
+    render_workstream_receipt,
     plan_trusted_workstream_chain_close,
     render_retention_approval,
     render_retention_preflight,
@@ -1507,6 +1517,277 @@ def test_real_git_append_refuses_detached_head_and_cas_race_without_ledger_leak(
         apply_workstream_append_commit(root, preview, fault_injector=move_ref)
     assert raced.value.diagnostic.code == "stale_ref"
     assert (root / Path(ledger_path)).read_bytes() == original
+
+
+def _transaction_state(root):
+    return (_git(root, "rev-parse", "HEAD"), _git(root, "show-ref"), _git(root, "ls-files", "--stage"),
+            {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*")
+             if p.is_file() and ".git" not in p.relative_to(root).parts},
+            sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
+                   if p.is_dir() and ".git" not in p.relative_to(root).parts))
+
+
+class _TransactionRebindVerifier(TrustedRebindVerifier):
+    def __init__(self, token, integration):
+        self.token, self.integration = token, integration
+        self.valid = True
+        self.witnesses = []
+
+    def verify(self, token, *, integration_commit, current_target_tip):
+        return self.valid and token == self.token and integration_commit == current_target_tip == self.integration
+
+    def admit_witness(self, token, rebind, *, integration_commit):
+        witness = TrustedIntegrationWitness(token.workstream_id, rebind.record_id, rebind.from_branch, rebind.to_branch,
+                                             rebind.source_tip, rebind.target_pre_merge_tip, integration_commit, rebind.pre_ledger_digest)
+        self.witnesses.append(witness)
+        return witness
+
+    def verify_witness(self, witness):
+        return self.valid and witness in self.witnesses
+
+
+class _TransactionReceiptVerifier(WorkstreamReceiptVerifier):
+    def __init__(self, receipts):
+        self.receipts = receipts
+        self.valid = True
+
+    def verify(self, admitted):
+        return self.valid and admitted in self.receipts
+
+
+def _planned_transaction(tmp_path, operation):
+    root, synthetic, _path = _new_git_workstream(tmp_path)
+    branch = synthetic.header.working_branch
+    # Disposable fixture only: start the tested sequence at the plain base.
+    _git(root, "checkout", "--quiet", "-B", branch, synthetic.header.base_sha)
+    init = preview_workstream_init_commit(root, trusted_ref=branch, clock=lambda: START)
+    if operation == "init":
+        return root, init, {}
+    initial = apply_workstream_commit(root, init)
+    workstream = initial.ledger.header.workstream_id
+    root_request = WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high")
+    first = preview_workstream_append_commit(root, trusted_ref=branch, workstream_id=workstream, request=root_request)
+    if operation == "append":
+        return root, first, {}
+    ledger = apply_workstream_append_commit(root, first).ledger
+    chain = ledger.records[0].chain_id
+    for role, phase in (("planner", None), ("implementer", None), ("reviewer", "orchestrate")):
+        request = WorkstreamAppendRequest(role, chain, "refines", (ledger.records[-1].record_id,), False,
+                                          role, "reason", "test", "high", to_phase=phase)
+        planned = preview_workstream_append_commit(root, trusted_ref=branch, workstream_id=workstream, request=request)
+        ledger = apply_workstream_append_commit(root, planned).ledger
+    source_tip = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "--quiet", "-b", "integration", synthetic.header.base_sha)
+    target_tip = _git(root, "rev-parse", "HEAD")
+    token = preview_trusted_rebind(ledger, source_tip=source_tip, target_branch="integration",
+                                    target_pre_merge_tip=target_tip, token_factory=lambda: "host-issued-integration-token")
+    _git(root, "merge", "--quiet", "--no-ff", "-m", "integrate source", branch)
+    verifier = _TransactionRebindVerifier(token, _git(root, "rev-parse", "HEAD"))
+    kwargs = dict(trusted_ref="integration", workstream_id=workstream, token=token, verifier=verifier, reason="verified integration")
+    planned = preview_workstream_rebind_commit(root, **kwargs)
+    context = {"rebind_kwargs": kwargs, "verifier": verifier, "source_branch": branch, "chain": chain}
+    if operation == "rebind":
+        return root, planned, context
+    rebound = apply_workstream_commit(root, planned)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=init.ledger_path)
+    locator = dict(chain_id=chain, session_path=".memory-seed/sessions/2026-09/2026-09-06.md",
+                   entry_id="mse_0123456789abcdef", decision_id="D1", disposition="promoted-to-decision")
+    drafts = plan_workstream_chain_receipts(loaded, **locator)
+    body = _session_entry("2026-09-06 12:10 - Validated synthesis", locator["entry_id"])
+    body += "\n".join("```yaml\n" + render_workstream_receipt(item) + "```\n" for item in drafts)
+    session = root / locator["session_path"]
+    session.parent.mkdir(parents=True, exist_ok=True)
+    session.write_text(body, encoding="utf-8")
+    _git(root, "add", locator["session_path"])
+    _git(root, "commit", "--quiet", "-m", "durable synthesis receipts")
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=init.ledger_path)
+    receipts = admit_workstream_chain_receipts(loaded, session_ref="HEAD", **locator)
+    receipt_verifier = _TransactionReceiptVerifier(receipts)
+    close_kwargs = dict(trusted_ref="integration", workstream_id=workstream, chain_id=chain, receipts=receipts,
+                        receipt_verifier=receipt_verifier, integration_witness=rebound.integration_witness,
+                        integration_verifier=verifier, conclusion="closed", reasoning="reviewed and synthesized",
+                        source="test", confidence="high")
+    context.update(close_kwargs=close_kwargs, receipt_verifier=receipt_verifier, receipt_locator=locator)
+    return root, preview_workstream_close_commit(root, **close_kwargs), context
+
+
+@pytest.mark.parametrize("operation", ["init", "append", "rebind", "close"])
+def test_shared_transaction_positive_single_commit_and_single_use(tmp_path, operation):
+    root, planned, _context = _planned_transaction(tmp_path, operation)
+    result = apply_workstream_commit(root, planned)
+    assert _git(root, "rev-parse", "HEAD^") == planned.expected_head
+    assert _git(root, "diff-tree", "--no-commit-id", "--name-only", "-r", result.new_head) == planned.ledger_path
+    assert _git(root, "status", "--porcelain") == ""
+    assert result.post_ledger_digest == planned.post_ledger_digest
+    assert result.record_id == planned.record_id
+    assert (operation == "rebind") == (result.integration_witness is not None)
+    if operation == "init":
+        assert not result.ledger.entries and result.ledger.header.base_sha == planned.expected_head
+    elif operation == "close":
+        assert result.ledger.records[-1].to_phase == "closed"
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        apply_workstream_commit(root, planned)
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("operation", ["init", "append", "rebind", "close"])
+def test_shared_transaction_forged_mutated_detached_wrong_worktree_and_stale_refuse(tmp_path, operation):
+    root, planned, _context = _planned_transaction(tmp_path, operation)
+    for field, value in (("suffix_bytes", b"forged\n"), ("operation", "expire"), ("token", "fabricated"),
+                          ("record_id", "rlr_" + "0" * 20)):
+        forged = deepcopy(planned)
+        object.__setattr__(forged, field, value)
+        before = _transaction_state(root)
+        with pytest.raises(ReflectionValidationError):
+            apply_workstream_commit(root, forged)
+        assert _transaction_state(root) == before
+    clone = tmp_path / "clone"
+    _git(root, "worktree", "add", "--quiet", "--force", str(clone), planned.trusted_ref)
+    before = _transaction_state(clone)
+    with pytest.raises(ReflectionValidationError) as wrong:
+        apply_workstream_commit(clone, planned)
+    assert wrong.value.diagnostic.code == "transaction-worktree"
+    assert _transaction_state(clone) == before
+    branch = _git(root, "branch", "--show-current")
+    _git(root, "checkout", "--quiet", "--detach")
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as detached:
+        apply_workstream_commit(root, planned)
+    assert detached.value.diagnostic.code == "append-detached-head"
+    assert _transaction_state(root) == before
+    _git(root, "checkout", "--quiet", branch)
+    (root / "README.md").write_text("post-plan mutation\n", encoding="utf-8")
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        apply_workstream_commit(root, planned)
+    assert _transaction_state(root) == before
+    _git(root, "add", "README.md")
+    _git(root, "commit", "--quiet", "-m", "move planned ref")
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as stale:
+        apply_workstream_commit(root, planned)
+    assert stale.value.diagnostic.code == "stale_head"
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("operation", ["init", "append", "rebind", "close"])
+def test_shared_transaction_ref_cas_failure_restores_index_and_ledger(tmp_path, operation):
+    root, planned, _context = _planned_transaction(tmp_path, operation)
+    before = _transaction_state(root)
+
+    def fail_commit(stage):
+        if stage == "before-commit":
+            raise RuntimeError("injected commit failure")
+
+    with pytest.raises(ReflectionValidationError) as construction:
+        apply_workstream_commit(root, planned, fault_injector=fail_commit)
+    assert construction.value.diagnostic.code == "append-commit-failed"
+    assert _transaction_state(root) == before
+    tree = _git(root, "rev-parse", "HEAD^{tree}")
+    competing = _git(root, "commit-tree", tree, "-p", planned.expected_head, "-m", "competing branch update")
+
+    def move_ref(stage):
+        if stage == "before-cas":
+            _git(root, "update-ref", planned.trusted_ref, competing, planned.expected_head)
+
+    with pytest.raises(ReflectionValidationError) as failed:
+        apply_workstream_commit(root, planned, fault_injector=move_ref)
+    assert failed.value.diagnostic.code == "stale_ref"
+    after = _transaction_state(root)
+    assert after[0] == competing
+    assert after[2:] == before[2:]
+    assert _git(root, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("operation", ["init", "append", "rebind", "close"])
+def test_shared_transaction_symlink_ancestor_refuses_before_writes(tmp_path, operation, monkeypatch):
+    root, planned, _context = _planned_transaction(tmp_path, operation)
+    before = _transaction_state(root)
+    original = Path.lstat
+
+    def hostile_lstat(path, *args, **kwargs):
+        if path == root / ".memory-seed":
+            return SimpleNamespace(st_mode=stat.S_IFLNK, st_reparse_tag=0)
+        return original(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "lstat", hostile_lstat)
+        with pytest.raises(ReflectionValidationError) as failed:
+            apply_workstream_commit(root, planned)
+        assert failed.value.diagnostic.code == "unsupported-reflection-format"
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("operation", ["rebind", "close"])
+def test_shared_transaction_authority_is_revalidated_after_preview(tmp_path, operation):
+    root, planned, context = _planned_transaction(tmp_path, operation)
+    context["verifier" if operation == "rebind" else "receipt_verifier"].valid = False
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        apply_workstream_commit(root, planned)
+    assert _transaction_state(root) == before
+
+
+def test_transaction_init_collision_and_unknown_reserved_files_refuse(tmp_path):
+    root, planned, _context = _planned_transaction(tmp_path, "init")
+    apply_workstream_commit(root, planned)
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        preview_workstream_init_commit(root, trusted_ref=planned.trusted_ref)
+    assert _transaction_state(root) == before
+    # Ignored state remains visible to the reserved-family inventory.
+    (root / ".git/info/exclude").write_text(".memory-seed/reflections/active/unknown\n", encoding="utf-8")
+    unknown = root / ".memory-seed/reflections/active/unknown"
+    unknown.write_text("unsupported\n", encoding="utf-8")
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        preview_workstream_init_commit(root, trusted_ref=planned.trusted_ref)
+    assert _transaction_state(root) == before
+
+
+def test_transaction_rebind_rejects_forged_source_and_retired_source_append(tmp_path):
+    root, planned, context = _planned_transaction(tmp_path, "rebind")
+    kwargs = context["rebind_kwargs"]
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError):
+        preview_workstream_rebind_commit(root, **{**kwargs, "token": replace(kwargs["token"], source_tip=HEAD)})
+    assert _transaction_state(root) == before
+    apply_workstream_commit(root, planned)
+    _git(root, "checkout", "--quiet", context["source_branch"])
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as retired:
+        preview_workstream_append_commit(root, trusted_ref=context["source_branch"], workstream_id=kwargs["workstream_id"],
+            request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high"))
+    assert retired.value.diagnostic.code == "branch-owner"
+    assert _transaction_state(root) == before
+
+
+def test_transaction_close_rejects_missing_forged_receipts_and_witness(tmp_path):
+    root, _planned, context = _planned_transaction(tmp_path, "close")
+    kwargs = context["close_kwargs"]
+    cases = [
+        {"receipts": ()},
+        {"receipts": (replace(kwargs["receipts"][0], blob="e" * 40),)},
+        {"integration_witness": replace(kwargs["integration_witness"], rebind_record_id="rlr_" + "0" * 20)},
+        {"chain_id": "rlc_" + "0" * 20},
+    ]
+    for override in cases:
+        before = _transaction_state(root)
+        with pytest.raises(ReflectionValidationError):
+            preview_workstream_close_commit(root, **{**kwargs, **override})
+        assert _transaction_state(root) == before
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=_planned.ledger_path)
+    request = WorkstreamAppendRequest("orchestrator", kwargs["chain_id"], "responds",
+        (loaded.ledger.records[0].record_id,), False, "divergence", "unresolved", "test", "high", to_phase="orchestrate")
+    diverge = preview_workstream_append_commit(root, trusted_ref="integration", workstream_id=kwargs["workstream_id"], request=request)
+    apply_workstream_append_commit(root, diverge)
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as divergent:
+        preview_workstream_close_commit(root, **kwargs)
+    assert divergent.value.diagnostic.code == "close"
+    assert "divergent" in divergent.value.diagnostic.message
+    assert _transaction_state(root) == before
 
 
 def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path, isolated_compaction_structure):
