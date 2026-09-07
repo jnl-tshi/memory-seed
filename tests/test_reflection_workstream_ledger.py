@@ -1555,7 +1555,18 @@ class _TransactionReceiptVerifier(WorkstreamReceiptVerifier):
         return self.valid and admitted in self.receipts
 
 
-def _planned_transaction(tmp_path, operation):
+def _commit_transaction_receipts(root, loaded, locator):
+    drafts = plan_workstream_chain_receipts(loaded, **locator)
+    body = _session_entry("2026-09-06 12:10 - Validated synthesis", locator["entry_id"])
+    body += "\n".join("```yaml\n" + render_workstream_receipt(item) + "```\n" for item in drafts)
+    session = root / locator["session_path"]
+    session.parent.mkdir(parents=True, exist_ok=True)
+    session.write_text(body, encoding="utf-8")
+    _git(root, "add", locator["session_path"])
+    _git(root, "commit", "--quiet", "-m", "durable synthesis receipts")
+
+
+def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
     root, synthetic, _path = _new_git_workstream(tmp_path)
     branch = synthetic.header.working_branch
     # Disposable fixture only: start the tested sequence at the plain base.
@@ -1576,6 +1587,11 @@ def _planned_transaction(tmp_path, operation):
                                           role, "reason", "test", "high", to_phase=phase)
         planned = preview_workstream_append_commit(root, trusted_ref=branch, workstream_id=workstream, request=request)
         ledger = apply_workstream_append_commit(root, planned).ledger
+    locator = dict(chain_id=chain, session_path=".memory-seed/sessions/2026-09/2026-09-06.md",
+                   entry_id="mse_0123456789abcdef", decision_id="D1", disposition="promoted-to-decision")
+    if receipt_origin == "source":
+        loaded = load_trusted_workstream_ledger(root, trusted_ref=branch, ledger_path=init.ledger_path)
+        _commit_transaction_receipts(root, loaded, locator)
     source_tip = _git(root, "rev-parse", "HEAD")
     _git(root, "checkout", "--quiet", "-b", "integration", synthetic.header.base_sha)
     target_tip = _git(root, "rev-parse", "HEAD")
@@ -1585,23 +1601,16 @@ def _planned_transaction(tmp_path, operation):
     verifier = _TransactionRebindVerifier(token, _git(root, "rev-parse", "HEAD"))
     kwargs = dict(trusted_ref="integration", workstream_id=workstream, token=token, verifier=verifier, reason="verified integration")
     planned = preview_workstream_rebind_commit(root, **kwargs)
-    context = {"rebind_kwargs": kwargs, "verifier": verifier, "source_branch": branch, "chain": chain}
+    context = {"rebind_kwargs": kwargs, "verifier": verifier, "source_branch": branch, "chain": chain,
+               "receipt_locator": locator}
     if operation == "rebind":
         return root, planned, context
     rebound = apply_workstream_commit(root, planned)
     loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=init.ledger_path)
-    locator = dict(chain_id=chain, session_path=".memory-seed/sessions/2026-09/2026-09-06.md",
-                   entry_id="mse_0123456789abcdef", decision_id="D1", disposition="promoted-to-decision")
-    drafts = plan_workstream_chain_receipts(loaded, **locator)
-    body = _session_entry("2026-09-06 12:10 - Validated synthesis", locator["entry_id"])
-    body += "\n".join("```yaml\n" + render_workstream_receipt(item) + "```\n" for item in drafts)
-    session = root / locator["session_path"]
-    session.parent.mkdir(parents=True, exist_ok=True)
-    session.write_text(body, encoding="utf-8")
-    _git(root, "add", locator["session_path"])
-    _git(root, "commit", "--quiet", "-m", "durable synthesis receipts")
+    _commit_transaction_receipts(root, loaded, locator)
     loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=init.ledger_path)
-    receipts = admit_workstream_chain_receipts(loaded, session_ref="HEAD", **locator)
+    receipts = admit_workstream_chain_receipts(loaded, session_ref="HEAD", **locator,
+        integration_witness=rebound.integration_witness, integration_verifier=verifier)
     receipt_verifier = _TransactionReceiptVerifier(receipts)
     close_kwargs = dict(trusted_ref="integration", workstream_id=workstream, chain_id=chain, receipts=receipts,
                         receipt_verifier=receipt_verifier, integration_witness=rebound.integration_witness,
@@ -1788,6 +1797,96 @@ def test_transaction_close_rejects_missing_forged_receipts_and_witness(tmp_path)
     assert divergent.value.diagnostic.code == "close"
     assert "divergent" in divergent.value.diagnostic.message
     assert _transaction_state(root) == before
+
+
+def test_review_rebind_source_ref_race_is_atomically_rejected(tmp_path):
+    root, planned, context = _planned_transaction(tmp_path, "rebind")
+    source_ref = "refs/heads/" + context["source_branch"]
+    source_tip = context["rebind_kwargs"]["token"].source_tip
+    source_tree = _git(root, "rev-parse", source_ref + "^{tree}")
+    advanced_source = _git(root, "commit-tree", source_tree, "-p", source_tip, "-m", "source raced after validation")
+    before = _transaction_state(root)
+
+    def advance_source(stage):
+        if stage == "before-cas":
+            _git(root, "update-ref", source_ref, advanced_source, source_tip)
+
+    with pytest.raises(ReflectionValidationError) as raced:
+        apply_workstream_commit(root, planned, fault_injector=advance_source)
+    assert raced.value.diagnostic.code == "stale_ref"
+    after = _transaction_state(root)
+    assert after[0] == before[0] == planned.expected_head
+    assert after[2:] == before[2:]
+    assert _git(root, "rev-parse", source_ref) == advanced_source
+    assert _git(root, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("snapshot", ["older", "divergent"])
+def test_review_retired_source_rejects_older_and_divergent_snapshots(tmp_path, snapshot):
+    root, planned, context = _planned_transaction(tmp_path, "rebind")
+    source_tip = context["rebind_kwargs"]["token"].source_tip
+    apply_workstream_commit(root, planned)
+    _git(root, "checkout", "--quiet", "-B", context["source_branch"], source_tip + "^")
+    if snapshot == "divergent":
+        _git(root, "commit", "--quiet", "--allow-empty", "-m", "divergent old ownership snapshot")
+    assert source_tip not in _git(root, "rev-list", "HEAD").splitlines()
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as retired:
+        preview_workstream_append_commit(root, trusted_ref=context["source_branch"],
+            workstream_id=context["rebind_kwargs"]["workstream_id"],
+            request=WorkstreamAppendRequest("planner", None, "no_related_thread", (), True, "root", "reason", "test", "high"))
+    assert retired.value.diagnostic.code == "branch-owner"
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("locator_commit", ["source", "integration", "rebind", "later"])
+def test_review_preintegration_receipts_refuse_admission_and_close(tmp_path, locator_commit):
+    root, planned, context = _planned_transaction(tmp_path, "rebind", receipt_origin="source")
+    rebound = apply_workstream_commit(root, planned)
+    if locator_commit == "later":
+        _git(root, "commit", "--quiet", "--allow-empty", "-m", "new locator for old receipt blob")
+    _assert_preintegration_receipts_refused(root, planned, context, rebound, locator_commit)
+
+
+def _assert_preintegration_receipts_refused(root, planned, context, rebound, locator_commit):
+    locator = context["receipt_locator"]
+    session_ref = {"source": context["rebind_kwargs"]["token"].source_tip,
+                   "integration": planned.expected_head}.get(locator_commit, "HEAD")
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=planned.ledger_path)
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as admission:
+        admit_workstream_chain_receipts(loaded, session_ref=session_ref, **locator,
+            integration_witness=rebound.integration_witness, integration_verifier=context["verifier"])
+    assert admission.value.diagnostic.code == "receipt-integration"
+    assert _transaction_state(root) == before
+
+    # Even a host that accepts structurally exact receipt objects cannot turn
+    # a pre-integration origin into post-integration close coverage.
+    drafts = plan_workstream_chain_receipts(loaded, **locator)
+    commit = _git(root, "rev-parse", session_ref)
+    blob = _git(root, "rev-parse", commit + ":" + locator["session_path"])
+    untrusted = tuple(AdmittedWorkstreamReceipt(receipt, commit, blob) for receipt in drafts)
+    before = _transaction_state(root)
+    with pytest.raises(ReflectionValidationError) as close:
+        preview_workstream_close_commit(root, trusted_ref="integration", workstream_id=loaded.ledger.header.workstream_id,
+            chain_id=context["chain"], receipts=untrusted, receipt_verifier=_TransactionReceiptVerifier(untrusted),
+            integration_witness=rebound.integration_witness, integration_verifier=context["verifier"],
+            conclusion="close", reasoning="claimed synthesis", source="test", confidence="high")
+    assert close.value.diagnostic.code == "receipt-integration"
+    assert _transaction_state(root) == before
+
+
+def test_review_postintegration_merge_cannot_launder_preintegration_receipts(tmp_path):
+    root, planned, context = _planned_transaction(tmp_path, "rebind")
+    source = load_trusted_workstream_ledger(root, trusted_ref=context["source_branch"], ledger_path=planned.ledger_path)
+    # This receipt branch carries no ledger, so the later merge has exactly
+    # one ledger-bearing parent and otherwise remains valid trusted history.
+    _git(root, "checkout", "--quiet", "-b", "receipt-source", source.ledger.header.base_sha)
+    _commit_transaction_receipts(root, source, context["receipt_locator"])
+    _git(root, "checkout", "--quiet", "integration")
+    rebound = apply_workstream_commit(root, planned)
+    _git(root, "merge", "--quiet", "--no-ff", "-m", "import old source receipts after integration", "receipt-source")
+    _assert_preintegration_receipts_refused(root, planned, context, rebound, "later")
 
 
 def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path, isolated_compaction_structure):

@@ -391,8 +391,9 @@ class GitBlob:
     content: bytes
 
 
-def _git(root: Path, *args: str, binary: bool = False) -> tuple[int, bytes | str]:
-    result = subprocess.run(["git", "-C", str(root), *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def _git(root: Path, *args: str, binary: bool = False, input: bytes | None = None) -> tuple[int, bytes | str]:
+    result = subprocess.run(["git", "-C", str(root), *args], input=input,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if binary:
         return result.returncode, result.stdout
     return result.returncode, result.stdout.decode("utf-8", errors="replace").strip()
@@ -3365,6 +3366,7 @@ class _StoredWorkstreamCommitPlan:
     repository: str
     post_raw: bytes
     revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]]
+    verify_refs: tuple[tuple[str, str], ...]
 
 
 _WORKSTREAM_COMMIT_PLANS: dict[str, _StoredWorkstreamCommitPlan] = {}
@@ -3390,7 +3392,8 @@ def _transaction_context(root: Path, full_ref: str) -> tuple[str, tuple[tuple[st
 
 def _store_workstream_commit(root: Path, full_ref: str, head: str, operation: str,
                              loaded: TrustedWorkstreamLedger | None,
-                             revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]]) -> WorkstreamCommitPreview:
+                             revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]], *,
+                             verify_refs: tuple[tuple[str, str], ...] = ()) -> WorkstreamCommitPreview:
     post, _witness = revalidate()
     post_raw = render_workstream_ledger(post).encode("utf-8")
     relative = workstream_ledger_path(post.header.workstream_id)
@@ -3407,7 +3410,7 @@ def _store_workstream_commit(root: Path, full_ref: str, head: str, operation: st
     # Keep a distinct copy: even object.__setattr__ on a frozen public receipt
     # must not mutate the authority copy used by apply.
     _WORKSTREAM_COMMIT_PLANS[preview.token] = _StoredWorkstreamCommitPlan(
-        deepcopy(preview), str(root), post_raw, revalidate,
+        deepcopy(preview), str(root), post_raw, revalidate, verify_refs,
     )
     return preview
 
@@ -3425,8 +3428,7 @@ def _require_unretired_workstream_owner(root: Path, loaded: TrustedWorkstreamLed
         known = {entry.record_id for entry in loaded.ledger.entries}
         for rebind in other.ledger.rebinds:
             if (rebind.record_id not in known and rebind.from_branch == loaded.ledger.effective_branch
-                    and rebind.to_branch != rebind.from_branch
-                    and _git_is_ancestor(root, rebind.source_tip, loaded.head)):
+                    and rebind.to_branch != rebind.from_branch):
                 _fail("branch-owner", loaded.ledger_path, "source branch was retired by a committed ownership transfer")
 
 
@@ -3538,6 +3540,7 @@ def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, works
     if not isinstance(token, TrustedRebindToken):
         _fail("rebind", relative, "rebind requires the host's integration token")
     token = deepcopy(token)
+    source_ref = _full_local_branch_ref(root, "refs/heads/" + token.source_branch)
     created = _as_utc(_clock_timestamp(clock))
 
     def revalidate():
@@ -3561,7 +3564,8 @@ def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, works
         )
         return result.ledger, result.witness
 
-    return _store_workstream_commit(root, full_ref, head, "rebind", loaded, revalidate)
+    return _store_workstream_commit(root, full_ref, head, "rebind", loaded, revalidate,
+                                    verify_refs=((source_ref, token.source_tip),))
 
 
 def plan_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id: str, session_path: str,
@@ -3596,7 +3600,45 @@ def render_workstream_receipt(receipt: WorkstreamReceipt) -> str:
     return _workstream_yaml_mapping(tuple(_member_session_mapping(receipt.workstream_id, receipt).items()))
 
 
-def _check_transaction_receipts(root: Path, head: str, receipts: Iterable[AdmittedWorkstreamReceipt]) -> None:
+def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamReceipt, integration_commit: str) -> None:
+    """Every contributing receipt history must descend from this integration.
+
+    Merely citing a newer commit containing an old receipt blob does not make
+    that evidence post-integration. Follow every parent that already contains
+    the exact receipt, including a merge's source parent.
+    """
+    receipt = admitted.receipt
+    mapping = _member_session_mapping(receipt.workstream_id, receipt)
+    pending, seen = [admitted.commit], set()
+    while pending:
+        commit = pending.pop()
+        if commit in seen:
+            continue
+        seen.add(commit)
+        if len(seen) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+            _fail("receipt-history-limit", receipt.session_path, "receipt provenance exceeds the bounded history scan")
+        if commit == integration_commit or not _git_is_ancestor(root, integration_commit, commit):
+            _fail("receipt-integration", receipt.session_path, "durable receipt evidence must originate after the validated integration")
+        for parent in _git_commit_parents(root, commit):
+            blob = _tree_blob(root, parent, receipt.session_path)
+            if (blob is not None and blob.mode == CANONICAL_MODE
+                    and _session_has_exact_yaml_mapping(blob.content, receipt.session_path, mapping,
+                                                       entry_id=receipt.entry_id, decision_id=receipt.decision_id)):
+                pending.append(parent)
+
+
+def _validated_receipt_integration(current: TrustedWorkstreamLedger, witness: TrustedIntegrationWitness,
+                                   verifier: TrustedRebindVerifier) -> str:
+    if not isinstance(witness, TrustedIntegrationWitness):
+        _fail("close-authority", current.ledger_path, "receipts require an admitted integration witness")
+    rebind = _validate_integration_witness(current.ledger, witness, verifier)
+    if not _git_is_ancestor(Path(current.repository), rebind.integration_commit, current.head):
+        _fail("close-authority", current.ledger_path, "integration witness is not reachable from the receipt branch")
+    return rebind.integration_commit
+
+
+def _check_transaction_receipts(root: Path, head: str, receipts: Iterable[AdmittedWorkstreamReceipt], *,
+                                 integration_commit: str) -> None:
     for admitted in receipts:
         if not isinstance(admitted, AdmittedWorkstreamReceipt):
             _fail("receipt", str(root), "close requires admitted session receipts")
@@ -3606,13 +3648,16 @@ def _check_transaction_receipts(root: Path, head: str, receipts: Iterable[Admitt
         if not _session_has_exact_yaml_mapping(raw, receipt.session_path, _member_session_mapping(receipt.workstream_id, receipt),
                                                entry_id=receipt.entry_id, decision_id=receipt.decision_id):
             _fail("receipt", receipt.session_path, "committed decision lacks the exact member receipt")
+        _require_post_integration_receipt(root, admitted, integration_commit)
 
 
 def admit_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id: str, session_path: str,
                                      entry_id: str, decision_id: str, disposition: str,
-                                     session_ref: str) -> tuple[AdmittedWorkstreamReceipt, ...]:
+                                     session_ref: str, integration_witness: TrustedIntegrationWitness,
+                                     integration_verifier: TrustedRebindVerifier) -> tuple[AdmittedWorkstreamReceipt, ...]:
     """Measure committed receipt locators, avoiding caller-built receipt internals."""
     current = _reload_trusted_workstream_ledger(loaded)
+    integration_commit = _validated_receipt_integration(current, integration_witness, integration_verifier)
     root = Path(current.repository)
     commit = _commit(root, session_ref)
     blob = _tree_blob(root, commit, session_path) if commit else None
@@ -3621,7 +3666,7 @@ def admit_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id
     receipts = tuple(AdmittedWorkstreamReceipt(receipt, commit, blob.oid) for receipt in plan_workstream_chain_receipts(
         current, chain_id=chain_id, session_path=session_path, entry_id=entry_id, decision_id=decision_id, disposition=disposition,
     ))
-    _check_transaction_receipts(root, current.head, receipts)
+    _check_transaction_receipts(root, current.head, receipts, integration_commit=integration_commit)
     return receipts
 
 
@@ -3645,11 +3690,8 @@ def preview_workstream_close_commit(cwd: Path | str, *, trusted_ref: str, workst
     def revalidate():
         current = _reload_trusted_workstream_ledger(loaded)
         _require_unretired_workstream_owner(root, current)
-        _check_transaction_receipts(root, current.head, receipts)
-        if not isinstance(integration_witness, TrustedIntegrationWitness):
-            _fail("close-authority", relative, "close requires an admitted integration witness")
-        if not _git_is_ancestor(root, integration_witness.integration_commit, current.head):
-            _fail("close-authority", relative, "integration witness is not reachable from the close branch")
+        integration_commit = _validated_receipt_integration(current, integration_witness, integration_verifier)
+        _check_transaction_receipts(root, current.head, receipts, integration_commit=integration_commit)
         if len(workstream_chain_heads(current.ledger, chain_id)) != 1:
             _fail("close", relative, "resolve or explicitly dispose divergent heads before close")
         return plan_trusted_workstream_chain_close(
@@ -3814,9 +3856,19 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
         code, current_tree = _git(root, "write-tree")
         if code or current_tree != tree:
             _fail("append-worktree-not-clean", str(root), "index changed during transaction")
-        code, _output = _git(root, "update-ref", preview.trusted_ref, candidate, preview.expected_head)
+        # Git holds all participating ref locks through prepare/commit. Rebind
+        # verifies its source in the very transaction that advances the target;
+        # an extra pre-CAS read would leave the same race window open.
+        commands = ["start"]
+        for ref, expected in stored.verify_refs:
+            if ref != preview.trusted_ref:
+                commands.append(f"verify {ref} {expected}")
+            elif expected != preview.expected_head:
+                _fail("stale_ref", preview.ledger_path, "source and target expectations disagree")
+        commands.extend((f"update {preview.trusted_ref} {candidate} {preview.expected_head}", "prepare", "commit"))
+        code, _output = _git(root, "update-ref", "--stdin", input=("\n".join(commands) + "\n").encode("utf-8"))
         if code:
-            _fail("stale_ref", preview.ledger_path, "trusted ref changed during append compare-and-swap")
+            _fail("stale_ref", preview.ledger_path, "a bound source or target ref changed during transaction compare-and-swap")
     except Exception as exc:
         if (wrote_candidate or created_directories) and not _restore_workstream_worktree(
             root, path, pre_raw, expected_blob, created_directories, restore_path=wrote_candidate,
