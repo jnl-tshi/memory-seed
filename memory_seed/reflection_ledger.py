@@ -8,6 +8,7 @@ memory, so its format, discovery, and fuse are all kept separate from
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -3015,7 +3016,7 @@ class WorkstreamReceiptVerifier:
 
 @dataclass(frozen=True)
 class EarlyExpiryApproval:
-    """Durable live-user approval/disposition locator for one unpromoted chain."""
+    """Compatibility locator shape; v2 early-cleanup admission is disabled."""
 
     workstream_id: str
     chain_id: str
@@ -3028,7 +3029,7 @@ class EarlyExpiryApproval:
 
 
 class EarlyExpiryApprovalVerifier:
-    """Host/Git verifier for a live-user early-expiry approval."""
+    """Compatibility verifier interface; cannot authorize v2 early cleanup."""
 
     def verify(self, approval: EarlyExpiryApproval) -> bool:
         raise NotImplementedError
@@ -3512,12 +3513,11 @@ def _preview_workstream_expiry(ledger: WorkstreamLedger, *, expected_head: str, 
         if early:
             if any(_workstream_receipt_is_promoted(receipt) for receipt in coverage.values()):
                 _fail("early-expiry", "ledger expiry", "a promoted chain can never use early expiry", chain_id=chain)
-            if early_approval is None or early_approval_verifier is None:
-                _fail("early-expiry", "ledger expiry", "early cleanup needs a durable live-user approval/disposition")
-            _validate_early_expiry_approval(early_approval)
-            if (early_approval.workstream_id != ledger.header.workstream_id or early_approval.chain_id != chain
-                    or not early_approval.disposition or not early_approval_verifier.verify(early_approval)):
-                _fail("early-expiry", "ledger expiry", "early cleanup approval is not a verified durable chain disposition", chain_id=chain)
+            # The locator-only v2 approval and caller verifier cannot establish
+            # host authority, complete-member binding, freshness, or replay.
+            _fail("early-expiry", "ledger expiry",
+                  "v2 early cleanup is disabled until canonical Git-admitted host-signed authorization is defined",
+                  chain_id=chain)
         elif now.astimezone(timezone.utc) < _as_utc(closed_at) + timedelta(days=ledger.header.reflection_retention_days):
             _fail("expiry", "ledger expiry", "chain retention window has not elapsed", chain_id=chain)
     _validate_expiry_dependencies(ledger, set(selected))
@@ -3567,6 +3567,8 @@ def apply_workstream_expiry(ledger: WorkstreamLedger, preview: WorkstreamExpiryP
 # authority remains in the committed tree and ordinary session entry.
 
 MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS = 4096
+MAX_TRUSTED_LEDGER_CLASSIFICATIONS = 4096
+MAX_TRUSTED_LEDGER_CLASSIFICATION_DEPTH = 32
 TRUSTED_LEDGER_HISTORY_PAGE_SIZE = 128
 TRUSTED_LEDGER_HISTORY_VERSION = 1
 WORKSTREAM_COMPACTION_SCHEMA = "memory-seed/reflection-workstream-compaction"
@@ -3931,25 +3933,10 @@ def _git_commit_message(root: Path, commit: str) -> str:
     return _cached_git_commit_message(str(root.resolve()), commit)
 
 
-@lru_cache(maxsize=32768)
-def _cached_git_commit_time(repository: str, commit: str) -> datetime:
-    """Return the immutable committer time used for historic retention checks."""
-    root = Path(repository)
-    code, output = _git(root, "show", "-s", "--format=%ct", commit)
-    if code or not isinstance(output, str) or not re.fullmatch(r"[0-9]+", output):
-        _fail("compaction-proof-retention", str(root), "could not read trusted receipt commit time", commit=commit)
-    return datetime.fromtimestamp(int(output), tz=timezone.utc).replace(microsecond=0)
-
-
-def _git_commit_time(root: Path, commit: str) -> datetime:
-    return _cached_git_commit_time(str(root.resolve()), commit)
-
-
 def clear_trusted_workstream_history_cache() -> None:
     """Discard derived Git-object caches; never touches authoritative files."""
     for cached in (_cached_tree_blob, _cached_git_commit_parents, _cached_git_is_ancestor,
-                   _cached_git_changed_tree_paths, _cached_git_tree_paths, _cached_git_commit_message,
-                   _cached_git_commit_time):
+                   _cached_git_changed_tree_paths, _cached_git_tree_paths, _cached_git_commit_message):
         cached.cache_clear()
 
 
@@ -4035,26 +4022,6 @@ def _closure_session_mapping(receipt: WorkstreamCompactionClosureReceipt) -> dic
     }
 
 
-def _historical_early_expiry_mapping(workstream_id_value: str, chain_id: str,
-                                     closure: WorkstreamCompactionClosureReceipt) -> dict[str, str]:
-    """The durable approval required when cleanup precedes retention expiry.
-
-    The public receipt schema stays frozen.  The approval is ordinary-session
-    evidence tied to the same exact closure locator, so it cannot be borrowed
-    from a different entry, decision, blob, or workstream.
-    """
-    return {
-        "workstream_id": workstream_id_value,
-        "chain_id": chain_id,
-        "closed_record_id": closure.closed_record_id,
-        "closed_record_digest": closure.closed_record_digest,
-        "session_path": closure.session_path,
-        "entry_id": closure.entry_id,
-        "decision_id": closure.decision_id,
-        "disposition": "early-expired-unpromoted",
-    }
-
-
 def _read_session_blob(root: Path, commit: str, session_path: str, blob: str, *, before: str) -> bytes:
     if not _git_is_ancestor(root, commit, before):
         _fail("compaction-proof-reachability", session_path, "receipt session commit is not reachable before cleanup", commit=commit)
@@ -4108,39 +4075,25 @@ def _validate_compaction_coverage(root: Path, receipt: WorkstreamCompactionRecei
 def _validate_historical_compaction_retention(root: Path, receipt: WorkstreamCompactionReceipt,
                                               pre_ledger: WorkstreamLedger, receipt_commit: str,
                                               cleanup_commit: str) -> None:
-    """Require elapsed retention, or a scoped live-user early-disposition.
+    """Fail closed until elapsed time or early-cleanup authority is replayable.
 
-    Git's committed time is the only clock available while classifying historic
-    cleanup.  A promoted chain is never eligible for the exception.
+    Git author/committer dates are caller-controlled, even in immutable commits.
+    Session mappings likewise prove recorded bytes, never live-user authority.
+    The frozen v2 contract defines no external elapsed-time anchor or canonical
+    host-signed early-cleanup authorization. Neither can be invented here.
+
+    A future authorization must bind the workstream, chain, complete member IDs
+    and detail digests, close record, scoped session entry/decision, short-lived
+    host timestamp, immutable trust anchor, and replay identity, and must be
+    reloaded from admitted Git evidence. Until then every historical cleanup,
+    including apparently old or promoted cleanup, remains inadmissible.
     """
-    trusted_time = _git_commit_time(root, receipt_commit)
-    members_by_chain: dict[str, list[WorkstreamCompactionMemberReceipt]] = {}
-    for member in receipt.member_receipts:
-        members_by_chain.setdefault(member.chain_id, []).append(member)
-    closures = {item.chain_id: item for item in receipt.closure_receipts}
-    for chain_id in receipt.removed_chain_ids:
-        closed_at = _chain_closed_at(pre_ledger, chain_id)
-        expires_at = _as_utc(closed_at) + timedelta(days=pre_ledger.header.reflection_retention_days)
-        if trusted_time >= expires_at:
-            continue
-        members = members_by_chain.get(chain_id, [])
-        if any(member.disposition in WORKSTREAM_PROMOTED_RECEIPT_DISPOSITIONS for member in members):
-            _fail("early-expiry", receipt.ledger_path, "a promoted chain can never use early cleanup", chain_id=chain_id)
-        if not members or any(member.disposition != "early-expired-unpromoted" for member in members):
-            _fail("compaction-proof-retention", receipt.ledger_path,
-                  "pre-retention cleanup needs an exact durable live-user early-expiry disposition", chain_id=chain_id)
-        closure = closures[chain_id]
-        raw = _read_session_blob(root, closure.commit, closure.session_path, closure.blob, before=cleanup_commit)
-        if not _session_has_exact_yaml_mapping(
-            raw, closure.session_path, _historical_early_expiry_mapping(receipt.workstream_id, chain_id, closure),
-            entry_id=closure.entry_id, decision_id=closure.decision_id,
-        ):
-            _fail("compaction-proof-retention", receipt.ledger_path,
-                  "pre-retention cleanup lacks its scoped durable live-user approval", chain_id=chain_id)
+    _fail("compaction-proof-retention", receipt.ledger_path,
+          "v2 historical cleanup is disabled: no trusted elapsed-time anchor or replay-verified host authorization",
+          cleanup_commit=cleanup_commit, receipt_commit=receipt_commit)
 
 
-def _trusted_active_ledgers_at_commit(root: Path, commit: str, *, known_ledger_path: str | None = None,
-                                      known_ledger: WorkstreamLedger | None = None) -> tuple[tuple[str, WorkstreamLedger], ...]:
+def _trusted_active_ledgers_at_commit(root: Path, commit: str) -> tuple[tuple[str, WorkstreamLedger], ...]:
     """Build the entire v2 board from one immutable Git tree, fail closed."""
     prefix = REFLECTION_ROOT + "/"
     candidates: dict[str, set[str]] = {}
@@ -4152,6 +4105,8 @@ def _trusted_active_ledgers_at_commit(root: Path, commit: str, *, known_ledger_p
         if not parts:
             continue
         candidates.setdefault(parts[0], set()).add(path)
+    if len(candidates) > MAX_TRUSTED_LEDGER_CLASSIFICATIONS:
+        _fail("dependency-context-limit", str(root), "trusted active board exceeds its bounded candidate limit")
     ledgers: list[tuple[str, WorkstreamLedger]] = []
     branches: dict[str, str] = {}
     for directory, paths in sorted(candidates.items()):
@@ -4171,18 +4126,10 @@ def _trusted_active_ledgers_at_commit(root: Path, commit: str, *, known_ledger_p
         workstream_id, _branch, schema = _recover_v2_header(blob.content, ledger_path)
         if schema != WORKSTREAM_LEDGER_SCHEMA or workstream_id is None:
             _fail("dependency-context", ledger_path, "trusted active board has an unsupported or malformed v2 ledger")
-        if ledger_path == known_ledger_path:
-            if known_ledger is None:
-                _fail("dependency-context", ledger_path, "known trusted ledger context is incomplete")
-            ledger = known_ledger
-        else:
-            try:
-                ledger = parse_workstream_ledger(blob.content, ledger_path)
-            except ReflectionValidationError:
-                # A separate workstream may itself have an admitted cleanup
-                # history.  It must be classified from the same immutable
-                # commit rather than being rejected merely for being compacted.
-                ledger = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=ledger_path).ledger
+        # Strict-valid bytes can still hide a raw tail/sole-chain deletion.
+        # Every candidate, including the cleanup target's pre-image, must pass
+        # lineage classification at this exact pre-cleanup commit.
+        ledger = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=ledger_path).ledger
         if directory != ledger.header.workstream_id:
             _fail("dependency-context", ledger_path, "trusted board ledger directory and workstream ID differ")
         owner = branches.get(ledger.effective_branch)
@@ -4203,9 +4150,7 @@ def _validate_compaction_incoming_dependencies(root: Path, receipt: WorkstreamCo
     """
     removed = {record.record_id for record in pre_ledger.records if record.chain_id in receipt.removed_chain_ids}
     members = tuple(receipt.member_receipts)
-    for ledger_path, ledger in _trusted_active_ledgers_at_commit(
-        root, cleanup_commit, known_ledger_path=receipt.ledger_path, known_ledger=pre_ledger,
-    ):
+    for ledger_path, ledger in _trusted_active_ledgers_at_commit(root, cleanup_commit):
         if ledger_path == receipt.ledger_path:
             continue
         for record in ledger.records:
@@ -4364,8 +4309,8 @@ def _validate_cleanup_pair(root: Path, transition: _LedgerTransition, receipt: W
     if expected_post != post_raw:
         _fail("compaction-proof-derivation", ledger_path, "committed post-image is not the exact canonical raw-block removal")
     _validate_compaction_coverage(root, receipt, pre_ledger, transition.commit)
-    _validate_historical_compaction_retention(root, receipt, pre_ledger, receipt_commit, transition.commit)
     _validate_compaction_incoming_dependencies(root, receipt, pre_ledger, transition.parent)
+    _validate_historical_compaction_retention(root, receipt, pre_ledger, receipt_commit, transition.commit)
     post_ledger = _parse_compacted_workstream_ledger(post_raw, ledger_path)
     if post_ledger.header != pre_ledger.header:
         _fail("compaction-proof-derivation", ledger_path, "compaction changed immutable header bytes")
@@ -4393,6 +4338,20 @@ def _admit_compaction_transition(root: Path, trusted_head: str, transition: _Led
     return proof
 
 
+@dataclass
+class _TrustedLedgerClassificationContext:
+    """Operation-local memoization, never caller-provided trust evidence."""
+
+    in_progress: set[tuple[str, str, str, str]] = field(default_factory=set)
+    completed: dict[tuple[str, str, str, str], TrustedWorkstreamLedger] = field(default_factory=dict)
+    classifications: int = 0
+
+
+_TRUSTED_LEDGER_CLASSIFICATION_CONTEXT: ContextVar[_TrustedLedgerClassificationContext | None] = ContextVar(
+    "trusted_ledger_classification_context", default=None,
+)
+
+
 def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_path: str) -> TrustedWorkstreamLedger:
     """Load only a committed, history-classified v2 ledger from a host-selected ref.
 
@@ -4406,6 +4365,36 @@ def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_
     head = _commit(root, trusted_ref)
     if head is None:
         _fail("compaction-proof-history-missing", ledger_path, "trusted ledger ref does not resolve to a commit", trusted_ref=trusted_ref)
+    context = _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT.get()
+    token = None
+    if context is None:
+        context = _TrustedLedgerClassificationContext()
+        token = _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT.set(context)
+    key = (str(root), trusted_ref, head, ledger_path)
+    try:
+        if key in context.completed:
+            return context.completed[key]
+        if key in context.in_progress:
+            _fail("dependency-context-cycle", ledger_path, "trusted board history classification contains a cycle", commit=head)
+        if (len(context.in_progress) >= MAX_TRUSTED_LEDGER_CLASSIFICATION_DEPTH
+                or context.classifications >= MAX_TRUSTED_LEDGER_CLASSIFICATIONS):
+            _fail("dependency-context-limit", ledger_path, "trusted board history classification exceeds its bounded context")
+        context.in_progress.add(key)
+        context.classifications += 1
+        try:
+            result = _classify_trusted_workstream_ledger(root, trusted_ref, head, ledger_path)
+            context.completed[key] = result
+            return result
+        finally:
+            context.in_progress.remove(key)
+    finally:
+        if token is not None:
+            _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT.reset(token)
+
+
+def _classify_trusted_workstream_ledger(root: Path, trusted_ref: str, head: str,
+                                       ledger_path: str) -> TrustedWorkstreamLedger:
+    """Classify one immutable image within the loader's bounded board context."""
     initial_commit, initial_blob, transitions = _ledger_lineage(root, head, ledger_path)
     initial = _parse_initial_trusted_ledger(initial_blob.content, ledger_path)
     if ledger_path != workstream_ledger_path(initial.header.workstream_id):

@@ -609,10 +609,15 @@ def _admit_real_git_compaction(root: Path, ledger: WorkstreamLedger, ledger_path
         for member in preliminary_members
     ) + (reflection_ledger_module._closure_session_mapping(preliminary_closure),)
     if include_early_approval:
+        # Adversarial unsigned mapping accepted by the former implementation.
+        # It is evidence bytes only, never a valid v2 host authorization.
         evidence_mappings += (
-            reflection_ledger_module._historical_early_expiry_mapping(
-                ledger.header.workstream_id, chain, preliminary_closure,
-            ),
+            {
+                "workstream_id": ledger.header.workstream_id, "chain_id": chain,
+                "closed_record_id": close.record_id, "closed_record_digest": close.detail_digest,
+                "session_path": session_path, "entry_id": evidence_entry, "decision_id": receipt_decision_id,
+                "disposition": "early-expired-unpromoted",
+            },
         )
     session_file.parent.mkdir(parents=True, exist_ok=True)
     previous_session = session_file.read_text(encoding="utf-8") if session_file.exists() else ""
@@ -661,6 +666,7 @@ def _write_open_cross_workstream_dependent(root: Path, source: WorkstreamLedger,
         working_branch="codex/feature/dependent", base_sha=source.header.base_sha,
         clock=fixed_clock(START + timedelta(minutes=20)), entropy=lambda _: bytes.fromhex(SALT),
     )
+    _commit_ledger(root, workstream_ledger_path(dependent.header.workstream_id), dependent, "reflection: dependent init")
     dependency = WorkstreamDependency(
         source.header.workstream_id, target_record.record_id, target_record.detail_digest,
         "cross-workstream cleanup coverage", receipt,
@@ -678,7 +684,19 @@ def _write_open_cross_workstream_dependent(root: Path, source: WorkstreamLedger,
     return dependent
 
 
-def test_trusted_history_rejects_raw_sole_deletion_and_admits_exact_proof_pair(tmp_path):
+@pytest.fixture
+def isolated_compaction_structure(monkeypatch):
+    """Exercise deferred compaction mechanics without claiming time authority.
+
+    Production historical admission is unconditionally disabled. Only tests
+    explicitly requesting this fixture substitute the retention gate so that
+    structural history, suffix, replay, and dependency coverage stays tested.
+    Unpatched real-Git negatives below prove the production refusal.
+    """
+    monkeypatch.setattr(reflection_ledger_module, "_validate_historical_compaction_retention", lambda *args: None)
+
+
+def test_trusted_history_rejects_raw_sole_deletion_and_admits_exact_proof_pair(tmp_path, isolated_compaction_structure):
     root, ledger, ledger_path, chain = _closed_git_workstream(tmp_path)
     raw = render_workstream_ledger(ledger)
     (root / Path(ledger_path)).write_text(raw.split("## Record", 1)[0], encoding="utf-8")
@@ -767,10 +785,10 @@ def test_compaction_requires_scoped_locator_and_early_retention_evidence(tmp_pat
                                member_disposition="already-covered-by-decision")
     with pytest.raises(ReflectionValidationError) as promoted:
         load_trusted_workstream_ledger(promoted_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=promoted_path)
-    assert promoted.value.diagnostic.code == "early-expiry"
+    assert promoted.value.diagnostic.code == "compaction-proof-retention"
 
 
-def test_compaction_refuses_open_cross_workstream_dependency_without_exact_fallback(tmp_path):
+def test_compaction_refuses_open_cross_workstream_dependency_without_exact_fallback(tmp_path, isolated_compaction_structure):
     naked_root, naked_ledger, naked_path, naked_chain = _closed_git_workstream(tmp_path / "naked")
     _write_open_cross_workstream_dependent(naked_root, naked_ledger, naked_ledger.records[0], receipt=None)
     _admit_real_git_compaction(naked_root, naked_ledger, naked_path, naked_chain)
@@ -791,6 +809,118 @@ def test_compaction_refuses_open_cross_workstream_dependency_without_exact_fallb
         covered_root, trusted_ref="refs/heads/codex/feature/example", ledger_path=covered_path,
     )
     assert admitted.validation == "admitted-compaction"
+
+
+@pytest.mark.parametrize("git_date", ("2000-01-01T00:00:00+00:00", "2099-01-01T00:00:00+00:00"))
+@pytest.mark.parametrize("include_early_approval", (False, True))
+def test_historical_cleanup_refuses_unsigned_approval_and_forged_git_time(tmp_path, monkeypatch, git_date,
+                                                                       include_early_approval):
+    root, ledger, ledger_path, chain = _closed_git_workstream(tmp_path)
+    monkeypatch.setenv("GIT_AUTHOR_DATE", git_date)
+    monkeypatch.setenv("GIT_COMMITTER_DATE", git_date)
+    receipt, head = _admit_real_git_compaction(
+        root, ledger, ledger_path, chain, include_early_approval=include_early_approval,
+    )
+    # Prove that the attack changed both cleanup and receipt commit metadata.
+    for commit in (receipt.cleanup_commit, head):
+        dates = _git(root, "show", "-s", "--format=%aI %cI", commit).split()
+        assert [datetime.fromisoformat(value) for value in dates] == [datetime.fromisoformat(git_date)] * 2
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
+    assert refused.value.diagnostic.code == "compaction-proof-retention"
+    assert "disabled" in refused.value.diagnostic.message
+    assert workstream_board_view(root, trusted_ref="refs/heads/codex/feature/example").exit_code == 1
+
+
+def test_early_cleanup_refuses_unpromoted_locator_and_caller_verifier(tmp_path):
+    root, ledger, _path, chain = _closed_git_workstream(tmp_path)
+    rebind = ledger.rebinds[-1]
+    witness = TrustedIntegrationWitness(
+        ledger.header.workstream_id, rebind.record_id, rebind.from_branch, rebind.to_branch, rebind.source_tip,
+        rebind.target_pre_merge_tip, rebind.integration_commit, rebind.pre_ledger_digest,
+    )
+    receipts = [admitted_receipt_for(ledger, record) for record in ledger.records if record.chain_id == chain]
+    receipts = [replace(item, receipt=replace(item.receipt, disposition="early-expired-unpromoted")) for item in receipts]
+    approval = EarlyExpiryApproval(ledger.header.workstream_id, chain, ".memory-seed/sessions/2026-09/2026-09-06.md",
+                                   "mse_0123456789abcdef", "D1", HEAD, "e" * 40, "user-approved-disposal")
+    with pytest.raises(ReflectionValidationError, match="disabled") as refused:
+        preview_workstream_expiry(
+            ledger, expected_head=_git(root, "rev-parse", "HEAD"), chain_ids=(chain,), now=START,
+            receipts=receipts, receipt_verifier=AdmitReceipts(), integration_witness=witness,
+            integration_verifier=_LocalBranchRebind(), early_approval=approval,
+            early_approval_verifier=AcceptEarlyExpiry(),
+        )
+    assert refused.value.diagnostic.code == "early-expiry"
+
+
+@pytest.mark.parametrize("shape", ("tail", "sole"))
+def test_precleanup_board_refuses_strict_valid_deletion_in_other_dependent_ledger(tmp_path, shape):
+    root, source, source_path, chain = _closed_git_workstream(tmp_path)
+    other = initialize_workstream_ledger(
+        working_branch="codex/feature/dependent", base_sha=source.header.base_sha,
+        clock=fixed_clock(START), entropy=lambda _: bytes.fromhex(SALT),
+    )
+    other_path = workstream_ledger_path(other.header.workstream_id)
+    _commit_ledger(root, other_path, other, "reflection: dependent init")
+    if shape == "tail":
+        other = append(other, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                       now=START + timedelta(minutes=1))
+        _commit_ledger(root, other_path, other, "reflection: independent root")
+    before = other
+    target = source.records[0]
+    request = WorkstreamAppendRequest(
+        "planner", None, "no_related_thread", (), True, "needs target", "blocks cleanup", "real-git", "high",
+        depends_on=(WorkstreamDependency(source.header.workstream_id, target.record_id, target.detail_digest,
+                                        "required source evidence", None),),
+    )
+    other = plan_workstream_append(
+        other, request, expected_head=HEAD, actual_head=HEAD,
+        pre_ledger_digest=workstream_ledger_digest(render_workstream_ledger(other)), branch=other.effective_branch,
+        clock=fixed_clock(START + timedelta(minutes=2)), active_ledgers=(source,),
+    )
+    _commit_ledger(root, other_path, other, "reflection: dependent root")
+    good_tip = _git(root, "rev-parse", "HEAD")
+    assert len(reflection_ledger_module._trusted_active_ledgers_at_commit(root, good_tip)) == 2
+    # Delete exactly the final dependency block; both post-images parse strictly.
+    assert parse_workstream_ledger(render_workstream_ledger(before), other_path) == before
+    _commit_ledger(root, other_path, before, f"forged {shape} dependent deletion")
+    bad_tip = _git(root, "rev-parse", "HEAD")
+    with pytest.raises(ReflectionValidationError) as board_refused:
+        reflection_ledger_module._trusted_active_ledgers_at_commit(root, bad_tip)
+    assert board_refused.value.diagnostic.code == "compaction-proof-missing"
+    assert board_refused.value.diagnostic.path == other_path
+    _admit_real_git_compaction(root, source, source_path, chain)
+    # The actual cleanup path must expose the other ledger's forged history,
+    # not approve a board merely because its current bytes are strict-valid.
+    with pytest.raises(ReflectionValidationError) as cleanup_refused:
+        load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=source_path)
+    assert cleanup_refused.value.diagnostic.code == "compaction-proof-missing"
+    assert cleanup_refused.value.diagnostic.path == other_path
+
+
+def test_trusted_board_classification_refuses_cycles_and_discards_failed_context(tmp_path, monkeypatch):
+    root, _ledger, path = _new_git_workstream(tmp_path)
+    classify = reflection_ledger_module._classify_trusted_workstream_ledger
+
+    def recurse(root, trusted_ref, head, ledger_path):
+        return load_trusted_workstream_ledger(root, trusted_ref=trusted_ref, ledger_path=ledger_path)
+
+    monkeypatch.setattr(reflection_ledger_module, "_classify_trusted_workstream_ledger", recurse)
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="HEAD", ledger_path=path)
+    assert refused.value.diagnostic.code == "dependency-context-cycle"
+    monkeypatch.setattr(reflection_ledger_module, "_classify_trusted_workstream_ledger", classify)
+    assert load_trusted_workstream_ledger(root, trusted_ref="HEAD", ledger_path=path).validation == "normal"
+
+
+@pytest.mark.parametrize("limit", ("MAX_TRUSTED_LEDGER_CLASSIFICATION_DEPTH", "MAX_TRUSTED_LEDGER_CLASSIFICATIONS"))
+def test_trusted_board_classification_bounds_nested_history(tmp_path, monkeypatch, limit):
+    root, ledger, path, chain = _closed_git_workstream(tmp_path)
+    _admit_real_git_compaction(root, ledger, path, chain)
+    monkeypatch.setattr(reflection_ledger_module, limit, 1)
+    with pytest.raises(ReflectionValidationError) as refused:
+        load_trusted_workstream_ledger(root, trusted_ref="HEAD", ledger_path=path)
+    assert refused.value.diagnostic.code == "dependency-context-limit"
 
 
 def test_raw_guarded_v2_routes_refuse_git_backed_context_before_any_mutation(tmp_path):
@@ -920,7 +1050,7 @@ def test_real_git_append_refuses_detached_head_and_cas_race_without_ledger_leak(
     assert (root / Path(ledger_path)).read_bytes() == original
 
 
-def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path):
+def test_repeated_compaction_keeps_prior_receipt_bound_to_its_own_session_commit(tmp_path, isolated_compaction_structure):
     root, initial, ledger_path, first_chain = _closed_git_workstream(tmp_path)
     _admit_real_git_compaction(root, initial, ledger_path, first_chain)
     loaded = load_trusted_workstream_ledger(root, trusted_ref="refs/heads/codex/feature/example", ledger_path=ledger_path)
