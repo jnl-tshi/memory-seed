@@ -32,8 +32,8 @@ declared task, never invented identifiers.
 | `reflection trust init` | none | CLI-only one-time trust bootstrap preview/apply on the resolved integration/default branch |
 | `reflection ledger init` | `--retention-days`, `--expected-head` | Initialize the current branch's ledger; use the returned applied `workstream_id` |
 | `reflection ledger append` | workstream ID; `--role`, `--conclusion`, `--reasoning`, `--source`; optional `--chain-id`, `--relationship`, `--parent`, `--no-related-thread`, `--confidence`, `--to-phase`, `--expected-head`, `--expected-ledger-digest` | Append one phase-owned record |
-| `reflection ledger view` | workstream ID | Read trusted committed ledger text, classification, and close receipt status |
-| `reflection ledger check` | workstream ID | Validate the same committed history and report missing close receipts |
+| `reflection ledger view` | workstream ID | Read trusted committed ledger text; `--json` also exposes classification and close receipt status |
+| `reflection ledger check` | workstream ID | Validate committed history; use `--json` to inspect missing close receipts |
 | `reflection board view` | none | Read every active candidate, including malformed or unsupported candidates |
 | `reflection ledger close` | workstream ID; `--chain-id`; optional `--receipts`, `--expected-head`, `--expected-ledger-digest` | Draft receipt requirements or close a resolved, integrated chain |
 | `reflection ledger rebind` | workstream ID; `--source`, `--reason` | Preview/apply exact local integration evidence on the target branch |
@@ -148,8 +148,11 @@ are not coverage. Re-preview until `ready_to_close` with empty `missing_receipts
 Close creates a new member and closure outcome, so success initially reports `closed_receipts_pending`.
 Do not paste the immediate response's mappings into the already-committed pre-close entry. Preview a
 **new** ordinary entry, then call close again without apply using its new locator to draft the two exact
-post-close mappings. Append/commit that new entry. Ledger check, board view, and ESR then report the
-chain as `closed` with empty `missing_receipts`. No separate receipt-finalize command is needed.
+post-close mappings. Append/commit that new entry. Run
+`memory-seed reflection ledger check <workstream_id> --json` to inspect `closed_receipts_pending`
+and `missing_receipts`; non-JSON ledger view/check prints raw ledger text. Recheck until the chain
+is `closed` with empty `missing_receipts`; board view and ESR expose the same receipt state.
+No separate receipt-finalize command is needed.
 
 ## Elapsed expiry, trust, and recovery
 
@@ -168,7 +171,7 @@ remain until Git garbage collection; expiry does not imply garbage collection or
 | Refusal or limit | Operator response |
 | --- | --- |
 | Stale preview, dirty state, or changed authority | Inspect the diff, preserve owned/concurrent work, reload view/check, and make a fresh preview judgment |
-| `closed_receipts_pending` | Draft the missing close member/outcome mappings against a new ordinary entry, append/commit, and recheck |
+| `closed_receipts_pending` | Draft the missing close member/outcome mappings against a new ordinary entry, append/commit, and recheck with `reflection ledger check <workstream_id> --json` |
 | Retention not elapsed | Keep the chain; a later sanctioned expiry may succeed. ESR never expires it automatically |
 | Missing/mismatched local key or immutable-base anchor | Stop; no public rotation, replacement, or recovery command exists. A later anchor does not fix an old ledger |
 | Legacy pre-proof close | Readable but non-expirable; no historical proof retrofit |
@@ -179,8 +182,9 @@ remain until Git garbage collection; expiry does not imply garbage collection or
 
 Live and Seed prepare-commit-msg hooks invoke the same reserved-family admission before normal
 Memory-Entry stamping. Only sanctioned kernel transactions, the one-time canonical trust bootstrap,
-and exact integration carriers pass. Manually staging reserved paths, aliases, divergent trust anchors,
-or invented trailers is refused.
+and exact integration carriers pass. Manually staging reserved paths, aliases, or divergent trust anchors
+is refused. Invented Reflection trailers cannot grant admission or bypass reserved-family checks;
+ordinary commits without reserved paths may not read the message.
 
 This is local host trust: compromise of the host account, clock, or private key defeats its assumptions.
 The dependency-free pure-Python Ed25519 signer is **not constant-time** and is not hardware-backed.

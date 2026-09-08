@@ -133,8 +133,10 @@ after required independent validation, orchestrator synthesis, and rebind:
    closure outcome need two more mappings. The immediate response may draft them against the old
    destination; **do not edit that already-committed entry**. Preview a new ordinary entry, then call
    close again without apply, using its new destination locator, to regenerate both exact mappings.
-   Append/commit the new entry through the ordinary writer. Recheck until the chain is `closed`
-   with empty `missing_receipts` in ledger check, board view, and ESR.
+   Append/commit the new entry through the ordinary writer. Run
+   `memory-seed reflection ledger check <workstream_id> --json` to inspect `closed_receipts_pending`
+   and `missing_receipts`; non-JSON ledger view/check prints raw ledger text. Recheck until the chain
+   is `closed` with empty `missing_receipts`; board view and ESR expose the same receipt state.
 
 CLI close and `memory_reflection_ledger_close` use the same receipt preparation/finalization projection.
 There is no separate public receipt-finalize command. A complete receipt is durable evidence, not a

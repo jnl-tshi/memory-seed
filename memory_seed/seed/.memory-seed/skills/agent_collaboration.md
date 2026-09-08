@@ -488,7 +488,9 @@ Follow these gates in order:
    Defer branch/worktree cleanup until required rebind evidence and receipt closeout are complete.
 
 The live/Seed prepare-commit-msg hooks call the shared admission facade before Memory-Entry stamping.
-Manual staged reserved paths, aliases, or invented Reflection trailers are refused. Seeded hooks require
+Manual staged reserved paths and aliases are refused. Invented Reflection trailers cannot grant admission
+or bypass reserved-family checks; ordinary commits without reserved paths may not read the message.
+Seeded hooks require
 a current package whose interpreter can import the facade; repair the installation if it cannot load.
 Do not bypass the hook. Only sanctioned kernel commits, one-time trust bootstrap, and exact integration
 carriers are admitted.

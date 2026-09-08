@@ -86,3 +86,30 @@ def test_guidance_preserves_lifecycle_and_recovery_limits():
     assert "Public `reflection` CLI/MCP adapters, ESR reporting, hook/runbook guidance" not in audit
     for unsupported in ("reflection board view --active", "reflection ledger view --workstream"):
         assert unsupported not in TEXT
+
+
+@pytest.mark.parametrize("path", [
+    "docs/4_Reference/reflection-board-v1-operator-guide.md",
+    ".memory-seed/skills/agent_collaboration.md",
+    "memory_seed/seed/.memory-seed/skills/agent_collaboration.md",
+])
+def test_hook_guidance_distinguishes_admission_from_message_inspection(path):
+    text = " ".join((ROOT / path).read_text(encoding="utf-8").split())
+    assert "Invented Reflection trailers cannot grant admission or bypass reserved-family checks" in text
+    assert "ordinary commits without reserved paths may not read the message" in text
+    assert "invented Reflection trailers are refused" not in text
+    assert "or invented trailers is refused" not in text
+
+
+@pytest.mark.parametrize("path", [
+    "docs/4_Reference/reflection-board-v1-operator-guide.md",
+    ".memory-seed/skills/session_logging.md",
+    "memory_seed/seed/.memory-seed/skills/session_logging.md",
+])
+def test_receipt_status_guidance_requires_json_output(path):
+    text = " ".join((ROOT / path).read_text(encoding="utf-8").split())
+    assert (
+        "`memory-seed reflection ledger check <workstream_id> --json` "
+        "to inspect `closed_receipts_pending` and `missing_receipts`"
+    ) in text
+    assert "non-JSON ledger view/check prints raw ledger text" in text
