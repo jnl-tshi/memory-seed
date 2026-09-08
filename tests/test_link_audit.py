@@ -29,6 +29,7 @@ from memory_seed.retrieval import (
     apply_link_gap_stubs,
     audit_link_gaps,
     augment_chunks_with_link_sidecars,
+    plan_link_audit_batches,
 )
 from memory_seed.semantic_cache import extract_memory_chunks
 
@@ -274,6 +275,68 @@ class LinkAuditTests(unittest.TestCase):
         code, _out, err = self._run_cli("link", "audit", "--json", "--apply", "--date", "2026-06-01")
         self.assertEqual(code, 2)
         self.assertIn("cannot be combined", err)
+
+    def test_batch_plan_packs_complete_pairs_and_reports_oversize_pairs(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-01",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new body"}],
+                "candidates": [
+                    {"entry_id": A, "title": "old", "session_date": "2026-06-01", "decisions": [{"ordinal": "d1", "name": "old", "text": "old body"}]},
+                    {"entry_id": C, "title": "older", "session_date": "2026-06-01", "decisions": [{"ordinal": "d1", "name": "older", "text": "older body"}]},
+                ],
+            }],
+        }
+        roomy = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        self.assertEqual(roomy["pair_count"], 2)
+        self.assertEqual(roomy["batch_count"], 1)
+        self.assertEqual(len(roomy["batches"][0]["pairs"]), 2)
+        self.assertEqual(roomy["oversize_pair_count"], 0)
+        self.assertEqual(roomy["measurement"]["evidence_budget_tokens"], 2000)
+
+        tight = plan_link_audit_batches(payload, context_window_tokens=10)
+        self.assertEqual(tight["batch_count"], 0)
+        self.assertEqual(tight["oversize_pair_count"], 2)
+
+    def test_cli_batch_plan_is_read_only_json(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Beta"]),
+        )
+        code, out, err = self._run_cli(
+            "link", "batch-plan", "--for", B, "--context-window", "400000", "--no-semantic"
+        )
+        self.assertEqual(code, 0, err)
+        plan = json.loads(out)
+        self.assertEqual(plan["measurement"]["evidence_budget_tokens"], 80000)
+        self.assertEqual(plan["pair_count"], 1)
+        self.assertEqual(plan["batch_count"], 1)
+        self.assertFalse((self.sessions / "links").exists())
+
+    def test_batch_plan_excludes_linked_and_decisionless_candidates(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-01",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new body"}],
+                "candidates": [
+                    {"entry_id": A, "title": "linked", "session_date": "2026-06-01",
+                     "already_related": True,
+                     "decisions": [{"ordinal": "d1", "name": "old", "text": "old body"}]},
+                    {"entry_id": C, "title": "decisionless", "session_date": "2026-06-01",
+                     "decisions": []},
+                ],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        self.assertEqual(plan["pair_count"], 0)
+        self.assertEqual(plan["batch_count"], 0)
+        self.assertEqual(plan["excluded_pair_count"], 2)
+        self.assertEqual(
+            [item["reason"] for item in plan["excluded_pairs"]],
+            ["already_related", "missing_decision"],
+        )
 
     def test_decision_level_sidecar_edge_suppresses_the_pair(self):
         # A `<id>:dN` ref records the pair at finer granularity. It never

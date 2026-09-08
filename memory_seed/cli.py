@@ -1043,6 +1043,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="rank lexically only (shared files + title terms); skips loading the embedding model",
     )
+    link_batch_plan = link_sub.add_parser(
+        "batch-plan", help="pack complete link-audit pairs into context-bounded, read-only batches"
+    )
+    link_batch_plan.add_argument("--context-window", type=int, required=True,
+                                 help="declared model context window in tokens")
+    link_batch_plan.add_argument("--evidence-fraction", type=float, default=0.20,
+                                 help="fraction of context reserved for pair evidence (default: 0.20)")
+    link_batch_plan.add_argument("--for", dest="for_entry", metavar="ENTRY_ID", default=None)
+    link_batch_plan.add_argument("--date", dest="audit_date", metavar="YYYY-MM-DD", default=None)
+    link_batch_plan.add_argument("--top-k", type=int, default=5,
+                                 help="candidates per source entry (default: 5)")
+    link_batch_plan.add_argument("--no-semantic", dest="semantic", action="store_false",
+                                 help="rank lexically only; skips loading the embedding model")
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -2731,8 +2744,26 @@ def main(argv: list[str] | None = None) -> int:
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")
             return 0
-        if args.link_command == "audit":
-            from .retrieval import apply_link_gap_stubs, audit_link_gaps, link_audit_payload
+        if args.link_command in {"audit", "batch-plan"}:
+            from .retrieval import apply_link_gap_stubs, audit_link_gaps, link_audit_payload, plan_link_audit_batches
+
+            if args.link_command == "batch-plan":
+                semantic_status: dict[str, Any] = {}
+                try:
+                    gaps = audit_link_gaps(
+                        cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
+                        top_k=args.top_k, semantic_enabled=args.semantic, semantic_status=semantic_status,
+                    )
+                    plan = plan_link_audit_batches(
+                        link_audit_payload(gaps, semantic_status),
+                        context_window_tokens=args.context_window,
+                        evidence_fraction=args.evidence_fraction,
+                    )
+                except (LookupError, ValueError) as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 1
+                print(json.dumps(plan, indent=2, ensure_ascii=False))
+                return 0
 
             if args.apply and args.audit_date is None:
                 print("link audit --apply requires --date YYYY-MM-DD", file=sys.stderr)

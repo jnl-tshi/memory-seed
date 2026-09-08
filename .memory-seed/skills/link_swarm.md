@@ -33,7 +33,7 @@ requirement. Escalate only a specific ambiguous gap, and record why a larger mod
 memory-seed link audit --json --date <today>     (core, mechanical, network-free)
     -> judgment-ready tasks: each gap carries both ends' decision bodies + criteria
 Workflow fan-out                                 (optional layer, network)
-    -> one economy-tier agent per candidate gap; each returns a verdict per the criteria below
+    -> context-bounded economy-tier batches; each pair returns a separate verdict under the criteria below
 orchestrator validation                          (mechanical-first, no new model calls)
     -> drop verdicts that fail a quote-match, a dangling ordinal, or the consistency check
 batch approval                                   (the human gate)
@@ -61,12 +61,41 @@ stronger signal: it offers nothing to verify, so it must be judged on the decisi
 should draw a `none` verdict more readily than a gated one. Say so in the brief rather than hoping
 the flag speaks for itself. Pre-filter before fan-out: skip a gap
 whose pair already carries a recorded edge, and skip a milestone/no-decision pair the criteria exclude
-(see rules 5-6). One surviving gap = one agent.
+(see rules 5-6).
+
+**Batch by measured context, never a fixed pair count.** A worker receives as many complete candidate
+pairs as fit within **20% of its declared context window for serialized decision evidence**. Measure the
+actual prompt payload after candidate expansion (both decision bodies, candidate evidence, chain state,
+and the per-pair rubric fields), then pack whole pairs until the next pair would exceed that evidence
+budget. Do not truncate, summarize, or split a pair to fill a batch. The fixed worker instructions,
+verdict schema, reasoning reserve, and output reserve are additional capacity; they must also fit within
+the model's window. This preserves enough room for careful per-pair judgment while letting short pairs
+share one economy-tier worker efficiently. Every pair still receives its own independent
+`{verdict, source_dN, target_dN, why, quote, confidence}` result; batching changes transport and cost,
+not the evidence standard or the validator.
 
 ### 2. The judging criteria (what the swarm decides)
 
 Each agent reads the two decision bodies and returns, per gap:
 `{verdict: replaces|evolves|related|none, source_dN, target_dN, why, quote, confidence}`.
+
+**Batch return contract.** Return exactly one strict **TOON** (Token-Oriented Object Notation) document
+with schema `memory-seed.link-swarm-verdicts.v1`: its `batch` and `measurement` identify the packed
+input; its `counts` totals verdict kinds; and its homogeneous tabular `verdicts` array is sorted by
+source then candidate. Emit one row for **every input pair**, including `none`, with
+`source_entry_id`, `source_decision`, `candidate_entry_id`, `candidate_decision`, `verdict`, `quote`,
+`quote_entry_id`, `why`, `confidence`, and `exclusion_reason`. Use TOON's null form for an absent
+ordinal or quote. No prose, Markdown tables, compressed ranges, or omitted negative results. This
+makes a batch mechanically auditable and keeps reviewer reporting independent of model style while
+avoiding repeated JSON field names.
+
+`confidence` is either TOON `null` or a numeric value from `0` through `1` inclusive; never use
+word labels. This keeps result rows sortable without model-specific normalization.
+
+**Rectangular-table rule.** Every `verdicts` row must contain **exactly one value for every declared
+column, in that order**. Never omit a trailing field: emit TOON `null` for an absent `source_decision`,
+`candidate_decision`, `quote`, `quote_entry_id`, `confidence`, or `exclusion_reason`. The orchestrator
+rejects a batch whose row count or per-row cell count does not match its declared table schema.
 
 The verdict rules, measured against 68 validated corrections:
 
@@ -111,7 +140,8 @@ This is the closed-list rule applied to verdicts: the invalid option is removed 
 than left for the judge to remember to avoid.
 
 The `quote` field must be a verbatim phrase from the entry that grounds the verdict — if the agent
-cannot quote something specific, the verdict is `none`.
+cannot quote something specific, the verdict is `none`. For a non-`none` verdict it must contain at
+least 12 meaningful characters and cannot be only a heading, ordinal, label, or punctuation.
 
 ### 3. Orchestrator validation (mechanical-first — no new model calls)
 

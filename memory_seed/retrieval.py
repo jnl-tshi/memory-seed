@@ -3530,6 +3530,105 @@ def link_audit_payload(
     }
 
 
+def plan_link_audit_batches(
+    payload: Mapping[str, Any],
+    *,
+    context_window_tokens: int,
+    evidence_fraction: float = 0.20,
+) -> dict[str, Any]:
+    """Pack complete link-audit pairs into deterministic evidence batches.
+
+    Tokenizers vary by provider, so this uses the fixed local UTF-8 proxy used
+    by retrieval: one estimated token per four bytes. Exact bytes are retained
+    so an executor can substitute a provider tokenizer without repacking.
+    """
+    if context_window_tokens <= 0:
+        raise ValueError("context_window_tokens must be greater than zero")
+    if not 0 < evidence_fraction < 1:
+        raise ValueError("evidence_fraction must be greater than zero and less than one")
+    budget_tokens = int(context_window_tokens * evidence_fraction)
+    if budget_tokens < 1:
+        raise ValueError("context window and evidence fraction produce a zero-token budget")
+
+    pairs: list[dict[str, Any]] = []
+    excluded_pairs: list[dict[str, str]] = []
+    for gap in payload.get("gaps", []):
+        source = {
+            "entry_id": gap["entry_id"], "title": gap["title"],
+            "session_date": gap["session_date"], "decisions": gap["decisions"],
+        }
+        for candidate in gap["candidates"]:
+            if candidate.get("already_related"):
+                excluded_pairs.append(
+                    {
+                        "source_entry_id": source["entry_id"],
+                        "candidate_entry_id": candidate["entry_id"],
+                        "reason": "already_related",
+                    }
+                )
+                continue
+            if not source["decisions"] or not candidate["decisions"]:
+                excluded_pairs.append(
+                    {
+                        "source_entry_id": source["entry_id"],
+                        "candidate_entry_id": candidate["entry_id"],
+                        "reason": "missing_decision",
+                    }
+                )
+                continue
+            pair = {"source": source, "candidate": candidate}
+            byte_count = len(canonical_retrieval_json(pair).encode("utf-8"))
+            pairs.append({
+                **pair,
+                "evidence_utf8_bytes": byte_count,
+                "estimated_tokens": max(1, (byte_count + 3) // 4),
+            })
+
+    batches: list[dict[str, Any]] = []
+    oversize_pairs: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+    current_tokens = current_bytes = 0
+    for pair in pairs:
+        estimate = pair["estimated_tokens"]
+        if estimate > budget_tokens:
+            oversize_pairs.append(pair)
+            continue
+        if current and current_tokens + estimate > budget_tokens:
+            batches.append({
+                "batch": len(batches) + 1, "evidence_utf8_bytes": current_bytes,
+                "estimated_tokens": current_tokens,
+                "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
+            })
+            current, current_tokens, current_bytes = [], 0, 0
+        current.append(pair)
+        current_tokens += estimate
+        current_bytes += pair["evidence_utf8_bytes"]
+    if current:
+        batches.append({
+            "batch": len(batches) + 1, "evidence_utf8_bytes": current_bytes,
+            "estimated_tokens": current_tokens,
+            "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
+        })
+
+    return {
+        "schema": "memory-seed.link-batch-plan.v1",
+        "measurement": {
+            "context_window_tokens": context_window_tokens,
+            "evidence_fraction": evidence_fraction,
+            "evidence_budget_tokens": budget_tokens,
+            "token_estimate": "ceil(utf8_bytes / 4); fixed provider-independent proxy",
+            "pair_policy": "complete pairs only; no truncation or splitting",
+        },
+        "semantic": dict(payload.get("semantic", {})),
+        "criteria": dict(payload.get("criteria", {})),
+        "pair_count": len(pairs), "batch_count": len(batches),
+        "oversize_pair_count": len(oversize_pairs), "batches": batches,
+        "oversize_pairs": oversize_pairs,
+        "excluded_pair_count": len(excluded_pairs),
+        "excluded_pairs": excluded_pairs,
+    }
+
+
 def apply_link_gap_stubs(
     gaps: Iterable[LinkGap],
     *,
