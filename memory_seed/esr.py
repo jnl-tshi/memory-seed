@@ -1069,14 +1069,8 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
 
     try:
-        from .reflection_ledger import workstream_board_view
-        branch = subprocess.run(["git", "-C", str(root), "symbolic-ref", "--quiet", "--short", "HEAD"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False).stdout.strip()
-        view = workstream_board_view(root, trusted_ref=branch or None)
-        report.reflection = {"ok": view.exit_code == 0, "branch": branch or None, "items": [
-            {"path": item.path, "status": item.status, "workstream_id": item.workstream_id,
-             "effective_branch": item.effective_branch, "diagnostic": item.diagnostic.as_dict() if item.diagnostic else None}
-            for item in view.items
-        ]}
+        from .reflection_operations import run_reflection_operation
+        report.reflection = run_reflection_operation("board_view", {"cwd": str(root)})
     except Exception as exc:  # ESR must surface reflection faults without hiding other checks.
         report.reflection = {"ok": False, "items": [], "error": str(exc)}
 
@@ -1210,6 +1204,8 @@ def format_esr_report(report: EsrReport) -> str:
             detail = item.get("diagnostic") or {}
             suffix = f" — {detail.get('code')}: {detail.get('message')}" if detail else ""
             lines.append(f"- {item.get('status')}: {item.get('path')}{suffix}")
+            for receipt in item.get("missing_receipts", []):
+                lines.append(f"  Missing {receipt['kind']} receipt: {receipt.get('record_id', receipt.get('closed_record_id'))} ({receipt['chain_id']})")
     lines.append("")
 
     lines.append("## Semantic ranking")

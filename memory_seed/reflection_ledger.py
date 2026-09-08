@@ -3600,6 +3600,151 @@ def render_workstream_receipt(receipt: WorkstreamReceipt) -> str:
     return _workstream_yaml_mapping(tuple(_member_session_mapping(receipt.workstream_id, receipt).items()))
 
 
+class GitWorkstreamIntegrationVerifier(TrustedRebindVerifier):
+    """Read-only admission of an existing rebind against its actual merge history.
+
+    This does not issue tokens or authorize a new rebind. Every verification
+    reloads the committed ledger and measures the introduction of its last
+    rebind, the two ordered merge parents, and the unchanged source ledger.
+    """
+
+    def __init__(self, loaded: TrustedWorkstreamLedger):
+        self.loaded = loaded
+
+    def witness(self) -> TrustedIntegrationWitness:
+        current = _reload_trusted_workstream_ledger(self.loaded)
+        root = Path(current.repository)
+        if not current.ledger.rebinds:
+            _fail("close-authority", current.ledger_path, "close requires a committed integration rebind")
+        rebind = current.ledger.rebinds[-1]
+        _initial, _blob, transitions = _ledger_lineage(root, current.head, current.ledger_path)
+        matching = [item for item in transitions
+                    if item.blob.content == item.parent_blob.content + b"\n" + render_trusted_rebind(rebind).encode("utf-8")]
+        if len(matching) != 1:
+            _fail("close-authority", current.ledger_path, "rebind has no exact committed introduction")
+        introduction = matching[0]
+        code, parents = _git(root, "rev-list", "--parents", "-n", "1", rebind.integration_commit)
+        if code or parents.split()[1:] != [rebind.target_pre_merge_tip, rebind.source_tip]:
+            _fail("close-authority", current.ledger_path, "integration must bind its ordered target and source merge parents")
+        code, parents = _git(root, "rev-list", "--parents", "-n", "1", introduction.commit)
+        if code or parents.split()[1:] != [rebind.integration_commit] or introduction.parent != rebind.integration_commit:
+            _fail("close-authority", current.ledger_path, "rebind must immediately follow its integration commit")
+        source = load_trusted_workstream_ledger(root, trusted_ref=rebind.source_tip, ledger_path=current.ledger_path)
+        integrated = _tree_blob(root, rebind.integration_commit, current.ledger_path)
+        if (source.raw != introduction.parent_blob.content or source.ledger.effective_branch != rebind.from_branch
+                or integrated is None or integrated.mode != CANONICAL_MODE or integrated.content != source.raw
+                or workstream_ledger_digest(source.raw) != rebind.pre_ledger_digest):
+            _fail("close-authority", current.ledger_path, "integration did not preserve the admitted source ledger")
+        return TrustedIntegrationWitness(current.ledger.header.workstream_id, rebind.record_id,
+            rebind.from_branch, rebind.to_branch, rebind.source_tip, rebind.target_pre_merge_tip,
+            rebind.integration_commit, rebind.pre_ledger_digest)
+
+    def verify_witness(self, witness: TrustedIntegrationWitness) -> bool:
+        return witness == self.witness()
+
+
+class GitWorkstreamReceiptVerifier(WorkstreamReceiptVerifier):
+    """Recheck exact durable member mappings in reachable ordinary sessions."""
+
+    def __init__(self, loaded: TrustedWorkstreamLedger, integration_commit: str):
+        self.loaded, self.integration_commit = loaded, integration_commit
+
+    def verify(self, admitted: AdmittedWorkstreamReceipt) -> bool:
+        current = _reload_trusted_workstream_ledger(self.loaded)
+        _check_transaction_receipts(Path(current.repository), current.head, (admitted,),
+                                    integration_commit=self.integration_commit)
+        return True
+
+
+def workstream_receipt_mapping(receipt: WorkstreamReceipt) -> dict[str, str]:
+    """Project a validated member receipt for the ordinary session writer."""
+    _validate_workstream_receipt(receipt)
+    return _member_session_mapping(receipt.workstream_id, receipt)
+
+
+def committed_workstream_receipt(loaded: TrustedWorkstreamLedger, mapping: Mapping[str, str]) -> AdmittedWorkstreamReceipt | None:
+    """Measure one exact public member mapping at the selected committed head."""
+    receipt = WorkstreamReceipt(**mapping)
+    _validate_workstream_receipt(receipt)
+    root = Path(loaded.repository)
+    blob = _tree_blob(root, loaded.head, receipt.session_path)
+    if blob is None or blob.mode != CANONICAL_MODE or not _session_has_exact_yaml_mapping(
+            blob.content, receipt.session_path, mapping, entry_id=receipt.entry_id, decision_id=receipt.decision_id):
+        return None
+    return AdmittedWorkstreamReceipt(receipt, loaded.head, blob.oid)
+
+
+def workstream_closure_mapping(record: WorkstreamRecord, *, session_path: str, entry_id: str,
+                               decision_id: str) -> dict[str, str]:
+    """Draft the existing closure-outcome mapping, with a deterministic digest."""
+    value = dict(chain_id=record.chain_id, closed_record_id=record.record_id,
+                 closed_record_digest=record.detail_digest, session_path=session_path,
+                 entry_id=entry_id, decision_id=decision_id, receipt_digest="sha256:" + "0" * 64)
+    value["receipt_digest"] = workstream_detail_digest(_workstream_yaml_mapping(tuple(value.items())))
+    return value
+
+
+def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[dict[str, Any]]:
+    """Expose incomplete closed chains from committed ordinary session scopes."""
+    root = Path(loaded.repository)
+    if not any(record.to_phase == "closed" for record in loaded.ledger.records):
+        return []
+    code, paths = _git(root, "ls-tree", "-r", "-z", "--name-only", loaded.head, "--", SESSION_ROOT, binary=True)
+    if code or not isinstance(paths, bytes):
+        _fail("receipt", loaded.ledger_path, "could not inspect ordinary session receipt history")
+    mappings = []
+    for path in paths.decode("utf-8").split("\0"):
+        if not path.startswith(".memory-seed/sessions/") or not path.endswith(".md"):
+            continue
+        blob = _tree_blob(root, loaded.head, path)
+        if blob is None or blob.mode != CANONICAL_MODE:
+            continue
+        for fence in re.finditer(r"```yaml\n(?P<body>.*?)```", blob.content.decode("utf-8", errors="replace"), re.DOTALL):
+            try:
+                value = _parse_yaml_mapping(fence.group("body"), path)
+            except ReflectionValidationError:
+                continue
+            if (value.get("session_path") == path and isinstance(value.get("entry_id"), str)
+                    and isinstance(value.get("decision_id"), str)
+                    and _session_has_exact_yaml_mapping(blob.content, path, value,
+                        entry_id=value["entry_id"], decision_id=value["decision_id"])):
+                mappings.append(value)
+    results = []
+    for chain, records in _records_by_chain(loaded.ledger).items():
+        close = records[-1]
+        if close.to_phase != "closed":
+            continue
+        missing = []
+        for record in records:
+            valid = False
+            for value in mappings:
+                if value.get("record_id") != record.record_id:
+                    continue
+                try:
+                    receipt = WorkstreamReceipt(**value)
+                    expected = plan_workstream_chain_receipts(loaded, chain_id=chain,
+                        session_path=receipt.session_path, entry_id=receipt.entry_id,
+                        decision_id=receipt.decision_id, disposition=receipt.disposition)
+                    valid = any(workstream_receipt_mapping(item) == value for item in expected)
+                except (TypeError, ReflectionValidationError):
+                    continue
+                if valid:
+                    break
+            if not valid:
+                missing.append({"kind": "member", "workstream_id": loaded.ledger.header.workstream_id,
+                    "chain_id": chain, "record_id": record.record_id, "detail_digest": record.detail_digest,
+                    "receipt_id": workstream_receipt_id(loaded.ledger.header.id_salt,
+                        loaded.ledger.header.workstream_id, chain, record.detail_digest)})
+        closure_found = any(value == workstream_closure_mapping(close, session_path=value["session_path"],
+            entry_id=value["entry_id"], decision_id=value["decision_id"]) for value in mappings)
+        if not closure_found:
+            missing.append({"kind": "closure", "chain_id": chain, "closed_record_id": close.record_id,
+                            "closed_record_digest": close.detail_digest})
+        results.append({"chain_id": chain, "status": "closed_receipts_pending" if missing else "closed",
+                        "missing_receipts": missing})
+    return results
+
+
 def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamReceipt, integration_commit: str) -> None:
     """Every contributing receipt history must descend from this integration.
 

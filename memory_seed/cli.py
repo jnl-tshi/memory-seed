@@ -1379,6 +1379,16 @@ def main(argv: list[str] | None = None) -> int:
     reflection_append.add_argument("--to-phase")
     reflection_append.add_argument("--apply", action="store_true", help="commit the kernel-issued append plan")
     reflection_append.add_argument("--json", action="store_true")
+    reflection_close = reflection_ledger_sub.add_parser("close", help="preview receipt requirements or close a resolved chain")
+    reflection_close.add_argument("workstream_id")
+    reflection_close.add_argument("--chain-id", required=True)
+    reflection_close.add_argument("--receipts", default="[]", help="JSON array of session_path, entry_id, decision_id, disposition and optional record_id mappings")
+    reflection_close.add_argument("--apply", action="store_true")
+    reflection_close.add_argument("--json", action="store_true")
+    for reflection_write in (reflection_init, reflection_append, reflection_close):
+        reflection_write.add_argument("--expected-head", help="refuse if HEAD differs from the reviewed preview")
+    for reflection_write in (reflection_append, reflection_close):
+        reflection_write.add_argument("--expected-ledger-digest", help="refuse if ledger bytes differ from the reviewed preview")
     for command in ("check", "view"):
         reflection_read = reflection_ledger_sub.add_parser(command, help=f"{command} one trusted v1 ledger")
         reflection_read.add_argument("workstream_id")
@@ -1534,62 +1544,25 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     if args.command == "reflection":
-        from .reflection_ledger import (
-            ReflectionValidationError, WorkstreamAppendRequest, apply_workstream_append_commit,
-            apply_workstream_commit, load_trusted_workstream_ledger, preview_workstream_append_commit,
-            preview_workstream_init_commit, render_workstream_ledger, workstream_board_view,
-        )
-        cwd = Path(".").resolve()
+        from .reflection_operations import run_reflection_operation
+        operation = "board_view" if args.reflection_command == "board" else "ledger_" + args.reflection_ledger_command
+        fields = {key: value for key, value in vars(args).items()
+                  if key not in {"command", "reflection_command", "reflection_ledger_command", "reflection_board_command", "json"}
+                  and value is not None}
+        if "parent" in fields:
+            fields["parents"] = fields.pop("parent")
         try:
-            branch = subprocess.run(
-                ["git", "-C", str(cwd), "symbolic-ref", "--quiet", "--short", "HEAD"],
-                text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
-            ).stdout.strip()
-            if not branch:
-                raise ValueError("reflection operations require an attached local branch")
-            if args.reflection_command == "board":
-                view = workstream_board_view(cwd, trusted_ref=branch)
-                payload = {"ok": view.exit_code == 0, "items": [
-                    {"path": item.path, "status": item.status, "raw_digest": item.raw_digest,
-                     "workstream_id": item.workstream_id, "working_branch": item.working_branch,
-                     "effective_branch": item.effective_branch,
-                     "diagnostic": item.diagnostic.as_dict() if item.diagnostic else None}
-                    for item in view.items
-                ]}
-                print(json.dumps(payload, indent=2, ensure_ascii=False) if args.json else json.dumps(payload, ensure_ascii=False))
-                return view.exit_code
-            if args.reflection_ledger_command in {"check", "view"}:
-                from .reflection_ledger import workstream_ledger_path
-                loaded = load_trusted_workstream_ledger(cwd, trusted_ref=branch,
-                                                        ledger_path=workstream_ledger_path(args.workstream_id))
-                payload = {"ok": True, "workstream_id": loaded.ledger.header.workstream_id,
-                           "head": loaded.head, "ledger_blob": loaded.ledger_blob,
-                           "validation": loaded.validation, "ledger": render_workstream_ledger(loaded.ledger)}
-                print(json.dumps(payload, indent=2, ensure_ascii=False) if args.json else payload["ledger"], end="" if not args.json else "\n")
-                return 0
-            if args.reflection_ledger_command == "init":
-                preview = preview_workstream_init_commit(cwd, trusted_ref=branch, retention_days=args.retention_days)
-                result = apply_workstream_commit(cwd, preview) if args.apply else None
-            else:
-                request = WorkstreamAppendRequest(
-                    args.role, args.chain_id, args.relationship, tuple(args.parent), args.no_related_thread,
-                    args.conclusion, args.reasoning, args.source, args.confidence, to_phase=args.to_phase,
-                )
-                preview = preview_workstream_append_commit(cwd, trusted_ref=branch,
-                    workstream_id=args.workstream_id, request=request)
-                result = apply_workstream_append_commit(cwd, preview) if args.apply else None
-            payload = {"ok": True, "applied": result is not None, "operation": preview.operation,
-                       "workstream_id": result.ledger.header.workstream_id if result else None,
-                       "head": result.new_head if result else preview.expected_head,
-                       "record_id": result.record_id if result else preview.record_id,
-                       "post_ledger_digest": result.post_ledger_digest if result else preview.post_ledger_digest}
-            print(json.dumps(payload, indent=2, ensure_ascii=False) if args.json else json.dumps(payload, ensure_ascii=False))
-            return 0
-        except (ReflectionValidationError, ValueError) as exc:
-            diagnostic = exc.diagnostic.as_dict() if isinstance(exc, ReflectionValidationError) else {
-                "code": "reflection-operation-refused", "path": str(cwd), "message": str(exc), "details": {}}
-            print(json.dumps({"ok": False, "error": diagnostic}, indent=2, ensure_ascii=False), file=sys.stderr)
-            return 1
+            if "receipts" in fields:
+                fields["receipts"] = json.loads(fields["receipts"])
+            payload = run_reflection_operation(operation, fields)
+        except ValueError as exc:
+            payload = {"ok": False, "error": {"code": "invalid_arguments", "path": ".", "message": str(exc), "details": {}}}
+        if payload["ok"] and not args.json and operation in {"ledger_check", "ledger_view"}:
+            print(payload["ledger"], end="")
+        else:
+            print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False),
+                  file=sys.stdout if payload["ok"] else sys.stderr)
+        return 0 if payload["ok"] else 1
 
     if args.command == "user":
         target = Path(".").resolve()
