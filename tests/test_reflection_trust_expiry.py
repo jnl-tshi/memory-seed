@@ -83,7 +83,10 @@ def expiry_template(tmp_path_factory):
         chain_id=chain, receipts=receipts, receipt_verifier=ledger.GitWorkstreamReceiptVerifier(loaded, witness.integration_commit),
         integration_witness=witness, integration_verifier=integration, conclusion="closed", reasoning="synthesized",
         source="test", confidence="high", clock=lambda: START + timedelta(minutes=1))
-    ledger.apply_workstream_commit(root, preview)
+    original_clock = ledger._clock_timestamp
+    with pytest.MonkeyPatch.context() as host:
+        host.setattr(ledger, "_clock_timestamp", lambda clock=None: original_clock(clock or (lambda: START + timedelta(minutes=1))))
+        ledger.apply_workstream_commit(root, preview)
     _commit_receipts(root, workstream, chain, closure=True)
     return root, workstream, chain
 
@@ -381,3 +384,157 @@ def test_expiry_preserves_an_unrelated_open_chain(ready):
     loaded = ledger.load_trusted_workstream_ledger(root, trusted_ref="main", ledger_path=ledger.workstream_ledger_path(args["workstream_id"]))
     assert [record.record_id for record in loaded.ledger.records] == [appended["record_id"]]
     assert len(loaded.ledger.rebinds) == 1
+
+
+def _replace_close_introduction(root, args, mutation):
+    relative = ledger.workstream_ledger_path(args["workstream_id"])
+    loaded = ledger.load_trusted_workstream_ledger(root, trusted_ref="main", ledger_path=relative)
+    close = loaded.ledger.records[-1]
+    _initial, _blob, transitions = ledger._ledger_lineage(root, loaded.head, relative)
+    transition = next(item for item in transitions if item.blob.content == item.parent_blob.content
+                      + b"\n" + ledger.render_workstream_record(close).encode("utf-8"))
+    message = ledger._git_commit_message(root, transition.commit)
+    prefix, proof_text = message.split("\nReflection-Close-Time: ")
+    proof = json.loads(proof_text)
+    _git(root, "checkout", "--quiet", "-B", "main", transition.parent)
+    if mutation == "missing":
+        message = prefix
+    elif mutation == "parent":
+        _git(root, "commit", "--quiet", "--allow-empty", "-m", "different close parent")
+    else:
+        if mutation == "signature":
+            proof["signature"] = "ed25519:" + "0" * 128
+        elif mutation == "observed_at":
+            proof["observed_at"] = "2026-01-02T00:00:00Z"
+            proof["expires_at"] = "2026-01-02T00:05:00Z"
+        elif mutation == "anchor":
+            proof["trust_anchor_blob"] = "0" * 40
+        elif mutation == "record":
+            proof["close_record_digest"] = "sha256:" + "0" * 64
+        elif mutation == "post_blob":
+            proof["post_blob"] = "0" * 40
+        message = prefix + "\nReflection-Close-Time: " + json.dumps(proof, sort_keys=True, separators=(",", ":"))
+    (root / relative).write_bytes(transition.blob.content)
+    _git(root, "add", relative)
+    _git(root, "-c", "core.hooksPath=", "commit", "--quiet", "-m", message)
+    _commit_receipts(root, args["workstream_id"], args["chain_id"], closure=True)
+    return close
+
+
+@pytest.mark.parametrize("mutation", ["missing", "signature", "observed_at", "anchor", "record", "post_blob", "parent"])
+def test_raw_backdated_close_and_altered_host_proof_cannot_expire(ready, mutation):
+    root, args = ready
+    close = _replace_close_introduction(root, args, mutation)
+    assert ledger._as_utc(close.closed_at) + timedelta(days=7) < ledger._as_utc(ledger._clock_timestamp())
+    # The canonical legacy ledger is still readable, but its authored date is
+    # not an authenticated observation of elapsed retention.
+    assert operate("ledger_check", dict(cwd=str(root), workstream_id=args["workstream_id"]))["ok"]
+    before = _transaction_state(root)
+    result = operate("ledger_expire", dict(args, apply=True))
+    assert not result["ok"] and result["error"]["code"] == "close-time-proof", result
+    assert _transaction_state(root) == before
+
+
+def test_historical_elapsed_signature_does_not_replace_missing_close_proof(ready, monkeypatch):
+    root, args = ready
+    close = _replace_close_introduction(root, args, "missing")
+    # Emulate an earlier unsafe host signing elapsed evidence for a raw close.
+    # Independent historical replay must still require original close authority.
+    with monkeypatch.context() as unsafe_host:
+        unsafe_host.setattr(ledger, "_verified_close_time", lambda *args: {"observed_at": close.closed_at})
+        assert operate("ledger_expire", dict(args, apply=True))["ok"]
+    ledger.clear_trusted_workstream_history_cache()
+    result = operate("ledger_check", dict(cwd=str(root), workstream_id=args["workstream_id"]))
+    assert not result["ok"] and result["error"]["code"] == "close-time-proof", result
+
+
+def test_close_requires_trust_at_its_immutable_base(tmp_path):
+    from test_reflection_workstream_ledger import _planned_transaction
+    with pytest.raises(ledger.ReflectionValidationError, match="trust init must precede the ledger base"):
+        _planned_transaction(tmp_path, "close", retention_trust=False)
+
+
+def test_expiry_uses_apply_time_observation_not_backdated_close_record(ready):
+    root, args = ready
+    relative = ledger.workstream_ledger_path(args["workstream_id"])
+    # Re-open only this disposable fixture at the original pre-close tip.
+    _git(root, "checkout", "--quiet", "-B", "main", "HEAD~2")
+    loaded = ledger.load_trusted_workstream_ledger(root, trusted_ref="main", ledger_path=relative)
+    integration = ledger.GitWorkstreamIntegrationVerifier(loaded)
+    witness = integration.witness()
+    receipts = ledger.admit_workstream_chain_receipts(loaded, chain_id=args["chain_id"], session_ref="HEAD",
+        session_path=".memory-seed/sessions/2026-01/2026-01-01.md", entry_id="mse_0123456789abcde0",
+        decision_id="D1", disposition="expired-unpromoted", integration_witness=witness, integration_verifier=integration)
+    plan = ledger.preview_workstream_close_commit(root, trusted_ref="main", workstream_id=args["workstream_id"],
+        chain_id=args["chain_id"], receipts=receipts, receipt_verifier=ledger.GitWorkstreamReceiptVerifier(loaded, witness.integration_commit),
+        integration_witness=witness, integration_verifier=integration, conclusion="closed", reasoning="synthesized",
+        source="test", confidence="high", clock=lambda: START + timedelta(minutes=1))
+    before_apply = ledger._as_utc(ledger._clock_timestamp())
+    applied = ledger.apply_workstream_commit(root, plan)
+    proof = json.loads(ledger._git_commit_message(root, applied.new_head).split("\nReflection-Close-Time: ")[1])
+    assert ledger._as_utc(proof["observed_at"]) >= before_apply
+    assert proof["closed_at"] == "2026-01-01T00:01:00Z"
+    _commit_receipts(root, args["workstream_id"], args["chain_id"], closure=True)
+    before = _transaction_state(root)
+    result = operate("ledger_expire", dict(args, apply=True))
+    assert not result["ok"] and "not elapsed" in result["error"]["message"], result
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("concurrent", ["uncommitted", "staged", "committed", "committed_owned_bytes"])
+def test_cas_failure_preserves_concurrent_session_content_and_index(ready, monkeypatch, concurrent):
+    _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent)
+
+
+@pytest.mark.parametrize("concurrent", ["uncommitted", "committed"])
+def test_cas_failure_preserves_existing_session_content(ready, monkeypatch, concurrent):
+    from memory_seed.core import session_append_entry
+    root, _args = ready
+    baseline = session_append_entry(root, title="Existing session content", user_initials="MS", agent_type="test",
+        body="### Summary\n\nPreviously authored content must remain intact.\n")
+    assert baseline.ok
+    _git(root, "add", baseline.path.relative_to(root).as_posix())
+    _git(root, "commit", "--quiet", "-m", "existing ordinary session\n\nMemory-Entry: " + baseline.entry_id)
+    _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent)
+
+
+def _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent):
+    root, args = ready
+    relative = ledger.workstream_ledger_path(args["workstream_id"])
+    pre_ledger = (root / relative).read_bytes()
+    plan = ledger.preview_workstream_expiry_commit(root, trusted_ref="main", workstream_id=args["workstream_id"], chain_id=args["chain_id"])
+    original_git, race = ledger._git, {}
+
+    def fail_cas(cwd, *argv, **kwargs):
+        if argv[:2] == ("update-ref", "--stdin"):
+            session = next(path for path in _git(root, "diff", "--cached", "--name-only").splitlines()
+                           if path.startswith(".memory-seed/sessions/"))
+            target = root / session
+            content = target.read_bytes()
+            if concurrent != "committed_owned_bytes":
+                content += b"\nConcurrent session author: preserve this content.\n"
+                target.write_bytes(content)
+            if concurrent == "staged":
+                _git(root, "add", session)
+            if concurrent.startswith("committed"):
+                with monkeypatch.context() as isolated_index:
+                    isolated_index.setenv("GIT_INDEX_FILE", str(root / ".git" / "concurrent-session-index"))
+                    _git(root, "read-tree", plan.expected_head)
+                    _git(root, "add", session)
+                    tree = _git(root, "write-tree")
+                    advanced = _git(root, "commit-tree", tree, "-p", plan.expected_head, "-m", "concurrent session commit")
+                _git(root, "update-ref", plan.trusted_ref, advanced, plan.expected_head)
+            race.update(path=session, content=content, index=_git(root, "ls-files", "-s", "--", session),
+                        head=_git(root, "rev-parse", "HEAD"))
+            return 1, "injected stale CAS after concurrent session write"
+        return original_git(cwd, *argv, **kwargs)
+
+    monkeypatch.setattr(ledger, "_git", fail_cas)
+    with pytest.raises(ledger.ReflectionValidationError) as refused:
+        ledger.apply_workstream_commit(root, plan)
+    assert refused.value.diagnostic.code == "append-rollback-conflict"
+    assert race["path"] in refused.value.diagnostic.details["preserved_paths"]
+    assert (root / race["path"]).read_bytes() == race["content"]
+    assert _git(root, "ls-files", "-s", "--", race["path"]) == race["index"]
+    assert _git(root, "rev-parse", "HEAD") == race["head"]
+    assert (root / relative).read_bytes() == pre_ledger

@@ -1566,11 +1566,19 @@ def _commit_transaction_receipts(root, loaded, locator):
     _git(root, "commit", "--quiet", "-m", "durable synthesis receipts")
 
 
-def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
+def _planned_transaction(tmp_path, operation, *, receipt_origin="integration", retention_trust=True):
     root, synthetic, _path = _new_git_workstream(tmp_path)
     branch = synthetic.header.working_branch
+    base = synthetic.header.base_sha
+    if operation in {"close", "rebind"} and retention_trust:
+        from memory_seed.reflection_ledger import reflection_trust_init
+        default_branch = next(name for name in _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads").splitlines()
+                              if name != branch)
+        _git(root, "checkout", "--quiet", "-B", default_branch, base)
+        assert reflection_trust_init(root, apply=True)["applied"]
+        base = _git(root, "rev-parse", "HEAD")
     # Disposable fixture only: start the tested sequence at the plain base.
-    _git(root, "checkout", "--quiet", "-B", branch, synthetic.header.base_sha)
+    _git(root, "checkout", "--quiet", "-B", branch, base)
     init = preview_workstream_init_commit(root, trusted_ref=branch, clock=lambda: START)
     if operation == "init":
         return root, init, {}
@@ -1599,7 +1607,7 @@ def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
             _git(root, "rm", "--", locator["session_path"])
             _git(root, "commit", "--quiet", "-m", "delete pre-integration receipt evidence")
     source_tip = _git(root, "rev-parse", "HEAD")
-    _git(root, "checkout", "--quiet", "-b", "integration", synthetic.header.base_sha)
+    _git(root, "checkout", "--quiet", "-b", "integration", base)
     target_tip = _git(root, "rev-parse", "HEAD")
     token = preview_trusted_rebind(ledger, source_tip=source_tip, target_branch="integration",
                                     target_pre_merge_tip=target_tip, token_factory=lambda: "host-issued-integration-token")
