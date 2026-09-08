@@ -149,3 +149,19 @@ The Reflection Board v1 public launch gate passes pending its own integration, r
 
 ### Reasoning
 The board itself has exercised trusted init and all phase transitions using public commands, while the merged implementation has passed independent adversarial, parity, guidance, and integration review.
+
+## Rebind rlr_1gvteyk53gpskjpqwc4g
+
+```yaml
+record_id: rlr_1gvteyk53gpskjpqwc4g
+created_at: 2026-09-08T15:34:34Z
+role: orchestrator
+from_branch: codex/eval/reflection-board-v1-launch
+to_branch: main
+source_tip: 17e984415c0e0260ae241e2f3e667523ff19cd7a
+target_pre_merge_tip: 6f919e188a5f65213c8355d48e2b71b84a6abd67
+integration_commit: 2487de5c31fd9825ee8da9e806b5a31956738a3e
+pre_ledger_digest: sha256:1588ab8654154fb3a0a2ce16c1b363dbe6d9a8c0871b6dfb0ced10ba51eea685
+detail_digest: sha256:ddd1a52def595a45a4893f22629b733f97967c481c1456396cf59ee4b9a9a968
+reason: "Integrate the first real v1 launch evaluation onto trusted main."
+```
