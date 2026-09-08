@@ -16,11 +16,17 @@ _FIELDS = {
         "expected_head", "expected_ledger_digest"},
     "ledger_close": {"cwd", "workstream_id", "chain_id", "receipts", "apply",
         "expected_head", "expected_ledger_digest"},
+    "ledger_rebind": {"cwd", "workstream_id", "source", "reason", "apply"},
+    "ledger_prepare": {"cwd", "workstream_id", "reason", "apply"},
+    "ledger_finalize": {"cwd", "workstream_id", "source", "reason", "apply"},
 }
 _REQUIRED = {
     "board_view": (), "ledger_view": ("workstream_id",), "ledger_check": ("workstream_id",),
     "ledger_init": (), "ledger_append": ("workstream_id", "role", "conclusion", "reasoning", "source"),
     "ledger_close": ("workstream_id", "chain_id"),
+    "ledger_rebind": ("workstream_id", "source", "reason"),
+    "ledger_prepare": ("workstream_id",),
+    "ledger_finalize": ("workstream_id", "source", "reason"),
 }
 
 
@@ -201,6 +207,20 @@ def run_reflection_operation(operation: str, arguments: Mapping[str, Any] | None
         root, branch = _context(cwd)
         if operation == "board_view":
             return _board(root, branch)
+        if operation == "ledger_prepare":
+            return {"ok": True, **ledger.prepare_workstream_rebind(root,
+                workstream_id=args["workstream_id"], apply=args.get("apply", False))}
+        if operation in {"ledger_rebind", "ledger_finalize"}:
+            preview, merge_event, handoff_path, handoff_bytes = ledger.preview_integrated_workstream_rebind(
+                root, workstream_id=args["workstream_id"], source=args["source"], reason=args["reason"],
+                pr=operation == "ledger_finalize")
+            result = ledger.apply_integrated_workstream_rebind(root, preview,
+                handoff_path=handoff_path, handoff_bytes=handoff_bytes) if args.get("apply", False) else None
+            return {"ok": True, "operation": operation.removeprefix("ledger_"),
+                "applied": result is not None, "workstream_id": args["workstream_id"],
+                "head": result.new_head if result else preview.expected_head, "integration_commit": merge_event,
+                "record_id": result.record_id if result else preview.record_id,
+                "pre_ledger_digest": preview.pre_ledger_digest, "post_ledger_digest": preview.post_ledger_digest}
         loaded = None
         if operation != "ledger_init":
             loaded = ledger.load_trusted_workstream_ledger(root, trusted_ref=branch,

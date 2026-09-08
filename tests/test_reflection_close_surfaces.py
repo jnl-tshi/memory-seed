@@ -50,3 +50,62 @@ def test_cli_init_preview_identity_and_malformed_close_json(tmp_path, monkeypatc
     assert json.loads(capsys.readouterr().out)["workstream_id"].startswith("rwl_")
     assert main(["reflection", "ledger", "close", "w", "--chain-id", "c", "--receipts", "{bad", "--json"]) == 1
     assert json.loads(capsys.readouterr().err)["error"]["code"] == "invalid_arguments"
+
+
+@pytest.mark.parametrize("operation", ["rebind", "finalize"])
+@pytest.mark.parametrize("extra", [{"apply": "false"}, {"token": "raw"}, {"target_branch": "main"},
+                                  {"source_tip": "0" * 40}, {"expected_head": "0" * 40}, {"unknown": True}])
+def test_rebind_mcp_strict_locator_contract(operation, extra):
+    args = dict(workstream_id="w", source="feature", reason="integration", **extra)
+    result = call_tool("memory_reflection_ledger_" + operation, args)
+    assert result == run_reflection_operation("ledger_" + operation, args)
+    assert result["error"]["code"] == "invalid_arguments"
+    schema = next(tool["inputSchema"] for tool in TOOLS if tool["name"] == "memory_reflection_ledger_" + operation)
+    assert schema["additionalProperties"] is False
+    assert set(schema["properties"]) == {"cwd", "workstream_id", "source", "reason", "apply"}
+    assert schema["properties"]["apply"]["type"] == "boolean"
+
+
+def test_rebind_cli_mcp_parity_and_prepare_stays_cli_only(tmp_path, monkeypatch, capsys):
+    from test_reflection_operations import _public_rebind_fixture, _merge_public_source
+    root, args, _ = _public_rebind_fixture(tmp_path)
+    _merge_public_source(root, args)
+    monkeypatch.chdir(root)
+    expected = call_tool("memory_reflection_ledger_rebind", args)
+    assert expected["ok"], expected
+    assert main(["reflection", "ledger", "rebind", args["workstream_id"], "--source", args["source"],
+                 "--reason", args["reason"], "--json"]) == 0
+    actual = json.loads(capsys.readouterr().out)
+    for key in ("ok", "operation", "applied", "workstream_id", "head", "pre_ledger_digest", "integration_commit"):
+        assert actual[key] == expected[key]
+    assert not any(tool["name"] == "memory_reflection_ledger_prepare" for tool in TOOLS)
+    assert main(["reflection", "ledger", "rebind", args["workstream_id"], "--source", args["source"],
+                 "--reason", args["reason"], "--apply", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["applied"]
+
+
+@pytest.mark.parametrize("operation", ["prepare", "finalize"])
+def test_pr_cli_delegates_locator_inputs_to_facade(operation, monkeypatch, capsys):
+    from memory_seed import reflection_operations
+    captured = []
+
+    def capture(name, fields):
+        captured.append((name, fields))
+        return {"ok": True, "applied": fields["apply"]}
+
+    monkeypatch.setattr(reflection_operations, "run_reflection_operation", capture)
+    command = ["reflection", "ledger", operation, "workstream", "--apply", "--json"]
+    expected = {"workstream_id": "workstream", "apply": True}
+    if operation == "finalize":
+        command += ["--source", "refs/heads/feature", "--reason", "merged"]
+        expected.update(source="refs/heads/feature", reason="merged")
+    assert main(command) == 0
+    assert json.loads(capsys.readouterr().out) == {"ok": True, "applied": True}
+    assert captured == [("ledger_" + operation, expected)]
+
+
+@pytest.mark.parametrize("option", ["--token", "--target-branch", "--source-tip", "--expected-head"])
+def test_finalize_cli_rejects_authority_overrides(option):
+    with pytest.raises(SystemExit) as exc:
+        main(["reflection", "ledger", "finalize", "w", "--source", "feature", "--reason", "merged", option, "raw"])
+    assert exc.value.code == 2

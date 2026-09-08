@@ -1633,11 +1633,16 @@ def test_git_integration_witness_validates_predecessor_ownership(tmp_path, forge
 
     root, first, context = _planned_transaction(tmp_path, "rebind")
     if forged_predecessor:
-        # Keep an exactly parseable ownership transfer but break its claimed
-        # introduction immediately after the integration it identifies.
+        # Keep an exactly parseable ownership transfer but point its claimed
+        # integration event at a one-parent advancement instead of the merge.
+        from memory_seed import reflection_ledger as kernel
         _git(root, "commit", "--allow-empty", "--quiet", "-m", "intervene before forged ownership")
+        raw = (root / first.ledger_path).read_bytes() + first.suffix_bytes
+        rebound = kernel.parse_workstream_ledger(raw.decode("utf-8")).rebinds[-1]
+        rebound = replace(rebound, integration_commit=_git(root, "rev-parse", "HEAD"))
+        rebound = replace(rebound, detail_digest=kernel._detail_digest_for_rebind(rebound))
         with (root / first.ledger_path).open("ab") as stream:
-            stream.write(first.suffix_bytes)
+            stream.write(b"\n" + kernel.render_trusted_rebind(rebound).encode("utf-8"))
         _git(root, "add", first.ledger_path)
         _git(root, "commit", "--quiet", "-m", "unverified structural ownership")
     else:
@@ -1658,7 +1663,7 @@ def test_git_integration_witness_validates_predecessor_ownership(tmp_path, forge
     state = _transaction_state(root)
     admission = GitWorkstreamIntegrationVerifier(loaded)
     if forged_predecessor:
-        with pytest.raises(ReflectionValidationError, match="immediately follow"):
+        with pytest.raises(ReflectionValidationError, match="ordered target and source"):
             admission.witness()
         refused = run_reflection_operation("ledger_close", dict(cwd=str(root),
             workstream_id=source.ledger.header.workstream_id, chain_id=context["chain"], apply=True))

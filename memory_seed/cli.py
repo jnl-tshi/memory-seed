@@ -1385,6 +1385,14 @@ def main(argv: list[str] | None = None) -> int:
     reflection_close.add_argument("--receipts", default="[]", help="JSON array of session_path, entry_id, decision_id, disposition and optional record_id mappings")
     reflection_close.add_argument("--apply", action="store_true")
     reflection_close.add_argument("--json", action="store_true")
+    for command in ("rebind", "prepare", "finalize"):
+        rebind = reflection_ledger_sub.add_parser(command, help=f"preview or apply reflection integration {command}")
+        rebind.add_argument("workstream_id")
+        if command != "prepare":
+            rebind.add_argument("--source", required=True, help="live local source branch name or refs/heads locator")
+            rebind.add_argument("--reason", required=True)
+        rebind.add_argument("--apply", action="store_true")
+        rebind.add_argument("--json", action="store_true")
     for reflection_write in (reflection_init, reflection_append, reflection_close):
         reflection_write.add_argument("--expected-head", help="refuse if HEAD differs from the reviewed preview")
     for reflection_write in (reflection_append, reflection_close):

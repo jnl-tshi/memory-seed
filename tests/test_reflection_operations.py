@@ -150,10 +150,10 @@ def test_already_covered_promoted_receipts_and_witness_identity(tmp_path):
     assert closed["ok"] and closed["status"] == "closed_receipts_pending", closed
 
 
-def test_git_witness_refuses_rebind_without_its_exact_merge_parent(tmp_path):
+def test_git_witness_accepts_unchanged_advancement_after_exact_merge(tmp_path):
     root, preview, context = _planned_transaction(tmp_path, "rebind")
-    # A structurally valid rebind is not authority if its introduction is
-    # separated from the integration it claims to immediately follow.
+    # The merge event remains the integration identity after unchanged
+    # target advancement; the later rebind introduction has its own CAS head.
     _git(root, "commit", "--allow-empty", "--quiet", "-m", "unrelated intervening commit")
     path = root / preview.ledger_path
     with path.open("ab") as stream:
@@ -161,5 +161,183 @@ def test_git_witness_refuses_rebind_without_its_exact_merge_parent(tmp_path):
     _git(root, "add", preview.ledger_path)
     _git(root, "commit", "--quiet", "-m", "structural rebind only")
     loaded = kernel.load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=preview.ledger_path)
-    with pytest.raises(kernel.ReflectionValidationError, match="immediately follow"):
-        kernel.GitWorkstreamIntegrationVerifier(loaded).witness()
+    assert kernel.GitWorkstreamIntegrationVerifier(loaded).witness().integration_commit == preview.expected_head
+
+
+def _public_rebind_fixture(tmp_path, *, pr=False):
+    root, first, _ = _planned_transaction(tmp_path, "append")
+    applied = kernel.apply_workstream_commit(root, first)
+    source = applied.ledger.effective_branch
+    for name in _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/").splitlines():
+        if name != source and name != "main":
+            _git(root, "branch", "-m", name, "main")
+    if pr:
+        (root / ".memory-seed/project.yaml").write_text("integration_mode: pr\n", encoding="utf-8")
+        _git(root, "add", ".memory-seed/project.yaml")
+        _git(root, "commit", "--quiet", "-m", "final source preparation")
+    args = dict(cwd=str(root), workstream_id=applied.ledger.header.workstream_id,
+                source=source, reason="verified integration")
+    return root, args, first.ledger_path
+
+
+def _merge_public_source(root, args):
+    _git(root, "checkout", "--quiet", "main")
+    _git(root, "merge", "--quiet", "--no-ff", "-m", "integrate prepared source", args["source"])
+    return _git(root, "rev-parse", "HEAD")
+
+
+@pytest.mark.parametrize("pr", [False, True])
+@pytest.mark.parametrize("delay", [False, True])
+def test_public_rebind_happy_paths_and_unchanged_target_advancement(tmp_path, pr, delay):
+    root, args, path = _public_rebind_fixture(tmp_path, pr=pr)
+    if pr:
+        before = _transaction_state(root)
+        prepared = run("ledger_prepare", {key: value for key, value in args.items() if key != "source"})
+        assert prepared["ok"] and not prepared["applied"], prepared
+        assert _transaction_state(root) == before
+        prepared = run("ledger_prepare", {**{key: value for key, value in args.items() if key != "source"}, "apply": True})
+        assert prepared["ok"] and prepared["applied"], prepared
+        # Target may advance before the merge if it still has no source ledger.
+        _git(root, "checkout", "--quiet", "main")
+        _git(root, "commit", "--allow-empty", "--quiet", "-m", "target advances before merge")
+    merge = _merge_public_source(root, args)
+    if delay:
+        _git(root, "commit", "--allow-empty", "--quiet", "-m", "target advances after merge")
+    cas_head = _git(root, "rev-parse", "HEAD")
+    operation = "ledger_finalize" if pr else "ledger_rebind"
+    before = _transaction_state(root)
+    preview = run(operation, args)
+    assert preview["ok"] and not preview["applied"], preview
+    assert preview["integration_commit"] == merge and preview["head"] == cas_head
+    assert _transaction_state(root) == before
+    result = run(operation, {**args, "apply": True})
+    assert result["ok"] and result["applied"], result
+    assert _git(root, "rev-parse", "HEAD^") == cas_head
+    loaded = kernel.load_trusted_workstream_ledger(root, trusted_ref="main", ledger_path=path)
+    assert kernel.GitWorkstreamIntegrationVerifier(loaded).witness().integration_commit == merge
+    before = _transaction_state(root)
+    assert not run(operation, {**args, "apply": True})["ok"]
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("mutation", ["delete", "advance", "move", "squash", "rebase", "reverse", "three-parents", "ledger-change"])
+def test_public_finalize_refuses_changed_source_or_invalid_merge(tmp_path, mutation):
+    root, args, path = _public_rebind_fixture(tmp_path, pr=True)
+    prepare = {key: value for key, value in args.items() if key != "source"}
+    assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
+    source_tip = _git(root, "rev-parse", "HEAD")
+    base = _git(root, "rev-parse", "main")
+    merge = _merge_public_source(root, args)
+    if mutation == "delete":
+        _git(root, "branch", "-D", args["source"])
+    elif mutation in {"advance", "move"}:
+        tip = base if mutation == "move" else _git(root, "commit-tree", source_tip + "^{tree}", "-p", source_tip, "-m", "advance source")
+        _git(root, "update-ref", "refs/heads/" + args["source"], tip)
+    elif mutation in {"squash", "rebase", "reverse", "three-parents"}:
+        parents = [base] if mutation in {"squash", "rebase"} else [source_tip, base]
+        if mutation == "rebase":
+            parents = [_git(root, "commit-tree", base + "^{tree}", "-p", base, "-m", "new rebase base")]
+        if mutation == "three-parents":
+            extra = _git(root, "commit-tree", base + "^{tree}", "-p", base, "-m", "extra parent")
+            parents = [base, source_tip, extra]
+        options = [part for parent in parents for part in ("-p", parent)]
+        replacement = _git(root, "commit-tree", merge + "^{tree}", *options, "-m", "invalid merge shape")
+        _git(root, "update-ref", "refs/heads/main", replacement, merge)
+    else:
+        (root / path).write_bytes((root / path).read_bytes() + b"\ninvalid ledger\n")
+        _git(root, "add", path)
+        _git(root, "commit", "--quiet", "-m", "changed integrated ledger")
+    before = _transaction_state(root)
+    result = run("ledger_finalize", {**args, "apply": True})
+    assert not result["ok"], result
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("operation", ["ledger_rebind", "ledger_prepare", "ledger_finalize"])
+@pytest.mark.parametrize("extra", [{"apply": "false"}, {"token": "raw"}, {"target_branch": "other"},
+                                  {"source_tip": "0" * 40}, {"expected_head": "0" * 40}, {"unknown": True}])
+def test_rebind_public_arguments_are_locator_only(operation, extra):
+    args = dict(workstream_id="rwl_invalid", reason="reason")
+    if operation != "ledger_prepare":
+        args["source"] = "feature"
+    assert run(operation, {**args, **extra})["error"]["code"] == "invalid_arguments"
+
+
+def test_prepare_requires_final_source_preparation_and_live_source_locator(tmp_path):
+    root, args, _ = _public_rebind_fixture(tmp_path, pr=True)
+    base = _git(root, "rev-parse", "main")
+    advanced = _git(root, "commit-tree", base + "^{tree}", "-p", base, "-m", "target advances")
+    _git(root, "update-ref", "refs/heads/main", advanced, base)
+    result = run("ledger_prepare", {key: value for key, value in args.items() if key != "source"})
+    assert not result["ok"] and "finish source preparation" in result["error"]["message"], result
+    _git(root, "merge", "--quiet", "--no-ff", "-m", "finish preparing source", "main")
+    assert run("ledger_prepare", {**{key: value for key, value in args.items() if key != "source"}, "apply": True})["ok"]
+    _merge_public_source(root, args)
+    for source in (_git(root, "rev-parse", args["source"]), args["source"] + "~0", "../other", "refs/tags/source"):
+        assert not run("ledger_finalize", {**args, "source": source, "apply": True})["ok"]
+
+
+def test_finalize_handoff_is_canonical_nonsecret_and_repository_bound(tmp_path):
+    import json
+    import shutil
+    root, args, _ = _public_rebind_fixture(tmp_path, pr=True)
+    prepare = {key: value for key, value in args.items() if key != "source"}
+    assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
+    handoff = next((root / ".git/memory-seed-reflection-handoffs").glob("*.json"))
+    raw = handoff.read_bytes()
+    payload = json.loads(raw)
+    assert set(payload) == {"schema", "version", "repository", "workstream_id", "source_ref", "source_tip",
+                            "target_ref", "target_tip", "ledger_blob", "pre_ledger_digest"}
+    assert not _git(root, "status", "--porcelain")
+    assert not run("ledger_prepare", {**prepare, "apply": True})["ok"]
+    _merge_public_source(root, args)
+    copied = tmp_path / "copied-repository"
+    shutil.copytree(root, copied)
+    refused = run("ledger_finalize", {**args, "cwd": str(copied), "apply": True})
+    assert refused["error"]["code"] == "rebind-handoff", refused
+    handoff.write_bytes(raw + b" ")
+    assert not run("ledger_finalize", {**args, "apply": True})["ok"]
+    assert not handoff.with_suffix(".consumed").exists()
+
+
+def test_finalize_source_ref_cas_race_consumes_handoff_without_target_commit(tmp_path, monkeypatch):
+    root, args, path = _public_rebind_fixture(tmp_path, pr=True)
+    prepare = {key: value for key, value in args.items() if key != "source"}
+    assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
+    source_tip = _git(root, "rev-parse", "HEAD")
+    merge = _merge_public_source(root, args)
+    raw = (root / path).read_bytes()
+    apply = kernel.apply_workstream_commit
+
+    def raced(cwd, preview):
+        def race(stage):
+            if stage == "before-cas":
+                advanced = _git(root, "commit-tree", source_tip + "^{tree}", "-p", source_tip, "-m", "race source")
+                _git(root, "update-ref", "refs/heads/" + args["source"], advanced, source_tip)
+        return apply(cwd, preview, fault_injector=race)
+
+    monkeypatch.setattr(kernel, "apply_workstream_commit", raced)
+    result = run("ledger_finalize", {**args, "apply": True})
+    assert result["error"]["code"] == "stale_ref", result
+    assert _git(root, "rev-parse", "HEAD") == merge
+    assert (root / path).read_bytes() == raw and not _git(root, "status", "--porcelain")
+    _git(root, "update-ref", "refs/heads/" + args["source"], source_tip)
+    assert run("ledger_finalize", {**args, "apply": True})["error"]["code"] == "rebind-handoff"
+
+
+def test_rebind_ancestry_rejects_transient_ledger_edits_and_divergence(tmp_path):
+    from test_reflection_workstream_ledger import _new_git_workstream
+    root, _, path = _new_git_workstream(tmp_path)
+    base = _git(root, "rev-parse", "HEAD")
+    raw = (root / path).read_bytes()
+    (root / path).write_bytes(raw + b"temporary edit\n")
+    _git(root, "add", path)
+    _git(root, "commit", "--quiet", "-m", "intervening ledger mutation")
+    (root / path).write_bytes(raw)
+    _git(root, "add", path)
+    _git(root, "commit", "--quiet", "-m", "restore exact ledger bytes")
+    with pytest.raises(kernel.ReflectionValidationError, match="target advancement changed"):
+        kernel._unchanged_rebind_ancestry(root, base, _git(root, "rev-parse", "HEAD"), path)
+    unrelated = _git(root, "commit-tree", base + "^{tree}", "-m", "unrelated target history")
+    with pytest.raises(kernel.ReflectionValidationError, match="not descended"):
+        kernel._unchanged_rebind_ancestry(root, base, unrelated, path)

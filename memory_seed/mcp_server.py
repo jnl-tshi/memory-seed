@@ -69,6 +69,8 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_reflection_ledger_init",
         "memory_reflection_ledger_append",
         "memory_reflection_ledger_close",
+        "memory_reflection_ledger_rebind",
+        "memory_reflection_ledger_finalize",
     }
 )
 
@@ -841,6 +843,17 @@ TOOLS.extend([
         }, "required": ["workstream_id", "chain_id"], "additionalProperties": False},
     },
 ])
+for _rebind_operation in ("rebind", "finalize"):
+    TOOLS.append({
+        "name": "memory_reflection_ledger_" + _rebind_operation,
+        "description": "Preview or apply an exact local integration rebind." if _rebind_operation == "rebind" else
+            "Preview or finalize an exact same-repository PR merge using the single-use handoff created by CLI prepare.",
+        "inputSchema": {"type": "object", "properties": {
+            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
+            "source": {"type": "string"}, "reason": {"type": "string"},
+            "apply": {"type": "boolean", "default": False}},
+            "required": ["workstream_id", "source", "reason"], "additionalProperties": False},
+    })
 for _reflection_tool in TOOLS:
     if _reflection_tool["name"] in {"memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close"}:
         _reflection_tool["inputSchema"]["properties"]["expected_head"] = {
@@ -961,7 +974,8 @@ def call_tool(
             return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
 
     if name in {"memory_reflection_board_view", "memory_reflection_ledger_view", "memory_reflection_ledger_check",
-                "memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close"}:
+                "memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close",
+                "memory_reflection_ledger_rebind", "memory_reflection_ledger_finalize"}:
         from .reflection_operations import run_reflection_operation
         return run_reflection_operation(name.removeprefix("memory_reflection_"), arguments)
 
