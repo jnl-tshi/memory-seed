@@ -20,8 +20,8 @@
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-ux-m0-interaction-matrix.md](memory-trace-ux-m0-interaction-matrix.md) | P1 | [] | Implement M3 bounded graph perspectives and controlled expansion against the named fixtures. |
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
-| [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Independently review complete prototype retirement and the Reflection Board v1 schema/domain co… |
-| [reflection-prototype-retirement-plan.md](reflection-prototype-retirement-plan.md) | P1 | — | Independently review the zero-board evidence and complete prototype removal plus sequential v1 … |
+| [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Complete integrated launch verification and first-board evaluation; track public retention-exte… |
+| [reflection-prototype-retirement-plan.md](reflection-prototype-retirement-plan.md) | P1 | — | Verify the retired prototype stays absent in the integrated launch matrix and first-board evalu… |
 | [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |

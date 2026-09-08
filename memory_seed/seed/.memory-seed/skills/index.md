@@ -51,8 +51,9 @@ skills:
       - using worktrees for parallel code-writing agents
       - preparing worker, validator, or merge-conflict handoffs
       - using memory_branch_status, memory_worktree_guard, or memory_session_fuse_preview MCP tools
+      - initializing, appending, inspecting, rebinding, or preparing/finalizing a Reflection Board v1 ledger or its trust
     do_not_load_when:
-      - direct single-agent edits with no branch, worktree, merge, or handoff implications
+      - direct single-agent edits with no branch, worktree, merge, handoff, or Reflection Board implications
 
   - skill: superpowers_integration.md
     required: true
@@ -84,6 +85,7 @@ skills:
       - writing, validating, or repairing session entries
       - deciding DRAFT labels, entry shapes, topics, related_entries, or append-only chronology
       - changing session log schema or examples
+      - preparing or finalizing ordinary session receipts for Reflection Board v1 close
     do_not_load_when:
       - only reading recent session state without writing or repairing logs
 
@@ -119,8 +121,9 @@ skills:
     load_when:
       - running End Of Turn, ESR, or /esr
       - performing closeout, consolidation review, orphan sweep, persona evolution, skill evolution, or baseline-promotion review
+      - closing or expiring a Reflection Board v1 chain, or resolving its pending close receipts
     do_not_load_when:
-      - ordinary mid-task work before closeout
+      - ordinary mid-task work with no closeout or Reflection Board expiry/receipt work
 
   - skill: adr_sweep.md
     required: true

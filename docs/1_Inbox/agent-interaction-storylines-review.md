@@ -551,48 +551,62 @@ inside `session merge-branch`'s post-merge step; what remains is an honestly-sur
 
 ---
 
-## S9 REFLECT — govern a temporary Reflection Board v1 chain (planned public surface)
+## S9 REFLECT — govern a temporary Reflection Board v1 chain
 
 **Trigger:** a reviewed plan needs a temporary, branch-scoped implementation/review chain that must be
 inspectable, independently validated, and either promoted or closed before its governed retention expiry.
 
-The merged v1 foundation supplies the sole sequential ledger format, trusted Git-history reader, Task
-Packet/integration admission, and kernel-owned ledger-only transaction writer. The public workflow is **not
-launched yet**: CLI/MCP adapters, ESR visibility, hooks, runbooks, and the first real board remain planned.
-Until those surfaces land and pass launch evaluation, agents must not treat private foundation APIs or a
-disposable test fixture as an active board.
+The public workflow is **implemented in the current source tree**: one sequential v1 ledger, trusted
+Git-history reader, shared CLI/MCP facade, kernel transaction writer, ESR projection, hook admission,
+and live/Seed runbooks. The first real board and launch evaluation remain **planned**; a disposable fixture
+does not establish either. The [operator guide](../4_Reference/reflection-board-v1-operator-guide.md)
+is the current command and recovery reference.
 
-| Planned step | Intended shared surface |
+| Ordered step | Implemented surface and gate |
 | --- | --- |
-| Initialise one branch-owned ledger | `reflection ledger init` via the trusted transaction writer |
-| Append planner, implementer, and reviewer records | `reflection ledger append` / MCP parity, never raw Git writes |
-| Inspect health and all active candidates | `reflection ledger check` / `view`, `reflection board view`, ESR |
-| Integrate, receipt, rebind, and close | Existing guarded integration plus the public close adapter |
-| Consider expiry | Public expiry adapter only after complete receipts and retention eligibility |
+| Bootstrap trust before the ledger base | CLI-only `reflection trust init` preview/apply on the integration/default branch |
+| Initialize one branch-owned ledger | `reflection ledger init` / MCP parity; usable public retention is seven days |
+| Append planner, implementer, reviewer, and orchestrator records | `reflection ledger append` / MCP parity, sequential phase ownership and required independent review |
+| Inspect health and all active candidates | `reflection ledger check` / `view`, `reflection board view`, read-only ESR |
+| Integrate and transfer effective ownership | Existing guarded integration, then local `rebind`; PR mode uses CLI `prepare` before integration and CLI/MCP `finalize` afterward |
+| Prepare receipts and close | Close preview drafts exact ordinary-session mappings; commit coverage, then apply close |
+| Finalize close receipts | `closed_receipts_pending` clears only after a new ordinary entry receipts the close member and closure outcome |
+| Expire an eligible chain | CLI/MCP `expire` validates authenticated elapsed retention; one CAS publishes cleanup plus an ordinary compaction receipt |
 
-**Evaluation.** The eventual workflow must expose unsupported or malformed reserved candidates rather than
-silently omit them, and every writing surface must delegate to the one trusted transaction writer. The
-planned commands are not evidence that the lifecycle is presently available.
+**Limits and evaluation.** Unsupported/malformed reserved candidates remain visible, and hooks refuse
+manual reserved mutations through the same admission facade. Local/PR rebind requires an exact
+two-parent same-repository merge and live source tip. A finalize failure after claiming the handoff
+consumes it; automatic post-merge recovery is unavailable. Trust anchors are immutable at the ledger
+base; legacy pre-proof close is readable but non-expirable. The local host account, clock, and key are
+trusted, and the pure-Python signer is not constant-time. Expiry is not cryptographic erasure.
+Retention-extension authoring is planned; early expiry and key rotation/recovery are unavailable.
+The first-board evaluation must still validate the real workflow before a launch claim.
 
 ---
 
 ## Cross-cutting: tool inventory by storyline
 
-**MCP (23):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
+**MCP (37):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
 `memory_links_chain` (S2);
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
 `memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
 `memory_adrs_list`, `memory_adr_reviewed`, `memory_adrs_check` (S6); `memory_branch_status`,
 `memory_worktree_guard`,
 `memory_session_fuse_preview`, `memory_session_integrate` (S1/S8); `memory_link_audit` (S4);
-`memory_esr` (S7). (`memory_dir` is a `Runtime`
-dataclass field in `memory_seed/core.py`, not a tool — it was previously miscounted into this list;
-the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 23 and no more.)
+`memory_esr` (S7); `memory_reflection_board_view` and
+`memory_reflection_ledger_view/check/init/append/close/rebind/finalize/expire` (S9; slash groups
+abbreviate separate tools). Cross-cutting packet/provenance tools are
+`memory_task_packet_preview`, `memory_task_packet_compile`, `memory_decision_provenance`,
+`memory_decision_provenance_bind`, and `memory_decision_provenance_check`.
+`memory_dir` is a `Runtime` field, not a tool; the current source registry is
+`TOOLS` in `memory_seed/mcp_server.py`.
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
 retract/show/commits`, `links check/graph-diff` (S4/S5); `adr promote/revise/transition/show/list/
-reviewed/check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8).
+reviewed/check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8);
+`reflection trust init`, `reflection ledger init/append/view/check/close/rebind/prepare/finalize/expire`,
+`reflection board view` (S9).
 Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `migrate`, `encoding`,
 `doctor`, `version`, `help`, `processes`, `shutdown`) sit outside the storylines.
 
@@ -614,6 +628,10 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 | Standalone reviewed-no-change | ✓ | ✓ |
 | ESR report | ✓ | ✓ (`--json` now carries both ADR queues — see R7) |
 | Merge / integrate | ✓ | ✓ |
+| Reflection board / ledger view and check | ✓ | ✓ |
+| Reflection init / append / close / elapsed expiry | ✓ | ✓ |
+| Reflection local rebind / PR finalize | ✓ | ✓ |
+| Reflection trust bootstrap / PR prepare | — (CLI-only) | ✓ |
 
 ---
 

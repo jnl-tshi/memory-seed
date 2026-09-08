@@ -4,7 +4,7 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review the zero-board evidence and complete prototype removal plus sequential v1 rename contract before implementation."
+next_action: "Verify the retired prototype stays absent in the integrated launch matrix and first-board evaluation."
 source:
   - "docs/2_Todo/reflection-ledger-workstream-evolution-plan.md"
   - "docs/7_Replaced/plan-reflection-ledger.md"
@@ -37,8 +37,11 @@ This amendment owns the removal, naming, and non-migration boundary. The
 [workstream plan](reflection-ledger-workstream-evolution-plan.md) owns the retained sequential architecture,
 including strict parsing, trusted Git history, receipt coverage, and admitted compaction. The
 [original plan](../7_Replaced/plan-reflection-ledger.md) is documentary evidence only; its dispatches must
-never be compiled or launched. This plan specifies future implementation and does not claim code removal
-or v1 launch has already happened.
+never be compiled or launched. Prototype removal and the sequential v1 public CLI/MCP, ESR, hook, and
+runbook surfaces are now implemented in the current source tree. The first real board and launch
+evaluation remain planned. The measured inventory below is historical evidence at its stated revision;
+it does not stand in for the integrated launch checks. See the
+[operator guide](../4_Reference/reflection-board-v1-operator-guide.md) for implemented syntax and limits.
 
 ## Measured absence and reproducible inventory
 

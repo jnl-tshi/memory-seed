@@ -441,6 +441,69 @@ same `entry_id`, changed content - is refused before any merge starts, exactly l
 session entry. That is the append-only invariant, not a merge-tool gap. Do stub -> live classification
 (`memory-seed link audit` and its sidecar writes) on the trunk, not on a task branch, for that reason.
 
+## Reflection Board v1 collaboration
+
+A declared Reflection Board is temporary coordination for one workstream. The only supported authored
+format is `memory-seed/reflection-workstream-ledger` v1 at
+`.memory-seed/reflections/active/<workstream_id>/ledger.md`. Planner, implementer, reviewer, and
+orchestrator append sequentially; separate workstreams have separate ledgers. There is no participant
+fragment writer, reflection fuse, or prototype compatibility reader.
+
+Follow these gates in order:
+
+1. Verify the worktree, task scope, clean committed state, and integration/merge policy. Before creating
+   the ledger's base, the maintainer previews `memory-seed reflection trust init` on the resolved
+   integration/default branch and explicitly applies it with `--apply`. Only the public anchor is
+   committed; the matching private Ed25519 key stays in the Git common directory. Later trust cannot
+   retrofit an older ledger base. No key rotation/replacement or recovery command exists.
+2. On the owned workstream branch, preview `reflection ledger init`, then apply it. Use the returned
+   `workstream_id`; initialization mints its own identity. Seven-day retention is the usable public
+   default. Although the schema accepts 14/30, public retention-extension authoring is planned and
+   those requests fail without the unavailable admitted host preflight.
+3. Use `reflection ledger append <workstream_id>` for conclusion, reasoning, source, and role.
+   A planner opens a root with `--relationship no_related_thread --no-related-thread`. Later records
+   name `--chain-id` and `--parent`; the current phase owner records its transition. Planner advances
+   plan to implement; implementer advances to review; reviewer explicitly selects
+   `--to-phase implement` or `--to-phase orchestrate`; orchestrator synthesizes before close.
+   Independent validation, where required, cannot be replaced by a role label.
+4. Inspect `reflection ledger view <workstream_id>`, `reflection ledger check <workstream_id>`,
+   and `reflection board view`. They read trusted committed history and expose malformed candidates.
+   Every mutation defaults to preview; inspect its result before `--apply`. For init/append/close,
+   echo `head` as `--expected-head` and, for append/close, `pre_ledger_digest` as
+   `--expected-ledger-digest`. Apply remeasures authority; stale state requires a fresh judgment.
+5. Integrate through the project's existing guarded workflow, preserving the live source ref and exact
+   two-parent target/source merge. For local mode, run `reflection ledger rebind <workstream_id>
+   --source <source-branch> --reason <reason>` on the integration branch, preview then apply.
+   For PR mode, finish all source preparation against the current target, run
+   `reflection ledger prepare <workstream_id>` on the source (preview then apply), and only then
+   perform the separately authorized PR integration. On the target, preview/apply
+   `reflection ledger finalize <workstream_id> --source <source-branch> --reason <reason>`.
+   Prepare is CLI-only; rebind/finalize have MCP parity. Reflection performs no network action, push,
+   PR creation, or source-ref deletion. Rebind adds exact integration evidence without rewriting records.
+6. On the effective integration owner, prepare and commit ordinary session receipts, preview/apply
+   `reflection ledger close <workstream_id> --chain-id <chain_id> --receipts <JSON-array>`,
+   then finalize the new close-record and closure-outcome receipts in a new ordinary entry. Follow
+   `session_logging.md`; `closed_receipts_pending` is unfinished closeout, not expiry eligibility.
+7. Follow `end_of_turn.md` for elapsed `reflection ledger expire` preview/apply and verification.
+   Defer branch/worktree cleanup until required rebind evidence and receipt closeout are complete.
+
+The live/Seed prepare-commit-msg hooks call the shared admission facade before Memory-Entry stamping.
+Manual staged reserved paths, aliases, or invented Reflection trailers are refused. Seeded hooks require
+a current package whose interpreter can import the facade; repair the installation if it cannot load.
+Do not bypass the hook. Only sanctioned kernel commits, one-time trust bootstrap, and exact integration
+carriers are admitted.
+
+Recovery is evidence-led: inspect status and diagnostics, preserve concurrent content, reload view/check,
+and preview again. PR finalize claims its single-use handoff after preview validation and before CAS;
+a failure after that claim consumes it. Re-preparation requires an eligible final source state; the same
+tip cannot be prepared twice, and prepare refuses an already-integrated ledger. No automatic post-merge
+recovery exists: escalate that state without deleting the claim or fabricating merge evidence.
+
+Trust assumes an uncompromised host account, clock, and private key. The pure-Python Ed25519 signer is
+not constant-time or hardware-backed. A legacy pre-proof close remains readable but non-expirable;
+missing immutable-base trust blocks new close. Expiry is not cryptographic erasure: historical and
+unreachable Git objects may remain until Git garbage collection.
+
 ## MCP Control Surface
 
 When the Memory Seed MCP server is available, use it as the read-oriented coordination surface before

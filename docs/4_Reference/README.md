@@ -50,6 +50,7 @@ Current Memory Trace provenance:
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
 | [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
+| [reflection-board-v1-operator-guide.md](reflection-board-v1-operator-guide.md) | — | — | reference |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
 | [warranty-file-structure-index.md](warranty-file-structure-index.md) | — | — | — |
 <!-- docs-index:end -->

@@ -102,6 +102,46 @@ When a lifecycle link touches any current or historical ADR member, both CLI `se
 
 `entry_id` is a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. The normal path is `memory_session_append` (or `memory-seed session append`), which mints the id and writes the entry through the guards. If you must assemble the entry text yourself, **never invent the id by hand** — take the canonical id (and the `rendered` block to copy verbatim) from a `memory_session_append` `dry_run`, or the id alone from `memory-seed session entry-id`. Hand-rolled ids are unique-but-arbitrary: not reproducible from the entry's metadata, and they drift outside the canonical Crockford alphabet (the corpus carries both shapes for exactly this reason; integrity checks tolerate them, but new entries must not add more). Compute the id AFTER fixing the title — title and timestamp are hash inputs — and **never author the timestamp yourself**: omit `timestamp` so the tool stamps from the machine clock and returns the value; write the returned timestamp into the heading verbatim. Estimated/authored times drifted hours from reality in practice (caught 2026-07-18); an explicit timestamp is for sanctioned backfill only and earns a `clock_drift_warning` when far from the server clock. Legacy `ms-` IDs and existing hand-rolled ids remain valid and must not be rewritten.
 
+## Reflection Board receipts
+
+Reflection append records temporary reasoning, not an ordinary session entry. The orchestrator owns
+durable synthesis and receipts unless the worker packet explicitly delegates an exact session target.
+Load `agent_collaboration.md` for initialization, phase ownership, integration/rebind, and trust gates.
+
+Close records lifecycle completion; it does not remove the chain. On the effective integration branch,
+after required independent validation, orchestrator synthesis, and rebind:
+
+1. Preview `memory-seed reflection ledger close <workstream_id> --chain-id <chain_id> --json`.
+   Its `required_receipts` / `missing_receipts` identify every member needing durable coverage.
+2. Prepare an ordinary DRAFT entry with `memory_session_append` dry-run or `session append --dry-run`.
+   Use its canonical destination path and entry identity, plus the exact uppercase decision locator
+   such as `D1`. Follow the ordinary writer's preview/replay contract; never invent identities or times.
+   If the destination identity changes, re-draft the mappings before committing them.
+3. Re-preview close with `--receipts`: a JSON array whose objects contain `session_path`, `entry_id`,
+   `decision_id`, and `disposition`, optionally `record_id` to select one member. A locator without
+   `record_id` covers all members. Choose `promoted-to-decision` or `already-covered-by-decision`
+   for decision-backed coverage, or `expired-unpromoted` for an unpromoted disposition.
+   Early expiry is unavailable; a disposition string is never permission to remove a chain.
+4. Copy each returned exact mapping as its own fenced YAML block inside the named DRAFT decision.
+   Preserve every field and digest. Append through the ordinary guarded writer and commit that entry;
+   raw mapping objects passed to close and uncommitted session text do not establish receipt coverage.
+   Keep session bytes canonical UTF-8, NFC, and LF through the normal text writer.
+5. Re-preview until `ready_to_close` with no missing receipts. Review the anchors, then apply close
+   with the same locators and `--expected-head` / `--expected-ledger-digest`.
+   Close additionally requires the immutable-base public anchor and its matching local private key.
+6. A successful close returns `closed_receipts_pending`: the newly created close member and its
+   closure outcome need two more mappings. The immediate response may draft them against the old
+   destination; **do not edit that already-committed entry**. Preview a new ordinary entry, then call
+   close again without apply, using its new destination locator, to regenerate both exact mappings.
+   Append/commit the new entry through the ordinary writer. Recheck until the chain is `closed`
+   with empty `missing_receipts` in ledger check, board view, and ESR.
+
+CLI close and `memory_reflection_ledger_close` use the same receipt preparation/finalization projection.
+There is no separate public receipt-finalize command. A complete receipt is durable evidence, not a
+caller-authored signature or approval. A closed chain remains in the ledger until elapsed expiry passes
+the additional checks in `end_of_turn.md`; expiry's compaction receipt uses the existing ordinary author
+inside the guarded transaction, including per-user session layout.
+
 ## Decision Diagram Sidecars
 
 **An ADR earns a diagram when a decision is attached to it** (JNL, 2026-08-07) - **one answer per ADR, not one per attached decision** (JNL, 2026-08-07). The block keys on `adr_id` and is filed under the head's session date, so attaching eleven decisions to one concern owes one answer about that concern's shape, not eleven. Attachment is already a deliberate, recorded, human-gated act meaning *this decision governs a standing concern* — which predicts "worth drawing" far better than a judgement made in the moment of writing, and unlike that judgement it is mechanically determinable, so the obligation can be checked. The obligation is **to answer, not to draw**: supply a diagram, or record `diagram_status: not_applicable` with the reason there is no shape. That answer is a REVIEW TICK, and **evolution clears it** — because the answer is filed under the ADR's authoritative-decision date, an ADR that later moves onto a new decision no longer matches, and `links check` raises `needs-diagram-review` asking for another look. It is a warning, never an error: nothing mandates that an ADR carry a diagram, so a project that has not adopted the convention can never fail on it. `links check` validates both; ESR reports ADRs carrying no answer.
