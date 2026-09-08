@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -65,6 +66,8 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_adr_reviewed",
         "memory_link_retract",
         "memory_decision_provenance_bind",
+        "memory_reflection_ledger_init",
+        "memory_reflection_ledger_append",
     }
 )
 
@@ -793,6 +796,26 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["branch"],
         },
     },
+    {
+        "name": "memory_reflection_board_view",
+        "description": "Read every active Reflection Board v1 candidate from the current branch's trusted Git history. Read-only; malformed and unsupported reserved candidates remain visible.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_view",
+        "description": "Read one committed, history-classified Reflection Board v1 ledger. Read-only; this never reads an uncommitted ledger suffix.",
+        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id"], "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_init",
+        "description": "Preview or apply initialization of the current branch's only Reflection Board v1 ledger through the kernel-owned transaction writer. The server never accepts a caller-supplied ID, ledger bytes, Git commit, or ref.",
+        "inputSchema": {"type": "object", "properties": {"retention_days": {"type": "integer", "enum": [7, 14, 30], "default": 7}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_append",
+        "description": "Preview or apply one Reflection Board v1 record through the same kernel-owned transaction writer as the CLI. It never accepts raw ledger bytes, Git identities, receipts, or a history override.",
+        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "role": {"type": "string", "enum": ["planner", "implementer", "reviewer", "orchestrator"]}, "chain_id": {"type": "string"}, "relationship": {"type": "string", "default": "refines"}, "parents": {"type": "array", "items": {"type": "string"}, "default": []}, "no_related_thread": {"type": "boolean", "default": False}, "conclusion": {"type": "string"}, "reasoning": {"type": "string"}, "source": {"type": "string"}, "confidence": {"type": "string", "default": "high"}, "to_phase": {"type": "string"}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id", "role", "conclusion", "reasoning", "source"], "additionalProperties": False},
+    },
 ]
 
 
@@ -905,6 +928,53 @@ def call_tool(
             return {"ok": False, "error": exc.to_dict()}
         except RetrievalProfileValidationError as exc:
             return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
+
+    if name in {"memory_reflection_board_view", "memory_reflection_ledger_view", "memory_reflection_ledger_init", "memory_reflection_ledger_append"}:
+        from .reflection_ledger import (
+            ReflectionValidationError, WorkstreamAppendRequest, apply_workstream_append_commit,
+            apply_workstream_commit, load_trusted_workstream_ledger, preview_workstream_append_commit,
+            preview_workstream_init_commit, render_workstream_ledger, workstream_board_view,
+            workstream_ledger_path,
+        )
+        allowed = {
+            "memory_reflection_board_view": {"cwd"},
+            "memory_reflection_ledger_view": {"cwd", "workstream_id"},
+            "memory_reflection_ledger_init": {"cwd", "retention_days", "apply"},
+            "memory_reflection_ledger_append": {"cwd", "workstream_id", "role", "chain_id", "relationship", "parents", "no_related_thread", "conclusion", "reasoning", "source", "confidence", "to_phase", "apply"},
+        }[name]
+        unsupported = sorted(set(args) - allowed)
+        if unsupported:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported reflection tool argument(s)", "details": {"unsupported_arguments": unsupported}}}
+        cwd = Path(_cwd(args)).resolve()
+        branch = subprocess.run(["git", "-C", str(cwd), "symbolic-ref", "--quiet", "--short", "HEAD"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False).stdout.strip()
+        if not branch:
+            return {"ok": False, "error": {"code": "reflection-operation-refused", "message": "reflection operations require an attached local branch", "path": str(cwd), "details": {}}}
+        try:
+            if name == "memory_reflection_board_view":
+                view = workstream_board_view(cwd, trusted_ref=branch)
+                return {"ok": view.exit_code == 0, "items": [{"path": item.path, "status": item.status, "raw_digest": item.raw_digest, "workstream_id": item.workstream_id, "working_branch": item.working_branch, "effective_branch": item.effective_branch, "diagnostic": item.diagnostic.as_dict() if item.diagnostic else None} for item in view.items]}
+            if name == "memory_reflection_ledger_view":
+                workstream_id = _required_str(args, "workstream_id")
+                loaded = load_trusted_workstream_ledger(cwd, trusted_ref=branch, ledger_path=workstream_ledger_path(workstream_id))
+                return {"ok": True, "workstream_id": loaded.ledger.header.workstream_id, "head": loaded.head, "ledger_blob": loaded.ledger_blob, "validation": loaded.validation, "ledger": render_workstream_ledger(loaded.ledger)}
+            if name == "memory_reflection_ledger_init":
+                retention_days = args.get("retention_days", 7)
+                if isinstance(retention_days, bool) or retention_days not in (7, 14, 30):
+                    raise ValueError("retention_days must be one of 7, 14, or 30")
+                preview = preview_workstream_init_commit(cwd, trusted_ref=branch, retention_days=retention_days)
+                result = apply_workstream_commit(cwd, preview) if bool(args.get("apply", False)) else None
+            else:
+                parents = args.get("parents", [])
+                if not isinstance(parents, list) or not all(isinstance(item, str) for item in parents):
+                    raise ValueError("parents must be an array of record IDs")
+                request = WorkstreamAppendRequest(_required_str(args, "role"), _optional_str(args, "chain_id"), str(args.get("relationship", "refines")), tuple(parents), bool(args.get("no_related_thread", False)), _required_str(args, "conclusion"), _required_str(args, "reasoning"), _required_str(args, "source"), str(args.get("confidence", "high")), to_phase=_optional_str(args, "to_phase"))
+                preview = preview_workstream_append_commit(cwd, trusted_ref=branch, workstream_id=_required_str(args, "workstream_id"), request=request)
+                result = apply_workstream_append_commit(cwd, preview) if bool(args.get("apply", False)) else None
+            return {"ok": True, "applied": result is not None, "operation": preview.operation, "workstream_id": result.ledger.header.workstream_id if result else None, "head": result.new_head if result else preview.expected_head, "record_id": result.record_id if result else preview.record_id, "post_ledger_digest": result.post_ledger_digest if result else preview.post_ledger_digest}
+        except ReflectionValidationError as exc:
+            return {"ok": False, "error": exc.diagnostic.as_dict()}
+        except ValueError as exc:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": str(exc), "path": str(cwd), "details": {}}}
 
     if name == "memory_search":
         query = _required_str(args, "query")
