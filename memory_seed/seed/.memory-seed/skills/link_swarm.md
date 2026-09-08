@@ -40,6 +40,8 @@ batch approval                                   (the human gate)
     -> surface the surviving verdicts as one batch; the user approves, edits, or rejects
 write + check
     -> approved edges written to the day's link sidecar; memory-seed links check validates
+finalize + retain
+    -> batch-finalize seals a receipt; batch-gc later compacts only expired, hash-matching raw files
 ```
 
 ### 1. Mechanical recall
@@ -237,6 +239,35 @@ and must be explained before merging.
   timestamps.
 - The swarm only *suggests*. The mechanical recall, the validation, the approval, and the write are all
   outside the model's authority — a stronger `link suggest`, not a new source of truth.
+
+## Retention and cleanup
+
+Collection never deletes evidence. After the human disposition is known, create a
+`memory-seed.link-swarm-approval.v1` JSON record and run `memory-seed link batch-finalize --run-dir
+<run> --approval-file <approval.json>`. The finalizer refuses a pending run; an approved disposition
+also requires complete validation, at least one surviving approved pair, `graph_delta_reviewed: true`,
+a passing live link-integrity check, and a resolvable write commit carrying the declared
+`Memory-Entry` trailer. Rejected runs may finalize after an incomplete collection so malformed work can
+age out without being mistaken for approved evidence.
+
+```json
+{"schema":"memory-seed.link-swarm-approval.v1","run_id":"<run id>","disposition":"approved","approved_pair_ids":["<pair id>"],"reviewer":"<human or delegated orchestrator>","graph_delta_reviewed":true,"write_commit":"<commit>","memory_entry":"<mse id>"}
+```
+
+For a rejected run, use `"disposition":"rejected"`, an empty `approved_pair_ids` list, and omit the
+graph and commit fields.
+
+The immutable `receipt.json` records the approval, source and skill digests, validation result, graph
+delta, commit linkage, expiry, and hashes of every raw artifact. Preserve `analytics.jsonl`,
+`analytics-summary.json`, `survivors.json`, `validation.json`, `graph-before.json`, and the receipt
+indefinitely. They retain every candidate's component scores and disposition without duplicating full
+decision evidence.
+
+Run `memory-seed link batch-gc` to inspect expired runs. It is dry-run by default. `--apply` removes
+only the finalized receipt's exact, hash-matching `plan.json`, `batches/*.md`, and `findings/*.toon`
+after the configured retention period (30 days by default), then writes `gc.json`. Active, pending,
+unfinalized, modified, path-escaping, or otherwise unverifiable artifacts fail closed. `--purge-now`
+may bypass time retention but never receipt or hash verification.
 
 See `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md` for the design rationale and the
 open orchestration questions this skill resolves.

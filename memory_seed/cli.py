@@ -1049,7 +1049,7 @@ def main(argv: list[str] | None = None) -> int:
     link_batch_plan.add_argument("--context-window", type=int, required=True,
                                  help="declared model context window in tokens")
     link_batch_plan.add_argument("--evidence-fraction", type=float, default=0.16,
-                                 help="fraction of context reserved for pair evidence (default: 0.16)")
+                                 help="fraction of context reserved for the complete worker document (default: 0.16)")
     link_batch_plan.add_argument("--minimum-score", type=float, default=0.0,
                                  help="minimum combined candidate score admitted to a worker (default: 0)")
     link_batch_plan.add_argument("--semantic-cutoff", type=float, default=None,
@@ -1069,6 +1069,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_batch_collect.add_argument("--run-dir", required=True,
                                     help="materialized run directory containing plan.json and findings/")
+    link_batch_finalize = link_sub.add_parser(
+        "batch-finalize", help="seal an approved or rejected run for retention and later compaction"
+    )
+    link_batch_finalize.add_argument("--run-dir", required=True,
+                                     help="collected materialized run directory")
+    link_batch_finalize.add_argument("--approval-file", required=True,
+                                     help="memory-seed.link-swarm-approval.v1 JSON file")
+    link_batch_finalize.add_argument("--retention-days", type=int, default=30,
+                                     help="days to retain raw batches/findings after finalization (default: 30)")
+    link_batch_gc = link_sub.add_parser(
+        "batch-gc", help="find finalized runs whose raw evidence is eligible for compaction"
+    )
+    link_batch_gc.add_argument("--runs-dir", default=None,
+                               help="run root or one finalized run (default: .memory-seed/link-swarm-runs)")
+    link_batch_gc.add_argument("--apply", action="store_true",
+                               help="remove hash-verified expired raw artifacts; default is dry-run")
+    link_batch_gc.add_argument("--purge-now", action="store_true",
+                               help="ignore expiry dates, but still require a valid finalized receipt and hashes")
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -2768,6 +2786,39 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, indent=2, ensure_ascii=False))
             return 0
 
+        if args.link_command == "batch-finalize":
+            from .retrieval import finalize_link_swarm_run
+
+            try:
+                approval = _read_json_object(args.approval_file, label="approval file")
+                result = finalize_link_swarm_run(
+                    args.run_dir,
+                    approval,
+                    cwd=cwd,
+                    retention_days=args.retention_days,
+                )
+            except (FileExistsError, FileNotFoundError, json.JSONDecodeError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
+        if args.link_command == "batch-gc":
+            from .retrieval import gc_link_swarm_runs
+
+            runs_dir = args.runs_dir or (
+                resolve_runtime(cwd).memory_dir / "link-swarm-runs"
+            )
+            try:
+                result = gc_link_swarm_runs(
+                    runs_dir, apply=args.apply, purge_now=args.purge_now,
+                )
+            except (FileNotFoundError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
         if args.link_command in {"audit", "batch-plan"}:
             from .retrieval import (
                 apply_link_gap_stubs,
@@ -2802,7 +2853,7 @@ def main(argv: list[str] | None = None) -> int:
                         worker_skill_source=worker_skill_source,
                     )
                     if args.output_dir:
-                        result = materialize_link_swarm_run(plan, args.output_dir)
+                        result = materialize_link_swarm_run(plan, args.output_dir, cwd=cwd)
                 except (FileExistsError, LookupError, OSError, ValueError) as exc:
                     print(str(exc), file=sys.stderr)
                     return 1

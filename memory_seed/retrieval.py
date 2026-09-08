@@ -23,7 +23,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
@@ -3946,7 +3946,9 @@ def parse_link_swarm_toon(
     return {"schema": schema_match.group(1), "batch": batch_number, "verdicts": verdicts}
 
 
-def materialize_link_swarm_run(plan: Mapping[str, Any], output_dir: str | Path) -> dict[str, Any]:
+def materialize_link_swarm_run(
+    plan: Mapping[str, Any], output_dir: str | Path, *, cwd: str | Path | None = None,
+) -> dict[str, Any]:
     """Write replayable worker inputs and a pending candidate analytics ledger."""
     from .text_files import write_text_file
 
@@ -3959,6 +3961,11 @@ def materialize_link_swarm_run(plan: Mapping[str, Any], output_dir: str | Path) 
     run_id = hashlib.sha256(canonical_retrieval_json(normalized).encode("utf-8")).hexdigest()[:20]
     normalized["run_id"] = run_id
     write_text_file(directory / "plan.json", json.dumps(normalized, indent=2, ensure_ascii=False) + "\n")
+    if cwd is not None:
+        write_text_file(
+            directory / "graph-before.json",
+            json.dumps(effective_graph_snapshot(cwd), indent=2, ensure_ascii=False) + "\n",
+        )
     worker_skill_text = str(normalized.get("worker_skill_text", ""))
     measurement = dict(normalized.get("measurement", {}))
     worker_skill_source = str(
@@ -4148,6 +4155,310 @@ def collect_link_swarm_run(run_dir: str | Path) -> dict[str, Any]:
     }
     write_text_file(directory / "validation.json", json.dumps(validation, indent=2, ensure_ascii=False) + "\n")
     return validation
+
+
+LINK_SWARM_APPROVAL_SCHEMA = "memory-seed.link-swarm-approval.v1"
+LINK_SWARM_RECEIPT_SCHEMA = "memory-seed.link-swarm-receipt.v1"
+LINK_SWARM_GC_SCHEMA = "memory-seed.link-swarm-gc.v1"
+
+
+def _link_swarm_file_record(path: Path, root: Path) -> dict[str, Any]:
+    relative = path.relative_to(root).as_posix()
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+            size += len(block)
+    return {"path": relative, "utf8_bytes": size, "sha256": digest.hexdigest()}
+
+
+def _link_swarm_now(value: datetime | None = None) -> datetime:
+    current = value or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc)
+
+
+def finalize_link_swarm_run(
+    run_dir: str | Path,
+    approval: Mapping[str, Any],
+    *,
+    cwd: str | Path = ".",
+    retention_days: int = 30,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Seal a reviewed run and record enough evidence for safe later compaction."""
+    from .core import _git_text, check_session_links, resolve_runtime
+    from .text_files import write_text_file
+
+    if retention_days < 0:
+        raise ValueError("retention_days must be zero or greater")
+    directory = Path(run_dir).resolve()
+    receipt_path = directory / "receipt.json"
+    if receipt_path.exists():
+        raise FileExistsError(f"link swarm run is already finalized: {receipt_path}")
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    validation = json.loads((directory / "validation.json").read_text(encoding="utf-8"))
+    survivors = json.loads((directory / "survivors.json").read_text(encoding="utf-8"))
+    analytics_summary = json.loads(
+        (directory / "analytics-summary.json").read_text(encoding="utf-8")
+    )
+    run_id = str(plan.get("run_id") or "")
+    if not run_id:
+        raise ValueError("plan.json has no run_id")
+    for label, document in (
+        ("validation.json", validation),
+        ("survivors.json", survivors),
+        ("analytics-summary.json", analytics_summary),
+    ):
+        if document.get("run_id") != run_id:
+            raise ValueError(f"{label} run_id does not match plan.json")
+    if approval.get("schema") != LINK_SWARM_APPROVAL_SCHEMA:
+        raise ValueError(f"approval schema must be {LINK_SWARM_APPROVAL_SCHEMA}")
+    if approval.get("run_id") != run_id:
+        raise ValueError("approval run_id does not match plan.json")
+    disposition = approval.get("disposition")
+    if disposition not in {"approved", "rejected"}:
+        raise ValueError("approval disposition must be approved or rejected")
+    reviewer = str(approval.get("reviewer") or "").strip()
+    if not reviewer:
+        raise ValueError("approval reviewer must be recorded")
+    approved_pair_value = approval.get("approved_pair_ids")
+    if not isinstance(approved_pair_value, list) or not all(
+        isinstance(value, str) and value for value in approved_pair_value
+    ):
+        raise ValueError("approved_pair_ids must be a JSON list of non-empty strings")
+    approved_pair_ids = list(approved_pair_value)
+    if len(approved_pair_ids) != len(set(approved_pair_ids)):
+        raise ValueError("approved_pair_ids must not contain duplicates")
+    survivor_ids = {row["pair_id"] for row in survivors.get("verdicts", [])}
+    unknown = sorted(set(approved_pair_ids) - survivor_ids)
+    if unknown:
+        raise ValueError("approval names non-surviving pair ids: " + ", ".join(unknown))
+    if disposition == "approved" and not approved_pair_ids:
+        raise ValueError("approved disposition requires at least one approved_pair_id")
+    if disposition == "rejected" and approved_pair_ids:
+        raise ValueError("rejected disposition cannot carry approved_pair_ids")
+    if validation.get("status") not in {"complete", "incomplete"}:
+        raise ValueError("run must be collected before finalization")
+    if disposition == "approved" and validation.get("status") != "complete":
+        raise ValueError("an approved run requires complete validation")
+
+    preserved_names = (
+        "analytics.jsonl", "analytics-summary.json", "survivors.json", "validation.json",
+    )
+    preserved_paths = [directory / name for name in preserved_names]
+    missing_preserved = [path.name for path in preserved_paths if not path.is_file()]
+    if missing_preserved:
+        raise ValueError("run is missing retained analytics: " + ", ".join(missing_preserved))
+
+    checks: dict[str, Any] = {
+        "validation_status": validation.get("status"),
+        "validation_error_count": len(validation.get("errors", [])),
+    }
+    commit_record: dict[str, Any] | None = None
+    if disposition == "approved":
+        if approval.get("graph_delta_reviewed") is not True:
+            raise ValueError("approved finalization requires graph_delta_reviewed: true")
+        baseline_path = directory / "graph-before.json"
+        if not baseline_path.is_file():
+            raise ValueError("approved finalization requires graph-before.json")
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        graph_diff = diff_graph_snapshots(baseline, effective_graph_snapshot(cwd))
+        if graph_diff.get("verdict") == "error":
+            raise ValueError(f"graph snapshot comparison failed: {graph_diff.get('error')}")
+        checks["graph_diff"] = graph_diff
+        link_check = check_session_links(cwd=cwd)
+        checks["links"] = {
+            "ok": link_check.ok,
+            "files_checked": link_check.files_checked,
+            "issues": [
+                {
+                    "file": issue.file, "kind": issue.kind,
+                    "detail": issue.detail, "severity": issue.severity,
+                }
+                for issue in link_check.issues
+            ],
+        }
+        if not link_check.ok:
+            raise ValueError("link integrity check failed; approved run cannot be finalized")
+        write_commit = str(approval.get("write_commit") or "").strip()
+        memory_entry = str(approval.get("memory_entry") or "").strip()
+        if not re.fullmatch(r"mse_[a-z0-9]{16}", memory_entry):
+            raise ValueError("approved finalization requires a valid memory_entry")
+        root = resolve_runtime(cwd).workspace_root
+        code, commit_sha = _git_text(root, ("rev-parse", f"{write_commit}^{{commit}}"))
+        if code != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+            raise ValueError("write_commit does not resolve to a commit")
+        code, commit_message = _git_text(root, ("show", "-s", "--format=%B", commit_sha))
+        if code != 0 or not re.search(
+            rf"(?m)^Memory-Entry:\s*{re.escape(memory_entry)}\s*$", commit_message
+        ):
+            raise ValueError("write_commit does not carry the required Memory-Entry trailer")
+        commit_record = {"sha": commit_sha, "memory_entry": memory_entry}
+        source_commit = baseline.get("corpus_revision")
+        if source_commit:
+            ancestry_code, _ = _git_text(
+                root, ("merge-base", "--is-ancestor", str(source_commit), commit_sha)
+            )
+            if ancestry_code != 0:
+                raise ValueError("write_commit does not descend from the run source commit")
+
+    raw_paths = [directory / "plan.json"]
+    for raw_directory, suffix in ((directory / "batches", ".md"), (directory / "findings", ".toon")):
+        if raw_directory.is_dir():
+            raw_paths.extend(sorted(path for path in raw_directory.iterdir() if path.suffix == suffix))
+    if any(path.is_symlink() for path in raw_paths):
+        raise ValueError("raw artifacts must not be symbolic links")
+    raw_records = [_link_swarm_file_record(path, directory) for path in raw_paths if path.is_file()]
+    preserved_records = [_link_swarm_file_record(path, directory) for path in preserved_paths]
+    baseline_path = directory / "graph-before.json"
+    if baseline_path.is_file():
+        preserved_records.append(_link_swarm_file_record(baseline_path, directory))
+
+    finalized_at = _link_swarm_now(now)
+    receipt = {
+        "schema": LINK_SWARM_RECEIPT_SCHEMA,
+        "run_id": run_id,
+        "status": "finalized",
+        "disposition": disposition,
+        "finalized_at": finalized_at.isoformat(),
+        "retention": {
+            "raw_days": retention_days,
+            "raw_expires_at": (finalized_at + timedelta(days=retention_days)).isoformat(),
+        },
+        "skill": {
+            "source": plan.get("measurement", {}).get("worker_skill_source"),
+            "sha256": plan.get("measurement", {}).get("worker_skill_sha256"),
+        },
+        "source_commit": (
+            json.loads(baseline_path.read_text(encoding="utf-8")).get("corpus_revision")
+            if baseline_path.is_file() else None
+        ),
+        "approval": dict(approval),
+        "commit": commit_record,
+        "checks": checks,
+        "analytics": {
+            "candidate_status_counts": analytics_summary.get("status_counts", {}),
+            "verdict_counts": {
+                key: value.get("count", 0)
+                for key, value in analytics_summary.get("by_verdict", {}).items()
+            },
+        },
+        "raw_artifacts": raw_records,
+        "preserved_artifacts": preserved_records,
+    }
+    write_text_file(receipt_path, json.dumps(receipt, indent=2, ensure_ascii=False) + "\n")
+    return receipt
+
+
+def gc_link_swarm_runs(
+    runs_dir: str | Path,
+    *,
+    apply: bool = False,
+    purge_now: bool = False,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Dry-run or compact only hash-matching raw artifacts from finalized runs."""
+    from .text_files import write_text_file
+
+    root = Path(runs_dir).resolve()
+    current = _link_swarm_now(now)
+    if (root / "receipt.json").is_file():
+        run_directories = [root]
+    elif root.is_dir():
+        run_directories = sorted(path for path in root.iterdir() if path.is_dir())
+    else:
+        raise FileNotFoundError(f"link swarm runs directory does not exist: {root}")
+    results: list[dict[str, Any]] = []
+    for directory in run_directories:
+        receipt_path = directory / "receipt.json"
+        if not receipt_path.is_file():
+            results.append({"run": directory.name, "status": "skipped", "reason": "not_finalized"})
+            continue
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if receipt.get("schema") != LINK_SWARM_RECEIPT_SCHEMA or receipt.get("status") != "finalized":
+                raise ValueError("invalid finalized receipt")
+            expires_at = datetime.fromisoformat(receipt["retention"]["raw_expires_at"])
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if not purge_now and current < expires_at.astimezone(timezone.utc):
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "retained", "expires_at": expires_at.isoformat(),
+                })
+                continue
+            pending: list[tuple[Path, Mapping[str, Any]]] = []
+            problems: list[str] = []
+            for record in receipt.get("raw_artifacts", []):
+                relative = Path(str(record.get("path") or ""))
+                if relative.is_absolute() or ".." in relative.parts:
+                    problems.append(f"unsafe raw path: {relative}")
+                    continue
+                path = (directory / relative).resolve()
+                try:
+                    path.relative_to(directory)
+                except ValueError:
+                    problems.append(f"raw path escapes run: {relative}")
+                    continue
+                if not path.exists():
+                    continue
+                if path.is_symlink() or not path.is_file():
+                    problems.append(f"raw artifact is not a regular file: {relative.as_posix()}")
+                    continue
+                actual = _link_swarm_file_record(path, directory)
+                if actual["sha256"] != record.get("sha256") or actual["utf8_bytes"] != record.get("utf8_bytes"):
+                    problems.append(f"raw artifact changed after finalization: {relative.as_posix()}")
+                    continue
+                pending.append((path, record))
+            if problems:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "blocked", "problems": problems,
+                })
+                continue
+            if not pending:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "already_compacted",
+                })
+                continue
+            removed = [record["path"] for _, record in pending]
+            if not apply:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "eligible", "would_remove": removed,
+                })
+                continue
+            for path, _record in pending:
+                path.unlink()
+            for raw_directory in (directory / "batches", directory / "findings"):
+                if raw_directory.is_dir() and not any(raw_directory.iterdir()):
+                    raw_directory.rmdir()
+            gc_record = {
+                "schema": LINK_SWARM_GC_SCHEMA,
+                "run_id": receipt.get("run_id"),
+                "compacted_at": current.isoformat(),
+                "receipt_sha256": _link_swarm_file_record(receipt_path, directory)["sha256"],
+                "removed": removed,
+            }
+            write_text_file(
+                directory / "gc.json", json.dumps(gc_record, indent=2, ensure_ascii=False) + "\n"
+            )
+            results.append({
+                "run": directory.name, "run_id": receipt.get("run_id"),
+                "status": "compacted", "removed": removed,
+            })
+        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+            results.append({"run": directory.name, "status": "blocked", "problems": [str(exc)]})
+    return {
+        "schema": "memory-seed.link-swarm-gc-report.v1",
+        "mode": "apply" if apply else "dry-run",
+        "purge_now": purge_now,
+        "runs": results,
+    }
 
 
 def apply_link_gap_stubs(

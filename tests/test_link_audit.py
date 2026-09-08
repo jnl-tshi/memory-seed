@@ -20,7 +20,9 @@ import os
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from memory_seed.core import MEMORY_DIR_NAME, check_session_links
 from memory_seed.cli import main as cli_main
@@ -29,6 +31,8 @@ from memory_seed.retrieval import (
     audit_link_gaps,
     augment_chunks_with_link_sidecars,
     collect_link_swarm_run,
+    finalize_link_swarm_run,
+    gc_link_swarm_runs,
     materialize_link_swarm_run,
     parse_link_swarm_toon,
     plan_link_audit_batches,
@@ -512,6 +516,136 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(result["survivor_count"], 1)
         rows = [json.loads(line) for line in (run_dir / "analytics.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual([row["status"] for row in rows], ["validated", "rejected"])
+
+    def _finalized_rejected_run(self, name="retention-run", *, retention_days=30):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new decision body"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 20.0,
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "old decision body"}],
+                }],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        run_dir = self.cwd / name
+        materialize_link_swarm_run(plan, run_dir)
+        validation = collect_link_swarm_run(run_dir)
+        self.assertEqual(validation["status"], "incomplete")
+        approval = {
+            "schema": "memory-seed.link-swarm-approval.v1",
+            "run_id": plan.get("run_id") or json.loads(
+                (run_dir / "plan.json").read_text(encoding="utf-8")
+            )["run_id"],
+            "disposition": "rejected",
+            "approved_pair_ids": [],
+            "reviewer": "test-orchestrator",
+            "note": "Rejected malformed or missing findings.",
+        }
+        receipt = finalize_link_swarm_run(
+            run_dir,
+            approval,
+            cwd=self.cwd,
+            retention_days=retention_days,
+            now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        return run_dir, receipt
+
+    def test_finalized_run_retains_analytics_and_gc_is_dry_run_then_idempotent(self):
+        run_dir, receipt = self._finalized_rejected_run()
+        self.assertEqual(receipt["status"], "finalized")
+        self.assertEqual(receipt["retention"]["raw_days"], 30)
+        self.assertTrue((run_dir / "plan.json").is_file())
+
+        retained = gc_link_swarm_runs(
+            run_dir, now=datetime(2026, 1, 15, tzinfo=timezone.utc)
+        )
+        self.assertEqual(retained["runs"][0]["status"], "retained")
+        eligible = gc_link_swarm_runs(
+            run_dir, now=datetime(2026, 2, 1, tzinfo=timezone.utc)
+        )
+        self.assertEqual(eligible["mode"], "dry-run")
+        self.assertEqual(eligible["runs"][0]["status"], "eligible")
+        self.assertTrue((run_dir / "plan.json").is_file())
+
+        compacted = gc_link_swarm_runs(
+            run_dir, apply=True, now=datetime(2026, 2, 1, tzinfo=timezone.utc)
+        )
+        self.assertEqual(compacted["runs"][0]["status"], "compacted")
+        self.assertFalse((run_dir / "plan.json").exists())
+        self.assertFalse((run_dir / "batches").exists())
+        self.assertTrue((run_dir / "analytics.jsonl").is_file())
+        self.assertTrue((run_dir / "receipt.json").is_file())
+        self.assertTrue((run_dir / "gc.json").is_file())
+        repeated = gc_link_swarm_runs(run_dir, apply=True, purge_now=True)
+        self.assertEqual(repeated["runs"][0]["status"], "already_compacted")
+
+    def test_gc_refuses_raw_artifact_changed_after_finalization(self):
+        run_dir, _receipt = self._finalized_rejected_run("tampered-run", retention_days=0)
+        batch_path = run_dir / "batches" / "batch-0001.md"
+        batch_path.write_text(batch_path.read_text(encoding="utf-8") + "tampered\n", encoding="utf-8")
+
+        result = gc_link_swarm_runs(run_dir, apply=True, purge_now=True)
+
+        self.assertEqual(result["runs"][0]["status"], "blocked")
+        self.assertIn("changed after finalization", result["runs"][0]["problems"][0])
+        self.assertTrue((run_dir / "plan.json").is_file())
+        self.assertTrue(batch_path.is_file())
+
+    def test_approved_finalization_verifies_graph_links_and_commit_trailer(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new decision extends old design"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 20.0,
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "old design remains useful rationale"}],
+                }],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        run_dir = self.cwd / "approved-run"
+        materialize_link_swarm_run(plan, run_dir, cwd=self.cwd)
+        report = (
+            "schema: memory-seed.link-swarm-verdicts.v1\n"
+            "batch: 1\n"
+            "verdicts[1]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:\n"
+            f'{B},d1,{A},d1,related,"old design remains useful rationale",{A},"supports the newer design",0.9,null\n'
+        )
+        (run_dir / "findings" / "batch-0001.toon").write_text(report, encoding="utf-8")
+        self.assertEqual(collect_link_swarm_run(run_dir)["status"], "complete")
+        stored_plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+        memory_entry = "mse_" + "z" * 16
+        approval = {
+            "schema": "memory-seed.link-swarm-approval.v1",
+            "run_id": stored_plan["run_id"],
+            "disposition": "approved",
+            "approved_pair_ids": [stored_plan["batches"][0]["pairs"][0]["pair_id"]],
+            "reviewer": "test-orchestrator",
+            "graph_delta_reviewed": True,
+            "write_commit": "abc123",
+            "memory_entry": memory_entry,
+        }
+
+        def fake_git(_root, args):
+            if args[0] == "rev-parse":
+                return 0, "a" * 40
+            if args[0] == "show":
+                return 0, f"link write\n\nMemory-Entry: {memory_entry}"
+            return 1, ""
+
+        with mock.patch("memory_seed.core._git_text", side_effect=fake_git):
+            receipt = finalize_link_swarm_run(run_dir, approval, cwd=self.cwd)
+
+        self.assertEqual(receipt["disposition"], "approved")
+        self.assertTrue(receipt["checks"]["links"]["ok"])
+        self.assertEqual(receipt["checks"]["graph_diff"]["verdict"], "unchanged")
+        self.assertEqual(receipt["commit"]["memory_entry"], memory_entry)
 
     def test_decision_level_sidecar_edge_suppresses_the_pair(self):
         # A `<id>:dN` ref records the pair at finer granularity. It never
