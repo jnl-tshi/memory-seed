@@ -1013,11 +1013,17 @@ Approved 2026-07-16 after full Inbox triage. These plans are dependency-ordered 
    three-concern dogfooding are complete. Entries retain detailed evidence; the ADR owns its curated synopsis,
    concern membership, and accepted head; status and indexes are derived. The remaining `record_kind` and
    retrieval-signal work still waits for BG1/BG2 and cannot change ranking before the real-corpus gate.
-2. **Workflow evidence and review workbench (P2)** —
+2. **ADR evolution and reasoning semantics review (P1; INBOX, not approved implementation)** —
+   [`../1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md`](../1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md).
+   Independently test whether ADRs should distinguish Reason, lifecycle Evolution, and optional
+   Consequences; decide where falsifiable hypotheses apply; and assess representative v2 `Impact` prose
+   before proposing any schema, Constitution, or corpus-migration change. Treat the stale unmerged v3
+   branch as prototype evidence only. Review and an explicit promotion decision precede implementation.
+3. **Workflow evidence and review workbench (P2)** —
    [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](memory-seed-workflow-evidence-and-review-workbench-plan.md).
    Reconstruct three real idea-to-outcome journeys before defining a deterministic review queue. No raw
    telemetry, universal workflow, automatic judgement, or new generic graph edges.
-3. **Semantic Trace projections (P3)** —
+4. **Semantic Trace projections (P3)** —
    [`memory-trace-semantic-projections-plan.md`](memory-trace-semantic-projections-plan.md). Begin with one
    validated Decision projection over shared readers; additional projections require user evidence.
 

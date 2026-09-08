@@ -107,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 8 · 2_Todo 46 · 3_Spec 9 · 4_Reference 23 · 5_Completed 76 · 6_Rejected 2 · 7_Replaced 33 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 9 · 2_Todo 46 · 3_Spec 9 · 4_Reference 23 · 5_Completed 76 · 6_Rejected 2 · 7_Replaced 33 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [seed-pod-p0-reconciliation-plan.md](2_Todo/seed-pod-p0-reconciliation-plan.md) — Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain reviewed Reflection Board…
