@@ -71,6 +71,7 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_reflection_ledger_close",
         "memory_reflection_ledger_rebind",
         "memory_reflection_ledger_finalize",
+        "memory_reflection_ledger_expire",
     }
 )
 
@@ -824,6 +825,14 @@ TOOLS: list[dict[str, Any]] = [
 
 TOOLS.extend([
     {
+        "name": "memory_reflection_ledger_expire",
+        "description": "Preview or apply normal elapsed-retention expiry of one closed, durably receipted chain. The host owns time and signing. Cleanup and its compaction receipt are published by one ref CAS. Working-tree disappearance is not cryptographic erasure; unreachable Git objects may remain until Git garbage collection. Early expiry is unavailable.",
+        "inputSchema": {"type": "object", "properties": {
+            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
+            "chain_id": {"type": "string"}, "apply": {"type": "boolean", "default": False}},
+            "required": ["workstream_id", "chain_id"], "additionalProperties": False},
+    },
+    {
         "name": "memory_reflection_ledger_check",
         "description": "Check one committed Reflection Board v1 ledger and report pending close receipts.",
         "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."},
@@ -975,7 +984,7 @@ def call_tool(
 
     if name in {"memory_reflection_board_view", "memory_reflection_ledger_view", "memory_reflection_ledger_check",
                 "memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close",
-                "memory_reflection_ledger_rebind", "memory_reflection_ledger_finalize"}:
+                "memory_reflection_ledger_rebind", "memory_reflection_ledger_finalize", "memory_reflection_ledger_expire"}:
         from .reflection_operations import run_reflection_operation
         return run_reflection_operation(name.removeprefix("memory_reflection_"), arguments)
 

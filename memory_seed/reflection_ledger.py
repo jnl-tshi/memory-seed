@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from hashlib import sha256, sha512
@@ -25,6 +25,12 @@ import unicodedata
 
 
 REFLECTION_ROOT = ".memory-seed/reflections/active"
+RETENTION_TRUST_PATH = ".memory-seed/reflections/trust/retention-approval.yaml"
+RETENTION_TRUST_SCHEMA = "memory-seed/reflection-retention-trust"
+EXPIRY_DISCLOSURE = (
+    "Working-tree disappearance is not cryptographic erasure. "
+    "Historical and unreachable Git objects may remain until Git garbage collection."
+)
 CANONICAL_MODE = "100644"
 CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz"
 ID_SUFFIX_RE = re.compile(r"^[0-9abcdefghjkmnpqrstvwxyz]{20}$")
@@ -381,6 +387,45 @@ def ed25519_verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
         base_x = ED25519_P - base_x
     digest = int.from_bytes(sha512(encoded_r + public_key + message).digest(), "little") % ED25519_L
     return multiply((base_x, ED25519_BASE_Y), scalar_s) == add(r_point, multiply(public_point, digest))
+
+
+def _ed25519_sign(seed: bytes, message: bytes) -> tuple[bytes, bytes]:
+    """RFC 8032 deterministic signing for a local, offline host.
+
+    Like the existing verifier, this uses only the standard library. Python
+    big integers are not constant-time; this is not a hardware key boundary.
+    """
+    if len(seed) != 32:
+        _fail("retention-trust", "private key", "Ed25519 seed must contain exactly 32 bytes")
+
+    def add(p, q):
+        a, b = (p[1] - p[0]) * (q[1] - q[0]), (p[1] + p[0]) * (q[1] + q[0])
+        c, d = 2 * ED25519_D * p[3] * q[3], 2 * p[2] * q[2]
+        e, f, g, h = b - a, d - c, d + c, b + a
+        return tuple(v % ED25519_P for v in (e * f, g * h, f * g, e * h))
+
+    def encode_multiple(scalar):
+        y = ED25519_BASE_Y
+        xx = (y * y - 1) * pow(ED25519_D * y * y + 1, ED25519_P - 2, ED25519_P) % ED25519_P
+        x = pow(xx, (ED25519_P + 3) // 8, ED25519_P)
+        if x & 1:
+            x = ED25519_P - x
+        current, total = (x, y, 1, x * y % ED25519_P), (0, 1, 1, 0)
+        while scalar:
+            if scalar & 1:
+                total = add(total, current)
+            current, scalar = add(current, current), scalar >> 1
+        inverse = pow(total[2], ED25519_P - 2, ED25519_P)
+        x, y = total[0] * inverse % ED25519_P, total[1] * inverse % ED25519_P
+        return (y | ((x & 1) << 255)).to_bytes(32, "little")
+
+    hashed = sha512(seed).digest()
+    scalar = (int.from_bytes(hashed[:32], "little") & ((1 << 254) - 8)) | (1 << 254)
+    public = encode_multiple(scalar)
+    nonce = int.from_bytes(sha512(hashed[32:] + message).digest(), "little") % ED25519_L
+    encoded_r = encode_multiple(nonce)
+    challenge = int.from_bytes(sha512(encoded_r + public + message).digest(), "little") % ED25519_L
+    return public, encoded_r + ((nonce + challenge * scalar) % ED25519_L).to_bytes(32, "little")
 
 
 @dataclass(frozen=True)
@@ -2152,7 +2197,7 @@ WORKSTREAM_COMPACTION_SCHEMA = "memory-seed/reflection-workstream-compaction"
 WORKSTREAM_COMPACTION_FIELDS = (
     "schema", "version", "workstream_id", "ledger_path", "pre_ledger_digest", "post_ledger_digest",
     "pre_tip", "pre_blob", "cleanup_commit", "post_blob", "removed_chain_ids", "removed_record_ids",
-    "closure_receipts", "member_receipts", "reason", "git_blobs_remain", "privacy_grade_erasure",
+    "closure_receipts", "member_receipts", "reason", "git_blobs_remain", "privacy_grade_erasure", "elapsed_attestation",
 )
 WORKSTREAM_COMPACTION_CLOSURE_FIELDS = (
     "chain_id", "closed_record_id", "closed_record_digest", "session_path", "entry_id", "decision_id",
@@ -2255,6 +2300,8 @@ class WorkstreamCompactionReceipt:
     reason: str
     git_blobs_remain: bool = True
     privacy_grade_erasure: bool = False
+    # Canonical JSON keeps the immutable receipt hashable during history scans.
+    elapsed_attestation: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -2266,6 +2313,7 @@ class WorkstreamCompactionReceipt:
             "closure_receipts": [item.as_dict() for item in self.closure_receipts],
             "member_receipts": [item.as_dict() for item in self.member_receipts], "reason": self.reason,
             "git_blobs_remain": self.git_blobs_remain, "privacy_grade_erasure": self.privacy_grade_erasure,
+            "elapsed_attestation": json.loads(self.elapsed_attestation) if self.elapsed_attestation is not None else None,
         }
 
 
@@ -2333,6 +2381,7 @@ def workstream_compaction_receipt_from_dict(value: Mapping[str, Any], path: str 
         _git_oid_40(value["pre_tip"], path, "pre_tip"), _git_oid_40(value["pre_blob"], path, "pre_blob"),
         _git_oid_40(value["cleanup_commit"], path, "cleanup_commit"), _git_oid_40(value["post_blob"], path, "post_blob"),
         chains, records, closures, members, _text(value["reason"], path, "reason"), True, False,
+        _canonical_elapsed_attestation(value["elapsed_attestation"], path),
     )
 
 
@@ -2513,8 +2562,126 @@ def _git_commit_message(root: Path, commit: str) -> str:
 def clear_trusted_workstream_history_cache() -> None:
     """Discard derived Git-object caches; never touches authoritative files."""
     for cached in (_cached_tree_blob, _cached_git_commit_parents, _cached_git_is_ancestor,
-                   _cached_git_changed_tree_paths, _cached_git_tree_paths, _cached_git_commit_message):
+                   _cached_git_changed_tree_paths, _cached_git_tree_paths, _cached_git_commit_message, _retention_anchor):
         cached.cache_clear()
+
+
+def _render_retention_trust(trust: RetentionApprovalTrust) -> str:
+    return _workstream_yaml_mapping(tuple(dict(schema=RETENTION_TRUST_SCHEMA, version=1,
+        key_id=trust.key_id, public_key=trust.public_key).items()))
+
+
+def _parse_retention_trust(raw: bytes, path: str = RETENTION_TRUST_PATH) -> RetentionApprovalTrust:
+    text = _canonical_text(raw, path)
+    value = _parse_yaml_mapping(text, path)
+    _required(value, ("schema", "version", "key_id", "public_key"), path)
+    _only(value, ("schema", "version", "key_id", "public_key"), path)
+    if value["schema"] != RETENTION_TRUST_SCHEMA or type(value["version"]) is not int or value["version"] != 1:
+        _fail("retention-trust", path, "unsupported canonical trust schema/version")
+    public = value["public_key"]
+    if not isinstance(public, str) or not re.fullmatch(r"ed25519:[0-9a-f]{64}", public):
+        _fail("retention-trust", path, "anchor requires one canonical Ed25519 public key")
+    if value["key_id"] != "sha256:" + sha256(bytes.fromhex(public[8:])).hexdigest():
+        _fail("retention-trust", path, "anchor key ID does not bind its public key")
+    trust = RetentionApprovalTrust(value["key_id"], public)
+    if _render_retention_trust(trust) != text:
+        _fail("retention-trust", path, "trust anchor bytes are not canonical")
+    return trust
+
+
+@lru_cache(maxsize=32768)
+def _retention_anchor(root: Path, head: str, *, required: bool = True) -> GitBlob | None:
+    _git_oid_40(head, RETENTION_TRUST_PATH, "trust head")
+    code, paths = _git(root, "ls-tree", "-r", "-z", "--name-only", head, binary=True)
+    if code or not isinstance(paths, bytes):
+        _fail("retention-trust", RETENTION_TRUST_PATH, "cannot inventory trust aliases")
+    for path in paths.decode("utf-8").split("\0"):
+        if (is_reserved_reflection_path(path) and path != RETENTION_TRUST_PATH
+                and not re.fullmatch(r"\.memory-seed/reflections/active/rwl_[0-9abcdefghjkmnpqrstvwxyz]{20}/ledger\.md", path)):
+            _fail("retention-trust", path, "trust aliases and unknown reserved paths are forbidden")
+    blob = _tree_blob(root, head, RETENTION_TRUST_PATH)
+    if blob is None:
+        if required:
+            _fail("retention-trust", RETENTION_TRUST_PATH, "trust init must precede the ledger base")
+        return None
+    if blob.mode != CANONICAL_MODE:
+        _fail("retention-trust", RETENTION_TRUST_PATH, "trust anchor must be a regular 100644 blob")
+    _parse_retention_trust(blob.content)
+    # Follow every parent, including deleted/restored periods. No rotation or
+    # divergent trust history can be laundered by returning to today's bytes.
+    code, output = _git(root, "rev-list", "--full-history",
+        f"--max-count={MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS + 1}", head, "--", RETENTION_TRUST_PATH)
+    history = output.splitlines() if code == 0 and isinstance(output, str) else []
+    if not history or len(history) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+        _fail("retention-trust", RETENTION_TRUST_PATH, "trust history is missing or exceeds its bound")
+    for commit in history:
+        current = _tree_blob(root, commit, RETENTION_TRUST_PATH)
+        parents = _git_commit_parents(root, commit)
+        prior = [_tree_blob(root, parent, RETENTION_TRUST_PATH) for parent in parents]
+        if (current is None or current.mode != CANONICAL_MODE or current.content != blob.content
+                or any(item is not None and (item.mode != CANONICAL_MODE or item.content != blob.content) for item in prior)):
+            _fail("retention-trust", RETENTION_TRUST_PATH, "anchor rotation, removal or divergence is forbidden")
+        if not any(prior):
+            if len(parents) != 1 or _git_changed_tree_paths(root, parents[0], commit) != (RETENTION_TRUST_PATH,):
+                _fail("retention-trust", RETENTION_TRUST_PATH, "bootstrap must introduce only the canonical anchor")
+            trust = _parse_retention_trust(blob.content)
+            match = re.fullmatch(r"reflection: trust init\n\nReflection-Trust-Proof: ed25519:([0-9a-f]{128})", _git_commit_message(root, commit))
+            if match is None or not ed25519_verify(bytes.fromhex(trust.public_key[8:]),
+                    _trust_bootstrap_payload(parents[0], blob.content), bytes.fromhex(match.group(1))):
+                _fail("retention-trust", RETENTION_TRUST_PATH, "bootstrap lacks its exact key-pair proof")
+    return blob
+
+
+def _trust_bootstrap_payload(parent: str, raw: bytes) -> bytes:
+    return b"memory-seed/reflection-trust-bootstrap/v1\0" + parent.encode("ascii") + b"\0" + raw
+
+
+def _retention_key_path(root: Path) -> Path:
+    common = _rebind_common_directory(root)
+    path = common / "memory-seed-retention" / "ed25519.seed"
+    for candidate in (path.parent, path):
+        if candidate.is_symlink() or candidate.resolve() != candidate:
+            _fail("retention-trust", str(candidate), "private key paths cannot contain links or junctions")
+    return path
+
+
+def _read_retention_key(root: Path, trust: RetentionApprovalTrust | None = None) -> bytes:
+    path = _retention_key_path(root)
+    if not path.is_file() or not stat.S_ISREG(path.stat().st_mode):
+        _fail("retention-trust", str(path), "local private key is unavailable; replacement is not supported")
+    if os.name != "nt" and path.stat().st_mode & 0o077:
+        _fail("retention-trust", str(path), "private key permissions must exclude group and other users")
+    seed = path.read_bytes()
+    challenge = b"memory-seed/reflection-key-pair/v1"
+    public, signature = _ed25519_sign(seed, challenge)
+    if (not ed25519_verify(public, challenge, signature)
+            or (trust is not None and trust.public_key != "ed25519:" + public.hex())):
+        _fail("retention-trust", RETENTION_TRUST_PATH, "private key and public anchor do not match")
+    return seed
+
+
+def _create_retention_key(root: Path) -> None:
+    path = _retention_key_path(root)
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    if os.name == "nt":
+        identity = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True, check=False)
+        match = re.search(r"S-1-[0-9-]+", identity.stdout)
+        if identity.returncode or match is None:
+            _fail("retention-trust", str(path.parent), "cannot determine a restrictive local key ACL")
+        reset = subprocess.run(["icacls", str(path.parent), "/reset"], capture_output=True, check=False)
+        if reset.returncode:
+            _fail("retention-trust", str(path.parent), "cannot remove pre-existing private-directory ACL grants")
+        secured = subprocess.run(["icacls", str(path.parent), "/inheritance:r", "/grant:r",
+            f"*{match.group(0)}:(OI)(CI)F"], capture_output=True, check=False)
+        if secured.returncode:
+            _fail("retention-trust", str(path.parent), "cannot restrict the local private-key directory ACL")
+    else:
+        path.parent.chmod(0o700)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(secrets.token_bytes(32))
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
@@ -2532,6 +2699,10 @@ def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str,
         if not is_reserved_reflection_path(path):
             continue
         mode, kind, oid = metadata.decode("ascii").split()
+        if path == RETENTION_TRUST_PATH and mode == CANONICAL_MODE and kind == "blob":
+            _retention_anchor(root, commit)
+            entries.append((path, mode, oid))
+            continue
         match = re.fullmatch(r"\.memory-seed/reflections/active/(rwl_[0-9abcdefghjkmnpqrstvwxyz]{20})/ledger\.md", path)
         if match is None or mode != CANONICAL_MODE or kind != "blob":
             _fail("unsupported-reflection-format", path, "reserved tree permits only canonical regular v1 ledgers", mode=mode)
@@ -2567,6 +2738,8 @@ def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str],
     allowed_dirs = {".memory-seed/reflections", REFLECTION_ROOT} | {
         str(PurePosixPath(path).parent) for path in expected_paths
     }
+    if RETENTION_TRUST_PATH in expected_paths:
+        allowed_dirs.add(".memory-seed/reflections/trust")
 
     def scan_error(error: OSError) -> None:
         _fail("reflection-integration-tree", str(error.filename), "could not inventory checkout directories")
@@ -2649,12 +2822,18 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
     if _git_is_ancestor(root, source_commit, base_commit):
         proposed = base
     else:
-        if left.keys() & right.keys():
-            _fail("reflection-integration-topology", sorted(left.keys() & right.keys())[0],
+        common = left.keys() & right.keys()
+        if RETENTION_TRUST_PATH in common and left[RETENTION_TRUST_PATH] != right[RETENTION_TRUST_PATH]:
+            _fail("retention-trust", RETENTION_TRUST_PATH, "integration parents have divergent public anchors")
+        ledger_common = common - {RETENTION_TRUST_PATH}
+        if ledger_common:
+            _fail("reflection-integration-topology", sorted(ledger_common)[0],
                   "merge would have two ledger-bearing parents; use admitted sequential topology")
-        proposed = tuple(sorted((*base, *source)))
+        proposed = tuple(sorted(set((*base, *source))))
     owners: dict[str, str] = {}
     for path, _mode, _oid in proposed:
+        if path == RETENTION_TRUST_PATH:
+            continue
         commit = base_commit if path in left else source_commit
         owner = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=path).ledger.effective_branch
         if owner in owners:
@@ -2695,6 +2874,48 @@ def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrati
     else:
         expected = _reflection_tree_inventory(root, preview.worktree_head)
     _check_reflection_worktree(root, expected)
+
+
+def reflection_commit_admission(cwd: Path | str, *, candidate: str | None = None,
+                                plan: WorkstreamCommitPreview | None = None) -> dict[str, Any]:
+    """Shared reserved-family gate for kernel transactions and commit hooks.
+
+    The hook supplies only cwd. Commit messages, environment switches and
+    caller-provided tokens never confer kernel admission.
+    """
+    root = Path(cwd).resolve()
+    if plan is not None:
+        stored = _WORKSTREAM_COMMIT_PLANS.get(plan.token)
+        if stored is None or stored.preview != plan or stored.repository != str(root) or candidate is None:
+            _fail("reflection-hook", str(root), "kernel admission requires its live transaction plan")
+        changed = tuple(path for path in _git_changed_tree_paths(root, plan.expected_head, candidate)
+                        if is_reserved_reflection_path(path))
+        if changed != (plan.ledger_path,):
+            _fail("reflection-hook", str(root), "kernel transaction changed another reserved path")
+        blob = _tree_blob(root, candidate, plan.ledger_path)
+        if blob is None or blob.content != stored.post_raw or blob.mode != CANONICAL_MODE:
+            _fail("reflection-hook", plan.ledger_path, "kernel candidate differs from its exact planned bytes")
+        _check_reflection_worktree(root, _reflection_tree_inventory(root, candidate))
+        return {"admission": "trust-bootstrap" if plan.operation == "trust_init" else "kernel", "paths": list(changed)}
+    if candidate is not None:
+        _fail("reflection-hook", str(root), "candidate admission requires a kernel plan")
+    head = _commit(root, "HEAD")
+    code, staged = _git(root, "diff", "--cached", "--name-only", "-z", *(('HEAD',) if head else ()), binary=True)
+    if code or not isinstance(staged, bytes):
+        _fail("reflection-hook", str(root), "could not inspect reserved staged changes")
+    paths = tuple(path for path in staged.decode("utf-8").split("\0") if path and is_reserved_reflection_path(path))
+    code, merge_path = _git(root, "rev-parse", "--git-path", "MERGE_HEAD")
+    merge_file = root / str(merge_path)
+    if code == 0 and merge_file.is_file():
+        heads = merge_file.read_text(encoding="ascii").split()
+        if len(heads) != 1 or not re.fullmatch(r"[0-9a-f]{40}", heads[0]) or head is None:
+            _fail("reflection-hook", str(root), "only exact two-parent integration carriers are admitted")
+        preview = preview_reflection_integration(root, source_ref=heads[0], base_ref=head)
+        recheck_reflection_integration(root, preview, merged=True)
+        return {"admission": "merge-carrier", "paths": list(paths)}
+    if paths:
+        _fail("reflection-hook", paths[0], "manual staged reflection paths are forbidden; use the reflection kernel")
+    return {"admission": "ordinary", "paths": []}
 
 
 def _require_memory_entry_trailer(root: Path, commit: str, entry_id: str) -> None:
@@ -2832,22 +3053,108 @@ def _validate_compaction_coverage(root: Path, receipt: WorkstreamCompactionRecei
 def _validate_historical_compaction_retention(root: Path, receipt: WorkstreamCompactionReceipt,
                                               pre_ledger: WorkstreamLedger, receipt_commit: str,
                                               cleanup_commit: str) -> None:
-    """Fail closed until elapsed time or early-cleanup authority is replayable.
+    """Replay the host signature against the immutable base and exact history.
 
-    Git author/committer dates are caller-controlled, even in immutable commits.
-    Session mappings likewise prove recorded bytes, never live-user authority.
-    The frozen v1 contract defines no external elapsed-time anchor or canonical
-    host-signed early-cleanup authorization. Neither can be invented here.
-
-    A future authorization must bind the workstream, chain, complete member IDs
-    and detail digests, close record, scoped session entry/decision, short-lived
-    host timestamp, immutable trust anchor, and replay identity, and must be
-    reloaded from admitted Git evidence. Until then every historical cleanup,
-    including apparently old or promoted cleanup, remains inadmissible.
+    Git dates never enter this decision. The signature is the local host's
+    clock observation; its five-minute issue window is not a Git timestamp.
     """
-    _fail("compaction-proof-retention", receipt.ledger_path,
-          "v1 historical cleanup is disabled: no trusted elapsed-time anchor or replay-verified host authorization",
-          cleanup_commit=cleanup_commit, receipt_commit=receipt_commit)
+    if receipt.elapsed_attestation is None:
+        _fail("compaction-proof-retention", receipt.ledger_path, "unsigned cleanup remains disabled: no trusted elapsed-time attestation")
+    value = json.loads(receipt.elapsed_attestation)
+    _canonical_elapsed_attestation(value, receipt.ledger_path)
+    current = load_trusted_workstream_ledger(root, trusted_ref=receipt.pre_tip, ledger_path=receipt.ledger_path)
+    if current.ledger != pre_ledger:
+        _fail("compaction-proof-retention", receipt.ledger_path, "pre-cleanup history does not match the signed ledger")
+    observed = _as_utc(value["observed_at"])
+    expected = _elapsed_payload(current, receipt, observed)
+    supplied = {key: item for key, item in value.items() if key != "signature"}
+    trust = _parse_retention_trust(_retention_anchor(root, pre_ledger.header.base_sha).content)
+    if supplied != expected or not ed25519_verify(bytes.fromhex(trust.public_key[8:]),
+            _elapsed_signing_bytes(expected), bytes.fromhex(value["signature"][8:])):
+        _fail("compaction-proof-retention", receipt.ledger_path, "elapsed-time signature or exact history binding does not verify")
+
+
+_ELAPSED_FIELDS = ("schema", "version", "key_id", "trust_anchor_blob", "ledger_base", "integration_commit",
+    "integration_record_id", "integration_branch", "retention_days", "observed_at", "expires_at",
+    "close_commits", "binding_digest", "signature")
+
+
+def _canonical_elapsed_attestation(value: Any, path: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        _fail("compaction-proof-retention", path, "elapsed attestation must be an exact mapping")
+    _required(value, _ELAPSED_FIELDS, path)
+    _only(value, _ELAPSED_FIELDS, path)
+    if (value["schema"] != "memory-seed/reflection-elapsed-retention" or type(value["version"]) is not int
+            or value["version"] != 1 or type(value["retention_days"]) is not int
+            or value["retention_days"] not in {7, 14, 30}
+            or not isinstance(value["signature"], str) or not re.fullmatch(r"ed25519:[0-9a-f]{128}", value["signature"])):
+        _fail("compaction-proof-retention", path, "unsupported elapsed attestation schema, interval or signature")
+    for name in ("observed_at", "expires_at"):
+        _timestamp(value[name], path, name)
+    if _as_utc(value["expires_at"]) != _as_utc(value["observed_at"]) + timedelta(minutes=5):
+        _fail("compaction-proof-retention", path, "elapsed attestation issue window must be exactly five minutes")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _elapsed_signing_bytes(value: Mapping[str, Any]) -> bytes:
+    return b"memory-seed/reflection-elapsed-retention/v1\0" + json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+
+
+def _require_mapping_origin(root: Path, mapping: Mapping[str, str], commit: str, *, after: str) -> None:
+    """A later snapshot, merge, or delete/restore cannot reset evidence origin."""
+    path = mapping["session_path"]
+    code, output = _git(root, "rev-list", "--full-history",
+        f"--max-count={MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS + 1}", commit, "--", path)
+    commits = output.splitlines() if code == 0 and isinstance(output, str) else []
+    if not commits or len(commits) > MAX_TRUSTED_LEDGER_HISTORY_TRANSITIONS:
+        _fail("receipt-history-missing", path, "could not inspect bounded receipt provenance")
+    for candidate in dict.fromkeys((commit, *commits)):
+        blob = _tree_blob(root, candidate, path)
+        if (blob is not None and _session_has_exact_yaml_mapping(blob.content, path, mapping,
+                entry_id=mapping["entry_id"], decision_id=mapping["decision_id"])
+                and (candidate == after or not _git_is_ancestor(root, after, candidate))):
+            _fail("receipt-integration", path, "receipt must originate after its admitted integration or close")
+
+
+def _elapsed_payload(loaded: TrustedWorkstreamLedger, receipt: WorkstreamCompactionReceipt, observed: datetime) -> dict[str, Any]:
+    root, ledger = Path(loaded.repository), loaded.ledger
+    anchor = _retention_anchor(root, ledger.header.base_sha)
+    if _retention_anchor(root, loaded.head).content != anchor.content:
+        _fail("retention-trust", RETENTION_TRUST_PATH, "current anchor differs from the ledger base")
+    trust = _parse_retention_trust(anchor.content)
+    witness = GitWorkstreamIntegrationVerifier(loaded).witness()
+    if ledger.effective_branch != witness.target_branch:
+        _fail("compaction-proof-retention", loaded.ledger_path, "cleanup is not owned by the integrated branch")
+    _initial, _blob, transitions = _ledger_lineage(root, loaded.head, loaded.ledger_path)
+    closings = []
+    for closure in receipt.closure_receipts:
+        close = next((item for item in ledger.records if item.record_id == closure.closed_record_id), None)
+        if close is None or close.closed_at is None:
+            _fail("compaction-proof-retention", loaded.ledger_path, "closing record is absent")
+        introduced = [item.commit for item in transitions if item.blob.content == item.parent_blob.content
+                      + b"\n" + render_workstream_record(close).encode("utf-8")]
+        if len(introduced) != 1 or not _git_is_ancestor(root, witness.integration_commit, introduced[0]):
+            _fail("compaction-proof-retention", loaded.ledger_path, "close has no exact post-integration introduction")
+        if observed < _as_utc(close.closed_at) + timedelta(days=ledger.header.reflection_retention_days):
+            _fail("compaction-proof-retention", loaded.ledger_path, "chain retention window has not elapsed")
+        _require_mapping_origin(root, _closure_session_mapping(closure), closure.commit, after=introduced[0])
+        closings.append(dict(chain_id=close.chain_id, record_id=close.record_id,
+            closed_at=close.closed_at, commit=introduced[0]))
+        for member in receipt.member_receipts:
+            if member.chain_id == close.chain_id:
+                _require_mapping_origin(root, _member_session_mapping(receipt.workstream_id, member), member.commit,
+                    after=introduced[0] if member.record_id == close.record_id else witness.integration_commit)
+    bound = receipt.as_dict()
+    bound.pop("elapsed_attestation")
+    return dict(schema="memory-seed/reflection-elapsed-retention", version=1, key_id=trust.key_id,
+        trust_anchor_blob=anchor.oid, ledger_base=ledger.header.base_sha,
+        integration_commit=witness.integration_commit, integration_record_id=witness.rebind_record_id,
+        integration_branch=witness.target_branch, retention_days=ledger.header.reflection_retention_days,
+        observed_at=_clock_timestamp(lambda: observed), expires_at=_clock_timestamp(lambda: observed + timedelta(minutes=5)),
+        close_commits=closings, binding_digest="sha256:" + sha256(_elapsed_signing_bytes(bound)).hexdigest())
 
 
 def _trusted_active_ledgers_at_commit(root: Path, commit: str) -> tuple[tuple[str, WorkstreamLedger], ...]:
@@ -3350,7 +3657,7 @@ class WorkstreamCommitResult:
     post_ledger_digest: str
     history_fingerprint: str
     record_id: str | None
-    ledger: WorkstreamLedger
+    ledger: WorkstreamLedger | None
     integration_witness: TrustedIntegrationWitness | None = None
 
 
@@ -3364,8 +3671,9 @@ class _StoredWorkstreamCommitPlan:
     preview: WorkstreamCommitPreview
     repository: str
     post_raw: bytes
-    revalidate: Callable[[], tuple[WorkstreamLedger, TrustedIntegrationWitness | None]]
+    revalidate: Callable[[], tuple[WorkstreamLedger | RetentionApprovalTrust, TrustedIntegrationWitness | None]]
     verify_refs: tuple[tuple[str, str], ...]
+    compaction_factory: Callable[[str, str], WorkstreamCompactionReceipt] | None = None
 
 
 _WORKSTREAM_COMMIT_PLANS: dict[str, _StoredWorkstreamCommitPlan] = {}
@@ -3397,13 +3705,13 @@ def _store_workstream_commit(root: Path, full_ref: str, head: str, operation: st
     post_raw = render_workstream_ledger(post).encode("utf-8")
     relative = workstream_ledger_path(post.header.workstream_id)
     pre_raw = loaded.raw if loaded is not None else b""
-    if loaded is not None and not post_raw.startswith(pre_raw):
+    if loaded is not None and operation != "expiry" and not post_raw.startswith(pre_raw):
         _fail("append-commit-failed", relative, "planned transaction is not an exact canonical suffix")
     preview_type = WorkstreamAppendCommitPreview if operation == "append" else WorkstreamCommitPreview
     preview = preview_type(
         secrets.token_urlsafe(32), full_ref, head, relative, loaded.ledger_blob if loaded else None,
         workstream_ledger_digest(pre_raw) if loaded else "", loaded.history_fingerprint if loaded else "",
-        post_raw[len(pre_raw):], post.entries[-1].record_id if post.entries else None,
+        post_raw if operation == "expiry" else post_raw[len(pre_raw):], post.entries[-1].record_id if post.entries else None,
         workstream_ledger_digest(post_raw), operation,
     )
     # Keep a distinct copy: even object.__setattr__ on a frozen public receipt
@@ -3520,7 +3828,61 @@ def preview_workstream_init_commit(cwd: Path | str, *, trusted_ref: str, retenti
 
 def _transaction_active_ledgers(root: Path, full_ref: str, head: str) -> tuple[TrustedWorkstreamLedger, ...]:
     return tuple(load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=path)
-                 for path, _mode, _oid in _reflection_tree_inventory(root, head))
+                 for path, _mode, _oid in _reflection_tree_inventory(root, head) if path != RETENTION_TRUST_PATH)
+
+
+def preview_reflection_trust_init(cwd: Path | str) -> tuple[WorkstreamCommitPreview | None, RetentionApprovalTrust | None]:
+    """One-time CLI bootstrap, on the locally resolved integration/default branch."""
+    from .core import _resolve_pr_base_branch
+
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, "HEAD")
+    target, _ref, _tip, error = _resolve_pr_base_branch(root, None, source_branch="")
+    if error or full_ref != "refs/heads/" + str(target):
+        _fail("retention-trust", RETENTION_TRUST_PATH, error or "trust init requires the integration/default branch")
+    head, _inventory = _transaction_context(root, full_ref)
+    anchor = _retention_anchor(root, head, required=False)
+    if anchor is not None:
+        trust = _parse_retention_trust(anchor.content)
+        _read_retention_key(root, trust)
+        return None, trust
+    # Preview creates no private material. Generation is an apply-only step.
+    key_path = _retention_key_path(root)
+    if key_path.exists():
+        _read_retention_key(root)
+    return WorkstreamCommitPreview("", full_ref, head, RETENTION_TRUST_PATH, None, "", "", b"", None, "", "trust_init"), None
+
+
+def reflection_trust_init(cwd: Path | str, *, apply: bool = False,
+                          fault_injector: Callable[[str], None] | None = None) -> dict[str, Any]:
+    if type(apply) is not bool:
+        _fail("retention-trust", RETENTION_TRUST_PATH, "apply must be a boolean")
+    root = Path(cwd).resolve()
+    preview, existing = preview_reflection_trust_init(root)
+    if preview is None or not apply:
+        return dict(operation="trust_init", applied=False, initialized=existing is not None,
+            head=_commit(root, "HEAD"), public_anchor=RETENTION_TRUST_PATH,
+            key_id=existing.key_id if existing else None)
+    if not _retention_key_path(root).exists():
+        _create_retention_key(root)
+    seed = _read_retention_key(root)
+    public, _signature = _ed25519_sign(seed, b"")
+    trust = RetentionApprovalTrust("sha256:" + sha256(public).hexdigest(), "ed25519:" + public.hex())
+    raw = _render_retention_trust(trust).encode("utf-8")
+
+    def revalidate():
+        current, _existing = preview_reflection_trust_init(root)
+        if current != preview:
+            _fail("retention-trust", RETENTION_TRUST_PATH, "bootstrap context changed after preview")
+        _read_retention_key(root, trust)
+        return trust, None
+
+    planned = replace(preview, token=secrets.token_urlsafe(32), suffix_bytes=raw,
+        post_ledger_digest=workstream_ledger_digest(raw))
+    _WORKSTREAM_COMMIT_PLANS[planned.token] = _StoredWorkstreamCommitPlan(deepcopy(planned), str(root), raw, revalidate, ())
+    result = apply_workstream_commit(root, planned, fault_injector=fault_injector)
+    return dict(operation="trust_init", applied=True, initialized=True, head=result.new_head,
+        public_anchor=RETENTION_TRUST_PATH, key_id=trust.key_id)
 
 
 def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, workstream_id: str,
@@ -3907,11 +4269,9 @@ def workstream_closure_mapping(record: WorkstreamRecord, *, session_path: str, e
     return value
 
 
-def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[dict[str, Any]]:
-    """Expose incomplete closed chains from committed ordinary session scopes."""
+def _committed_session_mappings(loaded: TrustedWorkstreamLedger) -> list[dict[str, Any]]:
+    """Read exact scoped mappings from ordinary committed session decisions."""
     root = Path(loaded.repository)
-    if not any(record.to_phase == "closed" for record in loaded.ledger.records):
-        return []
     code, paths = _git(root, "ls-tree", "-r", "-z", "--name-only", loaded.head, "--", SESSION_ROOT, binary=True)
     if code or not isinstance(paths, bytes):
         _fail("receipt", loaded.ledger_path, "could not inspect ordinary session receipt history")
@@ -3932,6 +4292,14 @@ def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[di
                     and _session_has_exact_yaml_mapping(blob.content, path, value,
                         entry_id=value["entry_id"], decision_id=value["decision_id"])):
                 mappings.append(value)
+    return mappings
+
+
+def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[dict[str, Any]]:
+    """Expose incomplete closed chains from committed ordinary session scopes."""
+    if not any(record.to_phase == "closed" for record in loaded.ledger.records):
+        return []
+    mappings = _committed_session_mappings(loaded)
     results = []
     for chain, records in _records_by_chain(loaded.ledger).items():
         close = records[-1]
@@ -3966,6 +4334,81 @@ def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[di
         results.append({"chain_id": chain, "status": "closed_receipts_pending" if missing else "closed",
                         "missing_receipts": missing})
     return results
+
+
+def preview_workstream_expiry_commit(cwd: Path | str, *, trusted_ref: str,
+                                     workstream_id: str, chain_id: str) -> WorkstreamCommitPreview:
+    """Derive elapsed-only cleanup authority internally from host/Git facts."""
+    root = Path(cwd).resolve()
+    full_ref = _full_local_branch_ref(root, trusted_ref)
+    head, _inventory = _transaction_context(root, full_ref)
+    path = workstream_ledger_path(workstream_id)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=full_ref, ledger_path=path)
+    if loaded.ledger.effective_branch != full_ref.removeprefix("refs/heads/"):
+        _fail("expiry", path, "only the effective integration owner can expire a chain")
+    _id(chain_id, "rlc_", path, "chain_id")
+    _chain_closed_at(loaded.ledger, chain_id)
+    anchor = _retention_anchor(root, loaded.ledger.header.base_sha)
+    _read_retention_key(root, _parse_retention_trust(anchor.content))
+    mappings = sorted(_committed_session_mappings(loaded), key=lambda item: json.dumps(item, sort_keys=True))
+    members = []
+    for record in _records_by_chain(loaded.ledger)[chain_id]:
+        admitted = None
+        for mapping in mappings:
+            if mapping.get("record_id") != record.record_id:
+                continue
+            try:
+                drafts = plan_workstream_chain_receipts(loaded, chain_id=chain_id,
+                    **{key: mapping[key] for key in ("session_path", "entry_id", "decision_id", "disposition")})
+                if any(workstream_receipt_mapping(item) == mapping for item in drafts):
+                    admitted = committed_workstream_receipt(loaded, mapping)
+                    break
+            except (KeyError, ReflectionValidationError):
+                continue
+        if admitted is None:
+            _fail("receipt", path, "closed chain has missing durable member receipts", record_id=record.record_id)
+        members.append(admitted)
+    close = _records_by_chain(loaded.ledger)[chain_id][-1]
+    closure_mapping = next((value for value in mappings if value == workstream_closure_mapping(close,
+        session_path=value["session_path"], entry_id=value["entry_id"], decision_id=value["decision_id"])), None)
+    if closure_mapping is None:
+        _fail("receipt", path, "closed chain has no durable closure-outcome receipt")
+    closure_blob = _tree_blob(root, head, closure_mapping["session_path"])
+    closures = (WorkstreamCompactionClosureReceipt(**closure_mapping, commit=head, blob=closure_blob.oid),)
+    member_proofs = tuple(sorted((WorkstreamCompactionMemberReceipt(
+        **{key: value for key, value in workstream_receipt_mapping(member.receipt).items() if key != "workstream_id"},
+        commit=member.commit, blob=member.blob) for member in members), key=lambda item: (item.chain_id, item.record_id)))
+    integration = GitWorkstreamIntegrationVerifier(loaded)
+    witness = integration.witness()
+    verifier = GitWorkstreamReceiptVerifier(loaded, witness.integration_commit)
+
+    def revalidate():
+        current = _reload_trusted_workstream_ledger(loaded)
+        _require_unretired_workstream_owner(root, current)
+        _read_retention_key(root, _parse_retention_trust(anchor.content))
+        preview = preview_trusted_workstream_expiry(current, chain_ids=(chain_id,),
+            now=_as_utc(_clock_timestamp()), receipts=members, receipt_verifier=verifier,
+            integration_witness=witness, integration_verifier=integration,
+            active_ledgers=_transaction_active_ledgers(root, full_ref, current.head))
+        return preview.post_ledger, None
+
+    planned = _store_workstream_commit(root, full_ref, head, "expiry", loaded, revalidate)
+    template = WorkstreamCompactionReceipt(workstream_id, path, planned.pre_ledger_digest,
+        planned.post_ledger_digest, head, loaded.ledger_blob, "0" * 40, "0" * 40, (chain_id,),
+        tuple(sorted(item.receipt.record_id for item in members)), closures, member_proofs, "elapsed retention")
+    # Validate provenance during preview as well as the final history replay.
+    _elapsed_payload(loaded, template, _as_utc(_clock_timestamp()))
+
+    def receipt_factory(cleanup_commit, post_blob):
+        receipt = replace(template, cleanup_commit=cleanup_commit, post_blob=post_blob)
+        value = _elapsed_payload(loaded, receipt, _as_utc(_clock_timestamp()))
+        seed = _read_retention_key(root, _parse_retention_trust(anchor.content))
+        _public, signature = _ed25519_sign(seed, _elapsed_signing_bytes(value))
+        value["signature"] = "ed25519:" + signature.hex()
+        return replace(receipt, elapsed_attestation=_canonical_elapsed_attestation(value, path))
+
+    _WORKSTREAM_COMMIT_PLANS[planned.token] = replace(_WORKSTREAM_COMMIT_PLANS[planned.token], compaction_factory=receipt_factory)
+    return planned
 
 
 def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamReceipt, integration_commit: str) -> None:
@@ -4131,7 +4574,7 @@ def apply_workstream_append_commit(cwd: Path | str, preview: WorkstreamAppendCom
 
 def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *,
                             fault_injector: Callable[[str], None] | None = None) -> WorkstreamCommitResult:
-    """Persist init, append, close or rebind via one ledger-only commit/ref-CAS.
+    """Persist every reflection operation through one transaction/ref-CAS.
 
     ``fault_injector`` is test-only adapter instrumentation; it receives no
     authority fields and makes rollback paths observable without broadening the
@@ -4158,7 +4601,7 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
               expected=preview.expected_head, actual=head)
     _transaction_context(root, preview.trusted_ref)
     loaded = (load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
-              if preview.operation != "init" else None)
+              if preview.operation not in {"init", "trust_init"} else None)
     pre_raw = loaded.raw if loaded is not None else b""
     if ((loaded.ledger_blob if loaded else None) != preview.expected_ledger_blob
             or (workstream_ledger_digest(pre_raw) if loaded else "") != preview.pre_ledger_digest):
@@ -4166,21 +4609,25 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
     if (loaded.history_fingerprint if loaded else "") != preview.history_fingerprint:
         _fail("stale_ledger_history", preview.ledger_path, "trusted ledger history changed after append preview")
     post, witness = stored.revalidate()
-    post_raw = pre_raw + preview.suffix_bytes
+    post_raw = preview.suffix_bytes if preview.operation == "expiry" else pre_raw + preview.suffix_bytes
     if workstream_ledger_digest(post_raw) != preview.post_ledger_digest:
         _fail("append-commit-failed", preview.ledger_path, "preview suffix no longer has its predicted canonical digest")
-    if stored.post_raw != post_raw or render_workstream_ledger(post).encode("utf-8") != post_raw:
+    rendered = _render_retention_trust(post) if preview.operation == "trust_init" else render_workstream_ledger(post)
+    if stored.post_raw != post_raw or rendered.encode("utf-8") != post_raw:
         _fail("append-commit-failed", preview.ledger_path, "preview suffix does not match its stored canonical post-image")
     path = root / Path(preview.ledger_path)
     if loaded is not None and (not path.is_file() or path.read_bytes() != loaded.raw):
         _fail("append-worktree-not-clean", preview.ledger_path, "working-tree ledger is not the trusted committed blob")
     expected_blob = _tree_blob(root, preview.expected_head, preview.ledger_path)
-    if (expected_blob is None) != (preview.operation == "init"):
+    if (expected_blob is None) != (preview.operation in {"init", "trust_init"}):
         _fail("append-commit-failed", preview.ledger_path, "preview head no longer exposes its ledger blob")
     if loaded is None and (path.exists() or path.is_symlink()):
         _fail("workstream-collision", preview.ledger_path, "initialization path is already occupied")
     wrote_candidate = False
     created_directories: list[Path] = []
+    session_path, session_blob, session_raw = None, None, b""
+    session_directories: list[Path] = []
+    elapsed_receipt = None
     try:
         if loaded is None:
             missing = []
@@ -4203,7 +4650,11 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
         code, tree = _git(root, "write-tree")
         if code or not isinstance(tree, str) or not re.fullmatch(r"[0-9a-f]{40}", tree):
             raise RuntimeError("git write-tree failed")
-        message = _workstream_commit_message(preview, post.header.workstream_id)
+        if preview.operation == "trust_init":
+            _public, signature = _ed25519_sign(_read_retention_key(root, post), _trust_bootstrap_payload(preview.expected_head, post_raw))
+            message = "reflection: trust init\n\nReflection-Trust-Proof: ed25519:" + signature.hex()
+        else:
+            message = _workstream_commit_message(preview, post.header.workstream_id)
         if fault_injector is not None:
             fault_injector("before-commit")
         code, candidate = _git(root, "commit-tree", tree, "-p", preview.expected_head, "-m", message)
@@ -4215,8 +4666,65 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
                 or _git_changed_tree_paths(root, preview.expected_head, candidate) != (preview.ledger_path,)
                 or _git_commit_message(root, candidate) != message):
             raise RuntimeError("candidate append commit is not canonical")
+        if preview.operation == "expiry":
+            if stored.compaction_factory is None:
+                _fail("expiry", preview.ledger_path, "expiry plan has no kernel receipt constructor")
+            cleanup = candidate
+            if fault_injector is not None:
+                fault_injector("after-cleanup-commit")
+            elapsed_receipt = stored.compaction_factory(cleanup, candidate_blob.oid)
+            # The ordinary session author owns target resolution, chronology,
+            # IDs, canonical entry structure and append-only persistence.
+            from .core import session_append_entry
+            session_args = dict(title=f"Reflection compaction {cleanup}", user_initials="MS", agent_type="memory-seed",
+                body="### Summary\n\nExpired one closed reflection chain after signed elapsed retention. "
+                    + EXPIRY_DISCLOSURE + "\n\n### Reflection workstream compaction\n\n```yaml\n"
+                    + render_workstream_compaction_receipt(elapsed_receipt) + "```\n")
+            session_preview = session_append_entry(root, **session_args, dry_run=True)
+            if not session_preview.ok:
+                _fail("expiry-session", preview.ledger_path, "ordinary session preview refused compaction", issues=session_preview.issues)
+            selected_session = session_preview.path
+            relative = selected_session.relative_to(root).as_posix()
+            _session_path(relative, relative, "compaction session")
+            for ancestor in (selected_session, *selected_session.parents):
+                if ancestor == root:
+                    break
+                if ancestor.is_symlink() or ancestor.resolve() != ancestor:
+                    _fail("expiry-session", relative, "session target cannot traverse a link or junction")
+            session_blob = _tree_blob(root, preview.expected_head, relative)
+            session_raw = session_blob.content if session_blob else b""
+            if (selected_session.exists() and selected_session.read_bytes() != session_raw) or (session_blob and session_blob.mode != CANONICAL_MODE):
+                _fail("expiry-session", relative, "session target differs from committed preimage")
+            session_path = selected_session
+            directory = session_path.parent
+            while not directory.exists():
+                session_directories.insert(0, directory)
+                directory = directory.parent
+            written = session_append_entry(root, **session_args, timestamp=session_preview.timestamp)
+            if not written.ok or written.entry_id != session_preview.entry_id or written.path != session_path:
+                _fail("expiry-session", relative, "ordinary session author refused the exact compaction entry")
+            if not session_path.read_bytes().startswith(session_raw):
+                _fail("expiry-session", relative, "compaction session changed its append-only preimage")
+            code, _output = _git(root, "add", "--", relative)
+            if code:
+                raise RuntimeError("could not stage ordinary compaction receipt")
+            code, tree = _git(root, "write-tree")
+            if code:
+                raise RuntimeError("could not construct compaction receipt tree")
+            code, candidate = _git(root, "commit-tree", tree, "-p", cleanup, "-m",
+                f"reflection: record compaction {post.header.workstream_id}\n\nMemory-Entry: {written.entry_id}")
+            if code:
+                raise RuntimeError("could not construct compaction receipt commit")
+            if fault_injector is not None:
+                fault_injector("after-receipt-commit")
+            _validate_cleanup_pair(root, _LedgerTransition(cleanup, preview.expected_head, expected_blob, candidate_blob),
+                elapsed_receipt, candidate, relative, written.entry_id, loaded.ledger, post_raw)
+            load_trusted_workstream_ledger(root, trusted_ref=candidate, ledger_path=preview.ledger_path)
+        reflection_commit_admission(root, candidate=candidate, plan=preview)
         if fault_injector is not None:
             fault_injector("before-cas")
+        if elapsed_receipt is not None and _as_utc(_clock_timestamp()) > _as_utc(json.loads(elapsed_receipt.elapsed_attestation)["expires_at"]):
+            _fail("compaction-proof-retention", preview.ledger_path, "host elapsed attestation expired before CAS")
         code, attached = _git(root, "symbolic-ref", "--quiet", "HEAD")
         if code or attached != preview.trusted_ref:
             _fail("append-wrong-branch", str(root), "HEAD attachment changed during transaction")
@@ -4240,6 +4748,10 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
         if code:
             _fail("stale_ref", preview.ledger_path, "a bound source or target ref changed during transaction compare-and-swap")
     except Exception as exc:
+        if session_path is not None and not _restore_workstream_worktree(
+            root, session_path, session_raw, session_blob, session_directories, restore_path=True,
+        ):
+            _fail("append-rollback-failed", str(session_path), "compaction failure left an unsafe session target", reason=str(exc))
         if (wrote_candidate or created_directories) and not _restore_workstream_worktree(
             root, path, pre_raw, expected_blob, created_directories, restore_path=wrote_candidate,
         ):
@@ -4248,6 +4760,9 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
             raise
         _fail("append-commit-failed", preview.ledger_path, "could not construct canonical ledger-only append commit", reason=str(exc))
     _WORKSTREAM_COMMIT_PLANS.pop(preview.token, None)
+    if preview.operation == "trust_init":
+        _retention_anchor(root, candidate)
+        return WorkstreamCommitResult(candidate, candidate_blob.oid, preview.post_ledger_digest, "", None, None)
     final = load_trusted_workstream_ledger(root, trusted_ref=preview.trusted_ref, ledger_path=preview.ledger_path)
     if final.head != candidate or final.ledger_blob != candidate_blob.oid:
         _fail("append-commit-failed", preview.ledger_path, "successful CAS is not immediately visible to trusted readers")

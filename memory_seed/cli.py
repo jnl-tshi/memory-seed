@@ -1377,6 +1377,11 @@ def main(argv: list[str] | None = None) -> int:
         "reflection", help="inspect or append the governed Reflection Board v1 ledger"
     )
     reflection_sub = reflection_parser.add_subparsers(dest="reflection_command", required=True)
+    reflection_trust = reflection_sub.add_parser("trust", help="initialize local reflection retention trust")
+    reflection_trust_sub = reflection_trust.add_subparsers(dest="reflection_trust_command", required=True)
+    reflection_trust_init = reflection_trust_sub.add_parser("init", help="preview or apply one-time trust bootstrap on the default branch")
+    reflection_trust_init.add_argument("--apply", action="store_true")
+    reflection_trust_init.add_argument("--json", action="store_true")
     reflection_ledger = reflection_sub.add_parser("ledger", help="operate on one branch-owned v1 ledger")
     reflection_ledger_sub = reflection_ledger.add_subparsers(dest="reflection_ledger_command", required=True)
     reflection_init = reflection_ledger_sub.add_parser("init", help="preview or initialize the current branch ledger")
@@ -1403,6 +1408,11 @@ def main(argv: list[str] | None = None) -> int:
     reflection_close.add_argument("--receipts", default="[]", help="JSON array of session_path, entry_id, decision_id, disposition and optional record_id mappings")
     reflection_close.add_argument("--apply", action="store_true")
     reflection_close.add_argument("--json", action="store_true")
+    reflection_expire = reflection_ledger_sub.add_parser("expire", help="preview or apply signed elapsed-retention chain expiry")
+    reflection_expire.add_argument("workstream_id")
+    reflection_expire.add_argument("--chain-id", required=True)
+    reflection_expire.add_argument("--apply", action="store_true")
+    reflection_expire.add_argument("--json", action="store_true")
     for command in ("rebind", "prepare", "finalize"):
         rebind = reflection_ledger_sub.add_parser(command, help=f"preview or apply reflection integration {command}")
         rebind.add_argument("workstream_id")
@@ -1571,9 +1581,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "reflection":
         from .reflection_operations import run_reflection_operation
-        operation = "board_view" if args.reflection_command == "board" else "ledger_" + args.reflection_ledger_command
+        operation = ("board_view" if args.reflection_command == "board" else "trust_init"
+                     if args.reflection_command == "trust" else "ledger_" + args.reflection_ledger_command)
         fields = {key: value for key, value in vars(args).items()
-                  if key not in {"command", "reflection_command", "reflection_ledger_command", "reflection_board_command", "json"}
+                  if key not in {"command", "reflection_command", "reflection_ledger_command", "reflection_board_command", "reflection_trust_command", "json"}
                   and value is not None}
         if "parent" in fields:
             fields["parents"] = fields.pop("parent")

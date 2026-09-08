@@ -7,6 +7,8 @@ from . import reflection_ledger as ledger
 
 
 _FIELDS = {
+    "trust_init": {"cwd", "apply"},
+    "commit_admission": {"cwd"},
     "board_view": {"cwd"},
     "ledger_view": {"cwd", "workstream_id"},
     "ledger_check": {"cwd", "workstream_id"},
@@ -19,14 +21,17 @@ _FIELDS = {
     "ledger_rebind": {"cwd", "workstream_id", "source", "reason", "apply"},
     "ledger_prepare": {"cwd", "workstream_id", "reason", "apply"},
     "ledger_finalize": {"cwd", "workstream_id", "source", "reason", "apply"},
+    "ledger_expire": {"cwd", "workstream_id", "chain_id", "apply"},
 }
 _REQUIRED = {
+    "trust_init": (), "commit_admission": (),
     "board_view": (), "ledger_view": ("workstream_id",), "ledger_check": ("workstream_id",),
     "ledger_init": (), "ledger_append": ("workstream_id", "role", "conclusion", "reasoning", "source"),
     "ledger_close": ("workstream_id", "chain_id"),
     "ledger_rebind": ("workstream_id", "source", "reason"),
     "ledger_prepare": ("workstream_id",),
     "ledger_finalize": ("workstream_id", "source", "reason"),
+    "ledger_expire": ("workstream_id", "chain_id"),
 }
 
 
@@ -204,7 +209,11 @@ def run_reflection_operation(operation: str, arguments: Mapping[str, Any] | None
     try:
         args = _validate(operation, {} if arguments is None else arguments)
         cwd = args.get("cwd", ".")
+        if operation == "commit_admission":
+            return {"ok": True, **ledger.reflection_commit_admission(cwd)}
         root, branch = _context(cwd)
+        if operation == "trust_init":
+            return {"ok": True, **ledger.reflection_trust_init(root, apply=args.get("apply", False))}
         if operation == "board_view":
             return _board(root, branch)
         if operation == "ledger_prepare":
@@ -234,6 +243,15 @@ def run_reflection_operation(operation: str, arguments: Mapping[str, Any] | None
                 "status": "closed_receipts_pending" if any(item["missing_receipts"] for item in chains) else "valid"}
         if operation == "ledger_close":
             return _close(root, branch, args, loaded)
+        if operation == "ledger_expire":
+            preview = ledger.preview_workstream_expiry_commit(root, trusted_ref=branch,
+                workstream_id=args["workstream_id"], chain_id=args["chain_id"])
+            result = ledger.apply_workstream_commit(root, preview) if args.get("apply", False) else None
+            return {"ok": True, "operation": "expire", "applied": result is not None,
+                "workstream_id": args["workstream_id"], "chain_id": args["chain_id"],
+                "head": result.new_head if result else preview.expected_head,
+                "pre_ledger_digest": preview.pre_ledger_digest, "post_ledger_digest": preview.post_ledger_digest,
+                "disclosure": ledger.EXPIRY_DISCLOSURE, "git_blobs_remain": True, "privacy_grade_erasure": False}
         if operation == "ledger_init":
             preview = ledger.preview_workstream_init_commit(root, trusted_ref=branch, retention_days=args.get("retention_days", 7))
         else:
