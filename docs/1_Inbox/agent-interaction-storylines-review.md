@@ -551,6 +551,31 @@ inside `session merge-branch`'s post-merge step; what remains is an honestly-sur
 
 ---
 
+## S9 REFLECT — govern a temporary Reflection Board v1 chain (planned public surface)
+
+**Trigger:** a reviewed plan needs a temporary, branch-scoped implementation/review chain that must be
+inspectable, independently validated, and either promoted or closed before its governed retention expiry.
+
+The merged v1 foundation supplies the sole sequential ledger format, trusted Git-history reader, Task
+Packet/integration admission, and kernel-owned ledger-only transaction writer. The public workflow is **not
+launched yet**: CLI/MCP adapters, ESR visibility, hooks, runbooks, and the first real board remain planned.
+Until those surfaces land and pass launch evaluation, agents must not treat private foundation APIs or a
+disposable test fixture as an active board.
+
+| Planned step | Intended shared surface |
+| --- | --- |
+| Initialise one branch-owned ledger | `reflection ledger init` via the trusted transaction writer |
+| Append planner, implementer, and reviewer records | `reflection ledger append` / MCP parity, never raw Git writes |
+| Inspect health and all active candidates | `reflection ledger check` / `view`, `reflection board view`, ESR |
+| Integrate, receipt, rebind, and close | Existing guarded integration plus the public close adapter |
+| Consider expiry | Public expiry adapter only after complete receipts and retention eligibility |
+
+**Evaluation.** The eventual workflow must expose unsupported or malformed reserved candidates rather than
+silently omit them, and every writing surface must delegate to the one trusted transaction writer. The
+planned commands are not evidence that the lifecycle is presently available.
+
+---
+
 ## Cross-cutting: tool inventory by storyline
 
 **MCP (23):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
