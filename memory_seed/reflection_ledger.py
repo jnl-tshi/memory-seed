@@ -1925,8 +1925,7 @@ def apply_trusted_rebind(ledger: WorkstreamLedger, token: TrustedRebindToken, *,
     if token.workstream_id != ledger.header.workstream_id or token.source_branch != ledger.effective_branch or token.pre_ledger_digest != pre_digest:
         _fail("rebind", "ledger rebind", "token is not bound to this current ledger state")
     integration_commit = _git_sha(integration_commit, "ledger rebind", "integration_commit")
-    if current_target_tip != integration_commit:
-        _fail("stale_head", "ledger rebind", "integration target is not at the verified integration commit", expected=integration_commit, actual=current_target_tip)
+    _git_sha(current_target_tip, "ledger rebind", "current_target_tip")
     if not verifier.verify(token, integration_commit=integration_commit, current_target_tip=current_target_tip):
         _fail("rebind", "ledger rebind", "host did not verify the trusted integration token")
     created = _clock_timestamp(clock)
@@ -3526,7 +3525,8 @@ def _transaction_active_ledgers(root: Path, full_ref: str, head: str) -> tuple[T
 
 def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, workstream_id: str,
                                      token: TrustedRebindToken, verifier: TrustedRebindVerifier,
-                                     reason: str, clock: Callable[[], datetime] | None = None) -> WorkstreamCommitPreview:
+                                     reason: str, clock: Callable[[], datetime] | None = None,
+                                     integration_commit: str | None = None) -> WorkstreamCommitPreview:
     """Persist a host-admitted integration token through the shared transaction.
 
     The host supplies its existing integration capability, not a post-ledger,
@@ -3541,6 +3541,7 @@ def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, works
         _fail("rebind", relative, "rebind requires the host's integration token")
     token = deepcopy(token)
     source_ref = _full_local_branch_ref(root, "refs/heads/" + token.source_branch)
+    merge_event = _git_sha(integration_commit or head, relative, "integration_commit")
     created = _as_utc(_clock_timestamp(clock))
 
     def revalidate():
@@ -3559,13 +3560,226 @@ def preview_workstream_rebind_commit(cwd: Path | str, *, trusted_ref: str, works
             if item.ledger_path != relative and item.ledger.effective_branch == token.target_branch:
                 _fail("branch-collision", relative, "rebind target branch already has a ledger")
         result = apply_trusted_rebind(
-            current.ledger, token, integration_commit=current.head, current_target_tip=current.head,
+            current.ledger, token, integration_commit=merge_event, current_target_tip=current.head,
             verifier=verifier, reason=reason, clock=lambda: created,
         )
         return result.ledger, result.witness
 
     return _store_workstream_commit(root, full_ref, head, "rebind", loaded, revalidate,
                                     verify_refs=((source_ref, token.source_tip),))
+
+
+def _rebind_source_ref(root: Path, source: str) -> str:
+    """Accept only a live same-repository local branch locator, never a rev expression."""
+    ref = source if source.startswith("refs/heads/") else "refs/heads/" + source
+    if (source.startswith("refs/") and not source.startswith("refs/heads/")
+            or re.fullmatch(r"[0-9a-fA-F]{40,64}", source)
+            or _git(root, "check-ref-format", ref)[0]):
+        _fail("rebind", source, "source must be a local branch name or refs/heads locator")
+    code, actual = _git(root, "show-ref", "--verify", "--hash", ref)
+    if code or actual != _commit(root, ref):
+        _fail("rebind", ref, "source branch must still be live in this repository")
+    code, _ = _git(root, "symbolic-ref", "--quiet", ref)
+    if code == 0:
+        _fail("rebind", ref, "symbolic source aliases are not supported")
+    return ref
+
+
+def _unchanged_rebind_ancestry(root: Path, base: str, tip: str, relative: str) -> None:
+    """Every first-parent advancement preserves the exact ledger, including absence."""
+    if not _git_is_ancestor(root, base, tip):
+        _fail("rebind", relative, "target is not descended from the prepared merge identity")
+    expected = _tree_blob(root, base, relative)
+    current = tip
+    while current != base:
+        if _tree_blob(root, current, relative) != expected:
+            _fail("stale_ledger_digest", relative, "target advancement changed the prepared ledger")
+        parents = _git_commit_parents(root, current)
+        if not parents:
+            _fail("rebind", relative, "target is not a first-parent descendant of the prepared merge identity")
+        current = parents[0]
+
+
+def _rebind_common_directory(root: Path) -> Path:
+    code, common = _git(root, "rev-parse", "--git-common-dir")
+    if code or not common:
+        _fail("rebind-handoff", str(root), "cannot resolve the repository Git common directory")
+    return (root / common).resolve()
+
+
+def _rebind_handoff_path(root: Path, workstream_id: str, source_ref: str, source_tip: str) -> Path:
+    workstream_ledger_path(workstream_id)
+    directory = _rebind_common_directory(root) / "memory-seed-reflection-handoffs"
+    if directory.is_symlink() or directory.resolve() != directory:
+        _fail("rebind-handoff", str(directory), "handoff directory must not be a symlink or junction")
+    identity = sha256((workstream_id + "\n" + source_ref + "\n" + source_tip).encode("utf-8")).hexdigest()
+    return directory / (identity + ".json")
+
+
+def _rebind_handoff_bytes(value: Mapping[str, Any]) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("utf-8")
+
+
+def prepare_workstream_rebind(cwd: Path | str, *, workstream_id: str, apply: bool = False) -> dict[str, Any]:
+    """Capture the final clean source state in an untracked, non-secret local PR handoff."""
+    from .core import _resolve_pr_base_branch, read_integration_mode
+
+    root = Path(cwd).resolve()
+    if type(apply) is not bool:
+        _fail("rebind-handoff", str(root), "apply must be a boolean")
+    if read_integration_mode(root) != "pr":
+        _fail("rebind-handoff", str(root), "PR prepare requires integration_mode: pr")
+    source_ref = _full_local_branch_ref(root, "HEAD")
+    source_tip, _ = _transaction_context(root, source_ref)
+    relative = workstream_ledger_path(workstream_id)
+    source = load_trusted_workstream_ledger(root, trusted_ref=source_ref, ledger_path=relative)
+    if source.ledger.effective_branch != source_ref.removeprefix("refs/heads/"):
+        _fail("rebind", relative, "prepare must run on the effective source branch")
+    _require_unretired_workstream_owner(root, source)
+    target, _, _, error = _resolve_pr_base_branch(root, None, source_branch=source.ledger.effective_branch)
+    if error or not target:
+        _fail("rebind-handoff", relative, error or "cannot derive the target branch")
+    target_ref = _rebind_source_ref(root, target)
+    target_tip = _commit(root, target_ref)
+    code, merge_head = _git(root, "rev-parse", "--git-path", "MERGE_HEAD")
+    if code or (root / merge_head).exists() or not _git_is_ancestor(root, target_tip, source_tip):
+        _fail("rebind-handoff", relative, "finish source preparation against the current target before preparing the handoff")
+    if _tree_blob(root, target_tip, relative) is not None:
+        _fail("rebind-handoff", relative, "prepare must precede integration of the source ledger")
+    evidence = dict(schema="memory-seed/reflection-rebind-handoff", version=1,
+        repository=str(_rebind_common_directory(root)), workstream_id=workstream_id,
+        source_ref=source_ref, source_tip=source_tip, target_ref=target_ref,
+        target_tip=target_tip, ledger_blob=source.ledger_blob,
+        pre_ledger_digest=workstream_ledger_digest(source.raw))
+    path = _rebind_handoff_path(root, workstream_id, source_ref, source_tip)
+    if path.exists() or path.is_symlink() or path.with_suffix(".consumed").exists():
+        _fail("rebind-handoff", relative, "this final source tip already has a single-use handoff")
+    if apply:
+        # All source preparation must be complete before capture. Remeasure
+        # after planning so no preparation or target movement can be hidden.
+        if _transaction_context(root, source_ref)[0] != source_tip or _commit(root, target_ref) != target_tip:
+            _fail("stale_head", relative, "source or target changed during preparation")
+        path.parent.mkdir(exist_ok=True)
+        with path.open("xb") as stream:
+            stream.write(_rebind_handoff_bytes(evidence))
+    return {"operation": "prepare", "applied": apply, "workstream_id": workstream_id,
+        "head": source_tip, "source": source_ref, "target_branch": target,
+        "pre_ledger_digest": evidence["pre_ledger_digest"], "status": "prepared" if apply else "ready_to_prepare"}
+
+
+class _GitRebindVerifier(TrustedRebindVerifier):
+    """Internal verifier for one measured exact merge event and a later CAS head."""
+
+    def __init__(self, root: Path, loaded: TrustedWorkstreamLedger, token: TrustedRebindToken,
+                 merge_event: str, prepared_target: str | None = None):
+        self.root, self.loaded, self.token = root, loaded, token
+        self.merge_event, self.prepared_target = merge_event, prepared_target
+        self.witnesses: list[TrustedIntegrationWitness] = []
+
+    def verify(self, token, *, integration_commit, current_target_tip):
+        if token != self.token or integration_commit != self.merge_event or current_target_tip != self.loaded.head:
+            return False
+        root, relative = self.root, self.loaded.ledger_path
+        if _git_commit_parents(root, integration_commit) != (token.target_pre_merge_tip, token.source_tip):
+            return False
+        source_ref = _rebind_source_ref(root, token.source_branch)
+        if _commit(root, source_ref) != token.source_tip:
+            return False
+        source = load_trusted_workstream_ledger(root, trusted_ref=source_ref, ledger_path=relative)
+        if (source.raw != self.loaded.raw or source.ledger.effective_branch != token.source_branch
+                or workstream_ledger_digest(source.raw) != token.pre_ledger_digest
+                or _tree_blob(root, token.target_pre_merge_tip, relative) is not None):
+            return False
+        if source.ledger.rebinds:
+            GitWorkstreamIntegrationVerifier(source).witness()
+        integrated = _tree_blob(root, integration_commit, relative)
+        if integrated is None or integrated.mode != CANONICAL_MODE or integrated.content != source.raw:
+            return False
+        _unchanged_rebind_ancestry(root, integration_commit, current_target_tip, relative)
+        if self.prepared_target:
+            _unchanged_rebind_ancestry(root, self.prepared_target, token.target_pre_merge_tip, relative)
+        return True
+
+    def admit_witness(self, token, rebind, *, integration_commit):
+        witness = TrustedIntegrationWitness(token.workstream_id, rebind.record_id, token.source_branch,
+            token.target_branch, token.source_tip, token.target_pre_merge_tip, integration_commit, token.pre_ledger_digest)
+        self.witnesses.append(witness)
+        return witness
+
+    def verify_witness(self, witness):
+        # Admission follows verify() in the kernel. Apply invokes that complete
+        # verification again, then checks source and target refs atomically;
+        # membership here must not duplicate the same Git history scan.
+        return witness in self.witnesses
+
+
+def preview_integrated_workstream_rebind(cwd: Path | str, *, workstream_id: str,
+        source: str, reason: str, pr: bool = False) -> tuple[WorkstreamCommitPreview, str, Path | None, bytes | None]:
+    """Derive all authority from Git and, for PRs, the exact local prepared handoff."""
+    from .core import read_integration_mode
+
+    root = Path(cwd).resolve()
+    if (read_integration_mode(root) == "pr") != pr:
+        _fail("rebind", str(root), "use the rebind operation matching the project's integration mode")
+    target_ref = _full_local_branch_ref(root, "HEAD")
+    head, _ = _transaction_context(root, target_ref)
+    relative = workstream_ledger_path(workstream_id)
+    source_ref = _rebind_source_ref(root, source)
+    source_tip = _commit(root, source_ref)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref=target_ref, ledger_path=relative)
+    if (loaded.ledger.effective_branch != source_ref.removeprefix("refs/heads/") or source_ref == target_ref):
+        _fail("rebind", relative, "source locator must identify the ledger's current owner")
+    path, raw, evidence = None, None, None
+    if pr:
+        path = _rebind_handoff_path(root, workstream_id, source_ref, source_tip)
+        if path.is_symlink() or not path.is_file() or path.with_suffix(".consumed").exists():
+            _fail("rebind-handoff", relative, "prepared handoff is absent, invalid or already consumed")
+        raw = path.read_bytes()
+        try:
+            evidence = json.loads(raw)
+        except (ValueError, UnicodeError):
+            _fail("rebind-handoff", relative, "handoff is not canonical JSON")
+        expected = dict(schema="memory-seed/reflection-rebind-handoff", version=1,
+            repository=str(_rebind_common_directory(root)), workstream_id=workstream_id,
+            source_ref=source_ref, source_tip=source_tip, target_ref=target_ref,
+            target_tip=evidence.get("target_tip") if isinstance(evidence, dict) else None,
+            ledger_blob=loaded.ledger_blob, pre_ledger_digest=workstream_ledger_digest(loaded.raw))
+        if evidence != expected or raw != _rebind_handoff_bytes(expected):
+            _fail("rebind-handoff", relative, "handoff does not bind this repository, source, target and ledger preimage")
+        _git_sha(evidence["target_tip"], relative, "prepared target tip")
+    merge_event, current = None, head
+    while current:
+        parents = _git_commit_parents(root, current)
+        if len(parents) == 2 and parents[1] == source_tip:
+            merge_event = current
+            break
+        current = parents[0] if parents else None
+    if merge_event is None:
+        _fail("rebind", relative, "no exact two-parent target/source merge event on the target's first-parent history")
+    token = preview_trusted_rebind(loaded.ledger, source_tip=source_tip,
+        target_branch=target_ref.removeprefix("refs/heads/"),
+        target_pre_merge_tip=_git_commit_parents(root, merge_event)[0], token_factory=lambda: secrets.token_urlsafe(32))
+    verifier = _GitRebindVerifier(root, loaded, token, merge_event, evidence["target_tip"] if evidence else None)
+    if not verifier.verify(token, integration_commit=merge_event, current_target_tip=head):
+        _fail("rebind", relative, "merge event does not preserve the exact live source ledger")
+    preview = preview_workstream_rebind_commit(root, trusted_ref=target_ref, workstream_id=workstream_id,
+        token=token, verifier=verifier, reason=reason, integration_commit=merge_event)
+    return preview, merge_event, path, raw
+
+
+def apply_integrated_workstream_rebind(cwd: Path | str, preview: WorkstreamCommitPreview,
+        *, handoff_path: Path | None = None, handoff_bytes: bytes | None = None) -> WorkstreamCommitResult:
+    """Claim a PR handoff exactly once, then delegate to the existing ledger CAS writer."""
+    if handoff_path is not None:
+        if handoff_path.is_symlink() or handoff_path.read_bytes() != handoff_bytes:
+            _fail("rebind-handoff", preview.ledger_path, "handoff changed after preview")
+        try:
+            with handoff_path.with_suffix(".consumed").open("xb") as stream:
+                stream.write(sha256(handoff_bytes).hexdigest().encode("ascii") + b"\n")
+        except FileExistsError:
+            _fail("rebind-handoff", preview.ledger_path, "handoff was already consumed")
+        # A failed transaction leaves the claim in place: it must never replay.
+    return apply_workstream_commit(cwd, preview)
 
 
 def plan_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id: str, session_path: str,
@@ -3598,6 +3812,160 @@ def render_workstream_receipt(receipt: WorkstreamReceipt) -> str:
     """Render one member mapping for embedding in a normal decision YAML fence."""
     _validate_workstream_receipt(receipt)
     return _workstream_yaml_mapping(tuple(_member_session_mapping(receipt.workstream_id, receipt).items()))
+
+
+class GitWorkstreamIntegrationVerifier(TrustedRebindVerifier):
+    """Read-only admission of an existing rebind against its actual merge history.
+
+    This does not issue tokens or authorize a new rebind. Every verification
+    reloads the committed ledger and measures every ownership transfer's
+    introduction, ordered merge parents, and unchanged source ledger.
+    """
+
+    def __init__(self, loaded: TrustedWorkstreamLedger):
+        self.loaded = loaded
+
+    def witness(self) -> TrustedIntegrationWitness:
+        current = _reload_trusted_workstream_ledger(self.loaded)
+        if not current.ledger.rebinds:
+            _fail("close-authority", current.ledger_path, "close requires a committed integration rebind")
+        root = Path(current.repository)
+        _initial, _blob, transitions = _ledger_lineage(root, current.head, current.ledger_path)
+        # A valid final merge cannot launder an unverified earlier ownership
+        # transfer. Admit the complete predecessor chain before its last head.
+        for rebind in current.ledger.rebinds:
+            witness = self._admit_rebind(current, rebind, transitions)
+        return witness
+
+    def _admit_rebind(self, current: TrustedWorkstreamLedger, rebind: TrustedRebind,
+                       transitions: tuple[_LedgerTransition, ...]) -> TrustedIntegrationWitness:
+        root = Path(current.repository)
+        matching = [item for item in transitions
+                    if item.blob.content == item.parent_blob.content + b"\n" + render_trusted_rebind(rebind).encode("utf-8")]
+        if len(matching) != 1:
+            _fail("close-authority", current.ledger_path, "rebind has no exact committed introduction")
+        introduction = matching[0]
+        code, parents = _git(root, "rev-list", "--parents", "-n", "1", rebind.integration_commit)
+        if code or parents.split()[1:] != [rebind.target_pre_merge_tip, rebind.source_tip]:
+            _fail("close-authority", current.ledger_path, "integration must bind its ordered target and source merge parents")
+        code, parents = _git(root, "rev-list", "--parents", "-n", "1", introduction.commit)
+        if code or parents.split()[1:] != [introduction.parent]:
+            _fail("close-authority", current.ledger_path, "rebind introduction must have one parent")
+        _unchanged_rebind_ancestry(root, rebind.integration_commit, introduction.parent, current.ledger_path)
+        source = load_trusted_workstream_ledger(root, trusted_ref=rebind.source_tip, ledger_path=current.ledger_path)
+        integrated = _tree_blob(root, rebind.integration_commit, current.ledger_path)
+        if (source.raw != introduction.parent_blob.content or source.ledger.effective_branch != rebind.from_branch
+                or integrated is None or integrated.mode != CANONICAL_MODE or integrated.content != source.raw
+                or workstream_ledger_digest(source.raw) != rebind.pre_ledger_digest):
+            _fail("close-authority", current.ledger_path, "integration did not preserve the admitted source ledger")
+        return TrustedIntegrationWitness(current.ledger.header.workstream_id, rebind.record_id,
+            rebind.from_branch, rebind.to_branch, rebind.source_tip, rebind.target_pre_merge_tip,
+            rebind.integration_commit, rebind.pre_ledger_digest)
+
+    def verify_witness(self, witness: TrustedIntegrationWitness) -> bool:
+        return witness == self.witness()
+
+
+class GitWorkstreamReceiptVerifier(WorkstreamReceiptVerifier):
+    """Recheck exact durable member mappings in reachable ordinary sessions."""
+
+    def __init__(self, loaded: TrustedWorkstreamLedger, integration_commit: str):
+        self.loaded, self.integration_commit = loaded, integration_commit
+
+    def verify(self, admitted: AdmittedWorkstreamReceipt) -> bool:
+        current = _reload_trusted_workstream_ledger(self.loaded)
+        _check_transaction_receipts(Path(current.repository), current.head, (admitted,),
+                                    integration_commit=self.integration_commit)
+        return True
+
+
+def workstream_receipt_mapping(receipt: WorkstreamReceipt) -> dict[str, str]:
+    """Project a validated member receipt for the ordinary session writer."""
+    _validate_workstream_receipt(receipt)
+    return _member_session_mapping(receipt.workstream_id, receipt)
+
+
+def committed_workstream_receipt(loaded: TrustedWorkstreamLedger, mapping: Mapping[str, str]) -> AdmittedWorkstreamReceipt | None:
+    """Measure one exact public member mapping at the selected committed head."""
+    receipt = WorkstreamReceipt(**mapping)
+    _validate_workstream_receipt(receipt)
+    root = Path(loaded.repository)
+    blob = _tree_blob(root, loaded.head, receipt.session_path)
+    if blob is None or blob.mode != CANONICAL_MODE or not _session_has_exact_yaml_mapping(
+            blob.content, receipt.session_path, mapping, entry_id=receipt.entry_id, decision_id=receipt.decision_id):
+        return None
+    return AdmittedWorkstreamReceipt(receipt, loaded.head, blob.oid)
+
+
+def workstream_closure_mapping(record: WorkstreamRecord, *, session_path: str, entry_id: str,
+                               decision_id: str) -> dict[str, str]:
+    """Draft the existing closure-outcome mapping, with a deterministic digest."""
+    value = dict(chain_id=record.chain_id, closed_record_id=record.record_id,
+                 closed_record_digest=record.detail_digest, session_path=session_path,
+                 entry_id=entry_id, decision_id=decision_id, receipt_digest="sha256:" + "0" * 64)
+    value["receipt_digest"] = workstream_detail_digest(_workstream_yaml_mapping(tuple(value.items())))
+    return value
+
+
+def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[dict[str, Any]]:
+    """Expose incomplete closed chains from committed ordinary session scopes."""
+    root = Path(loaded.repository)
+    if not any(record.to_phase == "closed" for record in loaded.ledger.records):
+        return []
+    code, paths = _git(root, "ls-tree", "-r", "-z", "--name-only", loaded.head, "--", SESSION_ROOT, binary=True)
+    if code or not isinstance(paths, bytes):
+        _fail("receipt", loaded.ledger_path, "could not inspect ordinary session receipt history")
+    mappings = []
+    for path in paths.decode("utf-8").split("\0"):
+        if not path.startswith(".memory-seed/sessions/") or not path.endswith(".md"):
+            continue
+        blob = _tree_blob(root, loaded.head, path)
+        if blob is None or blob.mode != CANONICAL_MODE:
+            continue
+        for fence in re.finditer(r"```yaml\n(?P<body>.*?)```", blob.content.decode("utf-8", errors="replace"), re.DOTALL):
+            try:
+                value = _parse_yaml_mapping(fence.group("body"), path)
+            except ReflectionValidationError:
+                continue
+            if (value.get("session_path") == path and isinstance(value.get("entry_id"), str)
+                    and isinstance(value.get("decision_id"), str)
+                    and _session_has_exact_yaml_mapping(blob.content, path, value,
+                        entry_id=value["entry_id"], decision_id=value["decision_id"])):
+                mappings.append(value)
+    results = []
+    for chain, records in _records_by_chain(loaded.ledger).items():
+        close = records[-1]
+        if close.to_phase != "closed":
+            continue
+        missing = []
+        for record in records:
+            valid = False
+            for value in mappings:
+                if value.get("record_id") != record.record_id:
+                    continue
+                try:
+                    receipt = WorkstreamReceipt(**value)
+                    expected = plan_workstream_chain_receipts(loaded, chain_id=chain,
+                        session_path=receipt.session_path, entry_id=receipt.entry_id,
+                        decision_id=receipt.decision_id, disposition=receipt.disposition)
+                    valid = any(workstream_receipt_mapping(item) == value for item in expected)
+                except (TypeError, ReflectionValidationError):
+                    continue
+                if valid:
+                    break
+            if not valid:
+                missing.append({"kind": "member", "workstream_id": loaded.ledger.header.workstream_id,
+                    "chain_id": chain, "record_id": record.record_id, "detail_digest": record.detail_digest,
+                    "receipt_id": workstream_receipt_id(loaded.ledger.header.id_salt,
+                        loaded.ledger.header.workstream_id, chain, record.detail_digest)})
+        closure_found = any(value == workstream_closure_mapping(close, session_path=value["session_path"],
+            entry_id=value["entry_id"], decision_id=value["decision_id"]) for value in mappings)
+        if not closure_found:
+            missing.append({"kind": "closure", "chain_id": chain, "closed_record_id": close.record_id,
+                            "closed_record_digest": close.detail_digest})
+        results.append({"chain_id": chain, "status": "closed_receipts_pending" if missing else "closed",
+                        "missing_receipts": missing})
+    return results
 
 
 def _require_post_integration_receipt(root: Path, admitted: AdmittedWorkstreamReceipt, integration_commit: str) -> None:
