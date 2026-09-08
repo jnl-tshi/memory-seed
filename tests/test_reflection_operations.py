@@ -39,6 +39,30 @@ def test_append_uses_shared_kernel_and_strict_boolean(tmp_path):
     assert result["ok"] and result["applied"], result
 
 
+@pytest.mark.parametrize("guard", ["expected_head", "expected_ledger_digest"])
+def test_append_refuses_guard_change_between_load_and_kernel_preview(tmp_path, monkeypatch, guard):
+    root, initial, _ = _planned_transaction(tmp_path, "append")
+    args = dict(cwd=str(root), workstream_id=initial.ledger_path.split("/")[-2], role="planner",
+                no_related_thread=True, relationship="no_related_thread", conclusion="root", reasoning="reason", source="test",
+                apply=True)
+    args[guard] = initial.expected_head if guard == "expected_head" else initial.pre_ledger_digest
+    preview = kernel.preview_workstream_append_commit
+    advanced = {}
+
+    def advance_before_preview(cwd, **kwargs):
+        if guard == "expected_head":
+            _git(root, "commit", "--allow-empty", "--quiet", "-m", "advance after public guard")
+        else:
+            kernel.apply_workstream_commit(root, preview(cwd, **kwargs))
+        advanced["state"] = _transaction_state(root)
+        return preview(cwd, **kwargs)
+
+    monkeypatch.setattr(kernel, "preview_workstream_append_commit", advance_before_preview)
+    result = run("ledger_append", args)
+    assert result["error"]["code"] == ("stale_head" if guard == "expected_head" else "stale_ledger_digest"), result
+    assert _transaction_state(root) == advanced["state"]
+
+
 def test_close_preview_apply_and_pending_receipt_completion(tmp_path):
     root, _, context = _planned_transaction(tmp_path, "close")
     locator = {key: value for key, value in context["receipt_locator"].items() if key != "chain_id"}

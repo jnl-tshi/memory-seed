@@ -216,12 +216,12 @@ def run_reflection_operation(operation: str, arguments: Mapping[str, Any] | None
             return _close(root, branch, args, loaded)
         if operation == "ledger_init":
             preview = ledger.preview_workstream_init_commit(root, trusted_ref=branch, retention_days=args.get("retention_days", 7))
-            _anchors(args, head=preview.expected_head)
         else:
             request = ledger.WorkstreamAppendRequest(args["role"], args.get("chain_id"), args.get("relationship", "refines"),
                 tuple(args.get("parents", [])), args.get("no_related_thread", False), args["conclusion"], args["reasoning"],
                 args["source"], args.get("confidence", "high"), to_phase=args.get("to_phase"))
             preview = ledger.preview_workstream_append_commit(root, trusted_ref=branch, workstream_id=args["workstream_id"], request=request)
+        _anchors(args, head=preview.expected_head, digest=preview.pre_ledger_digest)
         result = ledger.apply_workstream_commit(root, preview) if args.get("apply", False) else None
         return {"ok": True, "applied": result is not None, "operation": preview.operation,
             "workstream_id": Path(preview.ledger_path).parent.name,

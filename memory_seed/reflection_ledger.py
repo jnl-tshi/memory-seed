@@ -3604,8 +3604,8 @@ class GitWorkstreamIntegrationVerifier(TrustedRebindVerifier):
     """Read-only admission of an existing rebind against its actual merge history.
 
     This does not issue tokens or authorize a new rebind. Every verification
-    reloads the committed ledger and measures the introduction of its last
-    rebind, the two ordered merge parents, and the unchanged source ledger.
+    reloads the committed ledger and measures every ownership transfer's
+    introduction, ordered merge parents, and unchanged source ledger.
     """
 
     def __init__(self, loaded: TrustedWorkstreamLedger):
@@ -3613,11 +3613,19 @@ class GitWorkstreamIntegrationVerifier(TrustedRebindVerifier):
 
     def witness(self) -> TrustedIntegrationWitness:
         current = _reload_trusted_workstream_ledger(self.loaded)
-        root = Path(current.repository)
         if not current.ledger.rebinds:
             _fail("close-authority", current.ledger_path, "close requires a committed integration rebind")
-        rebind = current.ledger.rebinds[-1]
+        root = Path(current.repository)
         _initial, _blob, transitions = _ledger_lineage(root, current.head, current.ledger_path)
+        # A valid final merge cannot launder an unverified earlier ownership
+        # transfer. Admit the complete predecessor chain before its last head.
+        for rebind in current.ledger.rebinds:
+            witness = self._admit_rebind(current, rebind, transitions)
+        return witness
+
+    def _admit_rebind(self, current: TrustedWorkstreamLedger, rebind: TrustedRebind,
+                       transitions: tuple[_LedgerTransition, ...]) -> TrustedIntegrationWitness:
+        root = Path(current.repository)
         matching = [item for item in transitions
                     if item.blob.content == item.parent_blob.content + b"\n" + render_trusted_rebind(rebind).encode("utf-8")]
         if len(matching) != 1:
