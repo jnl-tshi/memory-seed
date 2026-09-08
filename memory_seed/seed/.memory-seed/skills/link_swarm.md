@@ -33,7 +33,7 @@ requirement. Escalate only a specific ambiguous gap, and record why a larger mod
 memory-seed link batch-plan --date <today> --context-window <tokens> --output-dir <run>
     -> materialized judgment-ready batches + pending analytics.jsonl
 Workflow fan-out                                 (optional layer, network)
-    -> each worker reads this skill + one batch file, then writes its assigned findings/*.toon file
+    -> each worker reads one self-contained batch file, then writes its assigned findings/*.toon file
 orchestrator validation                          (mechanical-first, no new model calls)
     -> memory-seed link batch-collect validates reports and writes survivors.json + validation.json
 batch approval                                   (the human gate)
@@ -77,21 +77,24 @@ whose pair already carries a recorded edge, and skip a milestone/no-decision pai
 (see rules 5-6).
 
 **Batch by measured context, never a fixed pair count.** A worker receives as many complete candidate
-pairs as fit within **16% of its declared context window for serialized decision evidence**. Measure the
-actual prompt payload after candidate expansion (both decision bodies, candidate evidence, chain state,
-and the per-pair rubric fields), then pack whole pairs until the next pair would exceed that evidence
-budget. The plan also estimates an explicit output reserve per pair and reports it separately. Do not
+pairs as fit within **16% of its declared context window for the complete worker document**. This
+includes the exact embedded skill text, fixed assignment fields, both decision bodies, candidate
+evidence, chain state, and per-pair rubric fields. Pack whole pairs until the next pair would exceed
+that budget. The plan also estimates an explicit output reserve per pair and reports it separately. Do not
 truncate, summarize, or split a pair to fill a batch. This preserves enough room for careful per-pair
 judgment while letting short pairs share one economy-tier worker efficiently. Every pair still receives its own independent
 `{verdict, source_dN, target_dN, why, quote, confidence}` result; batching changes transport and cost,
 not the evidence standard or the validator.
 
-**Workers use files as their contract.** Before judging, each worker must read this complete skill and
-exactly one `batches/batch-NNNN.json` from the materialized run. The batch names its only authorized
-output as `finding_path`; write the complete TOON document there. Do not return the report only in chat,
-and do not edit `plan.json`, `analytics.jsonl`, another batch, or a link sidecar. Raw findings are
-disposable run evidence; the orchestrator may reject or delete them after collection without changing
-memory authority.
+**Workers use one self-contained file as their contract.** Each `batches/batch-NNNN.md` embeds the
+exact active `link_swarm.md` text at its top, records that source path and its SHA-256 digest, and then
+contains the mechanical assignment. The packer counts this fixed instruction block inside the declared
+16% budget. A worker reads only that batch document; the orchestrator does not need to repeat the rubric
+in its prompt or ask the worker to load a second file. The batch names its only authorized output as
+`finding_path`; write the complete TOON document there. Do not return the report only in chat, and do
+not edit `plan.json`, `analytics.jsonl`, another batch, or a link sidecar. Raw findings are disposable
+run evidence; the orchestrator may reject or delete them after collection without changing memory
+authority.
 
 ### 2. The judging criteria (what the swarm decides)
 

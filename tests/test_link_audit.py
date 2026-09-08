@@ -76,6 +76,12 @@ class LinkAuditTests(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
         self.sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
         self.sessions.mkdir(parents=True, exist_ok=True)
+        skills = self.cwd / MEMORY_DIR_NAME / "skills"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "link_swarm.md").write_text(
+            "# Test lifecycle-link swarm skill\n\nJudge every assigned pair.\n",
+            encoding="utf-8",
+        )
 
     def _write(self, *entries):
         (self.sessions / "2026-06-01.md").write_text("\n".join(entries), encoding="utf-8")
@@ -316,6 +322,26 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(plan["batch_count"], 1)
         self.assertFalse((self.sessions / "links").exists())
 
+    def test_cli_materialized_batch_embeds_the_active_skill(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Beta"]),
+        )
+        run_dir = self.cwd / "embedded-skill-run"
+        code, out, err = self._run_cli(
+            "link", "batch-plan", "--for", B, "--context-window", "400000",
+            "--no-semantic", "--output-dir", str(run_dir),
+        )
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["batch_count"], 1)
+        active_skill = (self.cwd / MEMORY_DIR_NAME / "skills" / "link_swarm.md").read_text(
+            encoding="utf-8"
+        )
+        worker_batch = (run_dir / "batches" / "batch-0001.md").read_text(encoding="utf-8")
+        self.assertIn(f"<required_skill>\n{active_skill.rstrip()}\n</required_skill>", worker_batch)
+        self.assertFalse((run_dir / "batches" / "batch-0001.json").exists())
+
     def test_cli_batch_plan_enumerates_all_lexical_candidates_by_default(self):
         older = ["mse_" + char * 16 for char in "abdefgh"]
         self._write(*[
@@ -397,12 +423,32 @@ class LinkAuditTests(unittest.TestCase):
                 }],
             }],
         }
-        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        skill_text = "# Embedded worker skill\n\nApply the lifecycle rubric exactly.\n"
+        plan = plan_link_audit_batches(
+            payload,
+            context_window_tokens=10_000,
+            worker_skill_text=skill_text,
+            worker_skill_source=".memory-seed/skills/link_swarm.md",
+        )
         run_dir = self.cwd / "run"
         materialize_link_swarm_run(plan, run_dir)
-        worker_batch = json.loads((run_dir / "batches" / "batch-0001.json").read_text(encoding="utf-8"))
-        self.assertEqual(worker_batch["finding_path"], "findings/batch-0001.toon")
-        self.assertEqual(worker_batch["measurement"]["batch_estimated_output_tokens"], 160)
+        worker_path = run_dir / "batches" / "batch-0001.md"
+        worker_batch = worker_path.read_text(encoding="utf-8")
+        self.assertTrue(worker_batch.startswith("# Lifecycle-Link Worker Batch 1\n"))
+        self.assertIn(f"<required_skill>\n{skill_text.rstrip()}\n</required_skill>", worker_batch)
+        self.assertIn(
+            f"skill_sha256: {plan['measurement']['worker_skill_sha256']}", worker_batch,
+        )
+        self.assertIn('"finding_path":"findings/batch-0001.toon"', worker_batch)
+        self.assertEqual(
+            len(worker_batch.encode("utf-8")),
+            plan["batches"][0]["worker_batch_utf8_bytes"],
+        )
+        self.assertLessEqual(
+            plan["batches"][0]["estimated_tokens"],
+            plan["measurement"]["evidence_budget_tokens"],
+        )
+        self.assertEqual(plan["batches"][0]["estimated_output_tokens"], 160)
         report = (
             "schema: memory-seed.link-swarm-verdicts.v1\n"
             "batch: 1\n"

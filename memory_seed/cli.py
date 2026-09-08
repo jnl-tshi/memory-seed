@@ -2780,6 +2780,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.link_command == "batch-plan":
                 semantic_status: dict[str, Any] = {}
                 try:
+                    runtime = resolve_runtime(cwd)
+                    worker_skill_path = runtime.memory_dir / "skills" / "link_swarm.md"
+                    worker_skill_text = worker_skill_path.read_text(encoding="utf-8")
+                    worker_skill_source = worker_skill_path.relative_to(
+                        runtime.workspace_root
+                    ).as_posix()
                     gaps = audit_link_gaps(
                         cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
                         top_k=None if args.top_k == 0 else args.top_k,
@@ -2792,10 +2798,12 @@ def main(argv: list[str] | None = None) -> int:
                         evidence_fraction=args.evidence_fraction,
                         minimum_score=args.minimum_score,
                         output_tokens_per_pair=args.output_tokens_per_pair,
+                        worker_skill_text=worker_skill_text,
+                        worker_skill_source=worker_skill_source,
                     )
                     if args.output_dir:
                         result = materialize_link_swarm_run(plan, args.output_dir)
-                except (FileExistsError, LookupError, ValueError) as exc:
+                except (FileExistsError, LookupError, OSError, ValueError) as exc:
                     print(str(exc), file=sys.stderr)
                     return 1
                 print(json.dumps(result if args.output_dir else plan, indent=2, ensure_ascii=False))

@@ -3604,6 +3604,79 @@ def link_audit_payload(
     }
 
 
+def _render_link_swarm_worker_batch(
+    *,
+    run_id: str,
+    batch_number: int,
+    measurement: Mapping[str, Any],
+    semantic: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+    pairs: Sequence[Mapping[str, Any]],
+    worker_skill_text: str,
+    worker_skill_source: str,
+) -> str:
+    finding_path = f"findings/batch-{batch_number:04d}.toon"
+    skill_digest = hashlib.sha256(worker_skill_text.encode("utf-8")).hexdigest()
+    assignment = {
+        "schema": "memory-seed.link-swarm-worker-batch.v2",
+        "run_id": run_id,
+        "batch": batch_number,
+        "measurement": dict(measurement),
+        "semantic": dict(semantic),
+        "criteria": dict(criteria),
+        "pair_count": len(pairs),
+        "pairs": list(pairs),
+        "finding_path": finding_path,
+    }
+    return (
+        f"# Lifecycle-Link Worker Batch {batch_number}\n\n"
+        f"skill_source: {worker_skill_source}\n"
+        f"skill_sha256: {skill_digest}\n\n"
+        "<required_skill>\n"
+        f"{worker_skill_text.rstrip()}\n"
+        "</required_skill>\n\n"
+        "## Mechanical assignment\n\n"
+        "Read the required skill above, judge every complete pair below, and write only the strict "
+        f"TOON report to `{finding_path}`.\n\n"
+        "```json\n"
+        f"{canonical_retrieval_json(assignment)}\n"
+        "```\n"
+    )
+
+
+def _link_swarm_worker_batch_size(
+    *,
+    run_id: str,
+    batch_number: int,
+    measurement: Mapping[str, Any],
+    semantic: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+    pair_count: int,
+    serialized_pairs_utf8_bytes: int,
+    worker_skill_text: str,
+    worker_skill_source: str,
+) -> tuple[int, int]:
+    """Measure a rendered batch without repeatedly serializing its growing pair list."""
+    empty = _render_link_swarm_worker_batch(
+        run_id=run_id,
+        batch_number=batch_number,
+        measurement=measurement,
+        semantic=semantic,
+        criteria=criteria,
+        pairs=[],
+        worker_skill_text=worker_skill_text,
+        worker_skill_source=worker_skill_source,
+    )
+    byte_count = len(empty.encode("utf-8"))
+    if pair_count:
+        # The canonical assignment changes only `pair_count:0` and `pairs:[]`.
+        # Pair JSON bytes plus commas replace the empty array, while the count
+        # contributes only its additional digits.
+        byte_count += len(str(pair_count)) - 1
+        byte_count += serialized_pairs_utf8_bytes + pair_count - 1
+    return byte_count, (byte_count + 3) // 4
+
+
 def plan_link_audit_batches(
     payload: Mapping[str, Any],
     *,
@@ -3611,6 +3684,8 @@ def plan_link_audit_batches(
     evidence_fraction: float = 0.16,
     minimum_score: float = 0.0,
     output_tokens_per_pair: int = 160,
+    worker_skill_text: str = "",
+    worker_skill_source: str = ".memory-seed/skills/link_swarm.md",
 ) -> dict[str, Any]:
     """Pack complete link-audit pairs into deterministic evidence batches.
 
@@ -3689,38 +3764,97 @@ def plan_link_audit_batches(
             pairs.append(packed_pair)
             candidate_ledger.append(ledger_row)
 
+    worker_skill_utf8_bytes = len(worker_skill_text.encode("utf-8"))
+    measurement = {
+        "context_window_tokens": context_window_tokens,
+        "evidence_fraction": evidence_fraction,
+        "batch_budget_tokens": budget_tokens,
+        "evidence_budget_tokens": budget_tokens,
+        "output_tokens_per_pair": output_tokens_per_pair,
+        "minimum_score": minimum_score,
+        "worker_skill_source": worker_skill_source,
+        "worker_skill_sha256": hashlib.sha256(worker_skill_text.encode("utf-8")).hexdigest(),
+        "worker_skill_utf8_bytes": worker_skill_utf8_bytes,
+        "worker_skill_estimated_tokens": (worker_skill_utf8_bytes + 3) // 4,
+        "token_estimate": "ceil(utf8_bytes / 4); fixed provider-independent proxy",
+        "pair_policy": "complete pairs only; no truncation or splitting",
+        "score_policy": "file + keyword + weighted semantic rank; topic and temporal are diagnostic-only",
+    }
+    semantic = dict(payload.get("semantic", {}))
+    criteria = dict(payload.get("criteria", {}))
+
+    pair_payload_bytes = {
+        pair["pair_id"]: len(canonical_retrieval_json(pair).encode("utf-8"))
+        for pair in pairs
+    }
+
+    def rendered_size(
+        batch_number: int, pair_count: int, serialized_pairs_utf8_bytes: int,
+    ) -> tuple[int, int]:
+        return _link_swarm_worker_batch_size(
+            run_id="pending-run-id-00000",
+            batch_number=batch_number,
+            measurement=measurement,
+            semantic=semantic,
+            criteria=criteria,
+            pair_count=pair_count,
+            serialized_pairs_utf8_bytes=serialized_pairs_utf8_bytes,
+            worker_skill_text=worker_skill_text,
+            worker_skill_source=worker_skill_source,
+        )
+
     batches: list[dict[str, Any]] = []
     oversize_pairs: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
-    current_tokens = current_bytes = 0
+    current_pair_tokens = current_pair_bytes = 0
+    current_payload_bytes = 0
     for pair in pairs:
-        estimate = pair["estimated_tokens"]
-        if estimate > budget_tokens:
+        pair_payload_bytes_count = pair_payload_bytes[pair["pair_id"]]
+        next_count = len(current) + 1
+        next_payload_bytes = current_payload_bytes + pair_payload_bytes_count
+        next_bytes, next_tokens = rendered_size(
+            len(batches) + 1, next_count, next_payload_bytes,
+        )
+        if not current and next_tokens > budget_tokens:
             oversize_pairs.append(pair)
             continue
-        if current and current_tokens + estimate > budget_tokens:
+        if current and next_tokens > budget_tokens:
             batch_number = len(batches) + 1
+            batch_bytes, batch_tokens = rendered_size(
+                batch_number, len(current), current_payload_bytes,
+            )
             batches.append({
-                "batch": batch_number, "evidence_utf8_bytes": current_bytes,
-                "estimated_tokens": current_tokens,
+                "batch": batch_number, "evidence_utf8_bytes": batch_bytes,
+                "worker_batch_utf8_bytes": batch_bytes,
+                "pair_evidence_utf8_bytes": current_pair_bytes,
+                "estimated_tokens": batch_tokens,
+                "pair_estimated_tokens": current_pair_tokens,
                 "estimated_output_tokens": len(current) * output_tokens_per_pair,
-                "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
+                "remaining_budget_tokens": budget_tokens - batch_tokens, "pairs": current,
             })
             current_ids = {item["pair_id"] for item in current}
             for row in candidate_ledger:
                 if row["pair_id"] in current_ids:
                     row.update(batch=batch_number, status="assigned")
-            current, current_tokens, current_bytes = [], 0, 0
+            current, current_pair_tokens, current_pair_bytes = [], 0, 0
+            current_payload_bytes = 0
         current.append(pair)
-        current_tokens += estimate
-        current_bytes += pair["evidence_utf8_bytes"]
+        current_pair_tokens += pair["estimated_tokens"]
+        current_pair_bytes += pair["evidence_utf8_bytes"]
+        current_payload_bytes += pair_payload_bytes_count
     if current:
         batch_number = len(batches) + 1
+        batch_bytes, batch_tokens = rendered_size(
+            batch_number, len(current), current_payload_bytes,
+        )
         batches.append({
-            "batch": batch_number, "evidence_utf8_bytes": current_bytes,
-            "estimated_tokens": current_tokens,
+            "batch": batch_number, "evidence_utf8_bytes": batch_bytes,
+            "worker_batch_utf8_bytes": batch_bytes,
+            "pair_evidence_utf8_bytes": current_pair_bytes,
+            "estimated_tokens": batch_tokens,
+            "pair_estimated_tokens": current_pair_tokens,
             "estimated_output_tokens": len(current) * output_tokens_per_pair,
-            "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
+            "remaining_budget_tokens": budget_tokens - batch_tokens, "pairs": current,
         })
         current_ids = {item["pair_id"] for item in current}
         for row in candidate_ledger:
@@ -3734,18 +3868,10 @@ def plan_link_audit_batches(
 
     return {
         "schema": "memory-seed.link-batch-plan.v2",
-        "measurement": {
-            "context_window_tokens": context_window_tokens,
-            "evidence_fraction": evidence_fraction,
-            "evidence_budget_tokens": budget_tokens,
-            "output_tokens_per_pair": output_tokens_per_pair,
-            "minimum_score": minimum_score,
-            "token_estimate": "ceil(utf8_bytes / 4); fixed provider-independent proxy",
-            "pair_policy": "complete pairs only; no truncation or splitting",
-            "score_policy": "file + keyword + weighted semantic rank; topic and temporal are diagnostic-only",
-        },
-        "semantic": dict(payload.get("semantic", {})),
-        "criteria": dict(payload.get("criteria", {})),
+        "measurement": measurement,
+        "semantic": semantic,
+        "criteria": criteria,
+        "worker_skill_text": worker_skill_text,
         "pair_count": len(pairs), "batch_count": len(batches),
         "oversize_pair_count": len(oversize_pairs), "batches": batches,
         "oversize_pairs": oversize_pairs,
@@ -3833,28 +3959,32 @@ def materialize_link_swarm_run(plan: Mapping[str, Any], output_dir: str | Path) 
     run_id = hashlib.sha256(canonical_retrieval_json(normalized).encode("utf-8")).hexdigest()[:20]
     normalized["run_id"] = run_id
     write_text_file(directory / "plan.json", json.dumps(normalized, indent=2, ensure_ascii=False) + "\n")
+    worker_skill_text = str(normalized.get("worker_skill_text", ""))
+    measurement = dict(normalized.get("measurement", {}))
+    worker_skill_source = str(
+        measurement.get("worker_skill_source", ".memory-seed/skills/link_swarm.md")
+    )
     for batch in normalized.get("batches", []):
         number = int(batch["batch"])
-        worker_payload = {
-            "schema": "memory-seed.link-swarm-worker-batch.v1",
-            "run_id": run_id,
-            "batch": number,
-            "measurement": {
-                **dict(normalized.get("measurement", {})),
-                "batch_evidence_utf8_bytes": batch.get("evidence_utf8_bytes"),
-                "batch_estimated_tokens": batch.get("estimated_tokens"),
-                "batch_estimated_output_tokens": batch.get("estimated_output_tokens"),
-                "batch_remaining_budget_tokens": batch.get("remaining_budget_tokens"),
-            },
-            "semantic": normalized.get("semantic", {}),
-            "criteria": normalized.get("criteria", {}),
-            "pair_count": len(batch.get("pairs", [])),
-            "pairs": batch.get("pairs", []),
-            "finding_path": f"findings/batch-{number:04d}.toon",
-        }
+        worker_batch = _render_link_swarm_worker_batch(
+            run_id=run_id,
+            batch_number=number,
+            measurement=measurement,
+            semantic=dict(normalized.get("semantic", {})),
+            criteria=dict(normalized.get("criteria", {})),
+            pairs=list(batch.get("pairs", [])),
+            worker_skill_text=worker_skill_text,
+            worker_skill_source=worker_skill_source,
+        )
+        actual_bytes = len(worker_batch.encode("utf-8"))
+        planned_bytes = int(batch.get("worker_batch_utf8_bytes", batch["evidence_utf8_bytes"]))
+        if actual_bytes != planned_bytes:
+            raise ValueError(
+                f"batch {number} rendered to {actual_bytes} bytes; plan measured {planned_bytes}"
+            )
         write_text_file(
-            directory / "batches" / f"batch-{number:04d}.json",
-            json.dumps(worker_payload, indent=2, ensure_ascii=False) + "\n",
+            directory / "batches" / f"batch-{number:04d}.md",
+            worker_batch,
         )
     write_text_file(
         directory / "analytics.jsonl",
