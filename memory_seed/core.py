@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Literal, Mapping, Sequence
 
 from .text_files import (
+    normalize_text,
     read_json_file,
     read_text_file,
     scan_implicit_text_io,
@@ -3896,12 +3897,51 @@ def _utc_timestamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
+@dataclass(frozen=True)
+class _SessionFileMutation:
+    """Internal author receipt; never part of a public session result payload.
+
+    ``None`` is an absent preimage, distinct from an existing empty file. The
+    postimage is computed by the writer, not read back from a path another
+    actor may have changed after the write. Creation and append each emit a
+    receipt, so a transaction can verify the complete ownership chain.
+    """
+
+    path: Path
+    preimage: bytes | None
+    postimage: bytes
+    created: bool
+
+
+def _write_session_file(
+    path: Path,
+    content: str,
+    *,
+    preimage: bytes | None,
+    observer: Callable[[_SessionFileMutation], None] | None = None,
+) -> bool:
+    postimage = normalize_text(content).encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Exclusive creation cannot overwrite or claim a raced-in file.
+        with (path.open("xb") if preimage is None else path.open("wb")) as stream:
+            stream.write(postimage)
+    except FileExistsError:
+        return False
+    if observer is not None:
+        observer(_SessionFileMutation(path, preimage, postimage, preimage is None))
+    return True
+
+
+def _ensure_per_user_session_file(
+    path: Path, date_str: str, user: str,
+    *, _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
+) -> None:
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     hash_id = "msm_" + secrets.token_hex(16)
-    write_text_file(
+    _write_session_file(
         path,
         "\n".join(
             [
@@ -3915,6 +3955,8 @@ def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
                 "",
             ]
         ),
+        preimage=None,
+        observer=_mutation_observer,
     )
 
 
@@ -3923,6 +3965,8 @@ def session_target(
     date_str: str | None = None,
     explicit_user: str | None = None,
     create: bool = False,
+    *,
+    _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
 ) -> SessionTarget:
     runtime = resolve_runtime(cwd)
     if runtime.legacy:
@@ -3945,13 +3989,12 @@ def session_target(
     if user is None:
         path = _session_flat_path(sessions_dir, date_value)
         if create:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch(exist_ok=True)
+            _write_session_file(path, "", preimage=None, observer=_mutation_observer)
         return SessionTarget(path=path, session_date=date_value, user=None, layout="month-flat")
 
     path = session_path(sessions_dir, date_value, user)
     if create:
-        _ensure_per_user_session_file(path, date_value, user)
+        _ensure_per_user_session_file(path, date_value, user, _mutation_observer=_mutation_observer)
     return SessionTarget(path=path, session_date=date_value, user=user, layout="month-user")
 
 
@@ -4589,6 +4632,7 @@ def session_append_entry(
     explicit_user: str | None = None,
     dry_run: bool = False,
     snapshot: "CorpusSnapshot | None" = None,
+    _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -5229,8 +5273,12 @@ def session_append_entry(
         if not journal_path.exists():
             write_json_file(journal_path, journal)
 
-    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
-    existing = read_text_file(target.path) if target.path.exists() else ""
+    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True,
+                            _mutation_observer=_mutation_observer)
+    # Render from the same byte snapshot reported as the mutation preimage.
+    # Match read_text_file's universal-newline decoding without a second read.
+    preimage = target.path.read_bytes() if target.path.exists() else None
+    existing = preimage.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") if preimage is not None else ""
     if block.rstrip() not in existing:
         if existing.strip():
             new_text = existing.rstrip("\n") + "\n\n" + block
@@ -5238,7 +5286,8 @@ def session_append_entry(
             new_text = _session_file_prefix(
                 existing, date_part, user=target.user
             ) + block
-        write_text_file(target.path, new_text)
+        if not _write_session_file(target.path, new_text, preimage=preimage, observer=_mutation_observer):
+            raise FileExistsError(f"Session target was concurrently created: {target.path}")
 
     if "topics" in rendered_sidecars:
         topic_path = sidecar_paths["topics"]

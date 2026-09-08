@@ -4791,7 +4791,7 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
             elapsed_receipt = stored.compaction_factory(cleanup, candidate_blob.oid)
             # The ordinary session author owns target resolution, chronology,
             # IDs, canonical entry structure and append-only persistence.
-            from .core import _session_file_prefix, session_append_entry, session_target
+            from .core import session_append_entry
             session_args = dict(title=f"Reflection compaction {cleanup}", user_initials="MS", agent_type="memory-seed",
                 body="### Summary\n\nExpired one closed reflection chain after signed elapsed retention. "
                     + EXPIRY_DISCLOSURE + "\n\n### Reflection workstream compaction\n\n```yaml\n"
@@ -4814,22 +4814,31 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
             session_owned_index = _blob_index_state(session_blob)
             if _index_path_state(root, relative) != session_owned_index:
                 _fail("expiry-session", relative, "session index differs from committed preimage")
-            target = session_target(root, date_str=session_preview.timestamp[:10])
-            if target.path != selected_session or session_preview.rendered is None or session_preview.sidecar_paths:
+            if session_preview.rendered is None or session_preview.sidecar_paths:
                 _fail("expiry-session", relative, "ordinary session preview changed its exact single-path target")
-            prior_text = session_raw.decode("utf-8")
-            prefix = (prior_text.rstrip("\n") + "\n\n" if prior_text.strip() else
-                      _session_file_prefix(prior_text, target.session_date, user=target.user))
-            session_owned_raw = (prefix + session_preview.rendered).encode("utf-8")
             session_path = selected_session
+            session_owned_raw = session_raw if session_blob is not None else None
+
+            def authored(mutation):
+                nonlocal session_owned_raw
+                # Only the ordinary author knows a new per-user file's exact
+                # generated frontmatter. Follow its creation/append receipts;
+                # never adopt bytes read back after a potentially raced write.
+                if (mutation.path != session_path or mutation.preimage != session_owned_raw
+                        or mutation.created != (session_owned_raw is None)):
+                    _fail("expiry-session", relative, "ordinary session mutation does not extend the owned preimage")
+                session_owned_raw = mutation.postimage
+
             directory = session_path.parent
             while not directory.exists():
                 session_directories.insert(0, directory)
                 directory = directory.parent
-            written = session_append_entry(root, **session_args, timestamp=session_preview.timestamp)
+            written = session_append_entry(root, **session_args, timestamp=session_preview.timestamp,
+                                           _mutation_observer=authored)
             if not written.ok or written.entry_id != session_preview.entry_id or written.path != session_path:
                 _fail("expiry-session", relative, "ordinary session author refused the exact compaction entry")
-            if session_path.read_bytes() != session_owned_raw or not session_owned_raw.startswith(session_raw):
+            if (session_owned_raw is None or session_path.read_bytes() != session_owned_raw
+                    or not session_owned_raw.startswith(session_raw)):
                 _fail("expiry-session", relative, "compaction session differs from its exact authored post-image")
             code, _output = _git(root, "add", "--", relative)
             if code:

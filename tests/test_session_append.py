@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 
 from _git_helpers import run_git
@@ -23,6 +24,7 @@ from memory_seed.core import (
     generate_session_entry_id,
     resolve_runtime,
     session_append_entry,
+    _write_session_file,
 )
 from memory_seed.retrieval import entry_topic_sidecars
 from memory_seed import corpus_cache
@@ -73,6 +75,92 @@ class SessionAppendTests(unittest.TestCase):
         self.assertNotIn("agent_name:", text)
         self.assertIn("- D: Something durable.", text)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_internal_mutation_receipts_include_exact_new_per_user_frontmatter(self):
+        receipts = []
+        result = self._append(explicit_user="jean", _mutation_observer=receipts.append)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(len(receipts), 2)
+        created, appended = receipts
+        self.assertTrue(created.created)
+        self.assertIsNone(created.preimage)
+        self.assertIn(b"schema_version: 2\n", created.postimage)
+        self.assertIn(b"hash_id: msm_", created.postimage)
+        self.assertIn(b"user: jean\ncreated_at: ", created.postimage)
+        self.assertFalse(appended.created)
+        self.assertEqual(appended.preimage, created.postimage)
+        self.assertEqual(appended.postimage, result.path.read_bytes())
+        self.assertEqual(created.path, result.path)
+        self.assertEqual(appended.path, result.path)
+        self.assertEqual(appended.postimage.count(b"hash_id:"), 1)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+        self.assertEqual(set(asdict(result)), {
+            "ok", "path", "entry_id", "timestamp", "issues", "written", "rendered",
+            "sidecar_paths", "rendered_sidecars", "journal_path",
+        })
+        self.assertIsNone(result.rendered)
+
+    def test_internal_mutation_receipts_distinguish_new_flat_from_existing_empty(self):
+        receipts = []
+        result = self._append(_mutation_observer=receipts.append)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual([(item.preimage, item.created) for item in receipts], [(None, True), (b"", False)])
+        self.assertEqual(receipts[-1].postimage, result.path.read_bytes())
+
+        empty = result.path.with_name("2026-06-14.md")
+        empty.write_bytes(b"")
+        receipts.clear()
+        result = self._append(timestamp="2026-06-14 09:00", _mutation_observer=receipts.append)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(result.path, empty)
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(receipts[0].preimage, b"")
+        self.assertFalse(receipts[0].created)
+
+    def test_internal_mutation_receipt_uses_exact_read_snapshot_and_canonical_postimage(self):
+        prior = self._append(explicit_user="jean")
+        raw = prior.path.read_bytes().replace(b"\n", b"\r\n") + "\r\nCafe\u0301\r\n".encode("utf-8")
+        prior.path.write_bytes(raw)
+        receipts = []
+        result = self._append(title="Second decision", timestamp="2026-06-13 09:01",
+                              explicit_user="jean", _mutation_observer=receipts.append)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(receipts[0].preimage, raw)
+        self.assertEqual(receipts[0].postimage, result.path.read_bytes())
+        self.assertNotIn(b"\r", receipts[0].postimage)
+        self.assertIn("Caf\u00e9\n".encode("utf-8"), receipts[0].postimage)
+
+    def test_internal_mutation_receipt_never_adopts_later_file_bytes(self):
+        receipts = []
+        marker = b"\nConcurrent after-write content\n"
+
+        def observe(mutation):
+            receipts.append(mutation)
+            if not mutation.created:
+                mutation.path.write_bytes(mutation.postimage + marker)
+
+        result = self._append(explicit_user="jean", _mutation_observer=observe)
+        self.assertTrue(result.ok, result.issues)
+        self.assertNotIn(marker, receipts[-1].postimage)
+        self.assertEqual(result.path.read_bytes(), receipts[-1].postimage + marker)
+
+    def test_internal_mutation_receipts_are_absent_for_dry_run_and_refusal(self):
+        receipts = []
+        preview = self._append(explicit_user="jean", dry_run=True, _mutation_observer=receipts.append)
+        self.assertTrue(preview.ok, preview.issues)
+        self.assertFalse(preview.path.exists())
+        refused = self._append(timestamp="invalid", explicit_user="jean", _mutation_observer=receipts.append)
+        self.assertFalse(refused.ok)
+        self.assertEqual(receipts, [])
+
+    def test_internal_session_creation_does_not_claim_a_raced_in_file(self):
+        path = self.cwd / MEMORY_DIR_NAME / "sessions" / "concurrent.md"
+        path.write_bytes(b"Unowned concurrent content\n")
+        receipts = []
+        self.assertFalse(_write_session_file(path, "new header", preimage=None, observer=receipts.append))
+        self.assertEqual(receipts, [])
+        self.assertEqual(path.read_bytes(), b"Unowned concurrent content\n")
 
     def test_decision_envelope_writes_topics_and_links_only_to_sidecars(self):
         # The entry owns its narrative.  Decision-scoped semantic assertions

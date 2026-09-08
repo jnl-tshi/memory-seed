@@ -498,6 +498,90 @@ def test_cas_failure_preserves_existing_session_content(ready, monkeypatch, conc
     _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent)
 
 
+def _new_per_user_session(ready, monkeypatch):
+    from memory_seed.core import session_target
+    root, _args = ready
+    project = root / ".memory-seed/project.yaml"
+    project.write_text("schema_version: 1\nparticipants:\n"
+        "  - slug: jean\n    initials: JN\n    display_name: Jean\n"
+        "  - slug: amina\n    initials: AM\n    display_name: Amina\n", encoding="utf-8", newline="\n")
+    _git(root, "add", ".memory-seed/project.yaml")
+    _git(root, "commit", "--quiet", "-m", "two session participants")
+    monkeypatch.setenv("MEMORY_SEED_USER", "jean")
+    target = session_target(root)
+    assert target.user == "jean" and target.layout == "month-user"
+    assert not target.path.exists()
+    return target.path
+
+
+def test_public_expiry_creates_new_per_user_session_with_author_frontmatter(ready, monkeypatch):
+    root, args = ready
+    session = _new_per_user_session(ready, monkeypatch)
+    before = _git(root, "rev-parse", "HEAD")
+    result = call_tool("memory_reflection_ledger_expire", dict(args, apply=True))
+    assert result["ok"] and result["applied"], result
+    raw = session.read_bytes()
+    assert raw.startswith(b"---\nschema_version: 2\n")
+    assert b"hash_id: msm_" in raw and b"user: jean\ncreated_at: " in raw
+    assert b"### Reflection workstream compaction" in raw
+    assert _git(root, "rev-list", "--count", before + "..HEAD") == "2"
+    assert _git(root, "status", "--porcelain") == ""
+    loaded = ledger.load_trusted_workstream_ledger(root, trusted_ref="main",
+        ledger_path=ledger.workstream_ledger_path(args["workstream_id"]))
+    assert isinstance(loaded, ledger.AdmittedCompactedLedger)
+    assert len(loaded.proofs) == 1 and not loaded.ledger.records
+
+
+def test_cas_failure_removes_only_owned_new_per_user_session(ready, monkeypatch):
+    root, args = ready
+    session = _new_per_user_session(ready, monkeypatch)
+    before = _transaction_state(root)
+    original_git, attempted = ledger._git, []
+
+    def fail_cas(cwd, *argv, **kwargs):
+        if argv[:2] == ("update-ref", "--stdin"):
+            attempted.append(session.read_bytes())
+            assert b"schema_version: 2\n" in attempted[-1]
+            assert b"### Reflection workstream compaction" in attempted[-1]
+            return 1, "injected unsuccessful CAS"
+        return original_git(cwd, *argv, **kwargs)
+
+    monkeypatch.setattr(ledger, "_git", fail_cas)
+    result = call_tool("memory_reflection_ledger_expire", dict(args, apply=True))
+    assert not result["ok"] and result["error"]["code"] == "stale_ref", result
+    assert len(attempted) == 1
+    assert not session.exists()
+    assert _transaction_state(root) == before
+
+
+@pytest.mark.parametrize("concurrent", ["uncommitted", "staged", "committed", "committed_owned_bytes"])
+def test_cas_failure_preserves_concurrent_new_per_user_session(ready, monkeypatch, concurrent):
+    _new_per_user_session(ready, monkeypatch)
+    _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent)
+
+
+def test_per_user_creation_append_race_does_not_claim_concurrent_preimage(ready, monkeypatch):
+    from memory_seed import core
+    root, args = ready
+    session = _new_per_user_session(ready, monkeypatch)
+    original_write = core._write_session_file
+    marker = b"\nConcurrent content between session creation and append.\n"
+
+    def concurrent_write(path, content, **kwargs):
+        written = original_write(path, content, **kwargs)
+        if path == session and kwargs["preimage"] is None and written:
+            path.write_bytes(path.read_bytes() + marker)
+        return written
+
+    monkeypatch.setattr(core, "_write_session_file", concurrent_write)
+    before = _git(root, "rev-parse", "HEAD")
+    result = call_tool("memory_reflection_ledger_expire", dict(args, apply=True))
+    assert not result["ok"] and result["error"]["code"] == "append-rollback-conflict", result
+    assert marker in session.read_bytes()
+    assert _git(root, "rev-parse", "HEAD") == before
+    assert _git(root, "diff", "--cached", "--name-only") == ""
+
+
 def _assert_concurrent_session_cas_failure(ready, monkeypatch, concurrent):
     root, args = ready
     relative = ledger.workstream_ledger_path(args["workstream_id"])
