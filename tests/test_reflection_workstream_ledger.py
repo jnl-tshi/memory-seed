@@ -1566,11 +1566,19 @@ def _commit_transaction_receipts(root, loaded, locator):
     _git(root, "commit", "--quiet", "-m", "durable synthesis receipts")
 
 
-def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
+def _planned_transaction(tmp_path, operation, *, receipt_origin="integration", retention_trust=True):
     root, synthetic, _path = _new_git_workstream(tmp_path)
     branch = synthetic.header.working_branch
+    base = synthetic.header.base_sha
+    if operation in {"close", "rebind"} and retention_trust:
+        from memory_seed.reflection_ledger import reflection_trust_init
+        default_branch = next(name for name in _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads").splitlines()
+                              if name != branch)
+        _git(root, "checkout", "--quiet", "-B", default_branch, base)
+        assert reflection_trust_init(root, apply=True)["applied"]
+        base = _git(root, "rev-parse", "HEAD")
     # Disposable fixture only: start the tested sequence at the plain base.
-    _git(root, "checkout", "--quiet", "-B", branch, synthetic.header.base_sha)
+    _git(root, "checkout", "--quiet", "-B", branch, base)
     init = preview_workstream_init_commit(root, trusted_ref=branch, clock=lambda: START)
     if operation == "init":
         return root, init, {}
@@ -1599,7 +1607,7 @@ def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
             _git(root, "rm", "--", locator["session_path"])
             _git(root, "commit", "--quiet", "-m", "delete pre-integration receipt evidence")
     source_tip = _git(root, "rev-parse", "HEAD")
-    _git(root, "checkout", "--quiet", "-b", "integration", synthetic.header.base_sha)
+    _git(root, "checkout", "--quiet", "-b", "integration", base)
     target_tip = _git(root, "rev-parse", "HEAD")
     token = preview_trusted_rebind(ledger, source_tip=source_tip, target_branch="integration",
                                     target_pre_merge_tip=target_tip, token_factory=lambda: "host-issued-integration-token")
@@ -1624,6 +1632,53 @@ def _planned_transaction(tmp_path, operation, *, receipt_origin="integration"):
                         source="test", confidence="high")
     context.update(close_kwargs=close_kwargs, receipt_verifier=receipt_verifier, receipt_locator=locator)
     return root, preview_workstream_close_commit(root, **close_kwargs), context
+
+
+@pytest.mark.parametrize("forged_predecessor", [False, True])
+def test_git_integration_witness_validates_predecessor_ownership(tmp_path, forged_predecessor):
+    from memory_seed.reflection_ledger import GitWorkstreamIntegrationVerifier
+    from memory_seed.reflection_operations import run_reflection_operation
+
+    root, first, context = _planned_transaction(tmp_path, "rebind")
+    if forged_predecessor:
+        # Keep an exactly parseable ownership transfer but point its claimed
+        # integration event at a one-parent advancement instead of the merge.
+        from memory_seed import reflection_ledger as kernel
+        _git(root, "commit", "--allow-empty", "--quiet", "-m", "intervene before forged ownership")
+        raw = (root / first.ledger_path).read_bytes() + first.suffix_bytes
+        rebound = kernel.parse_workstream_ledger(raw.decode("utf-8")).rebinds[-1]
+        rebound = replace(rebound, integration_commit=_git(root, "rev-parse", "HEAD"))
+        rebound = replace(rebound, detail_digest=kernel._detail_digest_for_rebind(rebound))
+        with (root / first.ledger_path).open("ab") as stream:
+            stream.write(b"\n" + kernel.render_trusted_rebind(rebound).encode("utf-8"))
+        _git(root, "add", first.ledger_path)
+        _git(root, "commit", "--quiet", "-m", "unverified structural ownership")
+    else:
+        apply_workstream_commit(root, first)
+    source = load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=first.ledger_path)
+    source_tip = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "--quiet", "-b", "final-integration", source.ledger.header.base_sha)
+    target_tip = _git(root, "rev-parse", "HEAD")
+    token = preview_trusted_rebind(source.ledger, source_tip=source_tip, target_branch="final-integration",
+        target_pre_merge_tip=target_tip, token_factory=lambda: "final-integration-token")
+    _git(root, "merge", "--quiet", "--no-ff", "-m", "valid final integration", "integration")
+    verifier = _TransactionRebindVerifier(token, _git(root, "rev-parse", "HEAD"))
+    final = preview_workstream_rebind_commit(root, trusted_ref="final-integration",
+        workstream_id=source.ledger.header.workstream_id, token=token, verifier=verifier, reason="final integration")
+    result = apply_workstream_commit(root, final)
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="final-integration", ledger_path=first.ledger_path)
+    assert len(loaded.ledger.rebinds) == 2
+    state = _transaction_state(root)
+    admission = GitWorkstreamIntegrationVerifier(loaded)
+    if forged_predecessor:
+        with pytest.raises(ReflectionValidationError, match="ordered target and source"):
+            admission.witness()
+        refused = run_reflection_operation("ledger_close", dict(cwd=str(root),
+            workstream_id=source.ledger.header.workstream_id, chain_id=context["chain"], apply=True))
+        assert refused["error"]["code"] == "close-authority", refused
+    else:
+        assert admission.witness() == result.integration_witness
+    assert _transaction_state(root) == state
 
 
 @pytest.mark.parametrize("operation", ["init", "append", "rebind", "close"])

@@ -4,7 +4,7 @@ date: "2026-09-07"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Independently review complete prototype retirement and the Reflection Board v1 schema/domain correction, then finish the retained sequential core and public surfaces."
+next_action: "Complete integrated launch verification and first-board evaluation; track public retention-extension authoring separately."
 source:
   - "docs/7_Replaced/plan-reflection-ledger.md"
   - "docs/CONSTITUTION.md"
@@ -29,6 +29,22 @@ acceptance_criteria:
 ---
 
 # Reflection ledger workstream evolution
+
+## Current implementation status — 2026-09-08
+
+The sequential v1 core and public CLI/MCP lifecycle, read-only ESR projection, shared hook admission,
+and live/Seed runbooks are implemented in the current source tree. The first real board and launch
+evaluation remain planned. The [operator guide](../4_Reference/reflection-board-v1-operator-guide.md)
+owns current command syntax and operational limits; the design sections below retain the architecture
+and review history, including earlier illustrative commands, rather than claiming every proposal shipped.
+
+Trust init and PR prepare are CLI-only; local rebind, PR finalize, close, and elapsed expiry have MCP
+parity. Trust must precede the immutable ledger base. Close requires complete ordinary member receipts
+and authenticated host time; its new member/outcome receipts are finalized in a new ordinary entry.
+Public init currently supports the seven-day path; 14/30 require an unexposed admitted preflight, so
+retention-extension authoring is planned. Early expiry, key rotation/recovery, historical proof retrofit,
+and automatic post-merge handoff recovery are unavailable. Legacy pre-proof close is readable but
+non-expirable. Expiry retains the Git-object/non-erasure disclosure.
 
 ## Decision and boundary
 
@@ -228,7 +244,7 @@ target record into the local chain.
 
 ### Cross-branch integration and combined views
 
-`reflection ledger view --workstream <id>` reads one canonical ledger. `reflection board view --active`
+`reflection ledger view <workstream_id>` reads one canonical ledger. `reflection board view`
 enumerates every candidate active-ledger directory and produces a sorted derived projection. Valid ledgers are
 labelled with source workstream and cross-ledger dependencies. Malformed or unsupported candidates are also
 shown, with path, raw digest, recoverable owner fields, and a diagnostic; they are never silently omitted.
@@ -605,7 +621,7 @@ outlive its target must include a fallback at append time; append-only records a
 Target-chain closeout refuses a still-open dependent without verified fallback. Resolution prefers the active
 record then the verified receipt; a dependency is never a parent or imported detail.
 
-`reflection board view --active` scans every immediate directory under `reflections/active`, including a
+`reflection board view` scans every immediate directory under `reflections/active`, including a
 directory that cannot parse. Each output item has `path`, status `valid`/`malformed`/`unsupported`, raw file
 digest when readable, safely recoverable `workstream_id`, origin `working_branch`, effective owner branch, and
 structured diagnostic.
@@ -826,7 +842,7 @@ then-admitted pre-image, so the returned proof stack contains every prior cleanu
 #### Reader routing, continuations, and refusal
 
 Every trusted v1 consumer uses `load_trusted_workstream_ledger`: `reflection ledger check` and `view`, guarded
-append/close/expiry, dependency resolution, ESR, and `reflection board view --active`. The loader evaluates
+append/close/expiry, dependency resolution, ESR, and `reflection board view`. The loader evaluates
 both the strict standalone result and the full history classification on every Git-backed load; it never uses
 strict success as an early return. A board still returns every candidate: an append/rebind-only ledger is
 `valid` with `validation: normal`, a proven compacted ledger is `valid` with

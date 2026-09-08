@@ -19,6 +19,22 @@ A = "mse_" + "a" * 16
 B = "mse_" + "b" * 16
 
 
+def test_reflection_close_pending_uses_shared_projection(tmp_path):
+    from memory_seed.reflection_operations import run_reflection_operation
+    from test_reflection_workstream_ledger import _planned_transaction
+    root, _, context = _planned_transaction(tmp_path, "close")
+    locator = {key: value for key, value in context["receipt_locator"].items() if key != "chain_id"}
+    result = run_reflection_operation("ledger_close", dict(cwd=str(root),
+        workstream_id=context["close_kwargs"]["workstream_id"], chain_id=context["chain"], receipts=[locator], apply=True))
+    assert result["ok"], result
+    expected = run_reflection_operation("board_view", {"cwd": str(root)})
+    report = esr_report(cwd=root, session_date="2026-09-06")
+    assert report.reflection == expected
+    text = format_esr_report(report)
+    assert "closed_receipts_pending" in text
+    assert "Missing member receipt:" in text and "Missing closure receipt:" in text
+
+
 def _entry(dt, eid, *, topics=(), files=(), replaces=()):
     lines = [f"## {dt} - entry {eid[-4:]}", "", "```yaml", f"entry_id: {eid}"]
     if topics:
@@ -708,6 +724,7 @@ class ToDictCompletenessTests(unittest.TestCase):
         "corpus_cache": ("corpus_cache",),
         "provenance": ("provenance",),
         "temporal_lineage": ("temporal_lineage",),
+        "reflection": ("reflection",),
     }
 
     # Fields whose to_dict() representation is a transform of the raw
@@ -789,6 +806,7 @@ class ToDictCompletenessTests(unittest.TestCase):
             corpus_cache={"health": "current"},
             provenance={"ok": True},
             temporal_lineage={"cache_status": "available"},
+            reflection={"ok": True, "items": []},
         )
 
         payload = report.to_dict()
