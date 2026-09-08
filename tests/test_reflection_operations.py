@@ -63,7 +63,7 @@ def test_append_refuses_guard_change_between_load_and_kernel_preview(tmp_path, m
     assert _transaction_state(root) == advanced["state"]
 
 
-def test_close_preview_apply_and_pending_receipt_completion(tmp_path):
+def test_close_preview_apply_and_pending_receipt_completion(tmp_path, monkeypatch):
     root, _, context = _planned_transaction(tmp_path, "close")
     locator = {key: value for key, value in context["receipt_locator"].items() if key != "chain_id"}
     args = dict(cwd=str(root), workstream_id=context["close_kwargs"]["workstream_id"],
@@ -96,6 +96,69 @@ def test_close_preview_apply_and_pending_receipt_completion(tmp_path):
     _git(root, "commit", "--quiet", "-m", "record close outcome receipts")
     closed = run("ledger_close", args)
     assert closed["status"] == "closed" and not closed["missing_receipts"], closed
+    loaded = kernel.load_trusted_workstream_ledger(root, trusted_ref="integration",
+        ledger_path=kernel.workstream_ledger_path(args["workstream_id"]))
+    classify = kernel._classify_trusted_workstream_ledger
+    classifications = []
+
+    def counted(*args, **kwargs):
+        classifications.append(args)
+        return classify(*args, **kwargs)
+
+    monkeypatch.setattr(kernel, "_classify_trusted_workstream_ledger", counted)
+    assert kernel.workstream_closed_receipt_status(loaded) == [
+        {"chain_id": args["chain_id"], "status": "closed", "missing_receipts": []}]
+    assert len(classifications) == 1
+
+
+@pytest.mark.parametrize("duplicates", [1, 4])
+def test_closed_receipt_status_classifies_once_with_duplicate_invalid_mappings(tmp_path, monkeypatch, duplicates):
+    root, preview, context = _planned_transaction(tmp_path, "close")
+    kernel.apply_workstream_commit(root, preview)
+    loaded = kernel.load_trusted_workstream_ledger(root, trusted_ref="integration", ledger_path=preview.ledger_path)
+    close = loaded.ledger.records[-1]
+    mappings = kernel._committed_session_mappings(loaded)
+    members = [value for value in mappings if "record_id" in value]
+    assert len(members) == 4
+    # Malformed candidates precede the exact receipts; unrelated mappings and
+    # repeated copies must not trigger a history walk or whole-chain drafting.
+    candidates = [{**value, "disposition": "invalid"} for value in members] * duplicates
+    candidates += [{**value, "record_id": "unrelated"} for value in members] * duplicates
+    candidates += mappings * duplicates
+    monkeypatch.setattr(kernel, "_committed_session_mappings", lambda current: candidates)
+    classify = kernel._classify_trusted_workstream_ledger
+    classifications = []
+
+    def counted(*args, **kwargs):
+        classifications.append(args)
+        return classify(*args, **kwargs)
+
+    def no_chain_drafting(*args, **kwargs):
+        pytest.fail("status must derive each candidate member directly")
+
+    monkeypatch.setattr(kernel, "_classify_trusted_workstream_ledger", counted)
+    monkeypatch.setattr(kernel, "plan_workstream_chain_receipts", no_chain_drafting)
+    before = _transaction_state(root)
+    assert kernel.workstream_closed_receipt_status(loaded) == [{
+        "chain_id": context["chain"], "status": "closed_receipts_pending", "missing_receipts": [
+            {"kind": "member", "workstream_id": loaded.ledger.header.workstream_id,
+             "chain_id": close.chain_id, "record_id": close.record_id, "detail_digest": close.detail_digest,
+             "receipt_id": kernel.workstream_receipt_id(loaded.ledger.header.id_salt,
+                 loaded.ledger.header.workstream_id, close.chain_id, close.detail_digest)},
+            {"kind": "closure", "chain_id": close.chain_id, "closed_record_id": close.record_id,
+             "closed_record_digest": close.detail_digest}]}]
+    assert len(classifications) == 1
+    assert _transaction_state(root) == before
+    # A stale caller snapshot still reports unverified member coverage as
+    # missing, preserving the status reader's existing diagnostic contract.
+    _git(root, "commit", "--allow-empty", "--quiet", "-m", "advance status snapshot")
+    classifications.clear()
+    stale = kernel.workstream_closed_receipt_status(loaded)
+    assert stale[0]["status"] == "closed_receipts_pending"
+    assert [item["record_id"] for item in stale[0]["missing_receipts"] if item["kind"] == "member"] == [
+        record.record_id for record in loaded.ledger.records]
+    assert stale[0]["missing_receipts"][-1]["kind"] == "closure"
+    assert len(classifications) == 1
 
 
 def test_close_missing_receipts_and_malformed_locator_no_write(tmp_path):
@@ -192,10 +255,11 @@ def test_public_rebind_happy_paths_and_unchanged_target_advancement(tmp_path, pr
     root, args, path = _public_rebind_fixture(tmp_path, pr=pr)
     if pr:
         before = _transaction_state(root)
-        prepared = run("ledger_prepare", {key: value for key, value in args.items() if key != "source"})
+        prepare = {key: args[key] for key in ("cwd", "workstream_id")}
+        prepared = run("ledger_prepare", prepare)
         assert prepared["ok"] and not prepared["applied"], prepared
         assert _transaction_state(root) == before
-        prepared = run("ledger_prepare", {**{key: value for key, value in args.items() if key != "source"}, "apply": True})
+        prepared = run("ledger_prepare", {**prepare, "apply": True})
         assert prepared["ok"] and prepared["applied"], prepared
         # Target may advance before the merge if it still has no source ledger.
         _git(root, "checkout", "--quiet", "main")
@@ -223,7 +287,7 @@ def test_public_rebind_happy_paths_and_unchanged_target_advancement(tmp_path, pr
 @pytest.mark.parametrize("mutation", ["delete", "advance", "move", "squash", "rebase", "reverse", "three-parents", "ledger-change"])
 def test_public_finalize_refuses_changed_source_or_invalid_merge(tmp_path, mutation):
     root, args, path = _public_rebind_fixture(tmp_path, pr=True)
-    prepare = {key: value for key, value in args.items() if key != "source"}
+    prepare = {key: args[key] for key in ("cwd", "workstream_id")}
     assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
     source_tip = _git(root, "rev-parse", "HEAD")
     base = _git(root, "rev-parse", "main")
@@ -257,10 +321,24 @@ def test_public_finalize_refuses_changed_source_or_invalid_merge(tmp_path, mutat
 @pytest.mark.parametrize("extra", [{"apply": "false"}, {"token": "raw"}, {"target_branch": "other"},
                                   {"source_tip": "0" * 40}, {"expected_head": "0" * 40}, {"unknown": True}])
 def test_rebind_public_arguments_are_locator_only(operation, extra):
-    args = dict(workstream_id="rwl_invalid", reason="reason")
+    args = dict(workstream_id="rwl_invalid")
     if operation != "ledger_prepare":
         args["source"] = "feature"
+        args["reason"] = "reason"
     assert run(operation, {**args, **extra})["error"]["code"] == "invalid_arguments"
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_prepare_rejects_unused_reason_before_git(monkeypatch, apply):
+    import memory_seed.reflection_operations as operations
+
+    def no_git(*args, **kwargs):
+        pytest.fail("unknown prepare fields must be rejected before repository access")
+
+    monkeypatch.setattr(operations, "_context", no_git)
+    result = run("ledger_prepare", dict(workstream_id="rwl_invalid", reason="unused", apply=apply))
+    assert result["error"]["code"] == "invalid_arguments"
+    assert result["error"]["message"] == "unsupported reflection argument(s): reason"
 
 
 def test_prepare_requires_final_source_preparation_and_live_source_locator(tmp_path):
@@ -268,10 +346,11 @@ def test_prepare_requires_final_source_preparation_and_live_source_locator(tmp_p
     base = _git(root, "rev-parse", "main")
     advanced = _git(root, "commit-tree", base + "^{tree}", "-p", base, "-m", "target advances")
     _git(root, "update-ref", "refs/heads/main", advanced, base)
-    result = run("ledger_prepare", {key: value for key, value in args.items() if key != "source"})
+    prepare = {key: args[key] for key in ("cwd", "workstream_id")}
+    result = run("ledger_prepare", prepare)
     assert not result["ok"] and "finish source preparation" in result["error"]["message"], result
     _git(root, "merge", "--quiet", "--no-ff", "-m", "finish preparing source", "main")
-    assert run("ledger_prepare", {**{key: value for key, value in args.items() if key != "source"}, "apply": True})["ok"]
+    assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
     _merge_public_source(root, args)
     for source in (_git(root, "rev-parse", args["source"]), args["source"] + "~0", "../other", "refs/tags/source"):
         assert not run("ledger_finalize", {**args, "source": source, "apply": True})["ok"]
@@ -281,7 +360,7 @@ def test_finalize_handoff_is_canonical_nonsecret_and_repository_bound(tmp_path):
     import json
     import shutil
     root, args, _ = _public_rebind_fixture(tmp_path, pr=True)
-    prepare = {key: value for key, value in args.items() if key != "source"}
+    prepare = {key: args[key] for key in ("cwd", "workstream_id")}
     assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
     handoff = next((root / ".git/memory-seed-reflection-handoffs").glob("*.json"))
     raw = handoff.read_bytes()
@@ -302,7 +381,7 @@ def test_finalize_handoff_is_canonical_nonsecret_and_repository_bound(tmp_path):
 
 def test_finalize_source_ref_cas_race_consumes_handoff_without_target_commit(tmp_path, monkeypatch):
     root, args, path = _public_rebind_fixture(tmp_path, pr=True)
-    prepare = {key: value for key, value in args.items() if key != "source"}
+    prepare = {key: args[key] for key in ("cwd", "workstream_id")}
     assert run("ledger_prepare", {**prepare, "apply": True})["ok"]
     source_tip = _git(root, "rev-parse", "HEAD")
     merge = _merge_public_source(root, args)

@@ -4222,19 +4222,23 @@ def plan_workstream_chain_receipts(loaded: TrustedWorkstreamLedger, *, chain_id:
     records = _records_by_chain(current.ledger).get(chain_id)
     if not records:
         _fail("receipt", current.ledger_path, "receipt draft requires an existing chain")
-    result = []
-    for record in records:
-        receipt = WorkstreamReceipt(
-            current.ledger.header.workstream_id, chain_id, record.record_id, record.detail_digest,
-            session_path, entry_id, decision_id,
-            workstream_receipt_id(current.ledger.header.id_salt, current.ledger.header.workstream_id, chain_id, record.detail_digest),
-            "sha256:" + "0" * 64, disposition,
-        )
-        _validate_workstream_receipt(receipt)
-        mapping = _member_session_mapping(receipt.workstream_id, receipt)
-        digest = workstream_detail_digest(_workstream_yaml_mapping(tuple(mapping.items())))
-        result.append(WorkstreamReceipt(**{**receipt.__dict__, "receipt_digest": digest}))
-    return tuple(result)
+    return tuple(_plan_workstream_record_receipt(current.ledger, record, session_path=session_path,
+        entry_id=entry_id, decision_id=decision_id, disposition=disposition) for record in records)
+
+
+def _plan_workstream_record_receipt(ledger: WorkstreamLedger, record: WorkstreamRecord, *,
+        session_path: str, entry_id: str, decision_id: str, disposition: str) -> WorkstreamReceipt:
+    """Derive one member mapping from an already classified operation-local ledger."""
+    receipt = WorkstreamReceipt(
+        ledger.header.workstream_id, record.chain_id, record.record_id, record.detail_digest,
+        session_path, entry_id, decision_id,
+        workstream_receipt_id(ledger.header.id_salt, ledger.header.workstream_id, record.chain_id, record.detail_digest),
+        "sha256:" + "0" * 64, disposition,
+    )
+    _validate_workstream_receipt(receipt)
+    mapping = _member_session_mapping(receipt.workstream_id, receipt)
+    digest = workstream_detail_digest(_workstream_yaml_mapping(tuple(mapping.items())))
+    return WorkstreamReceipt(**{**receipt.__dict__, "receipt_digest": digest})
 
 
 def render_workstream_receipt(receipt: WorkstreamReceipt) -> str:
@@ -4367,6 +4371,21 @@ def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[di
     if not any(record.to_phase == "closed" for record in loaded.ledger.records):
         return []
     mappings = _committed_session_mappings(loaded)
+    by_record: dict[str, list[dict[str, Any]]] = {}
+    by_close: dict[str, list[dict[str, Any]]] = {}
+    for value in mappings:
+        record_id = value.get("record_id")
+        if isinstance(record_id, str):
+            by_record.setdefault(record_id, []).append(value)
+        closed_record_id = value.get("closed_record_id")
+        if isinstance(closed_record_id, str):
+            by_close.setdefault(closed_record_id, []).append(value)
+    try:
+        current = _reload_trusted_workstream_ledger(loaded)
+    except ReflectionValidationError:
+        # A failed member-receipt validation has always meant missing coverage
+        # here. Reuse that outcome too, without reclassifying for each candidate.
+        current = None
     results = []
     for chain, records in _records_by_chain(loaded.ledger).items():
         close = records[-1]
@@ -4375,15 +4394,13 @@ def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[di
         missing = []
         for record in records:
             valid = False
-            for value in mappings:
-                if value.get("record_id") != record.record_id:
-                    continue
+            for value in by_record.get(record.record_id, ()) if current is not None else ():
                 try:
                     receipt = WorkstreamReceipt(**value)
-                    expected = plan_workstream_chain_receipts(loaded, chain_id=chain,
+                    expected = _plan_workstream_record_receipt(current.ledger, record,
                         session_path=receipt.session_path, entry_id=receipt.entry_id,
                         decision_id=receipt.decision_id, disposition=receipt.disposition)
-                    valid = any(workstream_receipt_mapping(item) == value for item in expected)
+                    valid = workstream_receipt_mapping(expected) == value
                 except (TypeError, ReflectionValidationError):
                     continue
                 if valid:
@@ -4394,7 +4411,7 @@ def workstream_closed_receipt_status(loaded: TrustedWorkstreamLedger) -> list[di
                     "receipt_id": workstream_receipt_id(loaded.ledger.header.id_salt,
                         loaded.ledger.header.workstream_id, chain, record.detail_digest)})
         closure_found = any(value == workstream_closure_mapping(close, session_path=value["session_path"],
-            entry_id=value["entry_id"], decision_id=value["decision_id"]) for value in mappings)
+            entry_id=value["entry_id"], decision_id=value["decision_id"]) for value in by_close.get(close.record_id, ()))
         if not closure_found:
             missing.append({"kind": "closure", "chain_id": chain, "closed_record_id": close.record_id,
                             "closed_record_digest": close.detail_digest})

@@ -19,7 +19,7 @@ _FIELDS = {
     "ledger_close": {"cwd", "workstream_id", "chain_id", "receipts", "apply",
         "expected_head", "expected_ledger_digest"},
     "ledger_rebind": {"cwd", "workstream_id", "source", "reason", "apply"},
-    "ledger_prepare": {"cwd", "workstream_id", "reason", "apply"},
+    "ledger_prepare": {"cwd", "workstream_id", "apply"},
     "ledger_finalize": {"cwd", "workstream_id", "source", "reason", "apply"},
     "ledger_expire": {"cwd", "workstream_id", "chain_id", "apply"},
 }
