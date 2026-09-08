@@ -37,3 +37,31 @@ Launch evaluation will exercise every shipped v1 public lifecycle gate before Se
 
 ### Reasoning
 The implementation and independent reviews are integrated on main, so a real trusted board can now validate init, append, rebind, receipt-gated close, ESR projection, and elapsed-only expiry refusal.
+
+## Record rlr_1ad30gwc820p0rr8gxrq
+
+```yaml
+record_id: rlr_1ad30gwc820p0rr8gxrq
+created_at: 2026-09-08T15:28:21Z
+role: planner
+from_phase: plan
+to_phase: implement
+closed_at: null
+chain_id: rlc_0z6403ep4571d41bgaah
+parents:
+  - rlr_0064mpr5ytrwf3n3h7k2
+relationship: refines
+no_related_thread: false
+depends_on: []
+source: operator-guide:v1-launch
+related_decisions: []
+confidence: high
+pre_ledger_digest: sha256:b809b0befddbc49b3689b029612c88e208fcdf2758aeba2bdfe17fe2eaf157c8
+detail_digest: sha256:3eef161dcdbb14e8b978362a55a18d9e34484273ec86eb4a45a8bb237958f20a
+```
+
+### Conclusion
+Launch evaluation scope and pass criteria are fixed.
+
+### Reasoning
+Pass requires trusted public lifecycle operations, independent review closure, preserved protected artifacts, ESR visibility, receipt-complete close, and fail-closed early expiry.
