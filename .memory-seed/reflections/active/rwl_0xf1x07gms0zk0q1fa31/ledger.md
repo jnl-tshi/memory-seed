@@ -93,3 +93,31 @@ The merged public lifecycle passes its implementation and adversarial verificati
 
 ### Reasoning
 Close, rebind, signed elapsed expiry, rollback ownership, multi-user receipts, CLI/MCP/ESR parity, hooks, audits, and Seed guidance were implemented through reviewed commits with no remaining findings.
+
+## Record rlr_000dx5k38fvybj1fxebg
+
+```yaml
+record_id: rlr_000dx5k38fvybj1fxebg
+created_at: 2026-09-08T15:31:01Z
+role: reviewer
+from_phase: review
+to_phase: orchestrate
+closed_at: null
+chain_id: rlc_0z6403ep4571d41bgaah
+parents:
+  - rlr_0gdww5sd7r9vz7bkkjva
+relationship: refines
+no_related_thread: false
+depends_on: []
+source: reviews:close-rebind-expiry-guidance
+related_decisions: []
+confidence: high
+pre_ledger_digest: sha256:b43b6898940aae50cdd917f96799a582ee38a26a879cc1c22b56e82f17bd904f
+detail_digest: sha256:6967fcc7bb121418c60d18b40de9116c1baa1cf79c05e2fd13d89ead616a22a2
+```
+
+### Conclusion
+Independent review approves the public v1 lifecycle with no remaining findings.
+
+### Reasoning
+Review cycles found and closed backdated retention, concurrent rollback, multi-user session postimage, guidance wording, and receipt-status performance issues; each correction was independently rerun and approved.
