@@ -23,15 +23,19 @@ and confirm again before writing any edge. The core stays network-free (Constitu
 model calls live entirely in this optional layer, and every stored edge is human-gated and authored as
 an ordinary `:dN` edge with no dependency on the model that suggested it (Invariant #5).
 
+**Model selection.** Use the smallest available model that can reliably apply this fixed rubric, with
+high reasoning enabled. This is an economy-tier capability requirement, not a provider or model-family
+requirement. Escalate only a specific ambiguous gap, and record why a larger model was needed.
+
 ## The pipeline
 
 ```
-memory-seed link audit --json --date <today>     (core, mechanical, network-free)
-    -> judgment-ready tasks: each gap carries both ends' decision bodies + criteria
+memory-seed link batch-plan --date <today> --context-window <tokens> --output-dir <run>
+    -> materialized judgment-ready batches + pending analytics.jsonl
 Workflow fan-out                                 (optional layer, network)
-    -> context-bounded economy-tier batches; each pair returns a separate verdict under the criteria below
+    -> each worker reads this skill + one batch file, then writes its assigned findings/*.toon file
 orchestrator validation                          (mechanical-first, no new model calls)
-    -> drop verdicts that fail a quote-match, a dangling ordinal, or the consistency check
+    -> memory-seed link batch-collect validates reports and writes survivors.json + validation.json
 batch approval                                   (the human gate)
     -> surface the surviving verdicts as one batch; the user approves, edits, or rejects
 write + check
@@ -43,6 +47,19 @@ write + check
 Run `memory-seed link audit --json --date <today>` (or `--for <entry_id>` to scope to one entry). The
 JSON emits each gap as a judgment-ready task: both ends' `decisions` (ordinal + name + body), the
 overlap evidence (files/topics/title), and a `criteria` block.
+
+For a swarm, use `link batch-plan` with `--output-dir`. Its default `--top-k 0` enumerates every
+lexically admitted candidate instead of retaining only a fixed number per source. `--minimum-score`
+sets the combined-score admission floor. `--semantic-cutoff` changes semantic-only recall from the
+legacy top-two widening to every older pair whose raw cosine meets the supplied value. Thresholds are
+run parameters, never hidden constants; keep them in `plan.json` so later outcome data can calibrate
+them rather than guessing.
+
+Every candidate row records the combined score plus separate file, keyword/title, topic, raw semantic,
+weighted semantic, temporal-proximity, and day-distance values. File + keyword + weighted semantic are
+the current rank; topic and temporal values are diagnostic only. `analytics.jsonl` retains these
+features, the threshold disposition, batch assignment, validation status, final verdict, confidence,
+and exclusion reason for every candidate, including `none` and below-threshold rows.
 
 **Candidates arrive from TWO sources, and the payload must keep them apart.** Most come through the
 lexical gate — a shared file, a distinctive title term, or an unsuppressed topic — and carry that
@@ -60,15 +77,21 @@ whose pair already carries a recorded edge, and skip a milestone/no-decision pai
 (see rules 5-6).
 
 **Batch by measured context, never a fixed pair count.** A worker receives as many complete candidate
-pairs as fit within **20% of its declared context window for serialized decision evidence**. Measure the
+pairs as fit within **16% of its declared context window for serialized decision evidence**. Measure the
 actual prompt payload after candidate expansion (both decision bodies, candidate evidence, chain state,
 and the per-pair rubric fields), then pack whole pairs until the next pair would exceed that evidence
-budget. Do not truncate, summarize, or split a pair to fill a batch. The fixed worker instructions,
-verdict schema, reasoning reserve, and output reserve are additional capacity; they must also fit within
-the model's window. This preserves enough room for careful per-pair judgment while letting short pairs
-share one economy-tier worker efficiently. Every pair still receives its own independent
+budget. The plan also estimates an explicit output reserve per pair and reports it separately. Do not
+truncate, summarize, or split a pair to fill a batch. This preserves enough room for careful per-pair
+judgment while letting short pairs share one economy-tier worker efficiently. Every pair still receives its own independent
 `{verdict, source_dN, target_dN, why, quote, confidence}` result; batching changes transport and cost,
 not the evidence standard or the validator.
+
+**Workers use files as their contract.** Before judging, each worker must read this complete skill and
+exactly one `batches/batch-NNNN.json` from the materialized run. The batch names its only authorized
+output as `finding_path`; write the complete TOON document there. Do not return the report only in chat,
+and do not edit `plan.json`, `analytics.jsonl`, another batch, or a link sidecar. Raw findings are
+disposable run evidence; the orchestrator may reject or delete them after collection without changing
+memory authority.
 
 ### 2. The judging criteria (what the swarm decides)
 
@@ -87,6 +110,18 @@ avoiding repeated JSON field names.
 
 `confidence` is either TOON `null` or a numeric value from `0` through `1` inclusive; never use
 word labels. This keeps result rows sortable without model-specific normalization.
+
+The first three lines of every report are mechanically fixed:
+
+```text
+schema: memory-seed.link-swarm-verdicts.v1
+batch: <integer batch number>
+verdicts[N]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:
+```
+
+Follow them with exactly `N` CSV-style TOON rows and no prose before or after the table. Quote any cell
+containing a comma or quote; double an embedded quote. The collector rejects the entire batch when the
+schema, batch id, row count, column order, or row width differs.
 
 **Rectangular-table rule.** Every `verdicts` row must contain **exactly one value for every declared
 column, in that order**. Never omit a trailing field: emit TOON `null` for an absent `source_decision`,
@@ -154,6 +189,12 @@ Before surfacing anything, the orchestrator drops verdicts mechanically:
   case (rules 5-6) — the two the swarm most often over-calls.
 
 Surviving verdicts are candidates; everything dropped is logged so the human sees what was filtered.
+Run `memory-seed link batch-collect --run-dir <run>` after workers finish. It reads their files,
+checks rectangular TOON, pair coverage, duplicate/unexpected rows, ordinals, chain-position legality,
+confidence range, and exact quote grounding. It updates `analytics.jsonl` and produces
+`validation.json`, `survivors.json`, and `analytics-summary.json`. The summary groups counts and each
+component's mean/min/max by final verdict so patterns such as high semantic + short temporal distance
+among `evolves` results are visible without collapsing the raw rows. Review `survivors.json`, not chat callbacks.
 
 ### 4. Batch approval (the human gate)
 

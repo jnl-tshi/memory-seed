@@ -1048,14 +1048,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_batch_plan.add_argument("--context-window", type=int, required=True,
                                  help="declared model context window in tokens")
-    link_batch_plan.add_argument("--evidence-fraction", type=float, default=0.20,
-                                 help="fraction of context reserved for pair evidence (default: 0.20)")
+    link_batch_plan.add_argument("--evidence-fraction", type=float, default=0.16,
+                                 help="fraction of context reserved for pair evidence (default: 0.16)")
+    link_batch_plan.add_argument("--minimum-score", type=float, default=0.0,
+                                 help="minimum combined candidate score admitted to a worker (default: 0)")
+    link_batch_plan.add_argument("--semantic-cutoff", type=float, default=None,
+                                 help="raw cosine cutoff for semantic-only candidates; when set, admit every pair at or above it")
+    link_batch_plan.add_argument("--output-tokens-per-pair", type=int, default=160,
+                                 help="estimated structured report reserve per pair (default: 160)")
+    link_batch_plan.add_argument("--output-dir", default=None,
+                                 help="materialize plan, worker batches, findings slots, and analytics ledger")
     link_batch_plan.add_argument("--for", dest="for_entry", metavar="ENTRY_ID", default=None)
     link_batch_plan.add_argument("--date", dest="audit_date", metavar="YYYY-MM-DD", default=None)
-    link_batch_plan.add_argument("--top-k", type=int, default=5,
-                                 help="candidates per source entry (default: 5)")
+    link_batch_plan.add_argument("--top-k", type=int, default=0,
+                                 help="cap lexical candidates per source; 0 enumerates all (default: 0)")
     link_batch_plan.add_argument("--no-semantic", dest="semantic", action="store_false",
                                  help="rank lexically only; skips loading the embedding model")
+    link_batch_collect = link_sub.add_parser(
+        "batch-collect", help="validate file-written TOON findings and update a run analytics ledger"
+    )
+    link_batch_collect.add_argument("--run-dir", required=True,
+                                    help="materialized run directory containing plan.json and findings/")
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -2744,25 +2757,48 @@ def main(argv: list[str] | None = None) -> int:
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")
             return 0
+        if args.link_command == "batch-collect":
+            from .retrieval import collect_link_swarm_run
+
+            try:
+                result = collect_link_swarm_run(args.run_dir)
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
         if args.link_command in {"audit", "batch-plan"}:
-            from .retrieval import apply_link_gap_stubs, audit_link_gaps, link_audit_payload, plan_link_audit_batches
+            from .retrieval import (
+                apply_link_gap_stubs,
+                audit_link_gaps,
+                link_audit_payload,
+                materialize_link_swarm_run,
+                plan_link_audit_batches,
+            )
 
             if args.link_command == "batch-plan":
                 semantic_status: dict[str, Any] = {}
                 try:
                     gaps = audit_link_gaps(
                         cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
-                        top_k=args.top_k, semantic_enabled=args.semantic, semantic_status=semantic_status,
+                        top_k=None if args.top_k == 0 else args.top_k,
+                        semantic_enabled=args.semantic, semantic_status=semantic_status,
+                        semantic_candidate_threshold=args.semantic_cutoff,
                     )
                     plan = plan_link_audit_batches(
                         link_audit_payload(gaps, semantic_status),
                         context_window_tokens=args.context_window,
                         evidence_fraction=args.evidence_fraction,
+                        minimum_score=args.minimum_score,
+                        output_tokens_per_pair=args.output_tokens_per_pair,
                     )
-                except (LookupError, ValueError) as exc:
+                    if args.output_dir:
+                        result = materialize_link_swarm_run(plan, args.output_dir)
+                except (FileExistsError, LookupError, ValueError) as exc:
                     print(str(exc), file=sys.stderr)
                     return 1
-                print(json.dumps(plan, indent=2, ensure_ascii=False))
+                print(json.dumps(result if args.output_dir else plan, indent=2, ensure_ascii=False))
                 return 0
 
             if args.apply and args.audit_date is None:

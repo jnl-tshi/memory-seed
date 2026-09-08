@@ -17,6 +17,8 @@ docs/3_Spec/graph-edge-contract.md.
 from __future__ import annotations
 
 import hashlib
+import csv
+import io
 import json
 import re
 import time
@@ -2883,7 +2885,10 @@ TITLE_OVERLAP_BOOST = 2.0
 # [0,1] while an idf sum is not; the two are on different scales, not
 # different importances.
 SEMANTIC_OVERLAP_BOOST = 160.0
-# How many purely-semantic candidates may join a gap that the lexical gate could
+# How many purely-semantic candidates may join a gap by default when the caller
+# has not supplied a calibrated semantic threshold. An explicit threshold
+# admits every semantic-only pair at or above it and records that run parameter.
+# The lexical gate could
 # never have surfaced. A SEPARATE cap, applied after the gated `top_k` slice, so
 # an ungated candidate widens recall but can never displace evidence a human can
 # check. Two, because the gate misses rarely and an unfiltered suggestion costs a
@@ -2991,6 +2996,16 @@ class LinkGapCandidate:
     # here on shared-file evidence they can check or on an opaque cosine, nor
     # whether the ranking silently degraded to lexical.
     semantic_score: float | None = None
+    # Inspectable score components.  Only ``file_score`` + ``keyword_score``
+    # + ``semantic_contribution`` currently participate in ``file_overlap_score``;
+    # topic and temporal proximity are diagnostic features retained so verdict
+    # outcomes can calibrate a later ranking change from evidence.
+    file_score: float = 0.0
+    keyword_score: float = 0.0
+    topic_score: float = 0.0
+    semantic_contribution: float = 0.0
+    temporal_distance_days: int = 0
+    temporal_score: float = 1.0
     # True when the lexical gate could NOT have surfaced this pair - it shares no
     # file and no distinctive title term, and any topic it shares was suppressed
     # because the pair is already `related`. It arrived on semantic rank alone.
@@ -3048,26 +3063,20 @@ def audit_link_gaps(
     *,
     entry_id: str | None = None,
     session_date: str | None = None,
-    top_k: int = 5,
+    top_k: int | None = 5,
     semantic_enabled: bool = True,
+    semantic_candidate_threshold: float | None = None,
     semantic_status: dict[str, Any] | None = None,
     snapshot: "CorpusSnapshot | None" = None,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
-    Candidate MEMBERSHIP is decided lexically and never by an all-pairs semantic
-    scan: for each target entry the candidate set is the OLDER entries that share
-    >=1 ``F:`` file OR >=1 topic with it. (Semantic similarity does participate,
-    as a RANKING term over that set - see ``SEMANTIC_OVERLAP_BOOST`` - and an
-    all-pairs cosine matrix IS computed for it; what the lexical gate rules out
-    is cosine deciding *whether* a pair is a candidate. Cosine is dense, so that
-    would make every earlier entry a candidate for every later one.)
-
-    SINCE 2026-08-09 a bounded second source runs after that gated set: up to
-    ``UNGATED_CANDIDATE_CAP`` further candidates on semantic rank ALONE, flagged
-    ``ungated=True``. The paragraph above rules out an unbounded cosine
-    THRESHOLD, which is still ruled out; a bounded top-N is a different thing
-    and does not make every earlier entry a candidate. It exists because the
+    Candidate membership starts with older entries sharing an ``F:`` file,
+    topic, or distinctive title term. Semantic similarity ranks that set. A
+    second, explicitly labelled source adds semantic-only candidates: by default
+    the top ``UNGATED_CANDIDATE_CAP``; when ``semantic_candidate_threshold`` is
+    supplied, every older pair meeting that raw-cosine floor. The threshold is
+    a run parameter for calibration, not a hidden constant. This exists because the
     gate's blind spot is structural rather than unlikely - a genuinely related
     entry sharing no file, title term or unsuppressed topic can never appear,
     however related it is, so the gate silently caps what any downstream
@@ -3094,6 +3103,11 @@ def audit_link_gaps(
     """
     import math
 
+    if top_k is not None and top_k < 1:
+        raise ValueError("top_k must be greater than zero or None")
+    if semantic_candidate_threshold is not None and not 0 <= semantic_candidate_threshold <= 1:
+        raise ValueError("semantic_candidate_threshold must be between zero and one")
+
     from .core import entry_body_decisions
     from .semantic_cache import (
         FILE_OVERLAP_BOOST,
@@ -3106,7 +3120,14 @@ def audit_link_gaps(
     # Seeded BEFORE the empty-corpus early return: left unset there, a caller
     # reading `requested` would be told semantic ranking was never asked for.
     if semantic_status is not None:
-        semantic_status.update(requested=semantic_enabled, active=False, provider=None, fallback_reason=None)
+        semantic_status.update(
+            requested=semantic_enabled,
+            active=False,
+            provider=None,
+            fallback_reason=None,
+            candidate_threshold=semantic_candidate_threshold,
+            candidate_mode="threshold" if semantic_candidate_threshold is not None else "top_n",
+        )
 
     raw_chunks = (
         snapshot.chunks("entry", "raw") if snapshot is not None
@@ -3215,6 +3236,21 @@ def audit_link_gaps(
         occurrences = title_frequency.get(term, 0)
         return max(math.log(total / occurrences), 0.0) if occurrences > 0 else 0.0
 
+    topic_frequency: dict[str, int] = {}
+    for topics in topics_of.values():
+        for topic in topics:
+            topic_frequency[topic] = topic_frequency.get(topic, 0) + 1
+
+    def topic_idf(topic: str) -> float:
+        occurrences = topic_frequency.get(topic, 0)
+        return max(math.log(total / occurrences), 0.0) if occurrences > 0 else 0.0
+
+    def temporal_metrics(newer: Any, older: Any) -> tuple[int, float]:
+        distance = max((newer.session_date - older.session_date).days, 0)
+        # A transparent diagnostic transform: 1.0 on the same day, 0.5 after
+        # 30 days, then declining smoothly. It does not affect membership or rank.
+        return distance, round(1.0 / (1.0 + distance / 30.0), 6)
+
     def related_of(chunk: MemoryChunk) -> set[str]:
         sidecar = sidecars.get(chunk.entry_id or "", {})
         return (
@@ -3252,11 +3288,9 @@ def audit_link_gaps(
             }
         )
 
-    # Semantic similarity, when the embedding provider is available. Purely a
-    # RANKING term: cosine is dense - every pair scores non-zero - so using it
-    # to decide whether a pair is a candidate at all would make every earlier
-    # entry a candidate for every later one. The lexical gate below still
-    # decides membership; this only reorders what got through.
+    # Semantic similarity, when the embedding provider is available. It always
+    # ranks the lexical set. It also supplies a separate labelled recall source:
+    # legacy top-N by default, or all pairs above an explicit run threshold.
     #
     # Fails open exactly like search_memory: no provider means lexical-only
     # scoring, which is the documented lightweight install, not an error.
@@ -3271,6 +3305,8 @@ def audit_link_gaps(
             active=bool(vectors),
             provider=provider_name,
             fallback_reason=fallback_reason,
+            candidate_threshold=semantic_candidate_threshold,
+            candidate_mode="threshold" if semantic_candidate_threshold is not None else "top_n",
         )
 
     def semantic_similarity(source_id: str, candidate_id: str) -> float:
@@ -3317,11 +3353,14 @@ def audit_link_gaps(
                 pass
             else:
                 continue
-            lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files) + TITLE_OVERLAP_BOOST * sum(
-                title_idf(term) for term in shared_title
-            )
+            file_score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files)
+            keyword_score = TITLE_OVERLAP_BOOST * sum(title_idf(term) for term in shared_title)
+            topic_score = sum(topic_idf(topic) for topic in shared_topics)
+            lexical = file_score + keyword_score
             similarity = semantic_similarity(tid, cid)
-            score = lexical + SEMANTIC_OVERLAP_BOOST * similarity
+            semantic_contribution = SEMANTIC_OVERLAP_BOOST * similarity
+            score = lexical + semantic_contribution
+            temporal_distance, temporal_score = temporal_metrics(target, chunk)
             candidates.append(
                 LinkGapCandidate(
                     entry_id=cid,
@@ -3335,10 +3374,18 @@ def audit_link_gaps(
                     decisions=decisions_of.get(cid, ()),
                     lexical_score=round(lexical, 6),
                     semantic_score=round(similarity, 6) if vectors else None,
+                    file_score=round(file_score, 6),
+                    keyword_score=round(keyword_score, 6),
+                    topic_score=round(topic_score, 6),
+                    semantic_contribution=round(semantic_contribution, 6),
+                    temporal_distance_days=temporal_distance,
+                    temporal_score=temporal_score,
                 )
             )
-        candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
-        selected = candidates[:top_k]
+        candidates.sort(
+            key=lambda c: (c.file_overlap_score, len(c.shared_topics), c.entry_id), reverse=True
+        )
+        selected = candidates if top_k is None else candidates[:top_k]
 
         # THE UNGATED PASS. Everything above is bounded by the lexical gate, so a
         # genuinely related entry sharing no file, title term or unsuppressed
@@ -3348,12 +3395,8 @@ def audit_link_gaps(
         # above (which has no stable tie-break beyond score and topic count) nor
         # displaces a gated candidate.
         #
-        # The docstring's objection to semantic membership - "cosine is dense, so
-        # that would make every earlier entry a candidate for every later one" -
-        # is an argument against an unbounded cosine THRESHOLD, which this is
-        # not. Cost is already sunk: the all-pairs matrix is computed for
-        # ranking regardless.
-        #
+        # An explicit threshold replaces the default top-N cap. Cost is already
+        # sunk: the all-pairs matrix is computed for ranking regardless.
         # Skipped outright when `vectors` is empty (--no-semantic, or a provider
         # that failed to load), because `semantic_similarity` returns 0.0 for
         # every pair there and a top-N over all-zeros is an arbitrary set wearing
@@ -3382,7 +3425,15 @@ def audit_link_gaps(
                 pool.append((similarity, cid, chunk))
             # entry_id breaks a cosine tie, so the set is reproducible run to run.
             pool.sort(key=lambda item: (item[0], item[1]), reverse=True)
-            for similarity, cid, chunk in pool[:UNGATED_CANDIDATE_CAP]:
+            if semantic_candidate_threshold is None:
+                semantic_selected = pool[:UNGATED_CANDIDATE_CAP]
+            else:
+                semantic_selected = [
+                    item for item in pool if item[0] >= semantic_candidate_threshold
+                ]
+            for similarity, cid, chunk in semantic_selected:
+                shared_topics = tuple(sorted(target_topics & topics_of.get(cid, set())))
+                temporal_distance, temporal_score = temporal_metrics(target, chunk)
                 selected.append(
                     LinkGapCandidate(
                         entry_id=cid,
@@ -3392,13 +3443,17 @@ def audit_link_gaps(
                         # for being already-`related` can still share topics, and
                         # the reader should see them.
                         shared_files=tuple(sorted(target_files & file_refs.get(cid, set()))),
-                        shared_topics=tuple(sorted(target_topics & topics_of.get(cid, set()))),
+                        shared_topics=shared_topics,
                         shared_title_terms=tuple(sorted(target_title_terms & title_terms.get(cid, set()))),
                         file_overlap_score=round(SEMANTIC_OVERLAP_BOOST * similarity, 6),
                         already_related=cid in target_related,
                         decisions=decisions_of.get(cid, ()),
                         lexical_score=0.0,
                         semantic_score=round(similarity, 6),
+                        topic_score=round(sum(topic_idf(topic) for topic in shared_topics), 6),
+                        semantic_contribution=round(SEMANTIC_OVERLAP_BOOST * similarity, 6),
+                        temporal_distance_days=temporal_distance,
+                        temporal_score=temporal_score,
                         ungated=True,
                     )
                 )
@@ -3429,7 +3484,11 @@ def audit_link_gaps(
                     rep_lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in rep_files) + TITLE_OVERLAP_BOOST * sum(
                         title_idf(term) for term in rep_title
                     )
+                    rep_file_score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in rep_files)
+                    rep_keyword_score = TITLE_OVERLAP_BOOST * sum(title_idf(term) for term in rep_title)
+                    rep_topic_score = sum(topic_idf(topic) for topic in rep_topics)
                     rep_similarity = semantic_similarity(tid, rep)
+                    rep_temporal_distance, rep_temporal_score = temporal_metrics(target, rep_chunk)
                     final.append(
                         _annotate_chain_position(
                             LinkGapCandidate(
@@ -3444,6 +3503,12 @@ def audit_link_gaps(
                                 decisions=decisions_of.get(rep, ()),
                                 lexical_score=round(rep_lexical, 6),
                                 semantic_score=round(rep_similarity, 6) if vectors else None,
+                                file_score=round(rep_file_score, 6),
+                                keyword_score=round(rep_keyword_score, 6),
+                                topic_score=round(rep_topic_score, 6),
+                                semantic_contribution=round(SEMANTIC_OVERLAP_BOOST * rep_similarity, 6),
+                                temporal_distance_days=rep_temporal_distance,
+                                temporal_score=rep_temporal_score,
                                 substitute_for=candidate.entry_id,
                             )
                         )
@@ -3512,6 +3577,15 @@ def link_audit_payload(
                         "score": candidate.file_overlap_score,
                         "lexical_score": candidate.lexical_score,
                         "semantic_score": candidate.semantic_score,
+                        "score_components": {
+                            "file": candidate.file_score,
+                            "keyword": candidate.keyword_score,
+                            "topic": candidate.topic_score,
+                            "semantic_raw": candidate.semantic_score,
+                            "semantic_weighted": candidate.semantic_contribution,
+                            "temporal": candidate.temporal_score,
+                            "temporal_distance_days": candidate.temporal_distance_days,
+                        },
                         "already_related": candidate.already_related,
                         "ungated": candidate.ungated,
                         "chain_position": candidate.chain_position,
@@ -3534,7 +3608,9 @@ def plan_link_audit_batches(
     payload: Mapping[str, Any],
     *,
     context_window_tokens: int,
-    evidence_fraction: float = 0.20,
+    evidence_fraction: float = 0.16,
+    minimum_score: float = 0.0,
+    output_tokens_per_pair: int = 160,
 ) -> dict[str, Any]:
     """Pack complete link-audit pairs into deterministic evidence batches.
 
@@ -3546,43 +3622,72 @@ def plan_link_audit_batches(
         raise ValueError("context_window_tokens must be greater than zero")
     if not 0 < evidence_fraction < 1:
         raise ValueError("evidence_fraction must be greater than zero and less than one")
+    if minimum_score < 0:
+        raise ValueError("minimum_score must be zero or greater")
+    if output_tokens_per_pair < 1:
+        raise ValueError("output_tokens_per_pair must be greater than zero")
     budget_tokens = int(context_window_tokens * evidence_fraction)
     if budget_tokens < 1:
         raise ValueError("context window and evidence fraction produce a zero-token budget")
 
     pairs: list[dict[str, Any]] = []
-    excluded_pairs: list[dict[str, str]] = []
+    excluded_pairs: list[dict[str, Any]] = []
+    candidate_ledger: list[dict[str, Any]] = []
     for gap in payload.get("gaps", []):
         source = {
             "entry_id": gap["entry_id"], "title": gap["title"],
             "session_date": gap["session_date"], "decisions": gap["decisions"],
         }
         for candidate in gap["candidates"]:
+            pair_id = hashlib.sha256(
+                f"{source['entry_id']}\0{candidate['entry_id']}".encode("utf-8")
+            ).hexdigest()[:20]
+            ledger_row = {
+                "pair_id": pair_id,
+                "source_entry_id": source["entry_id"],
+                "candidate_entry_id": candidate["entry_id"],
+                "candidate_source": "semantic" if candidate.get("ungated") else "lexical",
+                "score": candidate.get("score", 0.0),
+                "score_components": dict(candidate.get("score_components", {})),
+                "shared_files": list(candidate.get("shared_files", [])),
+                "shared_topics": list(candidate.get("shared_topics", [])),
+                "shared_title_terms": list(candidate.get("shared_title_terms", [])),
+                "thresholds": {
+                    "minimum_score": minimum_score,
+                    "semantic_candidate_threshold": payload.get("semantic", {}).get("candidate_threshold"),
+                },
+                "batch": None,
+                "status": "pending",
+                "verdict": None,
+                "source_decision": None,
+                "candidate_decision": None,
+                "confidence": None,
+                "validation": None,
+            }
             if candidate.get("already_related"):
-                excluded_pairs.append(
-                    {
-                        "source_entry_id": source["entry_id"],
-                        "candidate_entry_id": candidate["entry_id"],
-                        "reason": "already_related",
-                    }
-                )
+                ledger_row.update(status="excluded", validation="already_related")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "already_related"})
                 continue
             if not source["decisions"] or not candidate["decisions"]:
-                excluded_pairs.append(
-                    {
-                        "source_entry_id": source["entry_id"],
-                        "candidate_entry_id": candidate["entry_id"],
-                        "reason": "missing_decision",
-                    }
-                )
+                ledger_row.update(status="excluded", validation="missing_decision")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "missing_decision"})
                 continue
-            pair = {"source": source, "candidate": candidate}
+            if float(candidate.get("score", 0.0)) < minimum_score:
+                ledger_row.update(status="excluded", validation="below_score_threshold")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "below_score_threshold"})
+                continue
+            pair = {"pair_id": pair_id, "source": source, "candidate": candidate}
             byte_count = len(canonical_retrieval_json(pair).encode("utf-8"))
-            pairs.append({
+            packed_pair = {
                 **pair,
                 "evidence_utf8_bytes": byte_count,
                 "estimated_tokens": max(1, (byte_count + 3) // 4),
-            })
+            }
+            pairs.append(packed_pair)
+            candidate_ledger.append(ledger_row)
 
     batches: list[dict[str, Any]] = []
     oversize_pairs: list[dict[str, Any]] = []
@@ -3594,30 +3699,50 @@ def plan_link_audit_batches(
             oversize_pairs.append(pair)
             continue
         if current and current_tokens + estimate > budget_tokens:
+            batch_number = len(batches) + 1
             batches.append({
-                "batch": len(batches) + 1, "evidence_utf8_bytes": current_bytes,
+                "batch": batch_number, "evidence_utf8_bytes": current_bytes,
                 "estimated_tokens": current_tokens,
+                "estimated_output_tokens": len(current) * output_tokens_per_pair,
                 "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
             })
+            current_ids = {item["pair_id"] for item in current}
+            for row in candidate_ledger:
+                if row["pair_id"] in current_ids:
+                    row.update(batch=batch_number, status="assigned")
             current, current_tokens, current_bytes = [], 0, 0
         current.append(pair)
         current_tokens += estimate
         current_bytes += pair["evidence_utf8_bytes"]
     if current:
+        batch_number = len(batches) + 1
         batches.append({
-            "batch": len(batches) + 1, "evidence_utf8_bytes": current_bytes,
+            "batch": batch_number, "evidence_utf8_bytes": current_bytes,
             "estimated_tokens": current_tokens,
+            "estimated_output_tokens": len(current) * output_tokens_per_pair,
             "remaining_budget_tokens": budget_tokens - current_tokens, "pairs": current,
         })
+        current_ids = {item["pair_id"] for item in current}
+        for row in candidate_ledger:
+            if row["pair_id"] in current_ids:
+                row.update(batch=batch_number, status="assigned")
+
+    oversize_ids = {item["pair_id"] for item in oversize_pairs}
+    for row in candidate_ledger:
+        if row["pair_id"] in oversize_ids:
+            row.update(status="oversize", validation="pair_exceeds_evidence_budget")
 
     return {
-        "schema": "memory-seed.link-batch-plan.v1",
+        "schema": "memory-seed.link-batch-plan.v2",
         "measurement": {
             "context_window_tokens": context_window_tokens,
             "evidence_fraction": evidence_fraction,
             "evidence_budget_tokens": budget_tokens,
+            "output_tokens_per_pair": output_tokens_per_pair,
+            "minimum_score": minimum_score,
             "token_estimate": "ceil(utf8_bytes / 4); fixed provider-independent proxy",
             "pair_policy": "complete pairs only; no truncation or splitting",
+            "score_policy": "file + keyword + weighted semantic rank; topic and temporal are diagnostic-only",
         },
         "semantic": dict(payload.get("semantic", {})),
         "criteria": dict(payload.get("criteria", {})),
@@ -3626,7 +3751,273 @@ def plan_link_audit_batches(
         "oversize_pairs": oversize_pairs,
         "excluded_pair_count": len(excluded_pairs),
         "excluded_pairs": excluded_pairs,
+        "candidate_ledger": candidate_ledger,
     }
+
+
+LINK_SWARM_VERDICT_COLUMNS = (
+    "source_entry_id", "source_decision", "candidate_entry_id", "candidate_decision",
+    "verdict", "quote", "quote_entry_id", "why", "confidence", "exclusion_reason",
+)
+
+
+def parse_link_swarm_toon(
+    text: str,
+    *,
+    expected_batch: int | None = None,
+    expected_pair_count: int | None = None,
+) -> dict[str, Any]:
+    """Parse the deliberately small rectangular TOON subset used by link workers."""
+    schema_match = re.search(r"(?m)^schema:\s*(\S+)\s*$", text)
+    if not schema_match or schema_match.group(1) != "memory-seed.link-swarm-verdicts.v1":
+        raise ValueError("report schema must be memory-seed.link-swarm-verdicts.v1")
+    batch_matches = re.findall(r"(?m)^\s*batch:\s*(\d+)\s*$", text)
+    if not batch_matches:
+        raise ValueError("report must declare a numeric batch")
+    batch_number = int(batch_matches[-1])
+    if expected_batch is not None and batch_number != expected_batch:
+        raise ValueError(f"report batch {batch_number} does not match expected batch {expected_batch}")
+
+    header = re.search(r"(?m)^verdicts\[(\d+)\]\{([^}]+)\}:\s*$", text)
+    if not header:
+        raise ValueError("report must declare verdicts[N]{columns}:")
+    declared_count = int(header.group(1))
+    columns = tuple(item.strip() for item in header.group(2).split(","))
+    if columns != LINK_SWARM_VERDICT_COLUMNS:
+        raise ValueError("report verdict columns do not match the required schema")
+    row_text = text[header.end():].strip()
+    try:
+        parsed_rows = list(csv.reader(io.StringIO(row_text), strict=True)) if row_text else []
+    except csv.Error as exc:
+        raise ValueError(f"report rows are not valid rectangular CSV-style TOON: {exc}") from exc
+    if len(parsed_rows) != declared_count:
+        raise ValueError(f"report declares {declared_count} rows but contains {len(parsed_rows)}")
+    if expected_pair_count is not None and declared_count != expected_pair_count:
+        raise ValueError(
+            f"report contains {declared_count} rows but batch contains {expected_pair_count} pairs"
+        )
+
+    verdicts: list[dict[str, Any]] = []
+    for row_number, values in enumerate(parsed_rows, 1):
+        if len(values) != len(columns):
+            raise ValueError(
+                f"report row {row_number} has {len(values)} cells; expected {len(columns)}"
+            )
+        item: dict[str, Any] = {}
+        for column, raw in zip(columns, values):
+            value = raw.strip()
+            item[column] = None if value.lower() == "null" else value
+        if item["verdict"] not in {"replaces", "evolves", "related", "none"}:
+            raise ValueError(f"report row {row_number} has invalid verdict {item['verdict']!r}")
+        if item["confidence"] is not None:
+            try:
+                item["confidence"] = float(item["confidence"])
+            except ValueError as exc:
+                raise ValueError(f"report row {row_number} confidence must be numeric or null") from exc
+            if not 0 <= item["confidence"] <= 1:
+                raise ValueError(f"report row {row_number} confidence must be between zero and one")
+        verdicts.append(item)
+    return {"schema": schema_match.group(1), "batch": batch_number, "verdicts": verdicts}
+
+
+def materialize_link_swarm_run(plan: Mapping[str, Any], output_dir: str | Path) -> dict[str, Any]:
+    """Write replayable worker inputs and a pending candidate analytics ledger."""
+    from .text_files import write_text_file
+
+    directory = Path(output_dir)
+    if directory.exists() and any(directory.iterdir()):
+        raise FileExistsError(f"link swarm run directory is not empty: {directory}")
+    (directory / "batches").mkdir(parents=True, exist_ok=True)
+    (directory / "findings").mkdir(parents=True, exist_ok=True)
+    normalized = dict(plan)
+    run_id = hashlib.sha256(canonical_retrieval_json(normalized).encode("utf-8")).hexdigest()[:20]
+    normalized["run_id"] = run_id
+    write_text_file(directory / "plan.json", json.dumps(normalized, indent=2, ensure_ascii=False) + "\n")
+    for batch in normalized.get("batches", []):
+        number = int(batch["batch"])
+        worker_payload = {
+            "schema": "memory-seed.link-swarm-worker-batch.v1",
+            "run_id": run_id,
+            "batch": number,
+            "measurement": {
+                **dict(normalized.get("measurement", {})),
+                "batch_evidence_utf8_bytes": batch.get("evidence_utf8_bytes"),
+                "batch_estimated_tokens": batch.get("estimated_tokens"),
+                "batch_estimated_output_tokens": batch.get("estimated_output_tokens"),
+                "batch_remaining_budget_tokens": batch.get("remaining_budget_tokens"),
+            },
+            "semantic": normalized.get("semantic", {}),
+            "criteria": normalized.get("criteria", {}),
+            "pair_count": len(batch.get("pairs", [])),
+            "pairs": batch.get("pairs", []),
+            "finding_path": f"findings/batch-{number:04d}.toon",
+        }
+        write_text_file(
+            directory / "batches" / f"batch-{number:04d}.json",
+            json.dumps(worker_payload, indent=2, ensure_ascii=False) + "\n",
+        )
+    write_text_file(
+        directory / "analytics.jsonl",
+        "".join(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n" for row in normalized.get("candidate_ledger", [])),
+    )
+    write_text_file(directory / "validation.json", json.dumps({
+        "schema": "memory-seed.link-swarm-validation.v1", "run_id": run_id,
+        "status": "pending", "batch_count": normalized.get("batch_count", 0),
+        "valid_batches": 0, "invalid_batches": 0, "missing_batches": normalized.get("batch_count", 0),
+        "errors": [],
+    }, indent=2) + "\n")
+    return {"run_id": run_id, "path": str(directory), "batch_count": normalized.get("batch_count", 0)}
+
+
+def collect_link_swarm_run(run_dir: str | Path) -> dict[str, Any]:
+    """Validate written worker reports and merge every outcome into analytics.jsonl."""
+    from .text_files import write_text_file
+
+    directory = Path(run_dir)
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    ledger = {row["pair_id"]: dict(row) for row in plan.get("candidate_ledger", [])}
+    errors: list[dict[str, Any]] = []
+    valid_batches = invalid_batches = missing_batches = 0
+
+    def normalized(value: str) -> str:
+        return " ".join(value.split())
+
+    for batch in plan.get("batches", []):
+        number = int(batch["batch"])
+        report_path = directory / "findings" / f"batch-{number:04d}.toon"
+        pair_by_key = {
+            (pair["source"]["entry_id"], pair["candidate"]["entry_id"]): pair
+            for pair in batch.get("pairs", [])
+        }
+        if not report_path.is_file():
+            missing_batches += 1
+            errors.append({"batch": number, "error": "missing_report", "path": str(report_path)})
+            continue
+        try:
+            report = parse_link_swarm_toon(
+                report_path.read_text(encoding="utf-8"),
+                expected_batch=number,
+                expected_pair_count=len(pair_by_key),
+            )
+            seen: set[tuple[str, str]] = set()
+            for result in report["verdicts"]:
+                key = (result["source_entry_id"], result["candidate_entry_id"])
+                pair = pair_by_key.get(key)
+                if pair is None:
+                    errors.append({"batch": number, "error": "unexpected_pair", "pair": list(key)})
+                    continue
+                if key in seen:
+                    errors.append({"batch": number, "error": "duplicate_pair", "pair": list(key)})
+                    ledger[pair["pair_id"]].update(status="rejected", validation="duplicate_pair")
+                    continue
+                seen.add(key)
+                problems: list[str] = []
+                source_ordinals = {item["ordinal"] for item in pair["source"]["decisions"]}
+                candidate_ordinals = {item["ordinal"] for item in pair["candidate"]["decisions"]}
+                if result["source_decision"] not in source_ordinals:
+                    problems.append("invalid_source_ordinal")
+                if result["candidate_decision"] not in candidate_ordinals:
+                    problems.append("invalid_candidate_ordinal")
+                if pair["candidate"].get("chain_position") == "interior" and result["verdict"] not in {"related", "none"}:
+                    problems.append("invalid_interior_verdict")
+                if not result["why"]:
+                    problems.append("missing_why")
+                if result["verdict"] == "none":
+                    if result["quote"] is not None or result["quote_entry_id"] is not None:
+                        problems.append("none_with_quote")
+                    if not result["exclusion_reason"]:
+                        problems.append("none_without_exclusion_reason")
+                else:
+                    quote = result["quote"] or ""
+                    quote_entry = result["quote_entry_id"]
+                    entries = {pair["source"]["entry_id"]: pair["source"], pair["candidate"]["entry_id"]: pair["candidate"]}
+                    if quote_entry not in entries or len(normalized(quote)) < 12:
+                        problems.append("invalid_quote_reference")
+                    else:
+                        quote_ordinal = (
+                            result["source_decision"] if quote_entry == pair["source"]["entry_id"]
+                            else result["candidate_decision"]
+                        )
+                        quoted_decision = next(
+                            (decision for decision in entries[quote_entry]["decisions"] if decision["ordinal"] == quote_ordinal),
+                            None,
+                        )
+                        if quoted_decision is None or normalized(quote) not in normalized(quoted_decision["text"]):
+                            problems.append("quote_not_found_in_named_decision")
+                    if result["exclusion_reason"] is not None:
+                        problems.append("non_none_with_exclusion_reason")
+                row = ledger[pair["pair_id"]]
+                row.update(
+                    verdict=result["verdict"], source_decision=result["source_decision"],
+                    candidate_decision=result["candidate_decision"], confidence=result["confidence"],
+                    quote=result["quote"], quote_entry_id=result["quote_entry_id"], why=result["why"],
+                    exclusion_reason=result["exclusion_reason"],
+                )
+                if problems:
+                    row.update(status="rejected", validation=",".join(problems))
+                    errors.append({"batch": number, "error": "invalid_row", "pair": list(key), "problems": problems})
+                else:
+                    row.update(status="validated", validation="passed")
+            missing_keys = set(pair_by_key) - seen
+            for key in sorted(missing_keys):
+                pair = pair_by_key[key]
+                ledger[pair["pair_id"]].update(status="rejected", validation="missing_pair")
+                errors.append({"batch": number, "error": "missing_pair", "pair": list(key)})
+            valid_batches += 1
+        except (OSError, ValueError) as exc:
+            invalid_batches += 1
+            errors.append({"batch": number, "error": "invalid_report", "detail": str(exc), "path": str(report_path)})
+            for pair in batch.get("pairs", []):
+                ledger[pair["pair_id"]].update(status="rejected", validation="invalid_batch")
+
+    ordered = [ledger[row["pair_id"]] for row in plan.get("candidate_ledger", [])]
+    survivors = [row for row in ordered if row.get("status") == "validated" and row.get("verdict") != "none"]
+    feature_names = (
+        "file", "keyword", "topic", "semantic_raw", "semantic_weighted",
+        "temporal", "temporal_distance_days",
+    )
+    by_verdict: dict[str, Any] = {}
+    for verdict in ("replaces", "evolves", "related", "none"):
+        rows = [row for row in ordered if row.get("status") == "validated" and row.get("verdict") == verdict]
+        features: dict[str, Any] = {}
+        for name in feature_names:
+            values = [
+                row.get("score_components", {}).get(name) for row in rows
+                if isinstance(row.get("score_components", {}).get(name), (int, float))
+            ]
+            features[name] = {
+                "count": len(values),
+                "mean": round(sum(values) / len(values), 6) if values else None,
+                "min": min(values) if values else None,
+                "max": max(values) if values else None,
+            }
+        by_verdict[verdict] = {"count": len(rows), "features": features}
+    status_counts = {
+        status: sum(1 for row in ordered if row.get("status") == status)
+        for status in sorted({str(row.get("status")) for row in ordered})
+    }
+    write_text_file(directory / "analytics.jsonl", "".join(
+        json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n" for row in ordered
+    ))
+    write_text_file(directory / "survivors.json", json.dumps({
+        "schema": "memory-seed.link-swarm-survivors.v1", "run_id": plan.get("run_id"),
+        "count": len(survivors), "verdicts": survivors,
+    }, indent=2, ensure_ascii=False) + "\n")
+    write_text_file(directory / "analytics-summary.json", json.dumps({
+        "schema": "memory-seed.link-swarm-analytics-summary.v1",
+        "run_id": plan.get("run_id"),
+        "thresholds": plan.get("measurement", {}),
+        "status_counts": status_counts,
+        "by_verdict": by_verdict,
+    }, indent=2, ensure_ascii=False) + "\n")
+    validation = {
+        "schema": "memory-seed.link-swarm-validation.v1", "run_id": plan.get("run_id"),
+        "status": "complete" if not errors else "incomplete", "batch_count": len(plan.get("batches", [])),
+        "valid_batches": valid_batches, "invalid_batches": invalid_batches,
+        "missing_batches": missing_batches, "survivor_count": len(survivors), "errors": errors,
+    }
+    write_text_file(directory / "validation.json", json.dumps(validation, indent=2, ensure_ascii=False) + "\n")
+    return validation
 
 
 def apply_link_gap_stubs(

@@ -43,6 +43,7 @@ memory-trace/tests/capture/*.webm
 memory-trace/tests/capture/*.gif
 .memory-seed/local.yaml
 .memory-seed/transactions/
+.memory-seed/link-swarm-runs/
 
 # Local editor config
 .vscode/
