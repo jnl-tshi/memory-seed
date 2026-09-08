@@ -6,6 +6,8 @@ tags:
   - related-entries
   - graph
   - mutation
+status: completed
+next_action: "None. link add shipped; historical backfill remains a deliberately manual, per-edge procedure rather than product work."
 ---
 
 # Related Entries P2 Mutation Plan
@@ -56,7 +58,7 @@ The procedure:
 
 **Do not automate any step of this.** If you find yourself scripting it, you have left the exception and
 re-entered the invariant.
-> **Priority:** convenience/mutation increment — Track A item 4 in [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md);
+> **Priority:** convenience/mutation increment — Track A item 4 in [`0_NEXT_STEPS.md`](../2_Todo/0_NEXT_STEPS.md);
 > a `link add` (current-entry) + explicit historical backfill. Not a blocker; sequence after the
 > Track A tails unless the user reprioritizes graph curation.
 > **Source:** User decision 2026-07-05: implement Related-entries P2, including backfill between older
@@ -150,4 +152,4 @@ dedicated `link backfill` subcommand is acceptable if it makes the risk clearer 
 - Completed P1 source plan:
   [`completed/related-entries-generation-plan.md`](../5_Completed/related-entries-generation-plan.md).
 - Current 3.0 coordination:
-  [`3.0-plan.md`](../5_Completed/3.0-plan.md), [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md).
+  [`3.0-plan.md`](3.0-plan.md), [`0_NEXT_STEPS.md`](../2_Todo/0_NEXT_STEPS.md).

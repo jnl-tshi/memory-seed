@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; current v1.9 ratified 2026-08-13).
-Updated: 2026-08-14
+Updated: 2026-09-08
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
@@ -41,6 +41,15 @@ and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-bas
 Foundation shipped (per-doc status verified against CHANGELOG + code, not this file's prior claims).
 
 ## Current state
+
+- **Reflection Board v1:** the trusted transaction layer, public lifecycle surfaces, prototype retirement,
+  and first real closed board are on `main`. Launch evaluation is not complete because ESR currently
+  mistakes fenced receipt evidence for duplicate session headers; Seed Pod P0 remains gated. A richer
+  cumulative-handoff and decision-harvest model is captured for assessment in
+  [`reflection-board-cumulative-handoff-and-decision-harvest-proposal.md`](../1_Inbox/reflection-board-cumulative-handoff-and-decision-harvest-proposal.md).
+- **Todo lifecycle audit (2026-09-08):** ten fully shipped documents moved to `5_Completed`, one
+  superseded remedy moved to `7_Replaced`, and all partially complete or unresolved owners remain here.
+  See [`todo-lifecycle-audit-2026-09-08.md`](../4_Reference/todo-lifecycle-audit-2026-09-08.md).
 
 - **Released: v2.20.0 (2026-08-12)** — live on PyPI as both wheel and sdist; see `CHANGELOG.md`
   "## 2.20.0" for the authoritative dated list. Highlights include durable bootstrap-to-ADR
@@ -346,7 +355,7 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
 5. ~~**Cross-session `branch:` contamination**~~ **RESOLVED 2026-07-26 — code half fixed, policy half
    decided and adopted.**
    Investigated against a synthetic-repository matrix rather than by reasoning; full write-up and the
-   options in [`branch-field-provenance.md`](branch-field-provenance.md), matrix pinned as
+   options in [`branch-field-provenance.md`](../5_Completed/branch-field-provenance.md), matrix pinned as
    `tests/test_session_append.py::BranchProvenanceTests`. Two corrections to the item as written.
    **(a) "Affects every git-derived field" is overstated:** `branch:` is the *only* git-derived field
    on an entry — `session_append_entry` makes exactly one git call (`_auto_captured_branch` in
@@ -507,7 +516,7 @@ gap — and is documented precisely in `agent_collaboration.md`.
 JNL asked for a protection-value audit of the 635-test suite (not a headcount target): measure before
 culling, classify by layer, then work module by module assigning every test Keep / Consolidate /
 Replace-with-invariant / Move / Delete. Full record:
-[`test-suite-protection-value-audit.md`](test-suite-protection-value-audit.md).
+[`test-suite-protection-value-audit.md`](../5_Completed/test-suite-protection-value-audit.md).
 
 - **Phase 1 — measured, then marked slow tests.** 92 tests ≥0.5s got `@pytest.mark.integration`
   (chosen by measured duration, not by "touches git"); the fast loop (`pytest -m "not integration"`)
@@ -604,7 +613,7 @@ before its next step. (Market/account items live under "Parked" below.)
     grow the tree as it writes an entry, rather than discovery happening as a separate batch pass.
     Review of those proposals can be deferred (perhaps to a swarm), but the discovery moment itself
     is per-entry and incremental. Closer in shape to
-    [`vocabulary-proposal-mode-proposal.md`](vocabulary-proposal-mode-proposal.md) (proposals that
+    [`vocabulary-proposal-mode-proposal.md`](../5_Completed/vocabulary-proposal-mode-proposal.md) (proposals that
     don't write, reviewed later) than to the rejected doc's batch-evidence model, but write-time and
     per-agent rather than measurement-triggered and swarm-run — so it is not simply that proposal
     either. **Needs its own scoping proposal before anything is built.**
@@ -730,7 +739,7 @@ dependency order, and closed on 2026-07-15:
 ### Track A — remaining open tails
 
 1. **Related-entries P2** — ✅ **RESOLVED 2026-07-17**.
-   [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md). `memory-seed link add`
+   [`related-entries-p2-mutation-plan.md`](../5_Completed/related-entries-p2-mutation-plan.md). `memory-seed link add`
    ships (newest-entry only: forward-only, idempotent, YAML-only, `links check`-gated). The historical
    backfill is **permitted but deliberately not a command** — Constitution **v1.2** amended Invariant #2
    with a one-off, per-edge-approved, metadata-only exception, which a standing command would violate by

@@ -107,15 +107,13 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 7 · 2_Todo 57 · 3_Spec 9 · 4_Reference 22 · 5_Completed 66 · 6_Rejected 2 · 7_Replaced 32 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 8 · 2_Todo 46 · 3_Spec 9 · 4_Reference 23 · 5_Completed 76 · 6_Rejected 2 · 7_Replaced 33 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [seed-pod-p0-reconciliation-plan.md](2_Todo/seed-pod-p0-reconciliation-plan.md) — Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain reviewed Reflection Board…
 - **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
-- **P0** [transitive-session-fusion-refinement-plan.md](2_Todo/transitive-session-fusion-refinement-plan.md) — Re-review this evidence contract before any implementation change is staged.
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Keep the delivered M0-M3 retrieval and Task Packet contracts stable; design M4 Trace/Evidence Envelope inspection before M5 advanced select…
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
-- **P1** [excerpt-fallback-defect.md](2_Todo/excerpt-fallback-defect.md) — None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires.
 - **P1** [independent-validation-brief.md](2_Todo/independent-validation-brief.md) — Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own method and reports back.
 - **P1** [memory-index-dry-run-plan.md](2_Todo/memory-index-dry-run-plan.md) — JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 9's 87.1/CLEAR, zero-fabrication result. Still n=1 per conditio…
 - **P1** [memory-provenance-and-authority-taxonomy-proposal.md](2_Todo/memory-provenance-and-authority-taxonomy-proposal.md) — Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a policy result with reason codes; add fail-closed …
@@ -130,8 +128,5 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [reflection-ledger-workstream-evolution-plan.md](2_Todo/reflection-ledger-workstream-evolution-plan.md) — Complete integrated launch verification and first-board evaluation; track public retention-extension authoring separately.
 - **P1** [reflection-prototype-retirement-plan.md](2_Todo/reflection-prototype-retirement-plan.md) — Verify the retired prototype stays absent in the integrated launch matrix and first-board evaluation.
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
-- **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
-- **P1** [storyline-gap-tranche-implementation-plan.md](2_Todo/storyline-gap-tranche-implementation-plan.md) — None — R5, R8, and R13 are reconciled from reviewed implementation evidence.
 - **P1** [task-packet-calibration-harness-plan.md](2_Todo/task-packet-calibration-harness-plan.md) — Freeze the representative development population and sealed holdout design now that the Qwen3.5 9B M0 plumbing gate has passed.
-- **P1** [write-time-topic-envelope-closure-proposal.md](2_Todo/write-time-topic-envelope-closure-proposal.md) — none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step
 <!-- docs-index:end -->

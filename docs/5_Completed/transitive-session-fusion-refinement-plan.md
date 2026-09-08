@@ -1,8 +1,8 @@
 ---
-status: active
+status: completed
 priority: P0
-blocked_by: independent plan review approval
-next_action: Re-review this evidence contract before any implementation change is staged.
+blocked_by: []
+next_action: "None. The reviewed transitive fuse evidence contract shipped on 2026-09-06."
 source: User-requested transitive session-fusion refinement; review verdict REVISE (2026-09-06).
 scope: session-fuse inherited-entry admission, merge provenance proof, CLI/MCP parity, documentation, and focused real-Git tests.
 non_goals: Do not relabel child entries, invent a historical receipt, accept deleted or renamed branch names without recovery evidence, weaken sidecar checks, or alter the Reflection Ledger workspace.

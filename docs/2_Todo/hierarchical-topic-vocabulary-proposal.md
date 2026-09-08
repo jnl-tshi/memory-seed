@@ -84,7 +84,7 @@ against the **parent's** population rather than the whole corpus — a child tak
 volume is the next candidate to split.
 
 This makes the vocabulary **self-governing**: the concentration review in
-`topic-vocabulary-concentration-review.md` stops being a one-off audit and becomes a periodic health
+[`topic-vocabulary-concentration-review.md`](../7_Replaced/topic-vocabulary-concentration-review.md) stops being a one-off audit and becomes a periodic health
 check that says *where* to deepen and *when to stop*. Depth is then bounded by evidence rather than by
 a rule nobody can justify — which is the real protection against a taxonomy nobody maintains, since no
 level exists unless the corpus paid for it.
@@ -196,7 +196,7 @@ mis-filed there becomes a child slug, which *recovers* specificity the corpus al
 
 ## Why this beats the flat splits
 
-`topic-vocabulary-concentration-review.md` recommended carving `trail` out of `memory-trace` and
+[`topic-vocabulary-concentration-review.md`](../7_Replaced/topic-vocabulary-concentration-review.md) recommended carving `trail` out of `memory-trace` and
 splitting `graph`. A hierarchy achieves the same specificity **without the two costs of a flat split**:
 
 1. A flat split leaves `memory-trace` and its new sibling as unrelated peers, so the 197 historical

@@ -9,7 +9,7 @@ blocked_by: []
 # What `branch:` Records, and the Half of It Code Cannot Fix
 
 Status: **RESOLVED — code half fixed, policy half decided and adopted (JNL, 2026-07-26).** Raised as item 5 of
-[`0_NEXT_STEPS.md`](0_NEXT_STEPS.md) ("cross-session `branch:` contamination"), investigated
+[`0_NEXT_STEPS.md`](../2_Todo/0_NEXT_STEPS.md) ("cross-session `branch:` contamination"), investigated
 2026-07-26 against a synthetic-repository matrix rather than by reasoning. The investigation split
 the item cleanly in two: a decidable case, fixed in code, and an undecidable one that needed a
 judgement call from JNL — now made and adopted. **This repository's current layout is not affected by

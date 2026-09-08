@@ -51,6 +51,7 @@ Current Memory Trace provenance:
 | [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [reflection-board-v1-operator-guide.md](reflection-board-v1-operator-guide.md) | — | — | reference |
+| [todo-lifecycle-audit-2026-09-08.md](todo-lifecycle-audit-2026-09-08.md) | — | — | reference |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
 | [warranty-file-structure-index.md](warranty-file-structure-index.md) | — | — | — |
 <!-- docs-index:end -->

@@ -1,10 +1,10 @@
 ---
 title: Retrieval Specification M0-M1 implementation plan
-status: active
+status: completed
 priority: P1
-next_action: Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
+next_action: "None. M0-M1 landed on main; M2-M5 remain owned by the active declarative retrieval specification proposal."
 sources:
-  - declarative-retrieval-specification-proposal.md
+  - ../2_Todo/declarative-retrieval-specification-proposal.md
 spec_binding: null
 ---
 
@@ -15,12 +15,11 @@ spec_binding: null
 > paths, and per-item `content_digest` values. Consumers should re-resolve the inline specification rather
 > than treating a historical v1 pack as a stored artifact.
 
-This is the executable critical path for the active [Declarative Retrieval Specification
-proposal](declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
+This was the executable critical path for the active [Declarative Retrieval Specification
+proposal](../2_Todo/declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
 
 Implementation state: Tasks 1 and 2, the bounded repair, and the final whole-branch re-review are
-complete on the review branch. The branch is not landed or shipped; only explicit approval for the
-configured manual merge remains.
+complete and landed on `main`. Later milestones remain with the active parent proposal.
 
 ## Global constraints
 

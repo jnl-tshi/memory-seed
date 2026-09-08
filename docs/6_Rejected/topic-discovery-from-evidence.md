@@ -189,6 +189,6 @@ sweep over ~12-entry batches across the whole corpus, aggregated into statistics
 proposal exists. JNL's direction has an agent proposing a candidate topic in the moment it writes
 an entry, with review deferred rather than discovery deferred. Filed as a fresh direction in
 `docs/2_Todo/0_NEXT_STEPS.md` rather than reworked here, since it is closer in shape to
-`vocabulary-proposal-mode-proposal.md` (proposals that don't write, reviewed later) than to this
+[`vocabulary-proposal-mode-proposal.md`](../5_Completed/vocabulary-proposal-mode-proposal.md) (proposals that don't write, reviewed later) than to this
 document's batch-evidence model — but it is write-time and per-agent rather than
 measurement-triggered and swarm-run, so it is not simply that proposal either.

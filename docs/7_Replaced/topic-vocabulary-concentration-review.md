@@ -1,5 +1,7 @@
 ---
 priority: P2
+status: replaced
+superseded_by: "../2_Todo/hierarchical-topic-vocabulary-proposal.md"
 next_action: SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommended below are replaced by `hierarchical-topic-vocabulary-proposal.md`, which achieves the same specificity without orphaning the 197 historical `memory-trace` entries from the finer grain. Read this document for the evidence; read that one for what to do.
 ---
 

@@ -54,6 +54,7 @@ mechanical migration.
 | [plan-reflection-ledger.md](plan-reflection-ledger.md) | P1 | — | Documentary evidence only. Do not compile or launch these prototype dispatches; use the sequent… |
 | [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | ../2_Todo/document-lifecycle-system-plan.md |
 | [sidecar-lens-architecture-exploration.md](sidecar-lens-architecture-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
+| [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
 | [type-specific-trace-projections-exploration.md](type-specific-trace-projections-exploration.md) | — | — | ../2_Todo/memory-trace-semantic-projections-plan.md |
 | [worktree-gc-proposal.md](worktree-gc-proposal.md) | — | — | ../5_Completed/agent-worktree-and-branch-hygiene-plan.md |
 <!-- docs-index:end -->

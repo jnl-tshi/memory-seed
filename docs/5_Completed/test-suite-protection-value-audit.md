@@ -1,6 +1,6 @@
 ---
 title: Test-suite protection-value audit
-status: active
+status: completed
 priority: P3
 next_action: Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No outstanding action; periodic flakiness/coverage re-checks only (see Measurements).
 blocked_by: []
@@ -8,7 +8,7 @@ blocked_by: []
 
 # Test-Suite Protection-Value Audit
 
-Status: **ACTIVE**. JNL requested an audit of the 635-test suite scoped by protection value, not
+Status: **COMPLETED 2026-07-20**. JNL requested an audit of the 635-test suite scoped by protection value, not
 headcount: freeze uncontrolled growth, measure before culling, classify by layer, then work module by
 module assigning every test one of Keep / Consolidate / Replace-with-invariant / Move / Delete.
 

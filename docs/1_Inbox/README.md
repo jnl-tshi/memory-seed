@@ -101,5 +101,6 @@ were themselves reference material, not undecided captures — moved the same da
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
+| [reflection-board-cumulative-handoff-and-decision-harvest-proposal.md](reflection-board-cumulative-handoff-and-decision-harvest-proposal.md) | — | — | Assess the proposal against the current Reflection Board transaction contract before promotion … |
 | [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
 <!-- docs-index:end -->

@@ -22,7 +22,7 @@ parity pair. This refresh adds R13 from an observed integration false negative, 
 recorded commit-failure and safe-cleanup decisions. Recommendations in this document are trustworthy
 only once checked against recorded decisions, not on code reading alone.
 
-The [storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md)
+The [storyline gap tranche implementation plan](../5_Completed/storyline-gap-tranche-implementation-plan.md)
 records the completed R5, R8, and R13 work and its validation evidence.
 
 **Key change context since the 2026-08-10 review.** Current files and tool registries remain the

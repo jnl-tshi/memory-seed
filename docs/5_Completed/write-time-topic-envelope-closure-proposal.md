@@ -12,7 +12,7 @@ next_action: none - accepted and implemented 2026-08-07; the topic swarm it unbl
 # Write-Time Topic Envelope: Closing the Leak
 
 > **Status: ACCEPTED 2026-08-07 by JNL, and IMPLEMENTED the same day.** Successor to the **ACCEPTED**
-> [`write-time-sidecar-consolidation-proposal.md`](write-time-sidecar-consolidation-proposal.md),
+> [`write-time-sidecar-consolidation-proposal.md`](../2_Todo/write-time-sidecar-consolidation-proposal.md),
 > whose build order this discharges. That document is accepted and is deliberately **not edited
 > here** — this one carries the amendment for JNL to accept or reject on its own terms.
 

@@ -1,6 +1,12 @@
+---
+title: "Typed evolution: one refines spine, unlimited builds-on"
+status: completed
+next_action: "None. The four-step delivery order shipped on 2026-08-09."
+---
+
 # Typed evolution: one `refines` spine, unlimited `builds-on`
 
-Status: proposed (JNL direction, 2026-08-09)
+Status: **COMPLETED 2026-08-09.** The proposal text below preserves the design and implementation sequence.
 
 ## The problem, measured
 
