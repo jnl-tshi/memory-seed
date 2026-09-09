@@ -104,6 +104,31 @@ def test_unrelated_project_settings_are_not_reinterpreted():
     assert parse_delivery_quality("other: &anchor !custom value\n") == resolve_delivery_quality()
 
 
+@pytest.mark.parametrize("text", [
+    "  delivery_quality:\n    schema_version: 2\n",
+    "  delivery_quality:\n    schema_version: 1\n    individual_decision_conflict: stop\n",
+    "{delivery_quality: {schema_version: 2}}\n",
+    '{"delivery_quality": {schema_version: 1, individual_decision_conflict: stop}}\n',
+    "{other: value, delivery_quality: {schema_version: 1, failed_hypothesis_threshold: 1}}\n",
+    "delivery_quality:\n  schema_version: 1\n  individual_decision_conflict: stop\n"
+    "{delivery_quality: {schema_version: 1}}\n",
+])
+def test_unsupported_recognized_policy_syntax_cannot_fall_back_to_defaults(text):
+    with pytest.raises(PlanningValidationError, match="delivery_quality"):
+        parse_delivery_quality(text)
+
+
+def test_supported_inline_policy_preserves_tighter_settings():
+    policy = parse_delivery_quality(
+        "delivery_quality: {schema_version: 1, individual_decision_conflict: stop}\n")
+    assert policy["individual_decision_conflict"] == "stop"
+
+
+def test_policy_mentions_inside_comments_or_values_are_not_settings():
+    text = '# {delivery_quality: {schema_version: 2}}\nother: "{delivery_quality: ignored}"\n'
+    assert parse_delivery_quality(text) == resolve_delivery_quality()
+
+
 def test_applicability_uses_task_ancestors_and_canonical_aliases(topics, candidate):
     match = assess_candidate(candidate, ("ranking",), topics)
     assert match.binding and match.matched_topics == ("retrieval",)

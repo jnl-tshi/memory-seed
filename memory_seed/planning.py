@@ -106,6 +106,24 @@ def parse_delivery_quality(
     lines = project_yaml.splitlines()
     starts = [i for i, line in enumerate(lines)
               if re.match(r"^(?:delivery_quality|'delivery_quality'|\"delivery_quality\")\s*:", line)]
+    # Recognition must be broader than the supported column-zero block syntax:
+    # otherwise indented/flow policy can silently disappear into defaults. This
+    # lexical guard only identifies keys; the existing YAML reader still parses
+    # supported values. Keep quoted values and comments opaque to avoid treating
+    # documentation mentioning the setting as actual configuration.
+    token_pattern = r'''"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|\#[^\n]*|[{}\[\],:]|[^\s{}\[\],:#]+'''
+    for line_number, line in enumerate(lines):
+        tokens = re.findall(token_pattern, line)
+        for position, token in enumerate(tokens[:-1]):
+            if token.startswith("#"):
+                break
+            if (token in ("delivery_quality", "'delivery_quality'", '"delivery_quality"')
+                    and tokens[position + 1] == ":"
+                    and (position == 0 or tokens[position - 1] in ("{", ","))
+                    and (line_number not in starts or position != 0)):
+                raise PlanningValidationError(
+                    "unsupported delivery_quality YAML syntax; use a column-zero delivery_quality mapping"
+                )
     if len(starts) > 1:
         raise PlanningValidationError("duplicate delivery_quality mapping")
     if not starts:
