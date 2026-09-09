@@ -575,13 +575,34 @@ class TestDeliveryQualityScenarioHarness:
         } <= reuse_subjects
 
         negative = evaluator.evaluate_declared_fixtures(corpus, kind="negative")
-        failures_by_fixture = {result["fixture_id"]: result["failures"] for result in negative["results"]}
-        for fixture_id in (
-            "invented-untagged-coverage",
-            "blanket-tdd-substitutes-for-strategy",
-            "exception-without-compensating-check",
-            "closed-ledger-not-found",
-            "board-artifacts-changed",
-        ):
-            assert fixture_id in failures_by_fixture
-            assert failures_by_fixture[fixture_id]
+        results_by_fixture = {result["fixture_id"]: result for result in negative["results"]}
+        expected_controls = {
+            "invented-untagged-coverage": (
+                "trigger",
+                "prohibited observation invented-topic-coverage was observed",
+            ),
+            "ancestor-scan-omitted": (
+                "trigger",
+                "required observation topic-ancestors-consulted is absent",
+            ),
+            "blanket-tdd-substitutes-for-strategy": (
+                "trigger",
+                "prohibited observation blanket-tdd was observed",
+            ),
+            "exception-without-compensating-check": (
+                "trigger",
+                "required observation alternative-check-declared is absent",
+            ),
+            "closed-ledger-not-found": (
+                "trigger",
+                "required observation closed-ledger-discovered is absent",
+            ),
+            "board-artifacts-changed": (
+                "trigger",
+                "prohibited observation board-artifacts-altered was observed",
+            ),
+        }
+        for fixture_id, (expected_routing, expected_failure) in expected_controls.items():
+            result = results_by_fixture[fixture_id]
+            assert result["expected_routing"] == expected_routing
+            assert expected_failure in result["failures"]

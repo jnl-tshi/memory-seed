@@ -16,7 +16,7 @@ records both passed local artifact binding, but they are not a causal delivery-u
 
 ## Files changed
 
-- `experiments/delivery-quality/scenarios.json` — three observable scenarios and five negative controls.
+- `experiments/delivery-quality/scenarios.json` — three observable scenarios and six negative controls.
 - `experiments/delivery-quality/README.md` — current corpus/provenance scope.
 - `tests/test_delivery_quality.py` — corpus-coverage and structured negative-control assertions.
 - `.superpowers/sdd/superpowers-delivery-quality-uplift-plan/task-10-report.md` — this report.
