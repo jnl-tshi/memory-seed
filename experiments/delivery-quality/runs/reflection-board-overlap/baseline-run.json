@@ -1,0 +1,66 @@
+{
+  "schema": "delivery-quality-execution-artifact/v1",
+  "run_id": "reflection-board-overlap-baseline-e3e6d233",
+  "execution_surface": {
+    "id": "delegated-terminal-report-baseline-e3e6d233",
+    "kind": "actual_execution_surface"
+  },
+  "scenario_id": "new-consequential-design",
+  "comparison_phase": "baseline",
+  "evidence": [
+    {
+      "id": "baseline-context",
+      "source": "delegated baseline agent terminal report (reconstructed provenance)",
+      "record": "The same overlap scenario and model tier were assessed at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. The baseline agent was explicitly denied the new design-discovery, systematic-debugging, planning-policy, and evaluation files."
+    },
+    {
+      "id": "baseline-discovery",
+      "source": "delegated baseline agent terminal report (reconstructed provenance)",
+      "record": "The baseline agent observed all three new-consequential-design requirements: it inspected existing capabilities, compared realistic alternatives, and recorded the selected design."
+    },
+    {
+      "id": "baseline-decision",
+      "source": "delegated baseline agent terminal report (reconstructed provenance)",
+      "record": "The baseline recommendation was to retain Reflection code/history/read-only integrity, keep writes dormant, use verified SDD for eligible approved same-session multi-task work, and reconsider Board reactivation only through a bounded trial demonstrating a unique coordination gap."
+    },
+    {
+      "id": "baseline-limitations",
+      "source": "delegated baseline agent terminal report (reconstructed provenance)",
+      "record": "The baseline report selected the overlap case, had no provider token, latency, or cost measurements, and reported the current Board candidate as malformed from ambiguous history."
+    }
+  ],
+  "observations": [
+    {
+      "action": "inspect",
+      "subject": "existing_capabilities",
+      "status": "observed",
+      "evidence_ids": ["baseline-discovery"]
+    },
+    {
+      "action": "compare",
+      "subject": "realistic_alternatives",
+      "status": "observed",
+      "evidence_ids": ["baseline-discovery"]
+    },
+    {
+      "action": "record_decision",
+      "subject": "selected_design",
+      "status": "observed",
+      "evidence_ids": ["baseline-decision"]
+    }
+  ],
+  "measurements": {
+    "provider_token_usage": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose provider token usage."
+    },
+    "latency": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose latency."
+    },
+    "cost": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose cost."
+    }
+  }
+}
