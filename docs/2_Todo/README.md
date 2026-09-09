@@ -1,5 +1,11 @@
 # 2_Todo
 
+This lane contains accepted or still-owned roadmap work; it is not a priority ranking by itself.
+Start with [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md), which groups the live plans into ready slices,
+dependency-blocked programmes, unresolved user decisions, and the separate Superpowers plan. The
+generated table below is a complete metadata index for lookup; it is intentionally not the route
+through the work. Mixed plans keep their full history and shipped-phase detail in their source files.
+
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
