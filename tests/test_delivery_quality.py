@@ -274,8 +274,9 @@ class TestDeliveryQualityScenarioHarness:
             ("retain_owner", "memory_seed_authority_risk_consent_task_packets"),
             ("retain_owner", "memory_seed_worktrees_branches_integration_cleanup"),
             ("retain_owner", "memory_seed_durable_records_and_return_receipt_verification"),
-            ("return_before", "return_before_memory_seed_integration"),
-            ("evaluate", "external_output_before_integration"),
+            ("return", "external_output"),
+            ("evaluate", "external_output"),
+            ("integrate", "memory_seed_integration"),
             ("classify", "external_recommendations_and_acceptance_references_as_evidence"),
             ("preserve", "reflection_board_dormant"),
         } <= required
@@ -288,21 +289,68 @@ class TestDeliveryQualityScenarioHarness:
             ("copy", "external_execution_controller"),
             ("copy", "external_worktree_manager"),
             ("copy", "external_branch_finishing_workflow"),
+            ("copy", "external_sdd_workspace"),
+            ("copy", "external_sdd_ledger"),
+            ("copy", "external_sdd_briefs"),
+            ("copy", "external_sdd_reports"),
+            ("copy", "external_sdd_reviews"),
             ("alter", "reflection_board_configuration"),
         } <= prohibited
 
-        fallback = scenarios["external-unavailable-local-fallback"]
-        assert {
-            (observation["action"], observation["subject"])
-            for observation in fallback["required_observations"]
-        } >= {
-            ("detect", "external_unavailable_unverified_unsupported_or_wrong_capability"),
-            ("route", "named_local_fallback"),
+        for scenario_id, ineligibility, fallback in (
+            ("external-unavailable-local-fallback", "external_unavailable", "memory_seed_direct_workflow"),
+            ("external-unverified-local-fallback", "external_unverified", "memory_seed_sequential_workflow"),
+            ("external-unsupported-version-local-fallback", "external_unsupported_version", "memory_seed_fan_out_workflow"),
+            ("external-wrong-capability-local-fallback", "external_wrong_capability", "memory_seed_direct_workflow"),
+        ):
+            required = {
+                (observation["action"], observation["subject"])
+                for observation in scenarios[scenario_id]["required_observations"]
+            }
+            prohibited = {
+                (observation["action"], observation["subject"])
+                for observation in scenarios[scenario_id]["prohibited_observations"]
+            }
+            assert {("detect", ineligibility), ("route", fallback)} <= required
+            assert ("route", "unverified_external_route") in prohibited
+
+    def test_external_boundary_ordering_and_exclusions_reject_structured_violations(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenario = next(
+            item for item in corpus["scenarios"] if item["id"] == "external-approved-routes-boundary"
+        )
+        valid = json.loads(json.dumps(scenario["valid_fixture"]))
+        assert evaluator.evaluate_run(corpus, scenario["id"], valid)["passed"]
+
+        reversed_order = json.loads(json.dumps(valid))
+        positions = {
+            (observation["action"], observation["subject"]): index
+            for index, observation in enumerate(reversed_order["observations"])
         }
-        assert ("route", "unverified_external_route") in {
-            (observation["action"], observation["subject"])
-            for observation in fallback["prohibited_observations"]
-        }
+        returned = positions[("return", "external_output")]
+        evaluated = positions[("evaluate", "external_output")]
+        reversed_order["observations"][returned], reversed_order["observations"][evaluated] = (
+            reversed_order["observations"][evaluated],
+            reversed_order["observations"][returned],
+        )
+        result = evaluator.evaluate_run(corpus, scenario["id"], reversed_order)
+        assert not result["passed"]
+        assert any("ordering constraint" in failure for failure in result["failures"])
+
+        for prohibited in scenario["prohibited_observations"]:
+            violation = json.loads(json.dumps(valid))
+            violation["observations"].append(
+                {
+                    "action": prohibited["action"],
+                    "subject": prohibited["subject"],
+                    "status": "observed",
+                    "evidence_ids": ["x1"],
+                }
+            )
+            result = evaluator.evaluate_run(corpus, scenario["id"], violation)
+            assert not result["passed"]
+            assert f"prohibited observation {prohibited['id']} was observed" in result["failures"]
 
     def test_declared_corpus_has_required_trigger_and_measurement_contracts(self):
         evaluator = load_delivery_quality_evaluator()
@@ -566,11 +614,12 @@ class TestDeliveryQualityScenarioHarness:
         assert {
             "external_read_only_dispatch",
             "approved_external_sdd",
-            "return_before_memory_seed_integration",
+            "external_output",
+            "memory_seed_integration",
         } <= approved_subjects
         assert {
-            "external_unavailable_unverified_unsupported_or_wrong_capability",
-            "named_local_fallback",
+            "external_unavailable",
+            "memory_seed_direct_workflow",
         } <= fallback_subjects
 
         review_subjects = {

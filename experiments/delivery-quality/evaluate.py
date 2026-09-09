@@ -72,6 +72,52 @@ def _matches(observation: dict[str, Any], contract: dict[str, Any]) -> bool:
     return all(observation.get(field) == contract.get(field) for field in ("action", "subject"))
 
 
+def _validate_ordering_constraints(
+    scenario: dict[str, Any], observations: list[Any], failures: list[str]
+) -> None:
+    """Require declared observation pairs to occur in structured execution order."""
+    constraints = scenario.get("ordering_constraints", [])
+    if not isinstance(constraints, list):
+        failures.append("ordering_constraints must be a list")
+        return
+    required = {
+        contract.get("id"): contract
+        for contract in scenario.get("required_observations", [])
+        if isinstance(contract, dict) and isinstance(contract.get("id"), str)
+    }
+    for constraint in constraints:
+        if not isinstance(constraint, dict):
+            failures.append("ordering constraint must be an object")
+            continue
+        before = constraint.get("before")
+        after = constraint.get("after")
+        if (
+            not isinstance(before, str)
+            or not isinstance(after, str)
+            or before == after
+            or before not in required
+            or after not in required
+        ):
+            failures.append("ordering constraint must reference distinct required observations")
+            continue
+        before_indices = [
+            index
+            for index, observation in enumerate(observations)
+            if isinstance(observation, dict)
+            and observation.get("status") == "observed"
+            and _matches(observation, required[before])
+        ]
+        after_indices = [
+            index
+            for index, observation in enumerate(observations)
+            if isinstance(observation, dict)
+            and observation.get("status") == "observed"
+            and _matches(observation, required[after])
+        ]
+        if before_indices and after_indices and max(before_indices) >= min(after_indices):
+            failures.append(f"ordering constraint {before} before {after} was violated")
+
+
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
@@ -263,6 +309,8 @@ def evaluate_run(
                 failures.append(f"required observation {label} has malformed upstream evidence")
             else:
                 failures.append(f"required observation {label} has missing upstream evidence")
+
+    _validate_ordering_constraints(scenario, observations, failures)
 
     for contract in scenario["prohibited_observations"]:
         if any(
