@@ -108,11 +108,14 @@ a roadmap decision.
 ## Inbox candidates — not accepted roadmap
 
 These proposals remain discoverable in [`docs/1_Inbox/`](../1_Inbox/) but are intentionally absent from
-the roadmap route until an explicit disposition: [decision-level topics](../1_Inbox/decision-level-topics-proposal.md),
-[ranking A/B unit-change gate](../1_Inbox/ranking-ab-unit-change-gate-proposal.md),
+the roadmap route until an explicit disposition: [ranking A/B unit-change gate](../1_Inbox/ranking-ab-unit-change-gate-proposal.md),
 [retrieval recall fixes](../1_Inbox/retrieval-recall-fixes-proposal.md),
 [editable lens refinement](../1_Inbox/sidecar-editable-lens-refinement-proposal.md), and
 [SkillOpt fit analysis](../1_Inbox/skillopt-fit-analysis.md).
+
+Decision-level topic keying is the exception: its governing D2 explicitly records a deferred, not-built
+disposition, so it lives in [`decision-level-topics-proposal.md`](../8_Deferred/decision-level-topics-proposal.md) with a
+revisit trigger rather than in Inbox.
 
 ## Separate plan — do not fold into this route
 

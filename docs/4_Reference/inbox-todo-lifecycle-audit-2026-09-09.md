@@ -8,16 +8,17 @@ reviewed_scope: "docs/1_Inbox/*.md and docs/2_Todo/*.md, excluding lane indexes 
 
 ## Result
 
-This read-and-reconcile audit covered every direct Markdown work item in `docs/1_Inbox/` (14) and
+This read-and-reconcile audit covered every direct Markdown work item in `docs/1_Inbox/` (13) and
 `docs/2_Todo/` (40). It used current lane contents, frontmatter and next actions, the existing
 2026-09-08 Todo audit, targeted session decisions, decision-level lifecycle links where relevant,
 and narrow current-code checks for claims of shipped behavior.
 
-- **Inbox retained: 14.** This includes the original 9 proposals plus 5 explicitly unaccepted or
-  decision-pending proposals moved from Todo for clarity.
+- **Inbox retained: 13.** This includes the original 9 proposals plus 4 explicitly unaccepted or
+  decision-pending proposals moved from Todo for clarity. One explicitly deferred proposal moved to
+  `8_Deferred` under its governing disposition.
 - **Todo retained: 40.** Each still owns live work, an explicit gate, a partial implementation with
   an open remainder, or an unresolved user decision.
-- **Moves made in this pass: 5 to Inbox, 0 terminal.** The prior ten Completed moves and one Replaced move are already
+- **Moves made in this pass: 4 to Inbox, 1 to Deferred, 0 terminal.** The prior ten Completed moves and one Replaced move are already
   present on `main` (see the 2026-09-08 audit and `mse_j6bqhepzg8b1p4rs`). No content was deleted,
   duplicated, or moved to a terminal lane on weaker evidence.
 - **Index repair:** lane indexes and front-door counts were checked against current `main`; the Inbox
@@ -42,19 +43,19 @@ and narrow current-code checks for claims of shipped behavior.
 | `1_Inbox/agent-interaction-storylines-review.md` | Retain by explicit exception | Inbox README; `mse_vjb1kgdq26c5b38y`, `mse_spn9wdhjasq6r344` | Remains Inbox as a living review synchronized with shipped behavior; this is not an untriaged capture. |
 | `1_Inbox/reflection-board-cumulative-handoff-and-decision-harvest-proposal.md` | Retain, unassessed | `mse_j6bqhepzg8b1p4rs` D2 explicitly captures it as an unassessed Inbox proposal | Remains Inbox pending assessment against the current v1 transaction contract. |
 | `1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md` | Retain, review-gated | `mse_jt93a64rsc17bdas` D1 explicitly requires independent semantic/current-main review before promotion or implementation | Remains Inbox; the stale v3 branch is evidence only, not a completed or superseding implementation. |
-| `1_Inbox/decision-level-topics-proposal.md` | Move from Todo to Inbox, deferred | `mse_xc3f1we7p4808mra` D2 explicitly says the proposal is deferred, not built | Preserved in Inbox until a decision-level graph consumer creates an accepted roadmap need. |
+| `8_Deferred/decision-level-topics-proposal.md` | Move from Todo to Deferred | `mse_pww2f69g5ket96h6` D1 and `mse_jz0pwv0ngzzxr484` D2 explicitly record deferred/not-built status | Preserved in Deferred with a revisit trigger for an accepted decision-level graph consumer. |
 | `1_Inbox/ranking-ab-unit-change-gate-proposal.md` | Move from Todo to Inbox, proposed | `mse_fvqs26sdqbvcem9r` records it as proposed-not-built and leaves whether a unit-change gate is needed undecided | Preserved in Inbox; it is not an accepted gate. |
 | `1_Inbox/retrieval-recall-fixes-proposal.md` | Move from Todo to Inbox, proposed | `mse_dka59wfne2be5fr0` specifies candidate fixes but records none applied and no acceptance | Preserved in Inbox pending an explicit owner/approval decision. |
 | `1_Inbox/sidecar-editable-lens-refinement-proposal.md` | Move from Todo to Inbox, decision-pending | `mse_zq69mbr57qnppm36` leaves true in-place editing awaiting a shape decision | Preserved in Inbox; the solved append-only case is not mistaken for an accepted build. |
 | `1_Inbox/skillopt-fit-analysis.md` | Move from Todo to Inbox, planned artifact | `mse_eap4caz71kggmf7h` says retain it as planned documentation, not accepted implementation | Preserved in Inbox until a roadmap owner and explicit go are recorded. |
 
 The lane's generated `README.md` index is a control document, not a proposal; it stays in place and
-is updated only through the marker-scoped index mechanism. The fourteen proposal rows above account
+is updated only through the marker-scoped index mechanism. The thirteen proposal rows above account
 for all direct Inbox work items.
 
 ## Todo — retained active or unresolved work
 
-The following 40 documents remain in `2_Todo/`; the five moved proposals are listed in the Inbox table above and retained in the evidence ledger below. The shared evidence baseline is
+The following 40 documents remain in `2_Todo/`; the four Inbox moves and one Deferred move are listed above and retained in the evidence ledger below. The shared evidence baseline is
 `docs/4_Reference/todo-lifecycle-audit-2026-09-08.md` and its receipt-bearing session entry
 `mse_j6bqhepzg8b1p4rs`; each row was checked against its current next action, blocked-by field, and
 any explicit shipped/remaining-scope statement. A partial first phase does not move a document when
@@ -105,7 +106,7 @@ the same document still owns an explicit follow-up.
 
 ### Exact filename evidence ledger
 
-The following is the latest exact filename-bearing `F:` decision match found for each of the 45 reviewed proposal documents (including the five now moved to Inbox). These references were searched in the decision-bearing `F:` sections first, before relying on the live document's metadata. These references establish the most recent
+The following is the latest exact filename-bearing `F:` decision match found for each of the 45 reviewed proposal documents (including the five moved out of Todo in this pass). These references were searched in the decision-bearing `F:` sections first, before relying on the live document's metadata. These references establish the most recent
 recorded work touching the path; the outcome column above is based on the document's observed
 remaining scope, not on a stale `next_action` field alone. A shipped slice therefore remains retained
 when the same document still names an open remainder or gate.
@@ -175,7 +176,7 @@ session entry `mse_j6bqhepzg8b1p4rs`, and the current Git tree. No duplicate sou
 
 ## Verification
 
-- Current direct-work-item inventory: 14 Inbox, 40 Todo.
+- Current direct-work-item inventory: 13 Inbox, 40 Todo, 1 Deferred move in this pass.
 - `docs check`: passed with 13 pre-existing incomplete-Todo metadata warnings and no lifecycle errors.
 - `docs index --check`: passed; generated lane/front-door indexes are current.
 - `links check`: completed after the navigation and lane-normalization entries; the repository still

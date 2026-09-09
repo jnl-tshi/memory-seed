@@ -2,7 +2,7 @@
 title: Decision-level topic sidecars
 status: draft
 spec_binding: draft
-parent: ../../1_Inbox/decision-level-topics-proposal.md
+parent: ../../8_Deferred/decision-level-topics-proposal.md
 ---
 
 # Decision-Level Topic Sidecars

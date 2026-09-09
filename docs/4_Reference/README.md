@@ -50,6 +50,7 @@ Current Memory Trace provenance:
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
 | [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
+| [next-steps-history-2026-09-09.md](next-steps-history-2026-09-09.md) | — | — | reference |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [reflection-board-v1-operator-guide.md](reflection-board-v1-operator-guide.md) | — | — | reference |
 | [todo-lifecycle-audit-2026-09-08.md](todo-lifecycle-audit-2026-09-08.md) | — | — | reference |
