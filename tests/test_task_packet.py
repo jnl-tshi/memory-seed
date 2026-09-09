@@ -33,6 +33,238 @@ from memory_seed.task_packet import (
 
 
 class TaskPacketTests(unittest.TestCase):
+    def planning_dispatch(self, root):
+        from memory_seed.task_packet import prepare_planning_evidence
+        dispatch = self.dispatch()
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        source = next(item for item in packet["materialized_evidence"] if item["source"] == "docs/evidence.md")
+        draft = {
+            "id": "exact-slices", "selected_alternative": "Keep exact slices",
+            "sources": [source["id"]],
+            "candidate": {"reference": source["id"], "decision": "Use exact canonical slices.",
+                          "authority": "derived_projection", "topics": []},
+            "assessed_scope": {"topics": [], "paths": ["docs/evidence.md"]},
+            "compatibility_constraints": ["Preserve exact-source materialization."],
+            "proposed_action": "Reuse the compiler", "conflict_reason": None,
+            "agent_recommendation": "proceed", "user_acceptance": None,
+            "departure_reference": None,
+        }
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        return dispatch
+
+    def test_planning_evidence_is_bound_once_and_accounted_without_acceptance(self):
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        item = packet["dispatch"]["planning_evidence"][0]
+        self.assertFalse(item["authority_granted"])
+        self.assertIsNone(item["user_acceptance"])
+        self.assertEqual(item["freshness"]["state"], "fresh")
+        self.assertEqual(item["freshness"]["invalidation_reasons"], [])
+        self.assertEqual(canonical_task_packet_json(packet).count("Keep exact slices"), 1)
+        self.assertEqual(packet["input_ledger"]["serialized_packet_input_tokens"],
+                         estimate_tokens(canonical_task_packet_json(packet)))
+        self.assertEqual(packet, compile_task_packet(dispatch, self.binding(root), root))
+
+    def test_planning_rejects_stale_source_and_reports_affected_assessment(self):
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        (root / "docs/evidence.md").write_text("# Evidence\n\nChanged decision.\n", encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertEqual(caught.exception.code, "stale_planning_evidence")
+        self.assertIn("exact-slices", caught.exception.details["invalidated"])
+
+    def test_planning_unchanged_scope_reuses_evidence_but_corpus_pack_stays_pinned(self):
+        from memory_seed.retrieval import validate_evidence_pack
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        old = compile_task_packet(dispatch, self.binding(root), root)
+        (root / "docs/unrelated.md").write_text("Unrelated work.\n", encoding="utf-8")
+        self.git(root, "add", ".")
+        self.git(root, "commit", "-m", "unrelated work")
+        fresh = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertEqual(old["dispatch"]["planning_evidence"], fresh["dispatch"]["planning_evidence"])
+        with self.assertRaises(RetrievalSpecResolutionError):
+            validate_evidence_pack(old["evidence_pack"], root)
+
+    def test_planning_rejects_unbound_inconsistent_weakening_and_duplicate_records(self):
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        for mutation in ("unbound", "grant", "disposition", "weakening", "duplicate", "scope", "acceptance"):
+            bad = copy.deepcopy(dispatch)
+            item = bad["planning_evidence"][0]
+            if mutation == "unbound":
+                del item["freshness"]
+            elif mutation == "grant":
+                item["authority_granted"] = True
+            elif mutation == "disposition":
+                item["disposition"] = "proceed"
+            elif mutation == "weakening":
+                item["effective_policy"]["adr_conflict"] = "proceed"
+            elif mutation == "duplicate":
+                bad["planning_evidence"].append(copy.deepcopy(item))
+            elif mutation == "scope":
+                item["assessed_scope"]["paths"].append("new.py")
+            else:
+                item["user_acceptance"] = {"reference": "agent recommendation", "scope": "all", "reason": "assumed"}
+            with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError):
+                compile_task_packet(bad, self.binding(root), root)
+
+    @staticmethod
+    def planning_draft(item):
+        draft = copy.deepcopy(item)
+        for key in ("assessment", "disposition", "effective_policy", "required_follow_up", "authority_granted", "freshness"):
+            draft.pop(key)
+        draft["sources"] = [source["id"] for source in draft["sources"]]
+        return draft
+
+    def test_planning_topic_changes_invalidate_only_the_affected_scoped_assessment(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        topics = root / ".memory-seed/topics.yaml"
+        topics.write_text("schema_version: 1\ntopics:\n  - slug: retrieval\n    label: Retrieval\n  - slug: debugging\n    label: Debugging\n", encoding="utf-8")
+        dispatch = self.planning_dispatch(root)
+        first = self.planning_draft(dispatch["planning_evidence"][0])
+        second = copy.deepcopy(first)
+        first["assessed_scope"]["topics"] = ["retrieval"]
+        second["id"] = "debugging"
+        second["assessed_scope"]["topics"] = ["debugging"]
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [first, second], root)
+        compile_task_packet(dispatch, self.binding(root), root)
+        topics.write_text(topics.read_text(encoding="utf-8").replace("label: Retrieval", "label: Retrieval changed"), encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertEqual(set(caught.exception.details["invalidated"]), {"exact-slices"})
+        self.assertIn("topic_tree changed", caught.exception.details["invalidated"]["exact-slices"])
+
+    def test_planning_policy_profile_and_execution_scope_changes_require_reassessment(self):
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        config = root / ".memory-seed/project.yaml"
+        config.write_text("delivery_quality:\n  schema_version: 1\n  individual_decision_conflict: stop\n", encoding="utf-8")
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_planning_evidence"):
+            compile_task_packet(dispatch, self.binding(root), root)
+        config.unlink()
+        profile = root / ".memory-seed/retrieval-profiles/implementation/v1.yaml"
+        original = profile.read_text(encoding="utf-8")
+        profile.write_text(original.replace("max_entries: 20", "max_entries: 19"), encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertIn("profile changed", caught.exception.details["invalidated"]["exact-slices"])
+        profile.write_text(original, encoding="utf-8")
+        dispatch["execution"]["allowed_files"] = ["new.py"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "scope expanded"):
+            compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_planning_session_lifecycle_changes_even_when_decision_slice_does_not(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        draft["sources"].append("mse_packet0001:d1")
+        draft["candidate"].update(reference="mse_packet0001:d1", authority="session_evidence")
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        original_digest = dispatch["planning_evidence"][0]["sources"][1]["content_digest"]
+        (root / ".memory-seed/sessions/2026-08-02.md").write_text(
+            "## 2026-08-02 09:00 - Replacement\n\n```yaml\nentry_id: mse_packet0002\n"
+            "replaces:\n  - mse_packet0001\n```\n\n### Decision\n\n- D: Replace the old decision.\n", encoding="utf-8")
+        fresh_pack = compile_task_packet(self.dispatch(), self.binding(root), root)
+        self.assertEqual(next(item["content_digest"] for item in fresh_pack["materialized_evidence"]
+                              if item["id"] == "mse_packet0001:d1"), original_digest)
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_planning_evidence"):
+            compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_planning_supplemental_fetch_rejects_refetch_and_debits_only_reserved_input(self):
+        from memory_seed.task_packet import validate_task_packet_supplemental_fetch
+        root = self.make_project()
+        packet = compile_task_packet(self.planning_dispatch(root), self.binding(root), root)
+        original = copy.deepcopy(packet)
+        for source in ("docs/evidence.md", "DOCS\\EVIDENCE.MD", ".memory-seed/agent-rules.md"):
+            with self.subTest(source=source), self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
+                validate_task_packet_supplemental_fetch(packet, source, [1, 3], token_estimate=10)
+        debit = validate_task_packet_supplemental_fetch(packet, "docs/gap.md", [1, 3], token_estimate=20, prior_debits=30)
+        self.assertEqual(debit, {"token_debit": 20, "total_debits": 50, "remaining_tokens": 950})
+        with self.assertRaisesRegex(TaskPacketValidationError, "supplemental_budget_exceeded"):
+            validate_task_packet_supplemental_fetch(packet, "docs/gap.md", [1, 3], token_estimate=1001)
+        self.assertEqual(packet, original)
+
+    def test_planning_rejects_duplicated_materialized_evidence(self):
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        pack = compile_task_packet(dispatch, self.binding(root), root)["evidence_pack"]
+        pack["evidence"].append(copy.deepcopy(pack["evidence"][0]))
+        pack["fingerprint"] = _evidence_pack_fingerprint(pack)
+        with mock.patch("memory_seed.task_packet.resolve_retrieval_spec", return_value=pack):
+            with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
+                compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_planning_conflict_recommendation_and_sourced_acceptance_do_not_change_policy(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        (root / ".memory-seed/topics.yaml").write_text("schema_version: 1\ntopics:\n  - slug: retrieval\n", encoding="utf-8")
+        session = root / ".memory-seed/sessions/2026-08-01.md"
+        session.write_text(session.read_text(encoding="utf-8").replace("subproject_path: null", "subproject_path: null\ntopics:\n  - retrieval"), encoding="utf-8")
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        draft["sources"].append("mse_packet0001:d1")
+        draft["candidate"].update(reference="mse_packet0001:d1", authority="session_evidence", topics=["retrieval"])
+        draft["assessed_scope"]["topics"] = ["retrieval"]
+        draft["conflict_reason"] = "Proposed action departs from the recorded decision."
+        absent = prepare_planning_evidence(dispatch, [draft], root)[0]
+        self.assertEqual(absent["disposition"], "warn")
+        self.assertIsNone(absent["user_acceptance"])
+        draft["user_acceptance"] = {"reference": draft["sources"][0], "scope": "the selected alternative", "reason": "Submitted user acceptance evidence"}
+        draft["departure_reference"] = draft["sources"][1]
+        carried = prepare_planning_evidence(dispatch, [draft], root)[0]
+        self.assertEqual(carried["disposition"], "warn")
+        self.assertFalse(carried["authority_granted"])
+        self.assertIn("record_departure_and_lifecycle_review", carried["required_follow_up"])
+        with self.assertRaisesRegex(TaskPacketValidationError, "cannot weaken"):
+            prepare_planning_evidence(dispatch, [draft], root, effective_policy={"individual_decision_conflict": "proceed"})
+
+    def test_planning_activation_rechecks_sources_after_packet_creation(self):
+        root = self.make_project()
+        self.git(root, "switch", "-c", "feature-planning")
+        dispatch = self.planning_dispatch(root)
+        dispatch["execution"]["write_intent"] = "writing"
+        dispatch["execution"]["allowed_files"] = ["docs/evidence.md"]
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        activate_task_packet(packet, root)
+        (root / "docs/evidence.md").write_text("Changed since compilation.\n", encoding="utf-8")
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_planning_evidence"):
+            activate_task_packet(packet, root)
+
+    def test_planning_adr_ledger_lifecycle_is_not_hidden_by_unchanged_current_view(self):
+        from memory_seed.adr import AdrEvent, AdrRecord, render_adr
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        record = AdrRecord(2, "adr_packet", "Packet contract", (), "2026-08-01T09:00:00Z", "JN", "codex", "write-time",
+                           events=[
+                               AdrEvent("revision-proposed", "adre_proposed", "2026-08-01T09:00:00Z", "write-time",
+                                        decision_ref="mse_packet0001:d1", decision="Keep exact sources.", why="Traceability."),
+                               AdrEvent("revision-accepted", "adre_accepted", "2026-08-01T09:01:00Z", "write-time",
+                                        decision_ref="mse_packet0001:d1", reason="Approved."),
+                           ])
+        path = root / ".memory-seed/decisions/adr_packet.md"
+        path.parent.mkdir()
+        path.write_text(render_adr(record), encoding="utf-8")
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        dispatch["retrieval"]["overrides"] = {"selectors": {"pinned": [{"kind": "adr", "id": "adr_packet", "reason": "Relevant accepted head"}]}}
+        draft["sources"].append("adr_packet")
+        draft["candidate"].update(reference="adr_packet", authority="accepted_adr")
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        record.events.append(AdrEvent("adr-superseded", "adre_superseded", "2026-08-02T09:00:00Z", "write-time",
+                                      replacement_adr="adr_successor", reason="Replaced authority."))
+        # Preserve the old materialized Current view; only append the new native ledger event.
+        suffix = render_adr(record).split("### adr-superseded", 1)[1]
+        path.write_text(path.read_text(encoding="utf-8") + "\n### adr-superseded" + suffix, encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertEqual(set(caught.exception.details["invalidated"]), {"exact-slices"})
+        self.assertIn("lifecycle", caught.exception.details["invalidated"]["exact-slices"][0])
+
     def reflection_writer(self):
         from datetime import datetime, timezone
         from memory_seed.reflection_ledger import initialize_workstream_ledger, render_workstream_ledger, workstream_ledger_path

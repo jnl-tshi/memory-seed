@@ -20,6 +20,7 @@ import hashlib
 import json
 import math
 import re
+from dataclasses import asdict
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -39,6 +40,11 @@ from .retrieval import (
 )
 from .retrieval_profiles import load_retrieval_profile
 from .retrieval_spec import normalize_retrieval_spec_v2, retrieval_spec_fingerprint
+from .planning import (
+    PlanningCandidate, PlanningValidationError, assess_candidate, assess_conflict,
+    parse_delivery_quality,
+)
+from .topics import load_topic_index
 
 
 TASK_DISPATCH_SCHEMA = "memory-seed/task-dispatch"
@@ -74,6 +80,7 @@ _DISPATCH_KEYS = frozenset(
         "constitution_refs",
         "memory_update_policy",
         "memory_checkpoints",
+        "planning_evidence",
     }
 )
 _PROJECT_CONTEXT_KEYS = frozenset(
@@ -667,7 +674,7 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
             "guarded_append": True,
         }
 
-    return {
+    normalized = {
         "schema": TASK_DISPATCH_SCHEMA,
         "version": TASK_DISPATCH_VERSION,
         "objective": objective,
@@ -679,6 +686,9 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "memory_update_policy": memory_policy,
         "memory_checkpoints": checkpoints,
     }
+    if "planning_evidence" in dispatch:
+        normalized["planning_evidence"] = _normalize_planning_evidence(dispatch["planning_evidence"])
+    return normalized
 
 
 def canonical_task_dispatch_json(dispatch: Mapping[str, Any]) -> str:
@@ -689,6 +699,298 @@ def task_dispatch_fingerprint(dispatch: Mapping[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(
         canonical_task_dispatch_json(dispatch).encode("utf-8")
     ).hexdigest()
+
+
+_PLANNING_DRAFT_KEYS = frozenset({
+    "id", "selected_alternative", "sources", "candidate", "assessed_scope",
+    "compatibility_constraints", "proposed_action", "conflict_reason",
+    "agent_recommendation", "user_acceptance", "departure_reference",
+})
+_PLANNING_DERIVED_KEYS = frozenset({
+    "assessment", "disposition", "effective_policy", "required_follow_up",
+    "authority_granted", "freshness",
+})
+_SOURCE_IDENTITY_KEYS = ("id", "kind", "source", "line_range", "content_digest")
+
+
+def _planning_digest(value: Any) -> str:
+    try:
+        return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+    except (TypeError, ValueError) as exc:
+        _fail("planning_evidence", "requires canonical JSON data", code="invalid_planning_evidence")
+
+
+def _normalize_planning_evidence(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        _fail("planning_evidence", "must be a nonempty list of bound assessments")
+    result = copy.deepcopy(value)
+    ids = set()
+    for item in result:
+        item = _mapping(item, "planning_evidence")
+        keys = _PLANNING_DRAFT_KEYS | _PLANNING_DERIVED_KEYS
+        _exact_keys(item, "planning_evidence", keys, required=keys)
+        identity = _string(item["id"], "planning_evidence.id")
+        if identity in ids:
+            _fail("planning_evidence.id", "duplicate assessment", code="duplicate_planning_evidence")
+        ids.add(identity)
+        freshness = _mapping(item["freshness"], "planning_evidence.freshness")
+        _exact_keys(freshness, "planning_evidence.freshness",
+                    frozenset({"state", "invalidation_reasons", "inputs", "fingerprint"}),
+                    required=frozenset({"state", "invalidation_reasons", "inputs", "fingerprint"}))
+        _mapping(freshness["inputs"], "planning_evidence.freshness.inputs")
+        if freshness["state"] != "fresh" or freshness["invalidation_reasons"] != []:
+            _fail("planning_evidence.freshness", "requires fresh, reassessed evidence", code="stale_planning_evidence")
+        unsigned = {key: val for key, val in item.items() if key != "freshness"}
+        if freshness["fingerprint"] != _planning_digest({"assessment": unsigned, "inputs": freshness["inputs"]}):
+            _fail("planning_evidence.freshness", "assessment is unbound or modified", code="planning_fingerprint_mismatch")
+        if item["authority_granted"] is not False:
+            _fail("planning_evidence.authority_granted", "references never grant authority")
+    return result
+
+
+def _planning_authority(candidate: PlanningCandidate, source: Mapping[str, Any], cwd: str | Path) -> dict[str, Any]:
+    """Measure lifecycle from existing readers, never from the submitted assessment."""
+    from .adr import parse_adr
+    from .retrieval import load_corpus
+    from .semantic_cache import build_related_entry_graph, build_refines_spine, replacing_lineage_heads
+
+    kind = source["kind"]
+    expected_authority = {"adr": "accepted_adr", "constitution": "constitution",
+                          "decision": "session_evidence", "session": "session_evidence"}.get(kind)
+    if source["source"] in {".memory-seed/policy.md", ".memory-seed/agent-rules.md", ".memory-seed/index.md"}:
+        expected_authority = "control_file"
+    if expected_authority is not None and candidate.authority != expected_authority:
+        _fail("planning_evidence.candidate.authority", "cannot downgrade the canonical source authority")
+    state: dict[str, Any] = {"authority": candidate.authority, "status": "active"}
+    if candidate.authority == "accepted_adr":
+        root = resolve_runtime(cwd).workspace_root.resolve()
+        path = (root / source["source"]).resolve()
+        path.relative_to(root)
+        record = parse_adr(path)
+        if kind != "adr" or record.adr_id != candidate.reference:
+            _fail("planning_evidence.candidate", "ADR authority requires a selected canonical ADR")
+        state.update(asdict(record.state))
+        state["status"] = "active" if record.current_status == "accepted" else record.current_status
+        state["topics"] = list(record.topics)
+    elif candidate.authority == "session_evidence":
+        chunks = load_corpus(cwd, granularity="entry")
+        entry, _, ordinal = candidate.reference.partition(":")
+        chunk = next((chunk for chunk in chunks if chunk.entry_id == entry), None)
+        if kind not in {"decision", "session"} or chunk is None:
+            _fail("planning_evidence.candidate", "session authority requires a selected canonical decision or entry")
+        graph = build_related_entry_graph(chunks=chunks)
+        spine = build_refines_spine(chunks)
+        state.update(replacing_heads=list(replacing_lineage_heads(graph, entry)),
+                     refines_head=list(spine.head(entry, ordinal or None)), topics=list(chunk.topics))
+        state["decision_links"] = sorted(
+            [other.entry_id, *edge] for other in chunks for edge in other.decision_edges
+            if edge[2] == entry and (not ordinal or not edge[3] or edge[3] == ordinal)
+        )
+        if state["replacing_heads"] or any(edge[1] == "replaces" for edge in state["decision_links"]):
+            state["status"] = "superseded"
+    elif candidate.authority in {"constitution", "control_file"}:
+        root = resolve_runtime(cwd).workspace_root.resolve()
+        path = (root / source["source"]).resolve()
+        path.relative_to(root)
+        text = path.read_text(encoding="utf-8")
+        if candidate.authority == "constitution":
+            if kind != "constitution":
+                _fail("planning_evidence.candidate", "Constitution authority requires a selected Constitution clause")
+            state["status"] = "active" if _CONSTITUTION_VERSION_RE.search(text) else "proposed"
+        elif source["source"] not in {".memory-seed/policy.md", ".memory-seed/agent-rules.md", ".memory-seed/index.md"}:
+            _fail("planning_evidence.candidate", "control authority requires the concern-owning control file")
+        state["control_digest"] = _planning_digest(text)
+    elif candidate.authority != "derived_projection":
+        _fail("planning_evidence.candidate", "unknown authority")
+    if candidate.status != state["status"]:
+        _fail("planning_evidence.candidate.status", "does not match current authority lifecycle", code="stale_planning_evidence")
+    if "topics" in state and list(candidate.topics) != state["topics"]:
+        _fail("planning_evidence.candidate.topics", "must retain recorded source topics")
+    return state
+
+
+def _bind_planning_assessment(draft: Mapping[str, Any], dispatch: Mapping[str, Any],
+                             records: Sequence[Mapping[str, Any]], cwd: str | Path,
+                             *, effective_policy: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    _exact_keys(draft, "planning_evidence", _PLANNING_DRAFT_KEYS, required=_PLANNING_DRAFT_KEYS)
+    item = copy.deepcopy(dict(draft))
+    for field in ("id", "selected_alternative", "proposed_action"):
+        _string(item[field], f"planning_evidence.{field}")
+    item["compatibility_constraints"] = _string_list(item["compatibility_constraints"], "planning_evidence.compatibility_constraints")
+    source_ids = _string_list(item["sources"], "planning_evidence.sources", nonempty=True)
+    selected = {record["id"]: record for record in records}
+    if not set(source_ids).issubset(selected):
+        _fail("planning_evidence.sources", "every source must be selected in the Evidence Pack", code="unbound_planning_evidence")
+    item["sources"] = [{key: selected[identity][key] for key in _SOURCE_IDENTITY_KEYS} for identity in source_ids]
+    root = resolve_runtime(cwd).workspace_root.resolve()
+    for identity in source_ids:
+        record = selected[identity]
+        source_path = (root / record["source"]).resolve()
+        source_path.relative_to(root)
+        content = (str(get_chunk(record["chunk_id"], cwd).get("text", "")) if record.get("chunk_id")
+                   else _source_slice(source_path, record["line_range"]))
+        if "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest() != record["content_digest"]:
+            _fail("planning_evidence.sources", "source digest changed", code="stale_planning_evidence")
+    scope = _mapping(item["assessed_scope"], "planning_evidence.assessed_scope")
+    _exact_keys(scope, "planning_evidence.assessed_scope", frozenset({"topics", "paths"}), required=frozenset({"topics", "paths"}))
+    topics = _string_list(scope["topics"], "planning_evidence.assessed_scope.topics")
+    paths = [_path_string(path, "planning_evidence.assessed_scope.paths")
+             for path in _string_list(scope["paths"], "planning_evidence.assessed_scope.paths")]
+    item["assessed_scope"] = scope = {"topics": topics, "paths": paths}
+    if not topics and not paths:
+        _fail("planning_evidence.assessed_scope", "requires bounded topics or paths")
+    candidate_in = _mapping(item["candidate"], "planning_evidence.candidate")
+    _exact_keys(candidate_in, "planning_evidence.candidate", frozenset(PlanningCandidate.__dataclass_fields__),
+                required=frozenset({"reference", "decision", "authority"}))
+    candidate = PlanningCandidate(**candidate_in)
+    if candidate.reference not in source_ids:
+        _fail("planning_evidence.candidate.reference", "must name a selected planning source", code="unbound_planning_evidence")
+    topic_index = load_topic_index(cwd)
+    assessment = assess_candidate(candidate, topics, topic_index)
+    authority = _planning_authority(candidate, selected[candidate.reference], cwd)
+    item["candidate"] = json.loads(canonical_json(asdict(candidate)))
+    assessed = asdict(assessment)
+    assessed.pop("candidate")
+    item["assessment"] = json.loads(canonical_json(assessed))
+    runtime = resolve_runtime(cwd)
+    config = runtime.memory_dir / "project.yaml"
+    config_text = config.read_text(encoding="utf-8") if config.exists() else ""
+    tracked_policy = parse_delivery_quality(config_text)
+    policy = parse_delivery_quality(config_text,
+                                    local_override=effective_policy)
+    recommendation = item["agent_recommendation"]
+    if recommendation is not None and recommendation not in ("stop", "warn", "proceed"):
+        _fail("planning_evidence.agent_recommendation", "must be stop, warn, proceed or null")
+    acceptance = item["user_acceptance"]
+    if acceptance is not None:
+        acceptance = _mapping(acceptance, "planning_evidence.user_acceptance")
+        _exact_keys(acceptance, "planning_evidence.user_acceptance", frozenset({"reference", "scope", "reason"}),
+                    required=frozenset({"reference", "scope", "reason"}))
+        for key, value in acceptance.items():
+            _string(value, f"planning_evidence.user_acceptance.{key}")
+        if acceptance["reference"] not in source_ids:
+            _fail("planning_evidence.user_acceptance", "acceptance reference must be separately sourced; authenticity remains unverified")
+    departure = item["departure_reference"]
+    if departure is not None and (not isinstance(departure, str) or departure not in source_ids):
+        _fail("planning_evidence.departure_reference", "must name a selected source")
+    conflict = item["conflict_reason"]
+    if conflict is not None:
+        outcome = assess_conflict(assessment, proposed_action=item["proposed_action"], conflict_reason=conflict,
+                                  policy=policy, agent_recommendation=recommendation, user_acceptance=acceptance)
+        item["disposition"] = outcome["disposition"]
+        item["required_follow_up"] = outcome["required_follow_up"]
+    else:
+        item["disposition"] = "compatible" if assessment.binding else "review-required"
+        item["required_follow_up"] = [] if assessment.binding else ["review_applicability"]
+    item["effective_policy"] = policy
+    item["authority_granted"] = False
+    relevant_topics = set(topics) | set(candidate.topics)
+    for topic in list(relevant_topics):
+        canonical = topic_index.resolution().get(topic, topic)
+        relevant_topics.update((canonical, *topic_index.ancestors(canonical)))
+    inputs = {
+        "sources": item["sources"], "authority": authority,
+        "topic_tree": {"schema_version": topic_index.schema_version,
+                       "records": [asdict(record) for record in topic_index.topics if record.slug in relevant_topics]},
+        "policy": {"tracked": tracked_policy, "effective": policy},
+        "profile": {**dispatch["retrieval"], "effective_spec": load_retrieval_profile(
+            dispatch["retrieval"]["profile"], dispatch["retrieval"]["profile_version"], cwd,
+            overrides=dispatch["retrieval"]["overrides"])}, "scope": scope,
+        "objective": dispatch["objective"],
+    }
+    inputs = json.loads(canonical_json(inputs))
+    item["freshness"] = {"state": "fresh", "invalidation_reasons": [], "inputs": inputs,
+                         "fingerprint": _planning_digest({"assessment": item, "inputs": inputs})}
+    return item
+
+
+def prepare_planning_evidence(dispatch: Mapping[str, Any], assessments: Sequence[Mapping[str, Any]],
+                              cwd: str | Path = ".", *, effective_policy: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Bind explicitly reassessed drafts to current local evidence; no authorization.
+
+    This read-only compiler helper uses the existing profile/resolver. It is not a
+    planner or cache. Retain its return value in dispatch.planning_evidence only
+    for the assessed plan scope. Compilation checks freshness without rebinding.
+    """
+    normalized = normalize_task_dispatch({key: value for key, value in dispatch.items() if key != "planning_evidence"})
+    retrieval = normalized["retrieval"]
+    spec = load_retrieval_profile(retrieval["profile"], retrieval["profile_version"], cwd, overrides=retrieval["overrides"])
+    spec["output"]["include_excerpts"] = False
+    pack = resolve_retrieval_spec(spec, cwd)
+    validate_evidence_pack(pack, cwd)
+    try:
+        result = [_bind_planning_assessment(_mapping(draft, "planning_evidence"), normalized, pack["evidence"], cwd,
+                                            effective_policy=effective_policy) for draft in assessments]
+        return _normalize_planning_evidence(result)
+    except (PlanningValidationError, RetrievalSpecResolutionError, OSError, ValueError, TypeError) as exc:
+        if isinstance(exc, TaskPacketValidationError):
+            raise
+        _fail("planning_evidence", str(exc), code="invalid_planning_evidence")
+
+
+def _validate_planning_evidence(dispatch: Mapping[str, Any], records: Sequence[Mapping[str, Any]], cwd: str | Path) -> None:
+    if "planning_evidence" not in dispatch:
+        return
+    seen: dict[str, list[list[int]]] = {}
+    baseline_paths = {_canonical_scope_identity(_WORKER_BASELINE_AGENT_RULES)}
+    if dispatch["memory_update_policy"] == "worker_checkpoint" or _session_log_paths_are_writable(dispatch):
+        baseline_paths.add(_canonical_scope_identity(_WORKER_BASELINE_SESSION_LOGGING))
+    for record in records:
+        if _canonical_scope_identity(record["source"]) in baseline_paths:
+            _fail("planning_evidence.sources", "selected evidence duplicates complete worker baseline", code="duplicate_evidence_content")
+        ranges = seen.setdefault(_canonical_scope_identity(record["source"]), [])
+        start, end = record["line_range"]
+        if any(start <= previous[1] and previous[0] <= end for previous in ranges):
+            _fail("planning_evidence.sources", "overlapping materialized evidence", code="duplicate_evidence_content")
+        ranges.append([start, end])
+    invalidated: dict[str, list[str]] = {}
+    covered_paths: set[str] = set()
+    covered_topics: set[str] = set()
+    for item in dispatch["planning_evidence"]:
+        try:
+            draft = {key: item[key] for key in _PLANNING_DRAFT_KEYS}
+            draft["sources"] = [source["id"] for source in item["sources"]]
+            current = _bind_planning_assessment(draft, dispatch, records, cwd, effective_policy=item["effective_policy"])
+            previous_inputs = item["freshness"]["inputs"]
+            reasons = [key + " changed" for key, value in current["freshness"]["inputs"].items()
+                       if previous_inputs.get(key) != value]
+            if current != item:
+                invalidated[item["id"]] = reasons or ["assessment inconsistent with current evidence"]
+            covered_paths.update(item["assessed_scope"]["paths"])
+            covered_topics.update(item["assessed_scope"]["topics"])
+        except (PlanningValidationError, RetrievalSpecResolutionError, TaskPacketValidationError, KeyError, TypeError, ValueError, OSError) as exc:
+            invalidated[item["id"]] = [str(exc)]
+    if invalidated:
+        _fail("planning_evidence", "scoped evidence requires reassessment", code="stale_planning_evidence",
+              details={"invalidated": invalidated, "freshness": "stale"})
+    if (not set(dispatch["execution"]["allowed_files"]).issubset(covered_paths)
+            or not set(dispatch["retrieval"]["overrides"].get("filters", {}).get("topics", [])).issubset(covered_topics)):
+        _fail("planning_evidence.assessed_scope", "task scope expanded beyond assessed evidence", code="stale_planning_evidence")
+
+
+def validate_task_packet_supplemental_fetch(packet: Mapping[str, Any], source: str,
+                                           line_range: Sequence[int], *, token_estimate: int,
+                                           prior_debits: int = 0) -> dict[str, int]:
+    """Check a proposed supplemental gap read without fetching or changing a ledger."""
+    canonical_task_packet_json(packet)
+    source = _path_string(source, "supplemental.source")
+    if (not isinstance(line_range, (list, tuple)) or len(line_range) != 2
+            or any(type(value) is not int or value < 1 for value in line_range)
+            or line_range[1] < line_range[0]):
+        _fail("supplemental.line_range", "requires a positive inclusive line range")
+    for record in packet["evidence_pack"]["evidence"]:
+        if (_canonical_scope_identity(source) == _canonical_scope_identity(record["source"])
+                and line_range[0] <= record["line_range"][1] and record["line_range"][0] <= line_range[1]):
+            _fail("supplemental.source", "requested evidence is already materialized", code="duplicate_evidence_content")
+    for record in packet["worker_baseline"]["sources"].values():
+        if record is not None and _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
+            _fail("supplemental.source", "requested governance is already materialized", code="duplicate_evidence_content")
+    debit = _nonnegative_int(token_estimate, "supplemental.token_estimate")
+    prior = _nonnegative_int(prior_debits, "supplemental.prior_debits")
+    remaining = packet["input_ledger"]["supplemental_input_reserve_tokens"] - prior - debit
+    if remaining < 0:
+        _fail("supplemental.token_estimate", "supplemental gap exceeds the reserved envelope", code="supplemental_budget_exceeded")
+    return {"token_debit": debit, "total_debits": prior + debit, "remaining_tokens": remaining}
 
 
 def _git_required(root: Path, args: Sequence[str], *, label: str) -> str:
@@ -1866,6 +2168,7 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
         _fail("packet.runtime_binding", "is not the strict normalized activation binding", code="binding_mismatch", stage="activation")
     _reflection_capability(dispatch["execution"], root=Path(binding["worktree"]), binding=binding, recheck=True)
     _validate_compiled_packet_evidence(packet)
+    _validate_planning_evidence(dispatch, packet["evidence_pack"]["evidence"], cwd)
     _validate_worker_baseline(packet)
     selected_decisions = {
         item["id"]
@@ -2086,6 +2389,7 @@ def compile_task_packet(
             stage="resolution",
         )
     materialized_all = materialize_evidence_pack(evidence_pack, cwd)
+    _validate_planning_evidence(normalized_dispatch, evidence_pack["evidence"], cwd)
     if any(item.get("excerpt") is not None for item in evidence_pack["evidence"]):
         _fail(
             "evidence_pack.evidence",

@@ -242,6 +242,45 @@ provenance and a supplemental-gap route, not permission to duplicate included co
 repeated fetches as a packet-procedure failure. Excerpts stay disabled in compiled manifests so each
 evidence slice appears exactly once, under `materialized_evidence`.
 
+#### Scoped planning evidence
+
+When discovery or a conflict assessment informs the task, include optional `planning_evidence`
+in the semantic dispatch. Keep the existing v1 dispatch/packet and Evidence Pack identities.
+Use `memory_seed.task_packet.prepare_planning_evidence(dispatch, assessments, cwd)` to bind
+explicitly assessed drafts after reviewing the sources. This read-only compiler helper resolves the
+same exact profile; it does not choose alternatives, accept a departure, or create a planning ledger.
+
+Each draft contains `id`, `selected_alternative`, `sources` (selected Evidence Pack IDs),
+`candidate` (the existing PlanningCandidate fields), `assessed_scope` (`topics` and exact `paths`),
+`compatibility_constraints`, `proposed_action`, `conflict_reason` (null when compatible),
+`agent_recommendation`, `user_acceptance`, and `departure_reference`. The latter three may be null.
+Acceptance has its own `reference`, `scope`, and `reason`; acceptance and departure references must
+be selected sources. A recommendation never supplies acceptance. References remain unverified
+claims of human acceptance; compilation never proves authenticity or grants authority, resolves a
+stop, changes lifecycle, weakens shared policy, or substitutes for the governing workflow.
+
+The helper adds assessed applicability, disposition, required follow-up, effective delivery-quality
+policy, and freshness. SHA-256 of canonical JSON binds each assessment to source identities/digests,
+current authority head/lifecycle, the relevant topic nodes and ancestors, tracked/effective policy,
+exact profile version and expansion, objective, and assessed scope. A tightening-only effective policy
+may be supplied explicitly. Read each conflict as a concrete proposed action/prior decision pair;
+retain compatible narrower constraints and complete the required follow-up before proceeding.
+
+Carry the returned records unchanged in `dispatch.planning_evidence`. They appear there once, with
+source content only in the existing materialization. The CLI and MCP compile/preview surfaces accept
+this additive dispatch field directly. Invalid input fails explicitly. On a source, authority, scope,
+topic-tree, policy, or profile change, compilation reports affected assessment IDs and invalidation
+reasons. Reassess those records and keep unaffected records for the same plan scope. Do not rebind
+stale evidence merely to clear a check. Plan-scoped reuse never bypasses Evidence Pack corpus pinning,
+exact-source verification, measured runtime binding, or the existing context ledgers.
+
+Before a supplemental gap read, `validate_task_packet_supplemental_fetch(packet, source, line_range,
+token_estimate=..., prior_debits=...)` rejects overlap with already materialized evidence/governance
+and checks the remaining reserved input envelope. It performs no fetch and does not mutate the packet;
+record its debit alongside the missing question and tool call in the worker handoff. These are estimated
+input tokens, never observed provider usage. All workers, including external Superpowers workers, keep
+the existing authority, worktree, integration, durable-memory, and return-receipt boundaries.
+
 #### Budget and supplemental retrieval
 
 The resolver's `token_estimate` is **evidence-only**; it is not total model input and never replaces the
