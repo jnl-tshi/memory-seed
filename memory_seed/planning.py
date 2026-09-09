@@ -236,7 +236,12 @@ def validate_review_record(
         identifier = _text(item["id"], "review_finding.id")
         if identifier in findings:
             raise PlanningValidationError("duplicate review finding id")
-        if item["severity"] not in _REVIEW_FINDING_SEVERITIES or item["kind"] not in _REVIEW_FINDING_KINDS:
+        if (
+            not isinstance(item["severity"], str)
+            or item["severity"] not in _REVIEW_FINDING_SEVERITIES
+            or not isinstance(item["kind"], str)
+            or item["kind"] not in _REVIEW_FINDING_KINDS
+        ):
             raise PlanningValidationError("review_finding severity or kind is invalid")
         _text(item["description"], "review_finding.description")
         findings[identifier] = item
@@ -248,7 +253,7 @@ def validate_review_record(
         identifier = _text(item["finding_id"], "finding_disposition.finding_id")
         if identifier in dispositions:
             raise PlanningValidationError("duplicate finding disposition id")
-        if item["disposition"] not in _REVIEW_DISPOSITIONS:
+        if not isinstance(item["disposition"], str) or item["disposition"] not in _REVIEW_DISPOSITIONS:
             raise PlanningValidationError("finding_disposition.disposition must be accept, reject, or defer")
         _text(item["reason"], "finding_disposition.reason")
         text_list(item["evidence"], "finding_disposition.evidence")

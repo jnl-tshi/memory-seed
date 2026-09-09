@@ -123,7 +123,7 @@ def test_contextually_wrong_or_deferred_minor_review_finding_has_a_real_record(d
 @pytest.mark.parametrize("mutation", [
     "stale_range", "missing_resolved_outcome", "missing_fix_range", "missing_re_review_range",
     "duplicate_finding", "duplicate_disposition", "incomplete_final_validation", "failed_final_outcome",
-    "final_validation_wrong_range",
+    "final_validation_wrong_range", "list_severity", "object_kind", "null_disposition",
 ])
 def test_review_record_rejects_complete_looking_invalid_evidence(mutation):
     record = review_record()
@@ -144,6 +144,12 @@ def test_review_record_rejects_complete_looking_invalid_evidence(mutation):
         record["final_validation"]["executed_after_change"] = False
     elif mutation == "failed_final_outcome":
         record["final_validation"]["outcome"] = "previous run passed"
+    elif mutation == "list_severity":
+        record["findings"][0]["severity"] = ["important"]
+    elif mutation == "object_kind":
+        record["findings"][0]["kind"] = {"kind": "spec"}
+    elif mutation == "null_disposition":
+        record["dispositions"][0]["disposition"] = None
     else:
         record["final_validation"]["range"] = deepcopy(record["review_range"])
     with pytest.raises(PlanningValidationError):

@@ -486,8 +486,10 @@ class TestDeliveryQualityScenarioHarness:
         stale["current_review_range"]["head"] = "e" * 40
         failed_final = json.loads(json.dumps(valid))
         failed_final["review_record"]["final_validation"]["outcome"] = "previous run passed"
+        malformed_type = json.loads(json.dumps(valid))
+        malformed_type["review_record"]["findings"][0]["severity"] = ["important"]
 
-        for malformed in (duplicate, missing_re_review, stale, failed_final):
+        for malformed in (duplicate, missing_re_review, stale, failed_final, malformed_type):
             result = evaluator.evaluate_run(corpus, scenario["id"], malformed)
             assert not result["passed"]
             assert any("structured review evidence is invalid" in failure for failure in result["failures"])
