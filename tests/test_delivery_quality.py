@@ -79,11 +79,9 @@ def has_complete_validation_record(evidence: ValidationEvidence) -> bool:
 def supports_completion(evidence: ValidationEvidence) -> bool:
     """Only fresh, fully identified passing evidence can support completion."""
     return (
-        evidence.status == "passed"
+        has_complete_validation_record(evidence)
+        and evidence.status == "passed"
         and evidence.executed_after_change
-        and bool(evidence.command_or_check.strip())
-        and bool(evidence.changed_scope.strip())
-        and bool(evidence.freshness_marker.strip())
     )
 
 
@@ -179,6 +177,16 @@ class TestFreshVerificationEvidenceAcceptance:
 
         assert supports_completion(fresh_pass)
         assert not supports_completion(stale_pass)
+        assert not supports_completion(
+            ValidationEvidence(
+                command_or_check="python -m pytest tests/test_delivery_quality.py",
+                changed_scope="fresh verification evidence contract",
+                freshness_marker="ran after the final changed file edit",
+                outcome="",
+                status="passed",
+                executed_after_change=True,
+            )
+        )
 
     def test_waived_and_unavailable_validation_are_not_treated_as_passed(self):
         waived = ValidationEvidence(
