@@ -829,6 +829,72 @@ def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_wr
     assert preview.source_commit in _git(root, "rev-list", "--parents", "-n", "1", "HEAD")
 
 
+def test_reflection_integration_admits_inherited_identical_family_and_fuses_sessions(tmp_path):
+    from memory_seed.core import session_merge_branch
+    from memory_seed.reflection_ledger import preview_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    assert session_merge_branch(root, branch=ledger.header.working_branch).committed
+    inherited = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "-b", "descendant", inherited)
+    session_path = root / ".memory-seed/sessions/2026-09/2026-09-09.md"
+    session_path.parent.mkdir(parents=True, exist_ok=True)
+    session_path.write_text(
+        "---\nsession_date: 2026-09-09\n---\n\n"
+        "## 2026-09-09 09:00 - Descendant work\n\n```yaml\n"
+        "entry_id: mse_0123456789abcdef\nuser_initials: JN\nagent_type: codex\nbranch: descendant\n"
+        "```\n\n- Ordinary descendant session work.\n",
+        encoding="utf-8",
+    )
+    _git(root, "add", "README.md", session_path.relative_to(root).as_posix())
+    _git(root, "commit", "--quiet", "-m", "ordinary descendant work")
+    source = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "--quiet", "integration")
+    preview = preview_reflection_integration(root, source_ref="descendant", base_ref="HEAD")
+    assert preview.inherited_identical_family
+    assert preview.source == preview.base == preview.ancestor == preview.proposed
+    result = session_merge_branch(root, branch="descendant")
+    assert result.committed, result.issues
+    assert _git(root, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [inherited, source]
+    assert "Memory-Entry: mse_0123456789abcdef" in _git(root, "show", "-s", "--format=%B", "HEAD")
+    loaded = load_trusted_workstream_ledger(root, trusted_ref="HEAD", ledger_path=path)
+    assert loaded.ledger == ledger
+
+
+def test_reflection_integration_refuses_identical_ledger_on_sibling_branches(tmp_path):
+    from memory_seed.reflection_ledger import preview_reflection_integration
+    root, ledger, _path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    from memory_seed.core import session_merge_branch
+    assert session_merge_branch(root, branch=ledger.header.working_branch).committed
+    shared = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "-b", "target", shared)
+    _git(root, "commit", "--allow-empty", "-m", "target advance")
+    _git(root, "checkout", "-b", "sibling", shared)
+    _git(root, "commit", "--allow-empty", "-m", "sibling advance")
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError, match="two ledger-bearing parents"):
+        preview_reflection_integration(root, source_ref="sibling", base_ref="target")
+    assert _admission_state(root) == before
+
+
+def test_reflection_integration_refuses_descendant_that_changes_ledger(tmp_path):
+    from memory_seed.core import session_merge_branch
+    from memory_seed.reflection_ledger import preview_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    assert session_merge_branch(root, branch=ledger.header.working_branch).committed
+    _git(root, "checkout", "-b", "changed", "integration")
+    changed = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                     now=START + timedelta(minutes=1))
+    _commit_ledger(root, path, changed, "reflection: valid descendant change")
+    _git(root, "checkout", "--quiet", "integration")
+    before = _admission_state(root)
+    with pytest.raises(ReflectionValidationError, match="two ledger-bearing parents"):
+        preview_reflection_integration(root, source_ref="changed", base_ref="HEAD")
+    assert _admission_state(root) == before
+
+
 @pytest.mark.parametrize("change", ["source-ref", "base-ref", "ignored-file", "unknown-directory"])
 def test_reflection_integration_preview_binding_changes_refuse_without_mutation(tmp_path, change):
     from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
@@ -850,7 +916,7 @@ def test_reflection_integration_preview_binding_changes_refuse_without_mutation(
     assert _admission_state(root) == before
 
 
-@pytest.mark.parametrize("hostile", ["format", "mixed", "case", "nested", "symlink", "raw-delete", "two-parents",
+@pytest.mark.parametrize("hostile", ["format", "mixed", "case", "nested", "symlink", "raw-delete",
                                      "runtime-dot", "runtime-space", "family-dot", "family-space"])
 def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile):
     from memory_seed.reflection_ledger import preview_reflection_integration
@@ -882,11 +948,10 @@ def test_reflection_integration_reserved_tree_negative_matrix(tmp_path, hostile)
     else:
         _git(root, "branch", "integration", "HEAD")
         _git(root, "commit", "--allow-empty", "-m", "child inherits ledger")
-    if hostile != "two-parents":
-        if hostile not in {"symlink", "runtime-dot", "runtime-space", "family-dot", "family-space"}:
-            _git(root, "add", "-A")
-        _git(root, "commit", "-m", "hostile tree fixture")
-    if hostile not in {"raw-delete", "two-parents"}:
+    if hostile not in {"symlink", "runtime-dot", "runtime-space", "family-dot", "family-space"}:
+        _git(root, "add", "-A")
+    _git(root, "commit", "-m", "hostile tree fixture")
+    if hostile != "raw-delete":
         _git(root, "branch", "integration", ledger.header.base_sha)
     before = _admission_state(root)
     with pytest.raises(ReflectionValidationError):

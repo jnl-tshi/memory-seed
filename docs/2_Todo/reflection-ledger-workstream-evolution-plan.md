@@ -688,14 +688,19 @@ monotonic canonical append blocks (including the canonical appended rebind recor
 deleted, rewritten, reordered, or inserted before existing bytes in that classification.
 
 The loader builds the unique ledger lineage from the canonical init image reachable after the immutable
-header's `base_sha` through the trusted head. A merge may carry exactly one already-valid ledger parent while
-the other parent has no ledger path, as normal branch integration does. Any merge with two unequal
-ledger-bearing parents, an untraceable genesis, or an ambiguous predecessor lineage refuses; it is never
-silently resolved by Git first-parent order. Each lineage transition is classified against its two committed
-tree blobs: an exact canonical suffix append/rebind is monotonic; every other ledger-path change is
-non-monotonic. Thus removal of a middle chain, a tail chain whose survivors still pass standalone validation,
-or the only chain leaving a header-only ledger all require compaction admission. A later suffix appended to a
-compacted image retains that admitted classification even if the resulting bytes pass the standalone parser.
+header's `base_sha` through the trusted head. A merge normally carries exactly one already-valid ledger parent
+while the other parent has no ledger path, as a board workstream enters its integration target. The one narrow
+identity-carrier exception is an ordinary descendant branch whose target is its ancestor and whose *complete*
+reserved Reflection family is byte-identical at target, source, and merge base; the merge result must carry
+that same family. Its first target parent is then deterministic and no ledger transition is skipped. This is
+not a general equal-bytes rule, a fast-forward path, or a rebind. Any other two-ledger-parent merge — including
+unequal blobs, a changed/additional/removed reserved path, a sibling join, an untraceable genesis, or ambiguous
+predecessor lineage — refuses; it is never silently resolved by Git first-parent order. Each ledger transition
+is classified against its two committed tree blobs: an exact canonical suffix append/rebind is monotonic; every
+other ledger-path change is non-monotonic. Thus removal of a middle chain, a tail chain whose survivors still
+pass standalone validation, or the only chain leaving a header-only ledger all require compaction admission. A
+later suffix appended to a compacted image retains that admitted classification even if the resulting bytes
+pass the standalone parser.
 
 `admit_compacted_workstream_ledger` is the internal branch of that loader for a non-monotonic transition. It
 is not a permissive parser: it accepts an otherwise structurally valid v1 byte sequence only after it
