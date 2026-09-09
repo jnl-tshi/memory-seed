@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -40,27 +41,98 @@ def _scenario(corpus: dict[str, Any], scenario_id: str) -> dict[str, Any]:
     raise ValueError(f"unknown scenario: {scenario_id}")
 
 
-def _valid_evidence_ids(run: dict[str, Any]) -> set[str]:
+def _evidence_ids(run: dict[str, Any]) -> tuple[set[str], set[str]]:
     valid: set[str] = set()
+    malformed: set[str] = set()
     for evidence in run.get("evidence", []):
+        identifier = evidence.get("id") if isinstance(evidence, dict) else None
         if (
             isinstance(evidence, dict)
-            and isinstance(evidence.get("id"), str)
-            and evidence["id"].strip()
+            and isinstance(identifier, str)
+            and identifier.strip()
             and isinstance(evidence.get("source"), str)
             and evidence["source"].strip()
             and isinstance(evidence.get("record"), str)
             and evidence["record"].strip()
         ):
-            valid.add(evidence["id"])
-    return valid
+            valid.add(identifier)
+        elif isinstance(identifier, str) and identifier.strip():
+            malformed.add(identifier)
+    return valid, malformed
 
 
 def _matches(observation: dict[str, Any], contract: dict[str, Any]) -> bool:
     return all(observation.get(field) == contract.get(field) for field in ("action", "subject"))
 
 
-def _validate_measurements(run: dict[str, Any], failures: list[str]) -> dict[str, Any]:
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _execution_provenance(
+    run: dict[str, Any], failures: list[str], artifact_root: Path | None
+) -> dict[str, Any] | None:
+    """Bind real-run records to an independently stored execution-surface artifact."""
+    if run.get("evidence_class") != "real_agent_behavior":
+        return None
+    provenance = run.get("execution_provenance")
+    if not isinstance(provenance, dict):
+        failures.append("real-agent evidence requires bound execution provenance")
+        return None
+    run_id = provenance.get("run_id")
+    surface = provenance.get("execution_surface")
+    artifact_path = provenance.get("artifact_path")
+    digest = provenance.get("artifact_sha256")
+    if not (
+        isinstance(run_id, str)
+        and run_id.strip()
+        and isinstance(surface, dict)
+        and surface.get("kind") == "actual_execution_surface"
+        and isinstance(surface.get("id"), str)
+        and surface["id"].strip()
+        and isinstance(artifact_path, str)
+        and artifact_path.strip()
+        and isinstance(digest, str)
+        and len(digest) == 64
+    ):
+        failures.append("real-agent evidence has incomplete execution provenance")
+        return None
+    candidate = Path(artifact_path)
+    if candidate.is_absolute():
+        failures.append("execution provenance artifact_path must be relative")
+        return None
+    root = (artifact_root or Path.cwd()).resolve()
+    resolved = (root / candidate).resolve()
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        failures.append("execution provenance artifact is unavailable")
+        return None
+    artifact_bytes = resolved.read_bytes()
+    if hashlib.sha256(artifact_bytes).hexdigest() != digest:
+        failures.append("execution provenance artifact digest does not match")
+        return None
+    try:
+        artifact = json.loads(artifact_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        failures.append("execution provenance artifact is not valid JSON")
+        return None
+    if not isinstance(artifact, dict) or artifact.get("schema") != "delivery-quality-execution-artifact/v1":
+        failures.append("execution provenance artifact has an invalid schema")
+        return None
+    if artifact.get("run_id") != run_id or artifact.get("execution_surface") != surface:
+        failures.append("execution provenance artifact is bound to a different run or surface")
+        return None
+    if _canonical_json(artifact.get("observations")) != _canonical_json(run.get("observations")):
+        failures.append("execution provenance artifact does not bind the reported observations")
+        return None
+    if _canonical_json(artifact.get("measurements")) != _canonical_json(run.get("measurements")):
+        failures.append("execution provenance artifact does not bind the reported measurements")
+        return None
+    return {"surface": surface, "artifact_path": str(resolved)}
+
+
+def _validate_measurements(
+    scenario: dict[str, Any], run: dict[str, Any], failures: list[str], provenance: dict[str, Any] | None
+) -> dict[str, Any]:
     measurements = run.get("measurements")
     if not isinstance(measurements, dict):
         failures.append("measurements must be an object")
@@ -81,10 +153,20 @@ def _validate_measurements(run: dict[str, Any], failures: list[str]) -> dict[str
             if not isinstance(measurement.get("reason"), str) or not measurement["reason"].strip():
                 failures.append(f"measurement {name} is unavailable without a reason")
         else:
+            if run.get("evidence_class") == "fixture_instrument_validation":
+                failures.append(f"fixture measurement {name} must remain unavailable")
+            if provenance is None:
+                failures.append(f"measurement {name} is available without bound execution provenance")
             if measurement.get("value") is None:
                 failures.append(f"measurement {name} is available without a value")
-            if not isinstance(measurement.get("source"), str) or not measurement["source"].strip():
-                failures.append(f"measurement {name} is available without an execution-surface source")
+            surface_id = provenance["surface"]["id"] if provenance else None
+            if measurement.get("source") != surface_id:
+                failures.append(f"measurement {name} source is not the bound execution surface")
+        contract = scenario["measurement_availability"].get(name)
+        if not isinstance(contract, dict) or contract.get("default") != "unavailable":
+            failures.append(f"scenario measurement contract for {name} is invalid")
+        elif run.get("evidence_class") == "fixture_instrument_validation" and availability != contract["default"]:
+            failures.append(f"fixture measurement {name} violates its declared availability contract")
         result[name] = measurement
     return result
 
@@ -107,17 +189,20 @@ def _validate_result_schema(run: dict[str, Any], failures: list[str]) -> None:
             failures.append("each rework_reopen_event requires event and cause")
 
 
-def evaluate_run(corpus: dict[str, Any], scenario_id: str, run: dict[str, Any]) -> dict[str, Any]:
+def evaluate_run(
+    corpus: dict[str, Any], scenario_id: str, run: dict[str, Any], *, artifact_root: Path | None = None
+) -> dict[str, Any]:
     """Evaluate one structured run; no fixture result can support a workflow claim."""
     scenario = _scenario(corpus, scenario_id)
     failures: list[str] = []
     _validate_result_schema(run, failures)
-    measurements = _validate_measurements(run, failures)
+    provenance = _execution_provenance(run, failures, artifact_root)
+    measurements = _validate_measurements(scenario, run, failures, provenance)
     observations = run.get("observations")
     if not isinstance(observations, list):
         failures.append("observations must be a list")
         observations = []
-    valid_evidence = _valid_evidence_ids(run)
+    valid_evidence, malformed_evidence = _evidence_ids(run)
 
     for contract in scenario["required_observations"]:
         matches = [
@@ -136,7 +221,17 @@ def evaluate_run(corpus: dict[str, Any], scenario_id: str, run: dict[str, Any]) 
             and set(observation["evidence_ids"]).intersection(valid_evidence)
             for observation in matches
         ):
-            failures.append(f"required observation {label} has missing upstream evidence")
+            referenced = {
+                identifier
+                for observation in matches
+                if isinstance(observation.get("evidence_ids"), list)
+                for identifier in observation["evidence_ids"]
+                if isinstance(identifier, str)
+            }
+            if referenced.intersection(malformed_evidence):
+                failures.append(f"required observation {label} has malformed upstream evidence")
+            else:
+                failures.append(f"required observation {label} has missing upstream evidence")
 
     for contract in scenario["prohibited_observations"]:
         if any(
@@ -163,11 +258,12 @@ def evaluate_run(corpus: dict[str, Any], scenario_id: str, run: dict[str, Any]) 
         "limitations": run.get("limitations", []),
         "selection_bias": run.get("selection_bias", []),
         "rework_reopen_events": run.get("rework_reopen_events", []),
-        "workflow_claim_eligible": passed and evidence_class == "real_agent_behavior",
+        "provenance_verified": provenance is not None,
+        "workflow_claim_eligible": passed and evidence_class == "real_agent_behavior" and provenance is not None,
         "claim_boundary": (
             "fixture validates only the scorer; it does not support a workflow claim"
             if evidence_class == "fixture_instrument_validation"
-            else "a passing real run is eligible evidence, not a comparative workflow conclusion"
+            else "a real run needs verified execution provenance; eligibility is not a comparative workflow conclusion"
         ),
     }
 
@@ -211,7 +307,7 @@ def main() -> int:
     scenario_id = run.pop("scenario_id", None)
     if not isinstance(scenario_id, str):
         parser.error("--input must contain a string scenario_id")
-    result = evaluate_run(corpus, scenario_id, run)
+    result = evaluate_run(corpus, scenario_id, run, artifact_root=args.input.parent)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["passed"] else 1
 

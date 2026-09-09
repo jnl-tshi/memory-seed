@@ -7,6 +7,7 @@ controller. These small models make its threshold and negative-control semantics
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -303,6 +304,11 @@ class TestDeliveryQualityScenarioHarness:
             for result in results["results"]
             for failure in result["failures"]
         )
+        assert any(
+            "malformed upstream evidence" in failure
+            for result in results["results"]
+            for failure in result["failures"]
+        )
 
     def test_trigger_and_non_trigger_controls_fail_discriminatingly(self):
         evaluator = load_delivery_quality_evaluator()
@@ -319,7 +325,31 @@ class TestDeliveryQualityScenarioHarness:
         }
         assert failed_routes == {"trigger", "non_trigger"}
 
-    def test_real_run_result_schema_records_comparability_limits_and_observed_measurements(self):
+    def test_fixture_clone_cannot_become_workflow_evidence_by_changing_its_label(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenario = next(
+            scenario
+            for scenario in corpus["scenarios"]
+            if scenario["category"] == "fresh_verification"
+        )
+        run = json.loads(json.dumps(scenario["valid_fixture"]))
+        run["schema"] = "delivery-quality-result-input/v1"
+        run["evidence_class"] = "real_agent_behavior"
+        run["comparison_phase"] = "post_adoption"
+        run["limitations"] = ["Single local task; no external execution surface."]
+        run["selection_bias"] = ["Scenario was intentionally selected for fresh verification."]
+        run["rework_reopen_events"] = [
+            {"event": "reopen", "cause": "A stale check was detected before completion."}
+        ]
+
+        result = evaluator.evaluate_run(corpus, scenario["id"], run)
+
+        assert not result["passed"]
+        assert not result["workflow_claim_eligible"]
+        assert any("execution provenance" in failure for failure in result["failures"])
+
+    def test_real_run_needs_bound_execution_artifact_for_measurements_and_claim_eligibility(self, tmp_path):
         evaluator = load_delivery_quality_evaluator()
         corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
         scenario = next(
@@ -339,12 +369,79 @@ class TestDeliveryQualityScenarioHarness:
         run["measurements"]["provider_token_usage"] = {
             "availability": "available",
             "value": 321,
-            "source": "execution-surface usage record",
+            "source": "local-agent-runner",
+        }
+        artifact = {
+            "schema": "delivery-quality-execution-artifact/v1",
+            "run_id": "local-run-42",
+            "execution_surface": {"id": "local-agent-runner", "kind": "actual_execution_surface"},
+            "observations": run["observations"],
+            "measurements": run["measurements"],
+        }
+        artifact_path = tmp_path / "execution-artifact.json"
+        artifact_text = json.dumps(artifact, sort_keys=True)
+        artifact_path.write_text(artifact_text, encoding="utf-8")
+        run["execution_provenance"] = {
+            "run_id": "local-run-42",
+            "execution_surface": {"id": "local-agent-runner", "kind": "actual_execution_surface"},
+            "artifact_path": artifact_path.name,
+            "artifact_sha256": hashlib.sha256(artifact_text.encode("utf-8")).hexdigest(),
         }
 
-        result = evaluator.evaluate_run(corpus, scenario["id"], run)
+        result = evaluator.evaluate_run(corpus, scenario["id"], run, artifact_root=tmp_path)
 
         assert result["passed"]
         assert result["workflow_claim_eligible"]
         assert result["task_complexity"] == scenario["complexity"]
         assert result["measurements"]["provider_token_usage"]["value"] == 321
+
+        run["measurements"]["provider_token_usage"]["source"] = "caller-supplied-label"
+        invalid_source = evaluator.evaluate_run(corpus, scenario["id"], run, artifact_root=tmp_path)
+        assert not invalid_source["passed"]
+        assert any("not the bound execution surface" in failure for failure in invalid_source["failures"])
+
+    def test_fixture_measurement_contract_rejects_available_values(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenario = next(
+            scenario
+            for scenario in corpus["scenarios"]
+            if scenario["category"] == "fresh_verification"
+        )
+        fixture = json.loads(json.dumps(scenario["valid_fixture"]))
+        fixture["measurements"]["latency"] = {
+            "availability": "available",
+            "value": 1,
+            "source": "fixture",
+        }
+
+        result = evaluator.evaluate_run(corpus, scenario["id"], fixture)
+
+        assert not result["passed"]
+        assert any("fixture measurement latency must remain unavailable" in failure for failure in result["failures"])
+
+    def test_authority_and_external_boundary_scenarios_cover_the_full_declared_routes(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenarios = {scenario["id"]: scenario for scenario in corpus["scenarios"]}
+
+        authority_subjects = {
+            observation["subject"]
+            for observation in scenarios["constitutional-authority-conflict"]["required_observations"]
+        }
+        assert {"constitution", "accepted_adr_head", "active_individual_decision"} <= authority_subjects
+
+        approved_subjects = {
+            observation["subject"]
+            for observation in scenarios["external-approved-routes-boundary"]["required_observations"]
+        }
+        fallback_subjects = {
+            observation["subject"]
+            for observation in scenarios["external-unavailable-local-fallback"]["required_observations"]
+        }
+        assert {
+            "external_read_only_dispatch",
+            "approved_external_sdd",
+            "return_before_memory_seed_integration",
+        } <= approved_subjects
+        assert {"external_unavailable_or_wrong_version", "named_local_fallback"} <= fallback_subjects

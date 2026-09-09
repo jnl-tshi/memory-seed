@@ -45,6 +45,12 @@ comparable runs and report limitations, selection bias, uncertainty, and rework/
   "scenario_id": "fresh-completion-verification",
   "evidence_class": "real_agent_behavior",
   "comparison_phase": "baseline",
+  "execution_provenance": {
+    "run_id": "runner-2026-09-09-001",
+    "execution_surface": {"id": "named-runner", "kind": "actual_execution_surface"},
+    "artifact_path": "execution-artifact.json",
+    "artifact_sha256": "sha256 of that exact artifact"
+  },
   "limitations": ["external execution metrics unavailable"],
   "selection_bias": ["task was selected for its verification surface"],
   "rework_reopen_events": [{"event": "reopen", "cause": "stale verification discovered"}],
@@ -70,4 +76,16 @@ output.
 
 Measurements are `unavailable` by default. Do not fill provider token usage, latency, or cost from token
 estimates, budget reserves, local elapsed time, or price ceilings. Mark a measurement `available` only when
-the actual execution surface supplies a `value` and a non-empty `source` record.
+the actual execution surface supplies a `value`; its `source` must equal the bound execution-surface ID.
+
+## Real-run provenance binding
+
+Changing a fixture's `evidence_class` label never makes it workflow evidence. A real-run input must bind to
+a separate, relative JSON artifact whose SHA-256 matches `artifact_sha256`. The artifact uses
+`delivery-quality-execution-artifact/v1` and repeats the exact `run_id`, execution-surface object,
+observations, and measurements from the input. The evaluator rejects missing, escaped, stale, mismatched,
+or malformed artifacts; a fixture has no artifact binding and its measurements must remain unavailable.
+
+This local binding proves that the scorer consumed an independently stored claimed execution record. It does
+not authenticate a remote provider or turn one passing run into a comparative conclusion; the orchestrator
+still owns provenance review and any workflow claim.
