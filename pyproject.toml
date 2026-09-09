@@ -115,6 +115,7 @@ memory_seed = [
   "seed/.memory-seed/skills/memory_hygiene.md",
   "seed/.memory-seed/skills/office_document_editing.md",
   "seed/.memory-seed/skills/proposal_lifecycle.md",
+  "seed/.memory-seed/skills/design_discovery.md",
   "seed/.memory-seed/skills/release_publishing.md",
   "seed/.memory-seed/skills/risk_signaling.md",
   "seed/.memory-seed/skills/skill_architecture.md",

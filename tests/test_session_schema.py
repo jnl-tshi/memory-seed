@@ -250,6 +250,7 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: memory_hygiene.md",
             "skill: risk_signaling.md",
             "skill: proposal_lifecycle.md",
+            "skill: design_discovery.md",
             "skill: subproject_runtime.md",
         ):
             self.assertIn(phrase, content)
@@ -360,6 +361,33 @@ class SessionSchemaTests(unittest.TestCase):
             for registry in (live_registry, seed_registry):
                 self.assertIn(f"skill: {skill}", registry)
             self.assertIn(f".memory-seed/skills/{skill}", runtime_index)
+
+    def test_design_discovery_preserves_a_routine_work_bypass(self):
+        live = Path(".memory-seed/skills/design_discovery.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/design_discovery.md")
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "consequential new product, architectural, data, safety, or workflow",
+            "Capability and reuse inventory",
+            "Relevant authority and evidence",
+            "Realistic alternatives",
+            "Selected option",
+            "Trial decision",
+            "existing plan and Task Packet path",
+            "Routine, already assessed work follows a decision whose scope and evidence remain current.",
+        ):
+            self.assertIn(phrase, content)
+        for registry in (live_registry, seed_registry):
+            self.assertIn("skill: design_discovery.md", registry)
+            self.assertIn(
+                "routine work directly follows an already assessed decision whose scope and evidence remain current",
+                registry,
+            )
 
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")

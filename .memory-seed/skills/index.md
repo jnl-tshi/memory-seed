@@ -169,6 +169,16 @@ skills:
       - ordinary documentation edit with no proposal, roadmap, inbox, todo, reference, or completed status change
       - code-only implementation work where proposal files are not being moved or resolved
 
+  - skill: design_discovery.md
+    required: true
+    load_when:
+      - making a consequential new product, architectural, data, safety, or workflow choice
+      - choosing a new capability, component, policy, workflow, or data approach before implementation
+      - deciding whether uncertainty warrants a bounded trial before committing to an approach
+    do_not_load_when:
+      - routine work directly follows an already assessed decision whose scope and evidence remain current
+      - a task only executes an approved detailed plan and introduces no consequential new choice
+
   - skill: subproject_runtime.md
     required: true
     load_when:

@@ -9297,6 +9297,10 @@ SEED_FILES = [
         ".memory-seed/skills/proposal_lifecycle.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "design_discovery.md",
+        ".memory-seed/skills/design_discovery.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subproject_runtime.md",
         ".memory-seed/skills/subproject_runtime.md",
     ),
@@ -9614,8 +9618,8 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         ("agent_collaboration.md",),
     ),
     "planning": SkillProfile(
-        "Proposal inbox, todo, completed, and reference lifecycle management.",
-        ("proposal_lifecycle.md",),
+        "Proposal lifecycle management and evidence-backed consequential design discovery.",
+        ("proposal_lifecycle.md", "design_discovery.md"),
     ),
     "release": SkillProfile(
         "Package publishing, tags, changelog, and release verification.",
@@ -9654,6 +9658,7 @@ SKILL_DESCRIPTIONS = {
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
     "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
     "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",
+    "design_discovery.md": "Assess consequential choices through reuse, evidence, alternatives, and proportionate trials.",
     "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",

@@ -584,6 +584,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertIn("local_compilation.md", installed)
         self.assertIn("data_architecture.md", installed)
         self.assertIn("proposal_lifecycle.md", installed)
+        self.assertIn("design_discovery.md", installed)
         self.assertTrue((cwd / "docs" / "inbox" / ".gitkeep").exists())
         self.assertTrue((cwd / "docs" / "todo" / ".gitkeep").exists())
         self.assertTrue((cwd / "docs" / "todo" / "completed" / ".gitkeep").exists())
@@ -593,6 +594,21 @@ class ProjectLifecycleTests(unittest.TestCase):
         project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
         self.assertIn("coding", project_yaml)
         self.assertIn("planning", project_yaml)
+
+    def test_design_discovery_is_an_optional_planning_profile_skill(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd, skill_profiles={"planning"})
+
+        self.assertNotIn("design_discovery.md", CORE_SKILL_NAMES)
+        self.assertIn("design_discovery.md", OPTIONAL_SKILL_NAMES)
+        self.assertEqual(
+            SKILL_PROFILES["planning"].skills,
+            ("proposal_lifecycle.md", "design_discovery.md"),
+        )
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "design_discovery.md").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("skill: design_discovery.md", registry)
 
     def test_update_respects_ignored_optional_skills(self):
         cwd = self.make_project()
@@ -772,6 +788,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/compact_mermaid_diagrams.md",
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
+                ".memory-seed/skills/design_discovery.md",
                 ".memory-seed/skills/developer-rendered-ui-debugging.md",
                 ".memory-seed/skills/document_ingestion.md",
                 ".memory-seed/skills/docx_render_windows.md",
