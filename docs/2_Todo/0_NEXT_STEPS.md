@@ -18,6 +18,9 @@ The [Inbox/Todo lifecycle audit](../4_Reference/inbox-todo-lifecycle-audit-2026-
 evidence and exact session filename matches for every work item. The prior terminal moves remain in
 [the 2026-09-08 audit](../4_Reference/todo-lifecycle-audit-2026-09-08.md).
 
+For shipped-history context, use the root [`CHANGELOG.md`](../../CHANGELOG.md). This page does not
+duplicate release notes.
+
 ## Ready next actions
 
 ### Memory Trace UX — M3 bounded graph perspectives
@@ -79,8 +82,6 @@ The ordering among these four is intentionally unresolved.
   vendor-neutral queue/controller orchestration remains.
 - [Lifecycle-link authoring assist](lifecycle-link-authoring-assist-proposal.md): steps 1–3 shipped;
   optional authoring extensions remain.
-- [Decision-level topics](decision-level-topics-proposal.md): inference stays behind the decision-level
-  graph and declared-attribution design.
 - [Hierarchical vocabulary](hierarchical-topic-vocabulary-proposal.md): core build shipped; a maintainer
   call is still needed for project-type starter vocabulary.
 
@@ -99,22 +100,26 @@ a roadmap decision.
 
 ## User decisions and external actions
 
-- [Ranking A/B unit-change gate](ranking-ab-unit-change-gate-proposal.md): decide whether unit changes need
-  a gate at all; this is not an accepted gate.
 - [OpenSSF credibility](openssf-credibility-proposals.md): the in-repo slice shipped; external
   security-setting/user actions remain.
-- [SkillOpt fit](skillopt-fit-analysis.md): analysis remains unaccepted and identifies external-provider
-  and control-plane risks.
-- [Editable lens refinement](sidecar-editable-lens-refinement-proposal.md): true in-place editing awaits
-  a shape decision.
 - [AI timeline summarisation](memory-trace-ai-timeline-summarisation-plan.md): optional provider remains
   disabled by default and follows packaging/release gates.
 
+## Inbox candidates — not accepted roadmap
+
+These proposals remain discoverable in [`docs/1_Inbox/`](../1_Inbox/) but are intentionally absent from
+the roadmap route until an explicit disposition: [decision-level topics](../1_Inbox/decision-level-topics-proposal.md),
+[ranking A/B unit-change gate](../1_Inbox/ranking-ab-unit-change-gate-proposal.md),
+[retrieval recall fixes](../1_Inbox/retrieval-recall-fixes-proposal.md),
+[editable lens refinement](../1_Inbox/sidecar-editable-lens-refinement-proposal.md), and
+[SkillOpt fit analysis](../1_Inbox/skillopt-fit-analysis.md).
+
 ## Separate plan — do not fold into this route
 
-[Superpowers collaboration integration](superpowers-collaboration-integration-proposal.md) is a separate
-user-owned plan. It remains in Todo for its own Phase 0 routing and approved multi-task trial; this page
-does not start, retire, or rewrite that plan.
+[Superpowers collaboration integration](superpowers-collaboration-integration-proposal.md) is the existing
+accepted integration programme in Todo, with its own Phase 0 routing and approved multi-task trial. It is
+distinct from the newly authored, unassessed Superpowers delivery-quality uplift plan being handled in
+the separate Superpowers worktree; this page does not merge, retire, or rewrite either plan.
 
 ## Terminal history
 

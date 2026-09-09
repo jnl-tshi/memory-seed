@@ -8,22 +8,22 @@ reviewed_scope: "docs/1_Inbox/*.md and docs/2_Todo/*.md, excluding lane indexes 
 
 ## Result
 
-This read-and-reconcile audit covered every direct Markdown work item in `docs/1_Inbox/` (9) and
-`docs/2_Todo/` (45). It used current lane contents, frontmatter and next actions, the existing
+This read-and-reconcile audit covered every direct Markdown work item in `docs/1_Inbox/` (14) and
+`docs/2_Todo/` (40). It used current lane contents, frontmatter and next actions, the existing
 2026-09-08 Todo audit, targeted session decisions, decision-level lifecycle links where relevant,
 and narrow current-code checks for claims of shipped behavior.
 
-- **Inbox retained: 9.** No Inbox item has an explicit promote, reject, replace, defer, or reference
-  disposition that overrides the recorded open review or user exception.
-- **Todo retained: 45.** Each still owns live work, an explicit gate, a partial implementation with
+- **Inbox retained: 14.** This includes the original 9 proposals plus 5 explicitly unaccepted or
+  decision-pending proposals moved from Todo for clarity.
+- **Todo retained: 40.** Each still owns live work, an explicit gate, a partial implementation with
   an open remainder, or an unresolved user decision.
-- **Moves made in this pass: 0.** The prior ten Completed moves and one Replaced move are already
+- **Moves made in this pass: 5 to Inbox, 0 terminal.** The prior ten Completed moves and one Replaced move are already
   present on `main` (see the 2026-09-08 audit and `mse_j6bqhepzg8b1p4rs`). No content was deleted,
-  duplicated, or reclassified on weaker evidence.
+  duplicated, or moved to a terminal lane on weaker evidence.
 - **Index repair:** lane indexes and front-door counts were checked against current `main`; the Inbox
   prose was corrected to account for the two September 8 captures and the living-document exception.
 - **Roadmap navigation cleanup:** `docs/2_Todo/0_NEXT_STEPS.md` was reduced from 1363 lines / 107,880
-  bytes to a 131-line / 7,421-byte route. It now separates ready next actions, dependency-blocked
+  bytes to a 128-line / 7,670-byte route. It now separates ready next actions, dependency-blocked
   programmes, unresolved user decisions, the grouped Trace backlog, and the separately owned
   Superpowers plan. `docs/2_Todo/README.md` now points readers to that route while retaining its
   generated complete metadata table for lookup. Full proposal detail and shipped-phase history remain
@@ -42,14 +42,19 @@ and narrow current-code checks for claims of shipped behavior.
 | `1_Inbox/agent-interaction-storylines-review.md` | Retain by explicit exception | Inbox README; `mse_vjb1kgdq26c5b38y`, `mse_spn9wdhjasq6r344` | Remains Inbox as a living review synchronized with shipped behavior; this is not an untriaged capture. |
 | `1_Inbox/reflection-board-cumulative-handoff-and-decision-harvest-proposal.md` | Retain, unassessed | `mse_j6bqhepzg8b1p4rs` D2 explicitly captures it as an unassessed Inbox proposal | Remains Inbox pending assessment against the current v1 transaction contract. |
 | `1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md` | Retain, review-gated | `mse_jt93a64rsc17bdas` D1 explicitly requires independent semantic/current-main review before promotion or implementation | Remains Inbox; the stale v3 branch is evidence only, not a completed or superseding implementation. |
+| `1_Inbox/decision-level-topics-proposal.md` | Move from Todo to Inbox, deferred | `mse_xc3f1we7p4808mra` D2 explicitly says the proposal is deferred, not built | Preserved in Inbox until a decision-level graph consumer creates an accepted roadmap need. |
+| `1_Inbox/ranking-ab-unit-change-gate-proposal.md` | Move from Todo to Inbox, proposed | `mse_fvqs26sdqbvcem9r` records it as proposed-not-built and leaves whether a unit-change gate is needed undecided | Preserved in Inbox; it is not an accepted gate. |
+| `1_Inbox/retrieval-recall-fixes-proposal.md` | Move from Todo to Inbox, proposed | `mse_dka59wfne2be5fr0` specifies candidate fixes but records none applied and no acceptance | Preserved in Inbox pending an explicit owner/approval decision. |
+| `1_Inbox/sidecar-editable-lens-refinement-proposal.md` | Move from Todo to Inbox, decision-pending | `mse_zq69mbr57qnppm36` leaves true in-place editing awaiting a shape decision | Preserved in Inbox; the solved append-only case is not mistaken for an accepted build. |
+| `1_Inbox/skillopt-fit-analysis.md` | Move from Todo to Inbox, planned artifact | `mse_eap4caz71kggmf7h` says retain it as planned documentation, not accepted implementation | Preserved in Inbox until a roadmap owner and explicit go are recorded. |
 
 The lane's generated `README.md` index is a control document, not a proposal; it stays in place and
-is updated only through the marker-scoped index mechanism. The nine proposal rows above account for
-all direct Inbox work items.
+is updated only through the marker-scoped index mechanism. The fourteen proposal rows above account
+for all direct Inbox work items.
 
 ## Todo — retained active or unresolved work
 
-The following 45 documents remain in `2_Todo/`. The shared evidence baseline is
+The following 40 documents remain in `2_Todo/`; the five moved proposals are listed in the Inbox table above and retained in the evidence ledger below. The shared evidence baseline is
 `docs/4_Reference/todo-lifecycle-audit-2026-09-08.md` and its receipt-bearing session entry
 `mse_j6bqhepzg8b1p4rs`; each row was checked against its current next action, blocked-by field, and
 any explicit shipped/remaining-scope statement. A partial first phase does not move a document when
@@ -83,20 +88,15 @@ the same document still owns an explicit follow-up.
 | `2_Todo/memory-trace-ux-m0-interaction-matrix.md` | Retain active | M3 bounded graph perspectives and controlled expansion remain the next action. |
 | `2_Todo/memory-trace-ux-reference-model-implementation-plan.md` | Retain active | Same M3 implementation remains explicitly owned here. |
 | `2_Todo/openssf-credibility-proposals.md` | Retain partial | In-repo slice shipped; external security-setting/user action and remaining credibility work remain. |
-| `2_Todo/ranking-ab-unit-change-gate-proposal.md` | Retain proposed | Whether a unit-change gate is needed remains undecided. |
 | `2_Todo/reflection-ledger-workstream-evolution-plan.md` | Retain partial | v1 public lifecycle and first real closed board now exist, but the plan still owns integrated launch/retention-extension follow-up. |
 | `2_Todo/reflection-prototype-retirement-plan.md` | Retain partial | Prototype retirement shipped; integrated launch-matrix verification remains explicit. |
-| `2_Todo/retrieval-recall-fixes-proposal.md` | Retain proposed | Lifecycle-label derivation and held-out recall work remain unimplemented. |
 | `2_Todo/session-decision-diagrams-plan.md` | Retain proposed | Diagram sidecar workflow remains a live plan. |
-| `2_Todo/sidecar-editable-lens-refinement-proposal.md` | Retain narrowed | Append-only blocked-entry case is solved; true in-place diagram/link editing still awaits a shape decision. |
-| `2_Todo/skillopt-fit-analysis.md` | Retain proposal | Analysis remains unaccepted and identifies external-provider/control-plane risks. |
 | `2_Todo/superpowers-collaboration-integration-proposal.md` | Retain active | Phase 0 routing and first suitable approved multi-task trial remain the next action; a separate user-owned plan is out of scope here. |
 | `2_Todo/task-packet-calibration-harness-plan.md` | Retain active | Representative population and sealed holdout design remain open. |
 | `2_Todo/write-time-sidecar-consolidation-proposal.md` | Retain partial | Accepted writer tranche is in progress; diagrams/ADR lenses/parsed fusion fixtures remain. |
 | `2_Todo/adjudication-queue.md` | Retain decision queue | JNL rulings are explicitly still required. |
 | `2_Todo/adr-attached-decisions-earn-a-diagram-proposal.md` | Retain gated | Accepted direction remains blocked on ADR backlog and unresolved attachment/write-time questions. |
 | `2_Todo/attention-retrieval-signal-proposal.md` | Retain partial | Capture/exposure shipped; default-ranking flip remains gated on real usage and ranking A/B evidence. |
-| `2_Todo/decision-level-topics-proposal.md` | Retain gated | Inference remains behind the decision-level graph and the declared-attribution design. |
 | `2_Todo/document-lifecycle-system-plan.md` | Retain partial | Migration, docs check, and docs index shipped; secondary-YAML backfill remains. |
 | `2_Todo/file-touch-decision-surfacing-proposal.md` | Retain partial | Claude hook shipped; other-agent observation and extension remain deferred. |
 | `2_Todo/hierarchical-topic-vocabulary-proposal.md` | Retain partial | Core build shipped; project-type starter vocabulary still needs a maintainer call. |
@@ -105,8 +105,7 @@ the same document still owns an explicit follow-up.
 
 ### Exact filename evidence ledger
 
-The following is the latest exact filename-bearing `F:` decision match found for each Todo document
-(searched before relying on the live document's metadata). These references establish the most recent
+The following is the latest exact filename-bearing `F:` decision match found for each of the 45 reviewed proposal documents (including the five now moved to Inbox). These references were searched in the decision-bearing `F:` sections first, before relying on the live document's metadata. These references establish the most recent
 recorded work touching the path; the outcome column above is based on the document's observed
 remaining scope, not on a stale `next_action` field alone. A shipped slice therefore remains retained
 when the same document still names an open remainder or gate.
@@ -176,14 +175,11 @@ session entry `mse_j6bqhepzg8b1p4rs`, and the current Git tree. No duplicate sou
 
 ## Verification
 
-- Current direct-work-item inventory: 9 Inbox, 45 Todo.
-- `docs check`: passed with 14 pre-existing incomplete-Todo metadata warnings and no lifecycle errors.
-- `docs index --check`: the generated index update is pending because the inherited OneDrive ACL
-  denied the CLI's write to `docs/4_Reference/README.md`; the existing index was current before this
-  new report was added. The Inbox lane README was repaired directly.
-- `links check`: completed after the two navigation session entries; the required date sweep added two
-  inert `classify_pending` stubs. The repository still reports three pre-existing session duplicate-ID
-  errors and numerous pre-existing lifecycle/sidecar warnings. No dangling-link error for the audit,
-  Next Steps, or Inbox README paths was observed.
+- Current direct-work-item inventory: 14 Inbox, 40 Todo.
+- `docs check`: passed with 13 pre-existing incomplete-Todo metadata warnings and no lifecycle errors.
+- `docs index --check`: passed; generated lane/front-door indexes are current.
+- `links check`: completed after the navigation and lane-normalization entries; the repository still
+  reports three pre-existing session duplicate-ID errors and numerous pre-existing lifecycle/sidecar
+  warnings. No dangling-link error for the audit, Next Steps, or Inbox README paths was observed.
 - `git diff --check`: passed.
 - All proposal contents were preserved; no `git rm`, broad archival, or blanket terminal move was used.

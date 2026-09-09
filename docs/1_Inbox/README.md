@@ -1,6 +1,6 @@
 # Inbox
 
-Status: **9 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
+Status: **14 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
 [`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
 proposals dated 2026-08-20 were found sitting in the shared checkout on 2026-08-21, captured, and
@@ -11,6 +11,13 @@ Two further proposals were captured on 2026-09-08 and remain explicitly unassess
 Board cumulative-handoff/decision-harvest evolution and the ADR ledger evolution/reasoning-semantics
 plan. Their session decisions require assessment or independent review before promotion; neither is
 accepted implementation work.
+
+Five previously noisy Todo proposals were moved here on 2026-09-09 because their latest decisions
+explicitly leave them proposed, deferred, not built, or awaiting a shape/user decision: decision-level
+topics (`mse_xc3f1we7p4808mra`), ranking A/B unit-change gate (`mse_fvqs26sdqbvcem9r`), retrieval recall
+fixes (`mse_dka59wfne2be5fr0`), editable lens refinement (`mse_zq69mbr57qnppm36`), and SkillOpt fit
+analysis (`mse_eap4caz71kggmf7h`). They remain preserved and discoverable here, but are not presented
+as accepted roadmap work.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -103,10 +110,15 @@ were themselves reference material, not undecided captures — moved the same da
 | [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
 | [adr-ledger-evolution-and-reasoning-semantics-plan.md](adr-ledger-evolution-and-reasoning-semantics-plan.md) | P1 | — | Independently review the semantic model and decide whether to promote a revised plan to docs/2_… |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo. |
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
+| [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
 | [reflection-board-cumulative-handoff-and-decision-harvest-proposal.md](reflection-board-cumulative-handoff-and-decision-harvest-proposal.md) | — | — | Assess the proposal against the current Reflection Board transaction contract before promotion … |
+| [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
+| [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
+| [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
 <!-- docs-index:end -->

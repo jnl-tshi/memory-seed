@@ -26,7 +26,6 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Complete integrated launch verification and first-board evaluation; track public retention-exte… |
 | [reflection-prototype-retirement-plan.md](reflection-prototype-retirement-plan.md) | P1 | — | Verify the retired prototype stays absent in the integrated launch matrix and first-board evalu… |
-| [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [task-packet-calibration-harness-plan.md](task-packet-calibration-harness-plan.md) | P1 | — | Freeze the representative development population and sealed holdout design now that the Qwen3.5… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [adr-attached-decisions-earn-a-diagram-proposal.md](adr-attached-decisions-earn-a-diagram-proposal.md) | P2 | — | ACCEPTED 2026-08-07 (JNL) - not a JNL gate any more. Blocked on the ADR backlog draining (open … |
@@ -37,13 +36,10 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
 | [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | DONE 2026-07-27 - 17 slugs live in .memory-seed/topics.yaml and 166 entries attributed via topi… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
-| [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
 | [superpowers-collaboration-integration-proposal.md](superpowers-collaboration-integration-proposal.md) | P2 | — | Complete Phase 0 routing checks, then use the adapter on the first suitable approved multi-task… |
 | [write-time-sidecar-consolidation-proposal.md](write-time-sidecar-consolidation-proposal.md) | P2 | — | M1 topics-and-links transaction is in progress on `codex/feature/decision-sidecar-transaction`;… |
-| [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P3 | — | ACCEPTED 2026-07-26/27 (JNL, settled inline below) - not a JNL gate any more. Build order steps… |
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |
-| [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
 | [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |
 | [memory-trace-ai-timeline-summarisation-plan.md](memory-trace-ai-timeline-summarisation-plan.md) | — | — | Phase 2: implement a disabled-by-default provider interface and local-model adapter over determ… |
@@ -54,5 +50,4 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-trace-product-and-system-architecture-blueprint.md](memory-trace-product-and-system-architecture-blueprint.md) | — | — | proposed-canonical-plan |
 | [openssf-credibility-proposals.md](openssf-credibility-proposals.md) | — | — | — |
 | [session-decision-diagrams-plan.md](session-decision-diagrams-plan.md) | — | — | — |
-| [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
 <!-- docs-index:end -->
