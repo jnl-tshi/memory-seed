@@ -265,6 +265,78 @@ class TaskPacketTests(unittest.TestCase):
         self.assertEqual(set(caught.exception.details["invalidated"]), {"exact-slices"})
         self.assertIn("lifecycle", caught.exception.details["invalidated"]["exact-slices"][0])
 
+    def test_planning_supporting_session_lifecycle_invalidates_unchanged_slice(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        draft["sources"].append("mse_packet0001:d1")
+        # The Markdown recommendation remains the primary candidate.
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        before = compile_task_packet(dispatch, self.binding(root), root)
+        (root / ".memory-seed/sessions/2026-08-02.md").write_text(
+            "## 2026-08-02 09:00 - Replacement\n\n```yaml\nentry_id: mse_packet0002\n"
+            "replaces:\n  - mse_packet0001\n```\n\n### Decision\n\n- D: Replace the supporting decision.\n", encoding="utf-8")
+        after = compile_task_packet(self.dispatch(), self.binding(root), root)
+        source_digest = lambda packet: next(item["content_digest"] for item in packet["materialized_evidence"]
+                                          if item["id"] == "mse_packet0001:d1")
+        self.assertEqual(source_digest(before), source_digest(after))
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertIn("authority changed", caught.exception.details["invalidated"]["exact-slices"])
+
+    def test_planning_supporting_adr_ledger_lifecycle_invalidates_unchanged_current_view(self):
+        from memory_seed.adr import AdrEvent, AdrRecord, render_adr
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        record = AdrRecord(2, "adr_packet", "Packet contract", (), "2026-08-01T09:00:00Z", "JN", "codex", "write-time",
+                           events=[
+                               AdrEvent("revision-proposed", "adre_proposed", "2026-08-01T09:00:00Z", "write-time",
+                                        decision_ref="mse_packet0001:d1", decision="Keep exact sources.", why="Traceability."),
+                               AdrEvent("revision-accepted", "adre_accepted", "2026-08-01T09:01:00Z", "write-time",
+                                        decision_ref="mse_packet0001:d1", reason="Approved."),
+                           ])
+        path = root / ".memory-seed/decisions/adr_packet.md"
+        path.parent.mkdir()
+        path.write_text(render_adr(record), encoding="utf-8")
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        dispatch["retrieval"]["overrides"] = {"selectors": {"pinned": [{"kind": "adr", "id": "adr_packet", "reason": "Supporting accepted head"}]}}
+        draft["sources"].append("adr_packet")
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        record.events.append(AdrEvent("adr-superseded", "adre_superseded", "2026-08-02T09:00:00Z", "write-time",
+                                      replacement_adr="adr_successor", reason="Replaced supporting authority."))
+        suffix = render_adr(record).split("### adr-superseded", 1)[1]
+        path.write_text(path.read_text(encoding="utf-8") + "\n### adr-superseded" + suffix, encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            compile_task_packet(dispatch, self.binding(root), root)
+        self.assertIn("authority changed", caught.exception.details["invalidated"]["exact-slices"])
+
+    def test_planning_profile_scope_requires_explicit_supporting_evidence_coverage(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        (root / ".memory-seed/topics.yaml").write_text("schema_version: 1\ntopics:\n  - slug: retrieval\n", encoding="utf-8")
+        (root / "docs/support.md").write_text("# Supporting evidence\n", encoding="utf-8")
+        profile = root / ".memory-seed/retrieval-profiles/implementation/v1.yaml"
+        original = profile.read_text(encoding="utf-8")
+        for field in ("topics", "paths"):
+            changed = (original.replace("  filters:\n", "  filters:\n    topics:\n      - retrieval\n")
+                       if field == "topics" else original.replace("      - docs/evidence.md\n", "      - docs/evidence.md\n      - docs/support.md\n"))
+            profile.write_text(changed, encoding="utf-8")
+            dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+            with self.subTest(field=field), self.assertRaisesRegex(TaskPacketValidationError, "scope expanded"):
+                compile_task_packet(dispatch, self.binding(root), root)
+            explicit = copy.deepcopy(draft)
+            explicit["supporting_evidence_scope"] = {"topics": ["retrieval"] if field == "topics" else [],
+                                                      "paths": ["docs/support.md"] if field == "paths" else []}
+            dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [explicit], root)
+            compile_task_packet(dispatch, self.binding(root), root)
+        dispatch["execution"]["allowed_files"] = ["docs/support.md"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "scope expanded"):
+            compile_task_packet(dispatch, self.binding(root), root)
+
     def reflection_writer(self):
         from datetime import datetime, timezone
         from memory_seed.reflection_ledger import initialize_workstream_ledger, render_workstream_ledger, workstream_ledger_path

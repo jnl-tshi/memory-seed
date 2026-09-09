@@ -254,6 +254,12 @@ Each draft contains `id`, `selected_alternative`, `sources` (selected Evidence P
 `candidate` (the existing PlanningCandidate fields), `assessed_scope` (`topics` and exact `paths`),
 `compatibility_constraints`, `proposed_action`, `conflict_reason` (null when compatible),
 `agent_recommendation`, `user_acceptance`, and `departure_reference`. The latter three may be null.
+`assessed_scope` describes the task's topics and exact editable paths. Optional
+`supporting_evidence_scope` separately declares `topics` and retrieval `paths` needed only for
+supporting reads; it defaults to empty lists. The expanded profile's topic/path filters, including
+inherited clauses and overrides, must be explicitly covered by these two scopes. Supporting read
+scope never contributes to edit coverage. A narrow task assessment cannot silently admit broader
+profile-derived retrieval; declare and assess that supporting scope or narrow the profile.
 Acceptance has its own `reference`, `scope`, and `reason`; acceptance and departure references must
 be selected sources. A recommendation never supplies acceptance. References remain unverified
 claims of human acceptance; compilation never proves authenticity or grants authority, resolves a
@@ -261,7 +267,8 @@ stop, changes lifecycle, weakens shared policy, or substitutes for the governing
 
 The helper adds assessed applicability, disposition, required follow-up, effective delivery-quality
 policy, and freshness. SHA-256 of canonical JSON binds each assessment to source identities/digests,
-current authority head/lifecycle, the relevant topic nodes and ancestors, tracked/effective policy,
+current authority head/lifecycle for every listed source (including supporting ADRs and session
+decisions, not just the primary candidate), the relevant topic nodes and ancestors, tracked/effective policy,
 exact profile version and expansion, objective, and assessed scope. A tightening-only effective policy
 may be supplied explicitly. Read each conflict as a concrete proposed action/prior decision pair;
 retain compatible narrower constraints and complete the required follow-up before proceeding.
