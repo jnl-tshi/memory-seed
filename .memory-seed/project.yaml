@@ -18,3 +18,4 @@ delivery_quality:
   adr_conflict: stop
   individual_decision_conflict: warn
   failed_hypothesis_threshold: 3
+  tests_before_behavior_change: true

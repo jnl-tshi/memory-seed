@@ -25,11 +25,20 @@ bounded experiments, or manual observations. State what each check establishes a
 Select the strategy before behavior changes; execution results are recorded separately afterward.
 
 The existing planning evidence contract carries `test_strategy`: `tests`, `alternative_checks`,
-`exceptions`, `behavior_changes`, and `tests_before_behavior_change: true`. Lists may be empty, but
-tests or alternative checks must be present. Declare behavior changes honestly; when true, the compiler
-requires tests as well. This preserves this project's stricter tests-before-behavior policy, including
-for integration or exploratory work that changes behavior. Run those tests before behavior edits and
-retain the result; no new automatic test runner or completion controller is introduced.
+`exceptions`, `behavior_changes`, and the boolean `tests_before_behavior_change`. Lists may be empty,
+but tests or alternative checks must be present. Declare behavior changes honestly.
+
+Resolve `delivery_quality.tests_before_behavior_change` from the effective project configuration through
+`memory_seed.planning` and supply that policy to `validate_implementation_plan`. The portable default
+is false; projects with a stricter tests-before-behavior policy explicitly set true. When true,
+the strategy must declare tests before behavior edits and include tests for behavioral changes, including
+integration or exploratory work. Run those tests before edits and retain the result. A local/task override
+may tighten false to true, never weaken true to false; malformed recognized settings stop explicitly.
+
+Where effective project policy permits it, a behavioral change may use proportionate alternative checks
+or a different test order with justified exceptions covering every planned edit path. Governing constraints
+still apply and the checks must establish the relevant behavior. No new automatic test runner or completion
+controller is introduced.
 
 Every exception records `reason`, `affected_scope` (planned exact paths), `compensating_checks`, `risk`,
 and `authority_reference` (supplied selected evidence). Verify the source's actual authority and scope.

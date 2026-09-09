@@ -84,6 +84,9 @@ class TaskPacketTests(unittest.TestCase):
     def test_implementation_plan_requires_explicit_strategy_and_bound_approval(self):
         from memory_seed.task_packet import prepare_planning_evidence
         root = self.make_project()
+        (root / ".memory-seed/project.yaml").write_text(
+            "delivery_quality:\n  schema_version: 1\n  tests_before_behavior_change: true\n",
+            encoding="utf-8")
         dispatch = self.implementation_dispatch(root)
         for mutation in ("strategy", "approval", "policy", "ownership"):
             draft = self.planning_draft(dispatch["planning_evidence"][0])
@@ -98,6 +101,31 @@ class TaskPacketTests(unittest.TestCase):
                 plan["tasks"][0]["edit_ownership"][0]["path"] = "../escape.py"
             with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError):
                 prepare_planning_evidence(dispatch, [draft], root)
+
+    def test_packet_uses_project_test_order_policy_and_invalidates_on_tightening(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.implementation_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        strategy = draft["implementation_plan"]["test_strategy"]
+        strategy.update(behavior_changes=True, tests_before_behavior_change=False, exceptions=[{
+            "reason": "The behavior is observed in the integration environment.",
+            "affected_scope": ["docs/evidence.md"],
+            "compensating_checks": ["Inspect the integration result."],
+            "risk": "The automated environment is unavailable.",
+            "authority_reference": draft["sources"][0],
+        }])
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertFalse(packet["dispatch"]["planning_evidence"][0]["effective_policy"][
+            "tests_before_behavior_change"])
+        (root / ".memory-seed/project.yaml").write_text(
+            "delivery_quality:\n  schema_version: 1\n  tests_before_behavior_change: true\n",
+            encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError):
+            compile_task_packet(dispatch, self.binding(root), root)
+        with self.assertRaisesRegex(TaskPacketValidationError, "tests-before-behavior"):
+            prepare_planning_evidence(dispatch, [draft], root)
 
     def test_writing_activation_persists_reassessed_same_scope_implementation_plan(self):
         from memory_seed.task_packet import prepare_planning_evidence
@@ -487,6 +515,37 @@ class TaskPacketTests(unittest.TestCase):
         dispatch["execution"]["allowed_files"] = ["docs/support.md"]
         with self.assertRaisesRegex(TaskPacketValidationError, "scope expanded"):
             compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_multi_decision_planning_binds_each_decisions_own_topics(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        (root / ".memory-seed/topics.yaml").write_text(
+            "schema_version: 1\ntopics:\n  - slug: retrieval\n  - slug: debugging\n",
+            encoding="utf-8")
+        session = root / ".memory-seed/sessions/2026-08-01.md"
+        content = session.read_text(encoding="utf-8").replace(
+            "subproject_path: null", "subproject_path: null\ntopics:\n  - retrieval:d1\n  - debugging:d2")
+        content = content.replace("### Decision", "### Decisions\n\n#### D1 - Packet compilation")
+        session.write_text(content + "\n#### D2 - Debugging\n\n- D: Trace before editing.\n"
+                           "- R: Establish the cause.\n- F: `docs/evidence.md`.\n", encoding="utf-8")
+        dispatch = self.planning_dispatch(root)
+        original = self.planning_draft(dispatch["planning_evidence"][0])
+        drafts = []
+        for ordinal, topic in ((1, "retrieval"), (2, "debugging")):
+            draft = copy.deepcopy(original)
+            source = f"mse_packet0001:d{ordinal}"
+            draft.update(id=f"decision-{ordinal}", sources=[source])
+            draft["candidate"].update(reference=source, authority="session_evidence", topics=[topic])
+            draft["assessed_scope"]["topics"] = ["retrieval"]
+            drafts.append(draft)
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, drafts, root)
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        first, second = packet["dispatch"]["planning_evidence"]
+        self.assertNotEqual(first["assessment"], second["assessment"])
+        self.assertEqual(first["candidate"]["topics"], ["retrieval"])
+        self.assertEqual(second["candidate"]["topics"], ["debugging"])
+        self.assertEqual(first["disposition"], "compatible")
+        self.assertEqual(second["disposition"], "review-required")
 
     def reflection_writer(self):
         from datetime import datetime, timezone

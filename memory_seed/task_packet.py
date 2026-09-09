@@ -781,6 +781,12 @@ def _planning_authority(source: Mapping[str, Any], cwd: str | Path) -> dict[str,
         spine = build_refines_spine(chunks)
         state.update(replacing_heads=list(replacing_lineage_heads(graph, entry)),
                      refines_head=list(spine.head(entry, ordinal or None)), topics=list(chunk.topics))
+        if ordinal:
+            decision = next((item for item in load_corpus(cwd, granularity="decision")
+                             if item.chunk_id == source["id"]), None)
+            if decision is None:
+                _fail("planning_evidence.candidate", "decision authority requires a canonical decision")
+            state["topics"] = list(decision.topics)
         state["decision_links"] = sorted(
             [other.entry_id, *edge] for other in chunks for edge in other.decision_edges
             if edge[2] == entry and (not ordinal or not edge[3] or edge[3] == ordinal)
@@ -831,11 +837,17 @@ def _bind_planning_assessment(draft: Mapping[str, Any], dispatch: Mapping[str, A
     paths = [_path_string(path, "planning_evidence.assessed_scope.paths")
              for path in _string_list(scope["paths"], "planning_evidence.assessed_scope.paths")]
     item["assessed_scope"] = scope = {"topics": topics, "paths": paths}
+    runtime = resolve_runtime(cwd)
+    config = runtime.memory_dir / "project.yaml"
+    config_text = config.read_text(encoding="utf-8") if config.exists() else ""
+    tracked_policy = parse_delivery_quality(config_text)
+    policy = parse_delivery_quality(config_text, local_override=effective_policy)
     if "implementation_plan" in item:
         if item["implementation_plan"] is None:
             _fail("planning_evidence.implementation_plan", "omit the optional field for routine assessed work")
         item["implementation_plan"] = validate_implementation_plan(
             item["implementation_plan"], evidence_references=source_ids, assessed_paths=paths,
+            effective_policy=policy,
         )
     if not topics and not paths:
         _fail("planning_evidence.assessed_scope", "requires bounded topics or paths")
@@ -870,12 +882,6 @@ def _bind_planning_assessment(draft: Mapping[str, Any], dispatch: Mapping[str, A
     assessed = asdict(assessment)
     assessed.pop("candidate")
     item["assessment"] = json.loads(canonical_json(assessed))
-    runtime = resolve_runtime(cwd)
-    config = runtime.memory_dir / "project.yaml"
-    config_text = config.read_text(encoding="utf-8") if config.exists() else ""
-    tracked_policy = parse_delivery_quality(config_text)
-    policy = parse_delivery_quality(config_text,
-                                    local_override=effective_policy)
     recommendation = item["agent_recommendation"]
     if recommendation is not None and recommendation not in ("stop", "warn", "proceed"):
         _fail("planning_evidence.agent_recommendation", "must be stop, warn, proceed or null")

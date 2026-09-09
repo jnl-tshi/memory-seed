@@ -46,10 +46,16 @@ did not support it.
 - The tracked project default is **three** failed independent hypothesis-led attempts. It is a default to
   evaluate, not a universal empirical truth.
 
-After three failed independent hypotheses, stop blind patching and reconsider the architecture, boundaries,
-assumptions, or observation model. Continuing is allowed only after recording a new rationale for why the
-next step is justified and what architectural reconsideration ruled in or out. A fourth blind patch is rejected
-until that rationale exists.
+Resolve the nearest runtime's tracked `delivery_quality.failed_hypothesis_threshold` with
+`memory_seed.planning.parse_delivery_quality` (or `resolve_delivery_quality` for a supplied mapping),
+including any permitted tightening-only local/task override. Record the effective threshold before the first
+hypothesis test. Missing configuration uses the default of three; malformed recognized configuration stops
+explicitly. Obey the effective value, including tightened values of 1 or 2.
+
+At the effective threshold of failed independent hypotheses, stop blind patching and reconsider the
+architecture, boundaries, assumptions, or observation model. Continuing is allowed only after recording a
+new rationale for why the next step is justified and what architectural reconsideration ruled in or out.
+Any further blind patch is rejected until that rationale exists.
 
 ## Procedure
 
@@ -59,7 +65,7 @@ until that rationale exists.
    falsified the hypothesis.
 4. If the hypothesis failed, count it only when it is independent under the threshold rule. Do not inflate
    the count for repeated execution, syntax repair, or variants of the same cause.
-5. At the third failed independent hypothesis, perform and record architectural reconsideration before any
+5. At the effective threshold, perform and record architectural reconsideration before any
    further change. If continuing, record the new rationale first.
 6. Verify the accepted change against the current observation. Do not call a remembered or pre-change result
    verification.

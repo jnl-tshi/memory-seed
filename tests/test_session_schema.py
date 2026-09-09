@@ -325,7 +325,7 @@ class SessionSchemaTests(unittest.TestCase):
                 "Falsifiable causal hypothesis",
                 "Smallest discriminating change",
                 "Actual verification",
-                "A fourth blind patch is rejected",
+                "At the effective threshold",
             ),
             "adr_sweep.md": (
                 "ADR Sweep Skill",
@@ -414,7 +414,7 @@ class SessionSchemaTests(unittest.TestCase):
             "Smallest discriminating change",
             "Actual verification",
             "tracked project default is **three**",
-            "A fourth blind patch is rejected",
+            "At the effective threshold",
         ):
             self.assertIn(phrase, content)
         for registry_path in (

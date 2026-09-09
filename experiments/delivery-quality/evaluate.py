@@ -189,7 +189,7 @@ def _execution_provenance(
     if _canonical_json(artifact.get("measurements")) != _canonical_json(run.get("measurements")):
         failures.append("execution provenance artifact does not bind the reported measurements")
         return None
-    for field in ("review_record", "current_review_range"):
+    for field in ("review_record", "current_review_range", "post_fix_range"):
         if field in run and _canonical_json(artifact.get(field)) != _canonical_json(run.get(field)):
             failures.append(f"execution provenance artifact does not bind the reported {field}")
             return None
@@ -260,7 +260,8 @@ def _validate_review_evidence(scenario: dict[str, Any], run: dict[str, Any], fai
     if scenario.get("category") != "evidence_aware_review":
         return
     try:
-        validate_review_record(run.get("review_record"), current_range=run.get("current_review_range"))
+        validate_review_record(run.get("review_record"), current_range=run.get("current_review_range"),
+                               post_fix_range=run.get("post_fix_range"))
     except PlanningValidationError as exc:
         failures.append(f"structured review evidence is invalid: {exc}")
 

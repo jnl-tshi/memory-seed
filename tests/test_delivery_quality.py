@@ -11,6 +11,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from memory_seed.planning import resolve_delivery_quality
 
 
 HARNESS_ROOT = Path("experiments/delivery-quality")
@@ -65,9 +66,11 @@ def may_continue_after_failures(
     attempts: list[HypothesisAttempt],
     architectural_reconsideration: str | None,
     new_rationale: str | None,
+    effective_policy=None,
 ) -> bool:
     """A fourth change requires recorded architectural reconsideration and a new rationale."""
-    return failed_independent_hypotheses(attempts) < 3 or bool(
+    threshold = (effective_policy or resolve_delivery_quality())["failed_hypothesis_threshold"]
+    return failed_independent_hypotheses(attempts) < threshold or bool(
         architectural_reconsideration
         and architectural_reconsideration.strip()
         and new_rationale
@@ -127,9 +130,27 @@ class TestSystematicDebuggingAcceptance:
             "Actual verification",
             "not creating a parallel execution controller",
             "three** failed independent hypothesis-led attempts",
-            "A fourth blind patch is rejected",
+            "delivery_quality.failed_hypothesis_threshold",
+            "At the effective threshold",
         ):
             assert phrase in content
+
+    def test_tightened_threshold_requires_reconsideration_after_one_or_two_failures(self):
+        attempts = [
+            HypothesisAttempt("cache", "Cache is stale.", "Bypass cache.", "failed"),
+            HypothesisAttempt("parser", "Parser drops fields.", "Inspect parsed input.", "failed"),
+        ]
+        for threshold in (1, 2):
+            policy = resolve_delivery_quality(local_override={"failed_hypothesis_threshold": threshold})
+            assert may_continue_after_failures(attempts[:threshold - 1], None, None, policy)
+            assert not may_continue_after_failures(attempts[:threshold], None, None, policy)
+            assert may_continue_after_failures(attempts[:threshold], "Revisit the boundary.",
+                                              "Probe ordering next.", policy)
+        for prefix in (Path("."), Path("memory_seed/seed")):
+            content = (prefix / ".memory-seed/skills/systematic_debugging.md").read_text(encoding="utf-8")
+            assert "parse_delivery_quality" in content
+            assert "including tightened values of 1 or 2" in content
+            assert "At the third" not in content
 
     def test_repetitions_syntax_repairs_and_variants_do_not_increment_independent_count(self):
         attempts = [
@@ -629,8 +650,17 @@ class TestDeliveryQualityScenarioHarness:
         failed_final["review_record"]["final_validation"]["outcome"] = "previous run passed"
         malformed_type = json.loads(json.dumps(valid))
         malformed_type["review_record"]["findings"][0]["severity"] = ["important"]
+        unmeasured_fix = json.loads(json.dumps(valid))
+        del unmeasured_fix["post_fix_range"]
+        reused_range = json.loads(json.dumps(valid))
+        original_range = reused_range["current_review_range"]
+        reused_range["post_fix_range"] = original_range
+        for key in ("fix_range", "re_review_range"):
+            reused_range["review_record"][key] = original_range
+        reused_range["review_record"]["final_validation"]["range"] = original_range
 
-        for malformed in (duplicate, missing_re_review, stale, failed_final, malformed_type):
+        for malformed in (duplicate, missing_re_review, stale, failed_final, malformed_type,
+                          unmeasured_fix, reused_range):
             result = evaluator.evaluate_run(corpus, scenario["id"], malformed)
             assert not result["passed"]
             assert any("structured review evidence is invalid" in failure for failure in result["failures"])

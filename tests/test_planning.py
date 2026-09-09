@@ -42,11 +42,14 @@ def implementation_plan():
     }
 
 
-def validate_plan(plan):
+def validate_plan(plan, *, strict=True):
     from memory_seed.planning import validate_implementation_plan
     return validate_implementation_plan(
         plan, evidence_references=["decision:approved"],
         assessed_paths=["tests/test_example.py", "example.py"],
+        effective_policy=resolve_delivery_quality({"delivery_quality": {
+            "schema_version": 1, "tests_before_behavior_change": strict,
+        }}),
     )
 
 
@@ -60,7 +63,7 @@ def test_implementation_plan_is_optional_and_validation_does_not_mutate():
 
 def review_record():
     review_range = {"base": "a" * 40, "head": "b" * 40}
-    fix_range = {"base": "c" * 40, "head": "d" * 40}
+    fix_range = {"base": "b" * 40, "head": "d" * 40}
     validation = {
         "command_or_check": "python -m pytest tests/test_planning.py",
         "changed_scope": "memory_seed/planning.py",
@@ -98,7 +101,29 @@ def review_record():
 
 
 def validate_review(record, current_range=None):
-    return validate_review_record(record, current_range=current_range or record["review_range"])
+    return validate_review_record(record, current_range=current_range or record["review_range"],
+                                  post_fix_range={"base": "b" * 40, "head": "d" * 40})
+
+
+def test_accepted_review_cannot_reuse_original_range_or_unmeasured_fix():
+    record = review_record()
+    for key in ("fix_range", "re_review_range"):
+        record[key] = deepcopy(record["review_range"])
+    record["final_validation"]["range"] = deepcopy(record["review_range"])
+    with pytest.raises(PlanningValidationError):
+        validate_review(record)
+    with pytest.raises(PlanningValidationError):
+        validate_review_record(record, current_range=record["review_range"],
+                               post_fix_range=record["review_range"])
+    fresh = review_record()
+    with pytest.raises(PlanningValidationError):
+        validate_review_record(fresh, current_range=fresh["review_range"])
+    with pytest.raises(PlanningValidationError):
+        validate_review_record(fresh, current_range=fresh["review_range"],
+                               post_fix_range={"base": "c" * 40, "head": "d" * 40})
+    with pytest.raises(PlanningValidationError):
+        validate_review_record(fresh, current_range=fresh["review_range"],
+                               post_fix_range={"base": "b" * 40, "head": "e" * 40})
 
 
 def test_review_record_is_pure_complete_and_does_not_mutate():
@@ -247,6 +272,21 @@ def test_exception_and_alternative_check_cannot_replace_tests_for_behavior_chang
         validate_plan(plan)
 
 
+def test_permissive_project_can_use_justified_alternate_behavior_verification():
+    plan = implementation_plan()
+    exception = plan_exception()
+    exception["affected_scope"] = ["example.py", "tests/test_example.py"]
+    plan["test_strategy"].update(tests=[], tests_before_behavior_change=False,
+                                alternative_checks=["Run a bounded integration observation."],
+                                exceptions=[exception])
+    assert validate_plan(plan, strict=False) == plan
+    with pytest.raises(PlanningValidationError, match="tests-before-behavior"):
+        validate_plan(plan, strict=True)
+    plan["test_strategy"]["exceptions"] = []
+    with pytest.raises(PlanningValidationError, match="exception"):
+        validate_plan(plan, strict=False)
+
+
 @pytest.mark.parametrize("authority", ["constitution", "control_file", "accepted_adr"])
 def test_plan_exception_does_not_change_governing_conflict_stop(topics, candidate, authority):
     plan = implementation_plan()
@@ -281,7 +321,9 @@ def candidate():
 def test_defaults_and_project_ownership():
     root = Path(__file__).resolve().parents[1]
     text = (root / ".memory-seed/project.yaml").read_text(encoding="utf-8")
-    assert parse_delivery_quality(text) == resolve_delivery_quality()
+    assert parse_delivery_quality(text) == {
+        **resolve_delivery_quality(), "tests_before_behavior_change": True,
+    }
     assert "reflection_board: dormant" in text
     assert "merge_trigger: automatic" in text
     # Bootstrap owns these project-specific files, not the reusable seed.
@@ -291,6 +333,7 @@ def test_defaults_and_project_ownership():
         "schema_version": 1, "constitutional_conflict": "stop",
         "adr_conflict": "stop", "individual_decision_conflict": "warn",
         "failed_hypothesis_threshold": 3,
+        "tests_before_behavior_change": False,
     }
 
 
@@ -317,6 +360,27 @@ def test_local_override_can_tighten_and_does_not_mutate():
     assert result["failed_hypothesis_threshold"] == 2
     assert "schema_version" not in override
     assert resolve_delivery_quality()["individual_decision_conflict"] == "warn"
+
+
+def test_test_order_policy_tightens_only_and_rejects_malformed_keys():
+    strict = {"delivery_quality": {"schema_version": 1, "tests_before_behavior_change": True}}
+    with pytest.raises(PlanningValidationError, match="weaken"):
+        resolve_delivery_quality(strict, local_override={"tests_before_behavior_change": False})
+    assert resolve_delivery_quality(local_override={"tests_before_behavior_change": True})[
+        "tests_before_behavior_change"] is True
+    for value in ("true", 1, None, []):
+        with pytest.raises(PlanningValidationError):
+            resolve_delivery_quality({"delivery_quality": {
+                "schema_version": 1, "tests_before_behavior_change": value}})
+
+
+def test_bootstrapped_project_does_not_inherit_development_repository_test_order(tmp_path):
+    from memory_seed.core import init_project
+    init_project(cwd=tmp_path, skill_profiles={"coding", "planning"})
+    policy = parse_delivery_quality((tmp_path / ".memory-seed/project.yaml").read_text(encoding="utf-8"))
+    assert policy["tests_before_behavior_change"] is False
+    assert policy["constitutional_conflict"] == "stop"
+    assert policy["adr_conflict"] == "stop"
 
 
 @pytest.mark.parametrize("block", [None, [], "stop", {}, {"schema_version": True},

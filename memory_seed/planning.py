@@ -27,6 +27,7 @@ _DEFAULT_POLICY = {
     "adr_conflict": "stop",
     "individual_decision_conflict": "warn",
     "failed_hypothesis_threshold": 3,
+    "tests_before_behavior_change": False,
 }
 _SEVERITY = {"proceed": 0, "warn": 1, "stop": 2}
 
@@ -44,6 +45,7 @@ def _text(value: Any, field: str) -> str:
 def validate_implementation_plan(
     value: Mapping[str, Any] | None, *,
     evidence_references: Sequence[str], assessed_paths: Sequence[str],
+    effective_policy: Mapping[str, Any],
 ) -> dict[str, Any] | None:
     """Validate optional task/strategy evidence, without planning or executing work.
 
@@ -54,6 +56,7 @@ def validate_implementation_plan(
     """
     if value is None:
         return None
+    policy = resolve_delivery_quality({"delivery_quality": effective_policy})
 
     def fields(item: Any, required: set[str], name: str) -> Mapping[str, Any]:
         if not isinstance(item, Mapping):
@@ -124,13 +127,15 @@ def validate_implementation_plan(
     strategy = fields(plan["test_strategy"], {
         "tests", "alternative_checks", "exceptions", "tests_before_behavior_change", "behavior_changes",
     }, "test_strategy")
-    if strategy["tests_before_behavior_change"] is not True:
+    if type(strategy["tests_before_behavior_change"]) is not bool:
+        raise PlanningValidationError("test_strategy.tests_before_behavior_change must be a boolean")
+    if policy["tests_before_behavior_change"] and strategy["tests_before_behavior_change"] is not True:
         raise PlanningValidationError("test_strategy cannot weaken tests-before-behavior project policy")
     tests = strings(strategy["tests"], "test_strategy.tests", empty=True)
     alternatives = strings(strategy["alternative_checks"], "test_strategy.alternative_checks", empty=True)
     if type(strategy["behavior_changes"]) is not bool:
         raise PlanningValidationError("test_strategy.behavior_changes must be a boolean")
-    if strategy["behavior_changes"] and not tests:
+    if policy["tests_before_behavior_change"] and strategy["behavior_changes"] and not tests:
         raise PlanningValidationError("tests-before-behavior policy requires tests for behavior changes, including with exceptions")
     if not tests and not alternatives:
         raise PlanningValidationError("test_strategy requires viable tests or alternative checks; an exception is not a pass")
@@ -147,6 +152,11 @@ def validate_implementation_plan(
             raise PlanningValidationError("exception.affected_scope must name planned edit paths")
         strings(exception["compensating_checks"], "exception.compensating_checks")
         reference(exception["authority_reference"], "exception.authority_reference")
+    if strategy["behavior_changes"] and (not tests or not strategy["tests_before_behavior_change"]):
+        covered = {path.casefold() for exception in exceptions for path in exception["affected_scope"]}
+        if not exceptions or not set(ownership).issubset(covered):
+            raise PlanningValidationError(
+                "alternate behavior verification requires justified exceptions covering planned edit paths")
     return deepcopy(dict(plan))
 
 
@@ -158,10 +168,13 @@ _REVIEW_DISPOSITIONS = {"accept", "reject", "defer"}
 
 def validate_review_record(
     value: Mapping[str, Any], *, current_range: Mapping[str, Any],
+    post_fix_range: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate a review receipt without acting on review feedback or execution.
 
-    The caller supplies the current immutable range; this pure validator establishes
+    The caller supplies the independently measured original and post-fix ranges. The
+    latter starts at the originally reviewed head and ends at the measured new head;
+    Git ancestry and measurement remain caller obligations. This pure validator establishes
     only whether the record is complete, fresh, and internally bound. It never
     decides a finding, authenticates evidence, runs a check, or grants authority.
     """
@@ -288,6 +301,13 @@ def validate_review_record(
     if accepted:
         if fix_range is None or re_review_range is None or fix_range != re_review_range:
             raise PlanningValidationError("accepted finding requires a nonempty exact fix range and scoped re-review range")
+        if post_fix_range is None:
+            raise PlanningValidationError("accepted finding requires a separately measured post-fix range")
+        post_fix = review_range(post_fix_range, "post_fix_range")
+        if post_fix["base"] != reviewed["head"] or post_fix["head"] in reviewed.values():
+            raise PlanningValidationError("post-fix range must advance from the originally reviewed head")
+        if fix_range != post_fix:
+            raise PlanningValidationError("fix and re-review ranges must match the measured post-fix range")
         if final_validation is None:
             raise PlanningValidationError("accepted finding requires final validation after the fix")
         validation(final_validation, "review_record.final_validation", fix_range)
@@ -309,6 +329,8 @@ def _policy_block(value: Any, *, partial: bool = False) -> dict[str, Any]:
             valid = type(setting) is int and setting == 1
         elif key == "failed_hypothesis_threshold":
             valid = type(setting) is int and setting > 0
+        elif key == "tests_before_behavior_change":
+            valid = type(setting) is bool
         elif key == "constitutional_conflict":
             valid = setting == "stop"
         else:
@@ -339,6 +361,7 @@ def resolve_delivery_quality(
         for key, value in _policy_block(local_override, partial=True).items():
             weakens = (
                 value > effective[key] if key == "failed_hypothesis_threshold"
+                else effective[key] and not value if key == "tests_before_behavior_change"
                 else key != "schema_version" and _SEVERITY[value] < _SEVERITY[effective[key]]
             )
             if weakens:
