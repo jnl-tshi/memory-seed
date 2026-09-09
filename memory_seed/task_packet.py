@@ -2296,13 +2296,18 @@ def activate_task_packet(
     }) if isinstance(previous_packet, Mapping) else None
     implements = list(dispatch["execution"]["implements"])
     previous_implements = list(previous_dispatch["execution"]["implements"]) if previous_dispatch is not None else None
+    # Assessments bind implementation tasks/strategy as well as their evidence.
+    # A same-file replan must replace the active packet, not only its return value.
+    planning_identity = canonical_json(dispatch.get("planning_evidence", []))
+    previous_planning = canonical_json(previous_dispatch.get("planning_evidence", [])) if previous_dispatch is not None else None
     changed = invalid_previous or previous is not None and (
         previous_scope != scope or previous_binding != binding_identity or previous_implements != implements
+        or previous_planning != planning_identity
     )
     if changed and len(reason) < 12:
         _fail(
             "binding_update_reason",
-            "a changed activation scope, binding, or implements list requires an explicit reason of at least 12 characters",
+            "a changed activation scope, binding, implements list, or planning evidence requires an explicit reason of at least 12 characters",
             code="binding_update_required",
             stage="activation",
         )
@@ -2327,6 +2332,7 @@ def activate_task_packet(
                         ("scope", previous is not None and previous_scope != scope),
                         ("binding", previous is not None and previous_binding != binding_identity),
                         ("implements", previous is not None and previous_implements != implements),
+                        ("planning_evidence", previous is not None and previous_planning != planning_identity),
                     ) if did_change
                 ],
                 "reason": reason or None,
@@ -2339,7 +2345,7 @@ def activate_task_packet(
         "activated": True,
         "branch": branch,
         "worktree": str(root),
-        "packet_fingerprint": packet["fingerprint"],
+        "packet_fingerprint": packet["fingerprint"] if previous is None or changed else previous_packet["fingerprint"],
         "implements": implements,
         "binding_updated": changed,
         "binding_update_reason": reason if changed else None,

@@ -99,6 +99,91 @@ class TaskPacketTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError):
                 prepare_planning_evidence(dispatch, [draft], root)
 
+    def test_writing_activation_persists_reassessed_same_scope_implementation_plan(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        self.git(root, "switch", "-c", "codex/replan-activation")
+        dispatch = self.implementation_dispatch(root)
+        dispatch["execution"]["write_intent"] = "writing"
+        dispatch["execution"]["allowed_files"] = ["docs/evidence.md"]
+        binding = self.binding(root, writing=True)
+        original_packet = compile_task_packet(dispatch, binding, root)
+        first = activate_task_packet(original_packet, root)
+        artifact, history = Path(first["activation_artifact"]), Path(first["activation_history"])
+        original_artifact, original_history = artifact.read_bytes(), history.read_bytes()
+
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        plan = draft["implementation_plan"]
+        plan["tasks"][0]["edit_ownership"][0]["line_range"] = [1, 1]
+        follow_up = copy.deepcopy(plan["tasks"][0])
+        follow_up.update(id="review", dependencies=["document"],
+                         verification=["Inspect the reviewed exact slice."])
+        follow_up["edit_ownership"][0]["line_range"] = [2, 2]
+        plan["tasks"].append(follow_up)
+        plan["test_strategy"]["alternative_checks"] = ["Inspect the document and review slices."]
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        revised_packet = compile_task_packet(dispatch, binding, root)
+        self.assertNotEqual(original_packet["fingerprint"], revised_packet["fingerprint"])
+        self.assertEqual(original_packet["dispatch"]["execution"], revised_packet["dispatch"]["execution"])
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            activate_task_packet(revised_packet, root)
+        self.assertEqual(caught.exception.code, "binding_update_required")
+        self.assertEqual(artifact.read_bytes(), original_artifact)
+        self.assertEqual(history.read_bytes(), original_history)
+
+        updated = activate_task_packet(revised_packet, root,
+                                       binding_update_reason="Reassessed the task ranges and verification strategy.")
+        self.assertTrue(updated["binding_updated"])
+        stored = json.loads(artifact.read_text(encoding="utf-8"))
+        self.assertEqual(stored["packet"], revised_packet)
+        self.assertEqual(updated["packet_fingerprint"], stored["packet"]["fingerprint"])
+        self.assertEqual(stored["receipt"]["packet_fingerprint"], updated["packet_fingerprint"])
+        self.assertEqual(stored["receipt"]["dispatch_fingerprint"], revised_packet["dispatch_fingerprint"])
+        receipts = [json.loads(line) for line in history.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(receipts), 2)
+        self.assertEqual(receipts[-1]["changed"], ["planning_evidence"])
+        self.assertEqual(receipts[-1]["from_fingerprint"], original_packet["fingerprint"])
+        self.assertEqual(receipts[-1]["to_fingerprint"], updated["packet_fingerprint"])
+        after_artifact, after_history = artifact.read_bytes(), history.read_bytes()
+        repeated = activate_task_packet(revised_packet, root)
+        self.assertFalse(repeated["binding_updated"])
+        self.assertEqual(repeated["packet_fingerprint"], updated["packet_fingerprint"])
+        self.assertEqual(artifact.read_bytes(), after_artifact)
+        self.assertEqual(history.read_bytes(), after_history)
+
+        # Returning to an assessed direct task also replaces the optional plan.
+        direct_draft = self.planning_draft(dispatch["planning_evidence"][0])
+        del direct_draft["implementation_plan"]
+        direct_draft["selected_alternative"] = "Continue the reassessed direct task."
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [direct_draft], root)
+        direct_packet = compile_task_packet(dispatch, binding, root)
+        direct = activate_task_packet(direct_packet, root,
+                                      binding_update_reason="Reassessed the remaining work as a direct task.")
+        self.assertTrue(direct["binding_updated"])
+        direct_stored = json.loads(artifact.read_text(encoding="utf-8"))
+        self.assertEqual(direct_stored["packet"], direct_packet)
+        self.assertNotIn("implementation_plan", direct_stored["packet"]["dispatch"]["planning_evidence"][0])
+        self.assertEqual(direct["packet_fingerprint"], direct_stored["receipt"]["packet_fingerprint"])
+
+    def test_unchanged_activation_without_planning_reports_the_stored_fingerprint(self):
+        root = self.make_project()
+        self.git(root, "switch", "-c", "codex/unchanged-activation")
+        dispatch = self.dispatch(write_intent="writing")
+        binding = self.binding(root, writing=True)
+        packet = compile_task_packet(dispatch, binding, root)
+        first = activate_task_packet(packet, root)
+        artifact, history = Path(first["activation_artifact"]), Path(first["activation_history"])
+        original_artifact, original_history = artifact.read_bytes(), history.read_bytes()
+        # Budget-only recompilation does not change the activation's binding contract.
+        dispatch["budget"]["output_tokens"] += 1
+        recompiled = compile_task_packet(dispatch, binding, root)
+        self.assertNotEqual(recompiled["fingerprint"], packet["fingerprint"])
+        repeated = activate_task_packet(recompiled, root)
+        self.assertFalse(repeated["binding_updated"])
+        self.assertEqual(repeated["packet_fingerprint"], packet["fingerprint"])
+        self.assertEqual(artifact.read_bytes(), original_artifact)
+        self.assertEqual(history.read_bytes(), original_history)
+
     def planning_dispatch(self, root):
         from memory_seed.task_packet import prepare_planning_evidence
         dispatch = self.dispatch()
