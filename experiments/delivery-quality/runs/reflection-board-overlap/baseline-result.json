@@ -10,10 +10,11 @@
       "kind": "actual_execution_surface"
     },
     "artifact_path": "baseline-run.json",
-    "artifact_sha256": "89b9abe998c521be447973370bcaeb6b8d95e4a27f94bc44db077f947f9e5b08"
+    "artifact_sha256": "bea5445aeed78511f73020531f586dbb9ab6dcdce396a92fb3b411473ab3abc1"
   },
   "limitations": [
     "Selected overlap case; no causal generalization.",
+    "The baseline was read-only advisory rather than implementation.",
     "The new design-discovery, systematic-debugging, planning-policy, and evaluation files were excluded from the baseline.",
     "Provider token usage, latency, and cost were unavailable.",
     "The current Board candidate was reported malformed from ambiguous history.",
@@ -33,7 +34,7 @@
     {
       "id": "baseline-context",
       "source": "delegated baseline agent terminal report (reconstructed provenance)",
-      "record": "The same overlap scenario and model tier were assessed at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. The baseline agent was explicitly denied the new design-discovery, systematic-debugging, planning-policy, and evaluation files."
+      "record": "The same overlap scenario and model tier were assessed read-only at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. Both the baseline and post-adoption agents were read-only. The baseline agent was explicitly denied the new design-discovery, systematic-debugging, planning-policy, and evaluation files."
     },
     {
       "id": "baseline-discovery",

@@ -4,20 +4,20 @@
 
 This bounded comparison packages two delegated terminal reports for the same `new-consequential-design`
 scenario: whether to keep the Memory Seed Reflection Board dormant and rely on Superpowers SDD for
-overlapping execution/review, or retain both. Both runs used the same model tier and clean HEAD
-`e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88`. The baseline was explicitly denied the new design-discovery,
-systematic-debugging, planning-policy, and evaluation files. The post-adoption run applied the new
-design-discovery and governed-planning contracts. Records are reconstructed from the delegated agents'
-terminal reports; the local artifact binding proves packaging integrity, not provider authenticity or
-first-hand capture.
+overlapping execution/review, or retain both. Both agents ran read-only, used the same model tier, and
+started from clean HEAD `e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88`. The baseline was explicitly denied
+the new design-discovery, systematic-debugging, planning-policy, and evaluation files. The post-adoption
+run applied the new design-discovery and governed-planning contracts. Records are reconstructed from the
+delegated agents' terminal reports; the local artifact binding proves packaging integrity, not provider
+authenticity or first-hand capture.
 
 ## Comparable controls
 
 Both result inputs use the same declared scenario, task complexity (`medium`), required discovery
 observations, and unavailable provider measurements. They have distinct run and execution-surface IDs,
 separate SHA-256-bound execution artifacts, and explicitly record selection bias, limitations, and
-reconsideration events. No Reflection artifacts were changed and the post-adoption run was advisory and
-read-only rather than an implementation.
+reconsideration events. Neither agent changed Reflection artifacts: both runs were advisory and read-only
+rather than implementation.
 
 ## Evaluator results
 

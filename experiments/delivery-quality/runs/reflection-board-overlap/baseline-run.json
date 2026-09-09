@@ -11,7 +11,7 @@
     {
       "id": "baseline-context",
       "source": "delegated baseline agent terminal report (reconstructed provenance)",
-      "record": "The same overlap scenario and model tier were assessed at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. The baseline agent was explicitly denied the new design-discovery, systematic-debugging, planning-policy, and evaluation files."
+      "record": "The same overlap scenario and model tier were assessed read-only at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. Both the baseline and post-adoption agents were read-only. The baseline agent was explicitly denied the new design-discovery, systematic-debugging, planning-policy, and evaluation files."
     },
     {
       "id": "baseline-discovery",
