@@ -14,7 +14,7 @@ source:
   - "docs/CONSTITUTION.md"
 scope: "Reconstruct Seed Pod P0 on current main: governed .memory-seed-pod boundaries, pod-owned provenance, selected-pod Task Packets, root-only P0 reflections, root promotion summaries, explicit inspection, receipted lifecycle transactions, qualified session fusion, migration compatibility, and verification."
 non_goals:
-  - "Do not merge, rebase, cherry-pick, delete, or otherwise alter b7e623b, 9284ef4, f6bc92c, ada4f2e, or 4fb275e."
+  - "Do not merge, rebase, cherry-pick, rewrite, or otherwise alter b7e623b, 9284ef4, f6bc92c, ada4f2e, or 4fb275e; retain their branches as historical evidence."
   - "Do not implement, merge, push, release, or begin P1 federated retrieval in this planning change."
   - "Do not rewrite, delete, or silently relocate historical session or provenance records."
 dependencies:
@@ -948,9 +948,22 @@ At a completed or abandoned track: save its test and fuse receipts in its
 branch session entry; confirm `git status --short`; remove only generated,
 ignored artifacts owned by that worktree; then use `git worktree remove` only
 after its branch is either deliberately retained for review or its owner has
-explicitly authorised removal.  Do not delete the historical P0 worktrees or
-branches.  The present planning worktree remains available for G0 independent
-review; it is not cleaned up merely because this document is committed.
+explicitly authorised removal.
+
+On 2026-09-09, JNL explicitly authorised removal of the five historical P0
+**worktree directories** after verification that their retained branches carry
+the complete committed evidence and that the sole untracked reflection log is
+an exact older prefix of the current-main copy. This supersedes the earlier
+directory-retention sentence only. It does not authorise deleting, rewriting,
+merging, rebasing, cherry-picking, or importing the named historical branches
+or commits. Keep every branch in the evidence matrix available for G0 review
+and reconstruction; recreate a temporary worktree from its branch if direct
+inspection is needed.
+
+The current-main reconciliation plan and retained historical branches remain
+available for G0 independent review; their historical worktree directories do
+not. The present planning worktree is not cleaned up merely because this
+document is committed.
 
 ## Next action
 
