@@ -34,6 +34,16 @@ _REQUIRED = {
     "ledger_expire": ("workstream_id", "chain_id"),
 }
 
+_DORMANT_ALLOWED = {"commit_admission", "board_view", "ledger_view", "ledger_check"}
+
+
+def _reflection_board_dormant(root: Path) -> bool:
+    """Read the project-level reversible Reflection Board pause setting."""
+    path = root / ".memory-seed" / "project.yaml"
+    if not path.is_file():
+        return False
+    return any(line.strip() == "reflection_board: dormant" for line in path.read_text(encoding="utf-8").splitlines())
+
 
 def _validate(operation: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
     if operation not in _FIELDS:
@@ -212,6 +222,9 @@ def run_reflection_operation(operation: str, arguments: Mapping[str, Any] | None
         if operation == "commit_admission":
             return {"ok": True, **ledger.reflection_commit_admission(cwd)}
         root, branch = _context(cwd)
+        if _reflection_board_dormant(root) and operation not in _DORMANT_ALLOWED:
+            return {"ok": False, "error": {"code": "reflection_board_dormant", "path": ".memory-seed/project.yaml",
+                "message": "Reflection Board is dormant for this project; read-only inspection remains available", "details": {}}}
         if operation == "trust_init":
             return {"ok": True, **ledger.reflection_trust_init(root, apply=args.get("apply", False))}
         if operation == "board_view":
