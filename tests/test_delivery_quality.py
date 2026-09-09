@@ -312,7 +312,10 @@ class TestDeliveryQualityScenarioHarness:
                 for observation in scenarios[scenario_id]["prohibited_observations"]
             }
             assert {("detect", ineligibility), ("route", fallback)} <= required
-            assert ("route", "unverified_external_route") in prohibited
+            assert {
+                ("route", "external_read_only_dispatch"),
+                ("route", "approved_external_sdd"),
+            } <= prohibited
 
     def test_external_boundary_ordering_and_exclusions_reject_structured_violations(self):
         evaluator = load_delivery_quality_evaluator()
@@ -338,6 +341,21 @@ class TestDeliveryQualityScenarioHarness:
         assert not result["passed"]
         assert any("ordering constraint" in failure for failure in result["failures"])
 
+        integration_inversion = json.loads(json.dumps(valid))
+        positions = {
+            (observation["action"], observation["subject"]): index
+            for index, observation in enumerate(integration_inversion["observations"])
+        }
+        evaluated = positions[("evaluate", "external_output")]
+        integrated = positions[("integrate", "memory_seed_integration")]
+        integration_inversion["observations"][evaluated], integration_inversion["observations"][integrated] = (
+            integration_inversion["observations"][integrated],
+            integration_inversion["observations"][evaluated],
+        )
+        result = evaluator.evaluate_run(corpus, scenario["id"], integration_inversion)
+        assert not result["passed"]
+        assert any("ordering constraint" in failure for failure in result["failures"])
+
         for prohibited in scenario["prohibited_observations"]:
             violation = json.loads(json.dumps(valid))
             violation["observations"].append(
@@ -351,6 +369,31 @@ class TestDeliveryQualityScenarioHarness:
             result = evaluator.evaluate_run(corpus, scenario["id"], violation)
             assert not result["passed"]
             assert f"prohibited observation {prohibited['id']} was observed" in result["failures"]
+
+        for scenario_id in (
+            "external-unavailable-local-fallback",
+            "external-unverified-local-fallback",
+            "external-unsupported-version-local-fallback",
+            "external-wrong-capability-local-fallback",
+        ):
+            fallback = next(
+                item for item in corpus["scenarios"] if item["id"] == scenario_id
+            )
+            valid_fallback = json.loads(json.dumps(fallback["valid_fixture"]))
+            for prohibited in fallback["prohibited_observations"]:
+                violation = json.loads(json.dumps(valid_fallback))
+                evidence_id = violation["evidence"][0]["id"]
+                violation["observations"].append(
+                    {
+                        "action": prohibited["action"],
+                        "subject": prohibited["subject"],
+                        "status": "observed",
+                        "evidence_ids": [evidence_id],
+                    }
+                )
+                result = evaluator.evaluate_run(corpus, fallback["id"], violation)
+                assert not result["passed"]
+                assert f"prohibited observation {prohibited['id']} was observed" in result["failures"]
 
     def test_declared_corpus_has_required_trigger_and_measurement_contracts(self):
         evaluator = load_delivery_quality_evaluator()
