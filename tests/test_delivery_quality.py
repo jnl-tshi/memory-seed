@@ -7,7 +7,22 @@ controller. These small models make its threshold and negative-control semantics
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib.util
+import json
 from pathlib import Path
+
+
+HARNESS_ROOT = Path("experiments/delivery-quality")
+
+
+def load_delivery_quality_evaluator():
+    spec = importlib.util.spec_from_file_location(
+        "delivery_quality_evaluator", HARNESS_ROOT / "evaluate.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @dataclass(frozen=True)
@@ -224,3 +239,112 @@ class TestFreshVerificationEvidenceAcceptance:
                 omission_reason="The required external environment is unavailable.",
             )
         )
+
+
+class TestDeliveryQualityScenarioHarness:
+    def test_declared_corpus_has_required_trigger_and_measurement_contracts(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+
+        categories = {scenario["category"] for scenario in corpus["scenarios"]}
+        assert {
+            "design_discovery",
+            "systematic_debugging",
+            "fresh_verification",
+            "governed_planning_authority",
+            "scoped_evidence_freshness",
+            "routine_non_trigger",
+            "external_superpowers_boundary",
+        } <= categories
+        assert {scenario["expected_routing"] for scenario in corpus["scenarios"]} == {
+            "trigger",
+            "non_trigger",
+        }
+
+        for scenario in corpus["scenarios"]:
+            assert scenario["complexity"]
+            assert scenario["required_observations"]
+            assert "prohibited_observations" in scenario
+            assert set(scenario["measurement_availability"]) == {
+                "provider_token_usage",
+                "latency",
+                "cost",
+            }
+            assert scenario["negative_controls"]
+
+    def test_valid_fixtures_validate_the_instrument_but_not_workflow_claims(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+
+        results = evaluator.evaluate_declared_fixtures(corpus, kind="valid")
+
+        assert results["passed"] == len(corpus["scenarios"])
+        assert all(result["evidence_class"] == "fixture_instrument_validation" for result in results["results"])
+        assert all(not result["workflow_claim_eligible"] for result in results["results"])
+        assert all(
+            measurement["availability"] == "unavailable"
+            for result in results["results"]
+            for measurement in result["measurements"].values()
+        )
+
+    def test_each_negative_control_fails_and_missing_upstream_evidence_never_passes(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+
+        results = evaluator.evaluate_declared_fixtures(corpus, kind="negative")
+
+        assert results["failed"] == 0
+        assert results["passed"] == sum(
+            len(scenario["negative_controls"]) for scenario in corpus["scenarios"]
+        )
+        assert all(not result["passed"] for result in results["results"])
+        assert any(
+            "missing upstream evidence" in failure
+            for result in results["results"]
+            for failure in result["failures"]
+        )
+
+    def test_trigger_and_non_trigger_controls_fail_discriminatingly(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        results = evaluator.evaluate_declared_fixtures(corpus, kind="negative")
+
+        failed_routes = {
+            result["expected_routing"]
+            for result in results["results"]
+            if any(
+                "required observation" in failure or "prohibited observation" in failure
+                for failure in result["failures"]
+            )
+        }
+        assert failed_routes == {"trigger", "non_trigger"}
+
+    def test_real_run_result_schema_records_comparability_limits_and_observed_measurements(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenario = next(
+            scenario
+            for scenario in corpus["scenarios"]
+            if scenario["category"] == "fresh_verification"
+        )
+        run = json.loads(json.dumps(scenario["valid_fixture"]))
+        run["schema"] = "delivery-quality-result-input/v1"
+        run["evidence_class"] = "real_agent_behavior"
+        run["comparison_phase"] = "post_adoption"
+        run["limitations"] = ["Single local task; no external execution surface."]
+        run["selection_bias"] = ["Scenario was intentionally selected for fresh verification."]
+        run["rework_reopen_events"] = [
+            {"event": "reopen", "cause": "A stale check was detected before completion."}
+        ]
+        run["measurements"]["provider_token_usage"] = {
+            "availability": "available",
+            "value": 321,
+            "source": "execution-surface usage record",
+        }
+
+        result = evaluator.evaluate_run(corpus, scenario["id"], run)
+
+        assert result["passed"]
+        assert result["workflow_claim_eligible"]
+        assert result["task_complexity"] == scenario["complexity"]
+        assert result["measurements"]["provider_token_usage"]["value"] == 321

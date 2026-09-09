@@ -1,0 +1,95 @@
+{
+  "schema": "delivery-quality-scenarios/v1",
+  "scope": "Local, derived fixture scoring. Fixtures validate the instrument; they do not establish real workflow outcomes.",
+  "scenarios": [
+    {
+      "id": "new-consequential-design",
+      "category": "design_discovery",
+      "expected_routing": "trigger",
+      "complexity": "medium",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [
+        {"id": "capabilities-inspected", "action": "inspect", "subject": "existing_capabilities"},
+        {"id": "alternatives-compared", "action": "compare", "subject": "realistic_alternatives"},
+        {"id": "selection-recorded", "action": "record_decision", "subject": "selected_design"}
+      ],
+      "prohibited_observations": [{"id": "unexamined-choice", "action": "select", "subject": "unexamined_design"}],
+      "valid_fixture": {
+        "id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["Synthetic structured records only."], "selection_bias": ["Designed to exercise discovery routing."], "rework_reopen_events": [],
+        "evidence": [{"id": "d1", "source": "fixture", "record": "capabilities and alternatives record"}],
+        "observations": [{"action": "inspect", "subject": "existing_capabilities", "status": "observed", "evidence_ids": ["d1"]}, {"action": "compare", "subject": "realistic_alternatives", "status": "observed", "evidence_ids": ["d1"]}, {"action": "record_decision", "subject": "selected_design", "status": "observed", "evidence_ids": ["d1"]}],
+        "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture has no execution surface"}, "latency": {"availability": "unavailable", "reason": "fixture has no execution surface"}, "cost": {"availability": "unavailable", "reason": "fixture has no execution surface"}}
+      },
+      "negative_controls": [
+        {"id": "missing-upstream-evidence", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [], "observations": [{"action": "inspect", "subject": "existing_capabilities", "status": "observed", "evidence_ids": []}, {"action": "compare", "subject": "realistic_alternatives", "status": "observed", "evidence_ids": []}, {"action": "record_decision", "subject": "selected_design", "status": "observed", "evidence_ids": []}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+        {"id": "omitted-alternative-comparison", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "d1", "source": "fixture", "record": "selection only"}], "observations": [{"action": "inspect", "subject": "existing_capabilities", "status": "observed", "evidence_ids": ["d1"]}, {"action": "record_decision", "subject": "selected_design", "status": "observed", "evidence_ids": ["d1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}
+      ]
+    },
+    {
+      "id": "repeated-debugging-failure",
+      "category": "systematic_debugging",
+      "expected_routing": "trigger",
+      "complexity": "high",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "reproduction-recorded", "action": "reproduce", "subject": "failure"}, {"id": "hypotheses-recorded", "action": "record_hypothesis", "subject": "causal_premise"}, {"id": "architecture-reassessed", "action": "reassess", "subject": "architecture"}],
+      "prohibited_observations": [{"id": "fourth-blind-patch", "action": "apply_patch", "subject": "fourth_blind_change"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["Synthetic attempts."], "selection_bias": ["Failure count is controlled."], "rework_reopen_events": [], "evidence": [{"id": "g1", "source": "fixture", "record": "three independent failed hypotheses"}], "observations": [{"action": "reproduce", "subject": "failure", "status": "observed", "evidence_ids": ["g1"]}, {"action": "record_hypothesis", "subject": "causal_premise", "status": "observed", "evidence_ids": ["g1"]}, {"action": "reassess", "subject": "architecture", "status": "observed", "evidence_ids": ["g1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+      "negative_controls": [{"id": "blind-fourth-patch", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "g1", "source": "fixture", "record": "attempt history"}], "observations": [{"action": "reproduce", "subject": "failure", "status": "observed", "evidence_ids": ["g1"]}, {"action": "record_hypothesis", "subject": "causal_premise", "status": "observed", "evidence_ids": ["g1"]}, {"action": "reassess", "subject": "architecture", "status": "observed", "evidence_ids": ["g1"]}, {"action": "apply_patch", "subject": "fourth_blind_change", "status": "observed", "evidence_ids": ["g1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    },
+    {
+      "id": "fresh-completion-verification",
+      "category": "fresh_verification",
+      "expected_routing": "trigger",
+      "complexity": "low",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "changed-scope-check", "action": "execute_check", "subject": "changed_scope"}, {"id": "freshness-recorded", "action": "record", "subject": "freshness_marker"}],
+      "prohibited_observations": [{"id": "stale-completion", "action": "claim_completion", "subject": "stale_verification"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["No command was actually run."], "selection_bias": ["Synthetic fresh marker."], "rework_reopen_events": [], "evidence": [{"id": "v1", "source": "fixture", "record": "post-change check result"}], "observations": [{"action": "execute_check", "subject": "changed_scope", "status": "observed", "evidence_ids": ["v1"]}, {"action": "record", "subject": "freshness_marker", "status": "observed", "evidence_ids": ["v1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+      "negative_controls": [{"id": "stale-completion-claim", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "v1", "source": "fixture", "record": "old check"}], "observations": [{"action": "execute_check", "subject": "changed_scope", "status": "observed", "evidence_ids": ["v1"]}, {"action": "record", "subject": "freshness_marker", "status": "observed", "evidence_ids": ["v1"]}, {"action": "claim_completion", "subject": "stale_verification", "status": "observed", "evidence_ids": ["v1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    },
+    {
+      "id": "constitutional-authority-conflict",
+      "category": "governed_planning_authority",
+      "expected_routing": "trigger",
+      "complexity": "high",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "authority-consulted", "action": "consult", "subject": "constitution"}, {"id": "conflict-stopped", "action": "stop", "subject": "constitutional_conflict"}],
+      "prohibited_observations": [{"id": "unapproved-proceed", "action": "proceed", "subject": "constitutional_conflict"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["Authority source is synthetic."], "selection_bias": ["Direct contradiction."], "rework_reopen_events": [], "evidence": [{"id": "a1", "source": "fixture", "record": "authority and stop record"}], "observations": [{"action": "consult", "subject": "constitution", "status": "observed", "evidence_ids": ["a1"]}, {"action": "stop", "subject": "constitutional_conflict", "status": "observed", "evidence_ids": ["a1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+      "negative_controls": [{"id": "proceeded-through-constitutional-conflict", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "a1", "source": "fixture", "record": "contradiction"}], "observations": [{"action": "consult", "subject": "constitution", "status": "observed", "evidence_ids": ["a1"]}, {"action": "stop", "subject": "constitutional_conflict", "status": "observed", "evidence_ids": ["a1"]}, {"action": "proceed", "subject": "constitutional_conflict", "status": "observed", "evidence_ids": ["a1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    },
+    {
+      "id": "scoped-evidence-invalidation",
+      "category": "scoped_evidence_freshness",
+      "expected_routing": "trigger",
+      "complexity": "medium",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "scope-fingerprinted", "action": "fingerprint", "subject": "scoped_evidence"}, {"id": "affected-evidence-invalidated", "action": "invalidate", "subject": "affected_evidence"}, {"id": "bounded-refresh", "action": "refresh", "subject": "affected_scope"}],
+      "prohibited_observations": [{"id": "corpus-wide-repeat", "action": "retrieve", "subject": "entire_corpus"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["No live corpus."], "selection_bias": ["A change is supplied."], "rework_reopen_events": [], "evidence": [{"id": "f1", "source": "fixture", "record": "scope change and refresh"}], "observations": [{"action": "fingerprint", "subject": "scoped_evidence", "status": "observed", "evidence_ids": ["f1"]}, {"action": "invalidate", "subject": "affected_evidence", "status": "observed", "evidence_ids": ["f1"]}, {"action": "refresh", "subject": "affected_scope", "status": "observed", "evidence_ids": ["f1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+      "negative_controls": [{"id": "missing-freshness-evidence", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [], "observations": [{"action": "fingerprint", "subject": "scoped_evidence", "status": "observed", "evidence_ids": []}, {"action": "invalidate", "subject": "affected_evidence", "status": "observed", "evidence_ids": []}, {"action": "refresh", "subject": "affected_scope", "status": "observed", "evidence_ids": []}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    },
+    {
+      "id": "routine-assessed-edit",
+      "category": "routine_non_trigger",
+      "expected_routing": "non_trigger",
+      "complexity": "low",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "existing-decision-cited", "action": "cite", "subject": "existing_decision"}, {"id": "proportionate-check", "action": "execute_check", "subject": "proportionate_verification"}],
+      "prohibited_observations": [{"id": "heavyweight-discovery", "action": "start", "subject": "heavyweight_discovery_loop"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["No real routine task."], "selection_bias": ["Known decision supplied."], "rework_reopen_events": [], "evidence": [{"id": "r1", "source": "fixture", "record": "prior decision and verification"}], "observations": [{"action": "cite", "subject": "existing_decision", "status": "observed", "evidence_ids": ["r1"]}, {"action": "execute_check", "subject": "proportionate_verification", "status": "observed", "evidence_ids": ["r1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}},
+      "negative_controls": [{"id": "unnecessary-discovery-loop", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "r1", "source": "fixture", "record": "routine task"}], "observations": [{"action": "cite", "subject": "existing_decision", "status": "observed", "evidence_ids": ["r1"]}, {"action": "execute_check", "subject": "proportionate_verification", "status": "observed", "evidence_ids": ["r1"]}, {"action": "start", "subject": "heavyweight_discovery_loop", "status": "observed", "evidence_ids": ["r1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    },
+    {
+      "id": "external-read-only-delegation-boundary",
+      "category": "external_superpowers_boundary",
+      "expected_routing": "trigger",
+      "complexity": "medium",
+      "measurement_availability": {"provider_token_usage": "unavailable", "latency": "unavailable", "cost": "unavailable"},
+      "required_observations": [{"id": "read-only-route", "action": "route", "subject": "external_read_only_dispatch"}, {"id": "return-receipt", "action": "return", "subject": "memory_seed_return_receipt"}, {"id": "local-integration-owner", "action": "retain_owner", "subject": "memory_seed_integration"}],
+      "prohibited_observations": [{"id": "external-authority-override", "action": "grant", "subject": "external_authority_override"}, {"id": "copied-external-controller", "action": "copy", "subject": "external_execution_controller"}],
+      "valid_fixture": {"id": "valid", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": ["External route is not invoked."], "selection_bias": ["Read-only delegation is preselected."], "rework_reopen_events": [], "evidence": [{"id": "x1", "source": "fixture", "record": "boundary receipt"}], "observations": [{"action": "route", "subject": "external_read_only_dispatch", "status": "observed", "evidence_ids": ["x1"]}, {"action": "return", "subject": "memory_seed_return_receipt", "status": "observed", "evidence_ids": ["x1"]}, {"action": "retain_owner", "subject": "memory_seed_integration", "status": "observed", "evidence_ids": ["x1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture has no provider surface"}, "latency": {"availability": "unavailable", "reason": "fixture has no provider surface"}, "cost": {"availability": "unavailable", "reason": "fixture has no provider surface"}}},
+      "negative_controls": [{"id": "external-authority-takeover", "evidence_class": "fixture_instrument_validation", "comparison_phase": "baseline", "limitations": [], "selection_bias": [], "rework_reopen_events": [], "evidence": [{"id": "x1", "source": "fixture", "record": "boundary violation"}], "observations": [{"action": "route", "subject": "external_read_only_dispatch", "status": "observed", "evidence_ids": ["x1"]}, {"action": "return", "subject": "memory_seed_return_receipt", "status": "observed", "evidence_ids": ["x1"]}, {"action": "retain_owner", "subject": "memory_seed_integration", "status": "observed", "evidence_ids": ["x1"]}, {"action": "grant", "subject": "external_authority_override", "status": "observed", "evidence_ids": ["x1"]}], "measurements": {"provider_token_usage": {"availability": "unavailable", "reason": "fixture"}, "latency": {"availability": "unavailable", "reason": "fixture"}, "cost": {"availability": "unavailable", "reason": "fixture"}}}]
+    }
+  ]
+}
