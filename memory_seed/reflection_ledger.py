@@ -2732,11 +2732,34 @@ def _inherited_identical_reflection_family(root: Path, *, base_commit: str, sour
                                            merge_base: str, merged_commit: str | None = None) -> bool:
     """Whether a normal descendant carries an untouched complete Reflection family.
 
-    This deliberately proves more than one equal ledger blob.  It admits no
-    sibling join, ledger mutation, new ledger, removal, or trust-anchor change.
-    ``merged_commit`` binds the same family to the actual no-FF merge index.
+    This adds the normal-descendant topology constraint to the complete-identity
+    proof used for a two-parent carrier. ``merged_commit`` binds the same
+    family to the actual no-FF merge index.
     """
-    if base_commit == source_commit or merge_base != base_commit or not _git_is_ancestor(root, base_commit, source_commit):
+    return (
+        merge_base == base_commit
+        and _git_is_ancestor(root, base_commit, source_commit)
+        and _identical_reflection_family(
+            root,
+            base_commit=base_commit,
+            source_commit=source_commit,
+            merge_base=merge_base,
+            merged_commit=merged_commit,
+        )
+    )
+
+
+def _identical_reflection_family(root: Path, *, base_commit: str, source_commit: str,
+                                 merge_base: str, merged_commit: str | None = None) -> bool:
+    """Whether both parents inherit one byte-identical complete Reflection family.
+
+    An ordinary no-FF merge can be an identity carrier even when unrelated
+    work advanced on both branches. This admits that narrow topology only when
+    every reserved path (including the trust anchor) is identical at the sole
+    merge base and both parents. It never combines ledger histories, and the
+    optional merged tree recheck prevents an index-side substitution.
+    """
+    if base_commit == source_commit:
         return False
     base = _reflection_tree_layout(root, base_commit)
     if not base:
@@ -2851,7 +2874,7 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
     for path, _mode, _oid in ancestor:
         if path not in left or path not in right:
             _fail("reflection-integration-topology", path, "raw ledger removal is not admitted integration")
-    inherited_identical_family = _inherited_identical_reflection_family(
+    inherited_identical_family = _identical_reflection_family(
         root, base_commit=base_commit, source_commit=source_commit, merge_base=bases[0],
     )
     if _git_is_ancestor(root, source_commit, base_commit):
@@ -3397,19 +3420,24 @@ def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, GitBl
         if len(parents) > 1:
             if len(ledger_parents) == 1:
                 parent, parent_blob = ledger_parents[0]
-            elif (len(parents) == 2 and len(ledger_parents) == 2
-                  and _inherited_identical_reflection_family(
-                      root, base_commit=parents[0], source_commit=parents[1],
-                      merge_base=parents[0], merged_commit=current,
-                  )):
-                # A guarded no-FF integration may carry an untouched complete
-                # Reflection family through both parents.  The target is the
-                # proven ancestor, so first-parent traversal is deterministic
-                # and skips no ledger transition.
-                parent, parent_blob = ledger_parents[0]
+            elif len(parents) == 2 and len(ledger_parents) == 2:
+                code, raw_bases = _git(root, "merge-base", "--all", parents[0], parents[1])
+                merge_bases = str(raw_bases).split()
+                if (code == 0 and len(merge_bases) == 1 and _identical_reflection_family(
+                        root, base_commit=parents[0], source_commit=parents[1],
+                        merge_base=merge_bases[0], merged_commit=current,
+                )):
+                    # A guarded no-FF identity carrier may retain one untouched
+                    # complete Reflection family through both parents.
+                    # First-parent traversal is deterministic and skips no
+                    # ledger transition.
+                    parent, parent_blob = ledger_parents[0]
+                else:
+                    _fail("compaction-proof-history-ambiguous", ledger_path,
+                          "merge must have exactly one ledger-bearing parent or an identical family", commit=current)
             else:
                 _fail("compaction-proof-history-ambiguous", ledger_path,
-                      "merge must have exactly one ledger-bearing parent or an inherited identical family", commit=current)
+                      "merge must have exactly one ledger-bearing parent or an identical family", commit=current)
         else:
             parent, parent_blob = parent_blobs[0]
         if parent_blob is None:

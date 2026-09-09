@@ -861,9 +861,32 @@ def test_reflection_integration_admits_inherited_identical_family_and_fuses_sess
     assert loaded.ledger == ledger
 
 
-def test_reflection_integration_refuses_identical_ledger_on_sibling_branches(tmp_path):
+def test_reflection_integration_admits_identical_family_on_sibling_branches(tmp_path):
+    from memory_seed.core import session_merge_branch
     from memory_seed.reflection_ledger import preview_reflection_integration
     root, ledger, _path = _new_git_workstream(tmp_path)
+    _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
+    assert session_merge_branch(root, branch=ledger.header.working_branch).committed
+    shared = _git(root, "rev-parse", "HEAD")
+    _git(root, "checkout", "-b", "target", shared)
+    _git(root, "commit", "--allow-empty", "-m", "target advance")
+    _git(root, "checkout", "-b", "sibling", shared)
+    _git(root, "commit", "--allow-empty", "-m", "sibling advance")
+    preview = preview_reflection_integration(root, source_ref="sibling", base_ref="target")
+    assert preview.inherited_identical_family
+    assert preview.source == preview.base == preview.ancestor == preview.proposed
+    target_tip = _git(root, "rev-parse", "target")
+    _git(root, "checkout", "--quiet", "target")
+    result = session_merge_branch(root, branch="sibling")
+    assert result.committed, result.issues
+    assert _git(root, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [
+        target_tip, _git(root, "rev-parse", "sibling"),
+    ]
+
+
+def test_reflection_integration_refuses_sibling_with_changed_ledger(tmp_path):
+    from memory_seed.reflection_ledger import preview_reflection_integration
+    root, ledger, path = _new_git_workstream(tmp_path)
     _git(root, "checkout", "-b", "integration", ledger.header.base_sha)
     from memory_seed.core import session_merge_branch
     assert session_merge_branch(root, branch=ledger.header.working_branch).committed
@@ -871,7 +894,9 @@ def test_reflection_integration_refuses_identical_ledger_on_sibling_branches(tmp
     _git(root, "checkout", "-b", "target", shared)
     _git(root, "commit", "--allow-empty", "-m", "target advance")
     _git(root, "checkout", "-b", "sibling", shared)
-    _git(root, "commit", "--allow-empty", "-m", "sibling advance")
+    changed = append(ledger, "planner", None, relationship="no_related_thread", no_related_thread=True,
+                     now=START + timedelta(minutes=1))
+    _commit_ledger(root, path, changed, "reflection: sibling ledger change")
     before = _admission_state(root)
     with pytest.raises(ReflectionValidationError, match="two ledger-bearing parents"):
         preview_reflection_integration(root, source_ref="sibling", base_ref="target")
