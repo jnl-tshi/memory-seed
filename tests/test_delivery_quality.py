@@ -114,77 +114,6 @@ def supports_completion(evidence: ValidationEvidence) -> bool:
     )
 
 
-@dataclass(frozen=True)
-class ReviewRequest:
-    base: str
-    head: str
-    changed_files: tuple[str, ...]
-    acceptance_criteria: tuple[str, ...]
-    authority: tuple[str, ...]
-    local_rationale: tuple[str, ...]
-    validation_evidence: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class ReviewFinding:
-    identifier: str
-    severity: str
-    kind: str
-
-
-@dataclass(frozen=True)
-class FindingDisposition:
-    finding_id: str
-    disposition: str
-    reason: str
-    evidence: tuple[str, ...]
-    governing_resolution: str | None = None
-
-
-@dataclass(frozen=True)
-class ReviewRecord:
-    request: ReviewRequest
-    findings: tuple[ReviewFinding, ...]
-    dispositions: tuple[FindingDisposition, ...]
-    accepted_fix_range: tuple[str, str] | None = None
-    scoped_re_review_range: tuple[str, str] | None = None
-    deferred_in_final_review: tuple[str, ...] = ()
-    final_verification_after_fix: bool = False
-
-
-def supports_review_completion(record: ReviewRecord, *, current_base: str, current_head: str) -> bool:
-    """Model the documentation-owned review receipt; it does not control execution."""
-    request = record.request
-    if not (
-        request.base == current_base
-        and request.head == current_head
-        and all((request.changed_files, request.acceptance_criteria, request.authority,
-                 request.local_rationale, request.validation_evidence))
-    ):
-        return False
-    findings = {finding.identifier: finding for finding in record.findings}
-    dispositions = {entry.finding_id: entry for entry in record.dispositions}
-    if set(findings) != set(dispositions):
-        return False
-    accepted = False
-    for identifier, finding in findings.items():
-        entry = dispositions[identifier]
-        if entry.disposition not in {"accept", "reject", "defer"} or not entry.reason or not entry.evidence:
-            return False
-        load_bearing = finding.severity in {"important", "critical"} or finding.kind in {"spec", "authority"}
-        if load_bearing and entry.disposition in {"reject", "defer"} and not entry.governing_resolution:
-            return False
-        if entry.disposition == "defer":
-            if identifier not in record.deferred_in_final_review:
-                return False
-            if load_bearing:
-                return False
-        accepted = accepted or entry.disposition == "accept"
-    if accepted and record.accepted_fix_range != record.scoped_re_review_range:
-        return False
-    return not accepted or record.final_verification_after_fix
-
-
 class TestSystematicDebuggingAcceptance:
     def test_runbook_requires_evidence_led_debugging_without_an_execution_controller(self):
         content = Path(".memory-seed/skills/systematic_debugging.md").read_text(encoding="utf-8")
@@ -324,125 +253,6 @@ class TestFreshVerificationEvidenceAcceptance:
                 omission_reason="The required external environment is unavailable.",
             )
         )
-
-
-class TestEvidenceAwareReviewAcceptance:
-    @staticmethod
-    def request() -> ReviewRequest:
-        return ReviewRequest(
-            base="a" * 40,
-            head="b" * 40,
-            changed_files=("memory_seed/planning.py",),
-            acceptance_criteria=("Review range stays immutable.",),
-            authority=(".memory-seed/policy.md",),
-            local_rationale=("Existing planning assessment owns authority.",),
-            validation_evidence=("python -m pytest tests/test_planning.py",),
-        )
-
-    def test_review_owners_require_evidence_and_preserve_boundaries(self):
-        collaboration = Path(".memory-seed/skills/agent_collaboration.md").read_text(encoding="utf-8")
-        session_logging = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
-
-        for phrase in (
-            "Evidence-aware review request",
-            "immutable base/head",
-            "changed-file scope",
-            "fresh validation evidence",
-            "`accept`, `reject`, or `defer`",
-            "scoped re-review",
-            "final whole-branch review",
-            "reflection_board: dormant",
-            "does not own Task Packets, worktrees, integration, durable memory, or cleanup",
-        ):
-            assert phrase in collaboration
-        for phrase in (
-            "review range",
-            "findings",
-            "dispositions",
-            "fix/re-review outcome",
-            "deferred items",
-            "final verification",
-            "append-only",
-        ):
-            assert phrase in session_logging
-
-    def test_valid_accepted_finding_requires_scoped_re_review_and_fresh_final_verification(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "important", "bug"),),
-            (FindingDisposition("f1", "accept", "Confirmed against current code.", ("diff:12",)),),
-            accepted_fix_range=("c" * 40, "d" * 40),
-            scoped_re_review_range=("c" * 40, "d" * 40),
-            final_verification_after_fix=True,
-        )
-
-        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
-
-    def test_contextually_wrong_finding_can_be_rejected_with_rationale_and_evidence(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "minor", "bug"),),
-            (FindingDisposition("f1", "reject", "Current code already preserves the invariant.", ("diff:12",)),),
-        )
-
-        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
-
-    def test_deferred_minor_finding_stays_visible_to_final_review(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "minor", "style"),),
-            (FindingDisposition("f1", "defer", "Useful but out of this task's scope.", ("packet:scope",)),),
-            deferred_in_final_review=("f1",),
-        )
-
-        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
-
-    def test_stale_range_is_rejected_before_findings_are_acted_on(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "minor", "bug"),),
-            (FindingDisposition("f1", "reject", "Not current.", ("diff:12",)),),
-        )
-
-        assert not supports_review_completion(record, current_base="a" * 40, current_head="c" * 40)
-
-    def test_accepted_fix_without_scoped_re_review_is_rejected(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "important", "bug"),),
-            (FindingDisposition("f1", "accept", "Confirmed.", ("diff:12",)),),
-            accepted_fix_range=("c" * 40, "d" * 40),
-            final_verification_after_fix=True,
-        )
-
-        assert not supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
-
-    def test_final_verification_predating_accepted_fix_is_rejected(self):
-        record = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "important", "bug"),),
-            (FindingDisposition("f1", "accept", "Confirmed.", ("diff:12",)),),
-            accepted_fix_range=("c" * 40, "d" * 40),
-            scoped_re_review_range=("c" * 40, "d" * 40),
-        )
-
-        assert not supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
-
-    def test_load_bearing_finding_cannot_be_silently_rejected_or_deferred(self):
-        rejected = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "important", "spec"),),
-            (FindingDisposition("f1", "reject", "Disagree.", ("diff:12",)),),
-        )
-        deferred = ReviewRecord(
-            self.request(),
-            (ReviewFinding("f1", "critical", "authority"),),
-            (FindingDisposition("f1", "defer", "Later.", ("policy:1",), "needs authority review"),),
-            deferred_in_final_review=("f1",),
-        )
-
-        assert not supports_review_completion(rejected, current_base="a" * 40, current_head="b" * 40)
-        assert not supports_review_completion(deferred, current_base="a" * 40, current_head="b" * 40)
 
 
 class TestDeliveryQualityScenarioHarness:
@@ -656,6 +466,31 @@ class TestDeliveryQualityScenarioHarness:
 
         assert not result["passed"]
         assert any("fixture measurement latency must remain unavailable" in failure for failure in result["failures"])
+
+    def test_review_scenario_validates_structured_evidence_not_observation_labels(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenario = next(
+            item for item in corpus["scenarios"] if item["id"] == "evidence-aware-review-disposition"
+        )
+        valid = json.loads(json.dumps(scenario["valid_fixture"]))
+        assert evaluator.evaluate_run(corpus, scenario["id"], valid)["passed"]
+
+        duplicate = json.loads(json.dumps(valid))
+        duplicate["review_record"]["findings"].append(
+            json.loads(json.dumps(duplicate["review_record"]["findings"][0]))
+        )
+        missing_re_review = json.loads(json.dumps(valid))
+        missing_re_review["review_record"]["re_review_range"] = None
+        stale = json.loads(json.dumps(valid))
+        stale["current_review_range"]["head"] = "e" * 40
+        failed_final = json.loads(json.dumps(valid))
+        failed_final["review_record"]["final_validation"]["outcome"] = "previous run passed"
+
+        for malformed in (duplicate, missing_re_review, stale, failed_final):
+            result = evaluator.evaluate_run(corpus, scenario["id"], malformed)
+            assert not result["passed"]
+            assert any("structured review evidence is invalid" in failure for failure in result["failures"])
 
     def test_authority_and_external_boundary_scenarios_cover_the_full_declared_routes(self):
         evaluator = load_delivery_quality_evaluator()

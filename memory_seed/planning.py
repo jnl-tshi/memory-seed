@@ -150,6 +150,147 @@ def validate_implementation_plan(
     return deepcopy(dict(plan))
 
 
+_REVIEW_SHA = re.compile(r"^[0-9a-f]{40}$")
+_REVIEW_FINDING_SEVERITIES = {"minor", "important", "critical"}
+_REVIEW_FINDING_KINDS = {"bug", "style", "spec", "authority"}
+_REVIEW_DISPOSITIONS = {"accept", "reject", "defer"}
+
+
+def validate_review_record(
+    value: Mapping[str, Any], *, current_range: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate a review receipt without acting on review feedback or execution.
+
+    The caller supplies the current immutable range; this pure validator establishes
+    only whether the record is complete, fresh, and internally bound. It never
+    decides a finding, authenticates evidence, runs a check, or grants authority.
+    """
+    def fields(item: Any, required: set[str], name: str) -> Mapping[str, Any]:
+        if not isinstance(item, Mapping):
+            raise PlanningValidationError(f"{name} must be a mapping")
+        missing, unknown = required - item.keys(), item.keys() - required
+        if missing or unknown:
+            raise PlanningValidationError(
+                f"{name} missing fields {sorted(missing)}; unknown fields {sorted(map(str, unknown))}"
+            )
+        return item
+
+    def text_list(items: Any, name: str, *, empty: bool = False) -> list[str]:
+        if not isinstance(items, list) or (not items and not empty):
+            raise PlanningValidationError(f"{name} must be a {'possibly empty' if empty else 'nonempty'} list")
+        values = [_text(item, name) for item in items]
+        if len(values) != len(set(values)):
+            raise PlanningValidationError(f"{name} must not contain duplicates")
+        return values
+
+    def review_range(item: Any, name: str) -> dict[str, str]:
+        item = fields(item, {"base", "head"}, name)
+        base, head = _text(item["base"], f"{name}.base"), _text(item["head"], f"{name}.head")
+        if not _REVIEW_SHA.fullmatch(base) or not _REVIEW_SHA.fullmatch(head) or base == head:
+            raise PlanningValidationError(f"{name} requires distinct full immutable base/head SHAs")
+        return {"base": base, "head": head}
+
+    def optional_range(item: Any, name: str) -> dict[str, str] | None:
+        if item is None:
+            return None
+        return review_range(item, name)
+
+    def validation(item: Any, name: str, expected_range: dict[str, str]) -> None:
+        item = fields(item, {
+            "command_or_check", "changed_scope", "freshness_marker", "outcome", "status",
+            "executed_after_change", "range", "omission_reason", "waiver_authority",
+        }, name)
+        for field in ("command_or_check", "changed_scope", "freshness_marker", "outcome"):
+            _text(item[field], f"{name}.{field}")
+        if item["status"] != "passed" or item["outcome"] != "passed":
+            raise PlanningValidationError(f"{name} must record a passed status and outcome")
+        if item["executed_after_change"] is not True:
+            raise PlanningValidationError(f"{name} must be executed after the relevant change")
+        if item["omission_reason"] is not None or item["waiver_authority"] is not None:
+            raise PlanningValidationError(f"{name} cannot carry an omission or waiver when passed")
+        if review_range(item["range"], f"{name}.range") != expected_range:
+            raise PlanningValidationError(f"{name}.range must bind the reviewed/final fix range")
+
+    record = fields(value, {
+        "review_range", "acceptance_criteria", "authority", "local_rationale", "changed_files",
+        "validation_evidence", "findings", "dispositions", "fix_range", "re_review_range",
+        "deferred_findings", "final_validation",
+    }, "review_record")
+    current = review_range(current_range, "current_range")
+    reviewed = review_range(record["review_range"], "review_record.review_range")
+    if reviewed != current:
+        raise PlanningValidationError("review_record.review_range is stale or moving; refresh before disposition")
+    for name in ("acceptance_criteria", "authority", "local_rationale", "changed_files"):
+        text_list(record[name], f"review_record.{name}")
+    evidence = record["validation_evidence"]
+    if not isinstance(evidence, list) or not evidence:
+        raise PlanningValidationError("review_record.validation_evidence must be a nonempty list")
+    for index, item in enumerate(evidence):
+        validation(item, f"review_record.validation_evidence[{index}]", reviewed)
+
+    if not isinstance(record["findings"], list) or not isinstance(record["dispositions"], list):
+        raise PlanningValidationError("review_record.findings and dispositions must be lists")
+    findings: dict[str, Mapping[str, Any]] = {}
+    for item in record["findings"]:
+        item = fields(item, {"id", "severity", "kind", "description"}, "review_finding")
+        identifier = _text(item["id"], "review_finding.id")
+        if identifier in findings:
+            raise PlanningValidationError("duplicate review finding id")
+        if item["severity"] not in _REVIEW_FINDING_SEVERITIES or item["kind"] not in _REVIEW_FINDING_KINDS:
+            raise PlanningValidationError("review_finding severity or kind is invalid")
+        _text(item["description"], "review_finding.description")
+        findings[identifier] = item
+    dispositions: dict[str, Mapping[str, Any]] = {}
+    for item in record["dispositions"]:
+        item = fields(item, {
+            "finding_id", "disposition", "reason", "evidence", "resolved_outcome", "governing_resolution",
+        }, "finding_disposition")
+        identifier = _text(item["finding_id"], "finding_disposition.finding_id")
+        if identifier in dispositions:
+            raise PlanningValidationError("duplicate finding disposition id")
+        if item["disposition"] not in _REVIEW_DISPOSITIONS:
+            raise PlanningValidationError("finding_disposition.disposition must be accept, reject, or defer")
+        _text(item["reason"], "finding_disposition.reason")
+        text_list(item["evidence"], "finding_disposition.evidence")
+        for field in ("resolved_outcome", "governing_resolution"):
+            if item[field] is not None:
+                _text(item[field], f"finding_disposition.{field}")
+        dispositions[identifier] = item
+    if set(findings) != set(dispositions):
+        raise PlanningValidationError("every review finding requires exactly one disposition")
+
+    deferred = set(text_list(record["deferred_findings"], "review_record.deferred_findings", empty=True))
+    accepted = False
+    for identifier, finding in findings.items():
+        disposition = dispositions[identifier]
+        load_bearing = finding["severity"] in {"important", "critical"} or finding["kind"] in {"spec", "authority"}
+        if load_bearing and disposition["disposition"] in {"reject", "defer"} and not disposition["governing_resolution"]:
+            raise PlanningValidationError("load-bearing rejected/deferred finding requires governing resolution")
+        if load_bearing and disposition["disposition"] == "accept" and not disposition["resolved_outcome"]:
+            raise PlanningValidationError("accepted important/critical/spec finding requires resolved outcome")
+        if disposition["disposition"] == "defer":
+            if identifier not in deferred:
+                raise PlanningValidationError("deferred finding must remain visible to final review")
+            if load_bearing:
+                raise PlanningValidationError("open load-bearing deferred finding blocks task completion")
+        accepted = accepted or disposition["disposition"] == "accept"
+    if deferred != {identifier for identifier, item in dispositions.items() if item["disposition"] == "defer"}:
+        raise PlanningValidationError("deferred_findings must match deferred dispositions")
+
+    fix_range = optional_range(record["fix_range"], "review_record.fix_range")
+    re_review_range = optional_range(record["re_review_range"], "review_record.re_review_range")
+    final_validation = record["final_validation"]
+    if accepted:
+        if fix_range is None or re_review_range is None or fix_range != re_review_range:
+            raise PlanningValidationError("accepted finding requires a nonempty exact fix range and scoped re-review range")
+        if final_validation is None:
+            raise PlanningValidationError("accepted finding requires final validation after the fix")
+        validation(final_validation, "review_record.final_validation", fix_range)
+    elif fix_range is not None or re_review_range is not None or final_validation is not None:
+        raise PlanningValidationError("fix/re-review and final validation require an accepted finding")
+    return deepcopy(dict(record))
+
+
 def _policy_block(value: Any, *, partial: bool = False) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise PlanningValidationError("delivery_quality must be a mapping")

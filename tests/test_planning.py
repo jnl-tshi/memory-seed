@@ -14,6 +14,7 @@ from memory_seed.planning import (
     assess_conflict,
     parse_delivery_quality,
     resolve_delivery_quality,
+    validate_review_record,
 )
 from memory_seed.topics import TopicIndex, TopicRecord
 
@@ -55,6 +56,98 @@ def test_implementation_plan_is_optional_and_validation_does_not_mutate():
     assert validate_plan(plan) == original
     assert plan == original
     assert validate_plan(None) is None  # routine assessed work needs no heavy plan
+
+
+def review_record():
+    review_range = {"base": "a" * 40, "head": "b" * 40}
+    fix_range = {"base": "c" * 40, "head": "d" * 40}
+    validation = {
+        "command_or_check": "python -m pytest tests/test_planning.py",
+        "changed_scope": "memory_seed/planning.py",
+        "freshness_marker": "executed after the reviewed range",
+        "outcome": "passed",
+        "status": "passed",
+        "executed_after_change": True,
+        "range": review_range,
+        "omission_reason": None,
+        "waiver_authority": None,
+    }
+    final_validation = deepcopy(validation)
+    final_validation.update({
+        "freshness_marker": "executed after the final accepted fix",
+        "range": fix_range,
+    })
+    return {
+        "review_range": review_range,
+        "acceptance_criteria": ["The review range remains immutable."],
+        "authority": [".memory-seed/policy.md"],
+        "local_rationale": ["Existing planning assessment owns authority."],
+        "changed_files": ["memory_seed/planning.py"],
+        "validation_evidence": [validation],
+        "findings": [{"id": "f1", "severity": "important", "kind": "spec", "description": "Missing range binding."}],
+        "dispositions": [{
+            "finding_id": "f1", "disposition": "accept", "reason": "Confirmed against current code.",
+            "evidence": ["diff:12"], "resolved_outcome": "Fixed and re-reviewed.",
+            "governing_resolution": None,
+        }],
+        "fix_range": fix_range,
+        "re_review_range": deepcopy(fix_range),
+        "deferred_findings": [],
+        "final_validation": final_validation,
+    }
+
+
+def validate_review(record, current_range=None):
+    return validate_review_record(record, current_range=current_range or record["review_range"])
+
+
+def test_review_record_is_pure_complete_and_does_not_mutate():
+    record = review_record()
+    original = deepcopy(record)
+    assert validate_review(record) == original
+    assert record == original
+
+
+@pytest.mark.parametrize("disposition", ["reject", "defer"])
+def test_contextually_wrong_or_deferred_minor_review_finding_has_a_real_record(disposition):
+    record = review_record()
+    record["findings"][0].update(severity="minor", kind="bug")
+    record["dispositions"][0].update(disposition=disposition, resolved_outcome=None)
+    record["fix_range"] = None
+    record["re_review_range"] = None
+    record["final_validation"] = None
+    record["deferred_findings"] = ["f1"] if disposition == "defer" else []
+    assert validate_review(record) == record
+
+
+@pytest.mark.parametrize("mutation", [
+    "stale_range", "missing_resolved_outcome", "missing_fix_range", "missing_re_review_range",
+    "duplicate_finding", "duplicate_disposition", "incomplete_final_validation", "failed_final_outcome",
+    "final_validation_wrong_range",
+])
+def test_review_record_rejects_complete_looking_invalid_evidence(mutation):
+    record = review_record()
+    current_range = None
+    if mutation == "stale_range":
+        current_range = {"base": "a" * 40, "head": "e" * 40}
+    elif mutation == "missing_resolved_outcome":
+        record["dispositions"][0]["resolved_outcome"] = None
+    elif mutation == "missing_fix_range":
+        record["fix_range"] = None
+    elif mutation == "missing_re_review_range":
+        record["re_review_range"] = None
+    elif mutation == "duplicate_finding":
+        record["findings"].append(deepcopy(record["findings"][0]))
+    elif mutation == "duplicate_disposition":
+        record["dispositions"].append(deepcopy(record["dispositions"][0]))
+    elif mutation == "incomplete_final_validation":
+        record["final_validation"]["executed_after_change"] = False
+    elif mutation == "failed_final_outcome":
+        record["final_validation"]["outcome"] = "previous run passed"
+    else:
+        record["final_validation"]["range"] = deepcopy(record["review_range"])
+    with pytest.raises(PlanningValidationError):
+        validate_review(record, current_range)
 
 
 def test_sequential_overlap_and_independent_disjoint_ranges_preserve_exact_ownership():

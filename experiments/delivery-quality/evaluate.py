@@ -11,7 +11,14 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from memory_seed.planning import PlanningValidationError, validate_review_record
 
 
 MEASUREMENT_NAMES = ("provider_token_usage", "latency", "cost")
@@ -136,6 +143,10 @@ def _execution_provenance(
     if _canonical_json(artifact.get("measurements")) != _canonical_json(run.get("measurements")):
         failures.append("execution provenance artifact does not bind the reported measurements")
         return None
+    for field in ("review_record", "current_review_range"):
+        if field in run and _canonical_json(artifact.get(field)) != _canonical_json(run.get(field)):
+            failures.append(f"execution provenance artifact does not bind the reported {field}")
+            return None
     return {"surface": surface, "artifact_path": str(resolved)}
 
 
@@ -198,6 +209,16 @@ def _validate_result_schema(run: dict[str, Any], failures: list[str]) -> None:
             failures.append("each rework_reopen_event requires event and cause")
 
 
+def _validate_review_evidence(scenario: dict[str, Any], run: dict[str, Any], failures: list[str]) -> None:
+    """Delegate review-record shape/freshness checks to the shared pure validator."""
+    if scenario.get("category") != "evidence_aware_review":
+        return
+    try:
+        validate_review_record(run.get("review_record"), current_range=run.get("current_review_range"))
+    except PlanningValidationError as exc:
+        failures.append(f"structured review evidence is invalid: {exc}")
+
+
 def evaluate_run(
     corpus: dict[str, Any], scenario_id: str, run: dict[str, Any], *, artifact_root: Path | None = None
 ) -> dict[str, Any]:
@@ -207,6 +228,7 @@ def evaluate_run(
     _validate_result_schema(run, failures)
     provenance = _execution_provenance(scenario_id, run, failures, artifact_root)
     measurements = _validate_measurements(scenario, run, failures, provenance)
+    _validate_review_evidence(scenario, run, failures)
     observations = run.get("observations")
     if not isinstance(observations, list):
         failures.append("observations must be a list")
