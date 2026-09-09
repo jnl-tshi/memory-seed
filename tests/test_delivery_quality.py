@@ -266,6 +266,8 @@ class TestDeliveryQualityScenarioHarness:
             "systematic_debugging",
             "fresh_verification",
             "governed_planning_authority",
+            "implementation_planning_test_strategy",
+            "discovery_reuse",
             "scoped_evidence_freshness",
             "evidence_aware_review",
             "routine_non_trigger",
@@ -530,3 +532,56 @@ class TestDeliveryQualityScenarioHarness:
             "scoped_fix_re_review",
             "fresh_final_verification",
         } <= review_subjects
+
+    def test_topic_applicability_plan_strategy_and_reuse_have_structured_negative_controls(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenarios = {scenario["id"]: scenario for scenario in corpus["scenarios"]}
+
+        topic_subjects = {
+            observation["subject"]
+            for observation in scenarios["governed-topic-applicability"]["required_observations"]
+        }
+        assert {
+            "applicable_topic_ancestors",
+            "narrower_topic_branch",
+            "proposed_action_to_applicable_authority",
+            "compatible_narrower_constraint",
+        } <= topic_subjects
+
+        plan_subjects = {
+            observation["subject"]
+            for observation in scenarios["optional-implementation-plan-test-strategy"][
+                "required_observations"
+            ]
+        }
+        assert {
+            "approved_discovery_evidence",
+            "ordered_testable_work",
+            "viable_tests",
+            "proportionate_alternative_check",
+            "reviewable_test_exception",
+        } <= plan_subjects
+
+        reuse_subjects = {
+            observation["subject"]
+            for observation in scenarios["reflection-board-reuse-discovery"]["required_observations"]
+        }
+        assert {
+            "closed_reflection_board_launch_ledger",
+            "reflection_board_controls_to_external_sdd",
+            "reuse_tradeoff",
+            "reflection_board_artifacts",
+        } <= reuse_subjects
+
+        negative = evaluator.evaluate_declared_fixtures(corpus, kind="negative")
+        failures_by_fixture = {result["fixture_id"]: result["failures"] for result in negative["results"]}
+        for fixture_id in (
+            "invented-untagged-coverage",
+            "blanket-tdd-substitutes-for-strategy",
+            "exception-without-compensating-check",
+            "closed-ledger-not-found",
+            "board-artifacts-changed",
+        ):
+            assert fixture_id in failures_by_fixture
+            assert failures_by_fixture[fixture_id]

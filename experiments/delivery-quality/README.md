@@ -5,9 +5,11 @@ skills, call a model, fetch a provider, invoke Superpowers, or modify Reflection
 
 `scenarios.json` is the declared corpus. Every scenario states its complexity, expected routing,
 required observations, prohibited observations, measurement availability, a valid fixture, and one or
-more deliberately failing controls. The corpus covers discovery, debugging, fresh verification,
-authority conflict handling, scoped-evidence freshness, routine non-trigger routing, and the narrow
-external Superpowers boundary.
+more deliberately failing controls. The corpus covers discovery (including Reflection Board reuse),
+systematic debugging, fresh verification, governed authority and topic applicability, scoped-evidence
+freshness, routine non-trigger routing, optional implementation planning with a declared test strategy,
+evidence-aware review, and the narrow external Superpowers boundary (both allowed routes and its local
+fallback). Every fixture remains instrument evidence rather than real workflow evidence.
 
 ## Run the instrument controls
 
