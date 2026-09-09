@@ -1,5 +1,8 @@
 ---
 priority: P3
+status: deferred
+deferred_reason: "Per mse_pww2f69g5ket96h6 D1 and mse_jz0pwv0ngzzxr484 D2, decision-level topic keying/backfill is not built and waits for a demonstrated decision-level graph consumer; the measured swarm backfill was aborted."
+revisit_when: "A decision-level graph consumer is accepted and inherited entry topics prove too coarse for its colouring/filtering needs."
 next_action: PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vision, 2026-07-25): topics are the colouring/clustering layer that graph needs, not standalone precision. Sequence — (1) render the decision-node graph using the substrate that already exists, decisions inheriting their entry's topics; (2) run per-decision inference only if inherited colouring proves too coarse. AMENDED 2026-07-25 (JNL): the *grammar* is built first and is not inference — see `3_Spec/draft/decision-level-topic-sidecars.md`. Rationale: the backfill is 881 decision judgments across all 621 entries whether or not an entry-level pass runs first, so an entry-level backfill would be written twice. Sidecars are append-only with most-recent-block-wins precedence. Current entry-level topic-inference conventions here are LIVE and feed the swarm prompt.
 ---
 

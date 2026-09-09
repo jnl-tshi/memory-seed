@@ -7,7 +7,7 @@ priority: "P1"
 next_action: "Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them."
 related:
   - "experiments/band-calibration/FINDINGS.md"
-  - "docs/2_Todo/ranking-ab-unit-change-gate-proposal.md"
+  - "docs/1_Inbox/ranking-ab-unit-change-gate-proposal.md"
   - "docs/CONSTITUTION.md"
 ---
 

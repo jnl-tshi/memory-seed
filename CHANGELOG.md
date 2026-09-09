@@ -310,7 +310,7 @@ history is used only as a cross-check.
   with a stated pass/fail line: rolled-up macro-recall against blind-judged authored topics, plus
   human-adjudicated per-decision attribution that must beat free inheritance. Registered under the
   `curation` skill profile. No swarm has been run; zero topic sidecars exist. Specs:
-  `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/2_Todo/decision-level-topics-proposal.md`.
+  `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/8_Deferred/decision-level-topics-proposal.md`.
 - [2026-07-25] **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
   of small models judges `link audit` gaps at decision granularity — the automated judgment layer above
   the mechanical sweep. It only suggests: a mechanical validator (quote-grounding, ordinal existence,

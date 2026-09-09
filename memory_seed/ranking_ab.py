@@ -19,7 +19,7 @@ pins ``chunks=`` so the granularity kwarg is dead, the rank maps key on
 the no-hit control has no control bucket to draw from. Such a run would report
 numbers rather than refuse, which is why this note is here. Validate unit
 changes by measurement instead -- see
-``docs/2_Todo/ranking-ab-unit-change-gate-proposal.md``.
+``docs/1_Inbox/ranking-ab-unit-change-gate-proposal.md``.
 """
 
 from __future__ import annotations

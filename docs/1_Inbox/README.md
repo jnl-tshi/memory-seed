@@ -1,11 +1,23 @@
 # Inbox
 
-Status: **6 documents awaiting or exempt from triage (2026-08-21)**. The two harness-engineering
+Status: **13 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
 [`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
 proposals dated 2026-08-20 were found sitting in the shared checkout on 2026-08-21, captured, and
 assessed — see [`INBOX-ASSESSMENT-2026-08-20-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md).
 None of the four is promoted; the assessment recommends against building any of them as submitted.
+
+Two further proposals were captured on 2026-09-08 and remain explicitly unassessed: the Reflection
+Board cumulative-handoff/decision-harvest evolution and the ADR ledger evolution/reasoning-semantics
+plan. Their session decisions require assessment or independent review before promotion; neither is
+accepted implementation work.
+
+Four previously noisy Todo proposals were moved here on 2026-09-09 because their latest decisions
+explicitly leave them proposed, deferred, not built, or awaiting a shape/user decision: decision-level
+ranking A/B unit-change gate (`mse_fvqs26sdqbvcem9r`), retrieval recall fixes (`mse_dka59wfne2be5fr0`),
+editable lens refinement (`mse_zq69mbr57qnppm36`), and SkillOpt fit analysis (`mse_eap4caz71kggmf7h`).
+Decision-level topics is preserved in `8_Deferred/` under its explicit deferred disposition. These
+proposals remain preserved and discoverable, but are not presented as accepted roadmap work.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -102,6 +114,10 @@ were themselves reference material, not undecided captures — moved the same da
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
 | [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
+| [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
 | [reflection-board-cumulative-handoff-and-decision-harvest-proposal.md](reflection-board-cumulative-handoff-and-decision-harvest-proposal.md) | — | — | Assess the proposal against the current Reflection Board transaction contract before promotion … |
+| [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
+| [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
+| [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
 <!-- docs-index:end -->
