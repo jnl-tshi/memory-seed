@@ -23,8 +23,10 @@ and narrow current-code checks for claims of shipped behavior.
   duplicated, or moved to a terminal lane on weaker evidence.
 - **Index repair:** lane indexes and front-door counts were checked against current `main`; the Inbox
   prose was corrected to account for the two September 8 captures and the living-document exception.
-- **Roadmap navigation cleanup:** `docs/2_Todo/0_NEXT_STEPS.md` was reduced from 1363 lines / 107,880
-  bytes to a 128-line / 7,670-byte route. It now separates ready next actions, dependency-blocked
+- **Roadmap navigation cleanup:** `docs/2_Todo/0_NEXT_STEPS.md` was reduced from the superseded
+  1,141-line / 105,892-character page to a 128-line / 7,670-byte route. The removed requirements are
+  preserved and owner-mapped in [`next-steps-history-2026-09-09.md`](next-steps-history-2026-09-09.md).
+  The live route now separates ready next actions, dependency-blocked
   programmes, unresolved user decisions, the grouped Trace backlog, and the separately owned
   Superpowers plan. `docs/2_Todo/README.md` now points readers to that route while retaining its
   generated complete metadata table for lookup. Full proposal detail and shipped-phase history remain

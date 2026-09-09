@@ -20,6 +20,8 @@ evidence and exact session filename matches for every work item. The prior termi
 
 For shipped-history context, use the root [`CHANGELOG.md`](../../CHANGELOG.md). This page does not
 duplicate release notes.
+For the superseded long-form route's preserved requirements and dependency owners, see the
+[Next Steps preservation map](../4_Reference/next-steps-history-2026-09-09.md).
 
 ## Ready next actions
 
