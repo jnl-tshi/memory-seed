@@ -109,11 +109,28 @@ def parse_delivery_quality(
     # Recognition must be broader than the supported column-zero block syntax:
     # otherwise indented/flow policy can silently disappear into defaults. This
     # lexical guard only identifies keys; the existing YAML reader still parses
-    # supported values. Keep quoted values and comments opaque to avoid treating
-    # documentation mentioning the setting as actual configuration.
+    # supported values. Keep quoted values, comments and literal/folded scalar
+    # bodies opaque so documentation mentions do not become configuration.
     token_pattern = r'''"(?:\\.|[^"\\])*"|'(?:''|[^'])*'|\#[^\n]*|[{}\[\],:]|[^\s{}\[\],:#]+'''
+    scalar_indent: int | None = None
     for line_number, line in enumerate(lines):
-        tokens = re.findall(token_pattern, line)
+        indent = len(line) - len(line.lstrip(" "))
+        if scalar_indent is not None:
+            if not line.strip() or indent > scalar_indent:
+                continue
+            scalar_indent = None
+        matches = list(re.finditer(token_pattern, line))
+        tokens = [match.group() for match in matches]
+        if tokens and tokens[-1].startswith("#"):
+            tokens.pop()
+        if tokens and re.fullmatch(r"[|>](?:[+-][1-9]?|[1-9][+-]?)?", tokens[-1]):
+            # The scalar body ends when indentation returns to its owning key
+            # (or sequence marker); a later real policy must still be examined.
+            colons = [i for i, token in enumerate(tokens[:-1]) if token == ":" and i > 0]
+            if colons:
+                scalar_indent = matches[colons[-1] - 1].start()
+            elif len(tokens) > 1 and tokens[-2] == "-":
+                scalar_indent = matches[len(tokens) - 2].start()
         for position, token in enumerate(tokens[:-1]):
             if token.startswith("#"):
                 break

@@ -129,6 +129,29 @@ def test_policy_mentions_inside_comments_or_values_are_not_settings():
     assert parse_delivery_quality(text) == resolve_delivery_quality()
 
 
+@pytest.mark.parametrize("marker", ["|", ">", "|-", ">+", "|2-", ">2"])
+def test_policy_mentions_inside_block_scalars_are_opaque(marker):
+    text = (f"notes: {marker} # unrelated prose\n"
+            "  delivery_quality:\n    schema_version: 2\n\n"
+            '  {"delivery_quality": {schema_version: 2}}\n')
+    assert parse_delivery_quality(text) == resolve_delivery_quality()
+
+
+@pytest.mark.parametrize("marker", ["|", ">"])
+def test_block_scalar_does_not_hide_following_real_policy(marker):
+    text = (f"notes: {marker}\n  delivery_quality: ignored prose\n"
+            "delivery_quality:\n  schema_version: 1\n  individual_decision_conflict: stop\n")
+    assert parse_delivery_quality(text)["individual_decision_conflict"] == "stop"
+
+
+@pytest.mark.parametrize("marker", ["|", ">"])
+def test_block_scalar_does_not_hide_following_unsupported_policy(marker):
+    text = (f"  notes: {marker}\n    delivery_quality: ignored prose\n"
+            "  delivery_quality:\n    schema_version: 2\n")
+    with pytest.raises(PlanningValidationError, match="delivery_quality"):
+        parse_delivery_quality(text)
+
+
 def test_applicability_uses_task_ancestors_and_canonical_aliases(topics, candidate):
     match = assess_candidate(candidate, ("ranking",), topics)
     assert match.binding and match.matched_topics == ("retrieval",)
