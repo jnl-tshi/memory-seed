@@ -1,9 +1,11 @@
 ---
 title: Superpowers-informed delivery quality uplift
-status: inbox-unassessed
+status: completed
 source: "JNL interactive design discussion and verified local/official sources, 2026-09-09"
-priority_if_promoted: P1
-next_action: "Review the proposed policy defaults and unresolved representation decisions, then promote only the accepted implementation plan."
+priority: P1
+implemented_by: "codex/feature/superpowers-workflow-implementation"
+shipped: 2026-09-10
+next_action: "Use the behavioral evaluation corpus and real-work trials to measure future uplift without treating the initial bounded comparison as causal proof."
 ---
 
 # Superpowers-informed delivery quality uplift
@@ -46,7 +48,7 @@ sources.
 | Existing native owners | [`agent_collaboration.md`](../../.memory-seed/skills/agent_collaboration.md) owns Task Packets, plan gates, worktree and integration safety. [`local_compilation.md`](../../.memory-seed/skills/local_compilation.md), [`end_of_turn.md`](../../.memory-seed/skills/end_of_turn.md), and [`session_logging.md`](../../.memory-seed/skills/session_logging.md) own verification and durable evidence. | Amend these owners where the concern already belongs; do not create parallel controllers. |
 | Constitution and authority | [`docs/CONSTITUTION.md`](../CONSTITUTION.md) makes files authoritative for current truth, preserves append-only history, and requires the correct path to preserve validation and human control. The accepted control-file ADR likewise partitions Constitution, control files, ADR heads, and sessions by concern. | Any resulting policy must preserve those boundaries; it cannot silently override an invariant. |
 | Topic implementation | [`.memory-seed/topics.yaml`](../../.memory-seed/topics.yaml) is schema v3 and currently represents `area` and `activity` as separate top-level branches with nested children. | The agreed future rule is instead to use the existing topic-tree hierarchy for applicability: area/activity are topic types, not a second independent policy-metadata axis. Reconcile this deliberately; do not claim the current schema already has the agreed interpretation. |
-| ADR scope work | [`docs/1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md`](adr-ledger-evolution-and-reasoning-semantics-plan.md) is unassessed and explicitly defers an ADR-model/migration decision. | Reuse its ADR scope/authority investigation. This plan must not pre-empt an ADR schema, migration, or constitutional decision. |
+| ADR scope work | [`docs/1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md`](../1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md) is unassessed and explicitly defers an ADR-model/migration decision. | Reuse its ADR scope/authority investigation. This plan must not pre-empt an ADR schema, migration, or constitutional decision. |
 | Reflection Board evidence | The tracked ledger at [`.memory-seed/reflections/active/rwl_0xf1x07gms0zk0q1fa31/ledger.md`](../../.memory-seed/reflections/active/rwl_0xf1x07gms0zk0q1fa31/ledger.md), and session decisions `mse_qrh0wtg81prbfqmn:d1` and `mse_awe4krg10x9t2acs:d1`, record a first real v1 launch evaluation and close. Several older planning/reference documents still describe it as planned. | Preserve the closed ledger and code. Reconcile stale descriptions separately; use the board as an acceptance scenario for capability discovery and trade-off assessment, never as proof that it is redundant or more costly. No board off switch is proposed here. |
 
 The official Superpowers repository currently describes fourteen listed skills, and its current plugin
@@ -244,7 +246,7 @@ stars, anecdotes, or a completed-looking schema as proof of reduced cost or impr
 - [Existing Superpowers integration skill](../../.memory-seed/skills/superpowers_integration.md)
 - [Agent collaboration owner](../../.memory-seed/skills/agent_collaboration.md)
 - [Current Constitution](../CONSTITUTION.md)
-- [ADR scope proposal](adr-ledger-evolution-and-reasoning-semantics-plan.md)
+- [ADR scope proposal](../1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md)
 - [Reflection Board workstream plan](../2_Todo/reflection-ledger-workstream-evolution-plan.md)
 - [Official Superpowers repository and catalogue](https://github.com/obra/superpowers)
 - [Official dispatching-parallel-agents skill](https://github.com/obra/superpowers/blob/main/skills/dispatching-parallel-agents/SKILL.md)

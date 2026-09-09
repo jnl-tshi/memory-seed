@@ -98,6 +98,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [stop-trigger-taxonomy-proposal.md](stop-trigger-taxonomy-proposal.md) | — | — | — |
 | [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |
 | [structured-mermaid-d2-diagrams-skill-evaluation.md](structured-mermaid-d2-diagrams-skill-evaluation.md) | — | — | — |
+| [superpowers-delivery-quality-uplift-plan.md](superpowers-delivery-quality-uplift-plan.md) | P1 | — | Use the behavioral evaluation corpus and real-work trials to measure future uplift without trea… |
 | [supersession-edges-plan.md](supersession-edges-plan.md) | — | — | — |
 | [supersession-successor-surfacing-proposal.md](supersession-successor-surfacing-proposal.md) | — | — | — |
 | [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
