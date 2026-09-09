@@ -251,6 +251,7 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: risk_signaling.md",
             "skill: proposal_lifecycle.md",
             "skill: design_discovery.md",
+            "skill: systematic_debugging.md",
             "skill: subproject_runtime.md",
         ):
             self.assertIn(phrase, content)
@@ -316,6 +317,15 @@ class SessionSchemaTests(unittest.TestCase):
                 "Existing Skill Homes",
                 "Trigger Registry Discipline",
                 "Seed / Live Parity",
+            ),
+            "systematic_debugging.md": (
+                "Systematic Debugging",
+                "Observation or reproduction",
+                "Relevant recent changes and scope",
+                "Falsifiable causal hypothesis",
+                "Smallest discriminating change",
+                "Actual verification",
+                "A fourth blind patch is rejected",
             ),
             "adr_sweep.md": (
                 "ADR Sweep Skill",
@@ -388,6 +398,31 @@ class SessionSchemaTests(unittest.TestCase):
                 "routine work directly follows an already assessed decision whose scope and evidence remain current",
                 registry,
             )
+
+    def test_systematic_debugging_is_registered_and_seeded(self):
+        live = Path(".memory-seed/skills/systematic_debugging.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/systematic_debugging.md")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "Observation or reproduction",
+            "Relevant recent changes and scope",
+            "Falsifiable causal hypothesis",
+            "Smallest discriminating change",
+            "Actual verification",
+            "tracked project default is **three**",
+            "A fourth blind patch is rejected",
+        ):
+            self.assertIn(phrase, content)
+        for registry_path in (
+            Path(".memory-seed/skills/index.md"),
+            Path("memory_seed/seed/.memory-seed/skills/index.md"),
+        ):
+            self.assertIn("skill: systematic_debugging.md", registry_path.read_text(encoding="utf-8"))
+        self.assertIn(".memory-seed/skills/systematic_debugging.md", runtime_index)
 
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")

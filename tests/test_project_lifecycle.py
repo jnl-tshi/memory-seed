@@ -582,6 +582,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         installed = {p.name for p in (cwd / ".memory-seed" / "skills").glob("*.md")}
         self.assertIn("code_search.md", installed)
         self.assertIn("local_compilation.md", installed)
+        self.assertIn("systematic_debugging.md", installed)
         self.assertIn("data_architecture.md", installed)
         self.assertIn("proposal_lifecycle.md", installed)
         self.assertIn("design_discovery.md", installed)
@@ -595,20 +596,25 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertIn("coding", project_yaml)
         self.assertIn("planning", project_yaml)
 
-    def test_design_discovery_is_an_optional_planning_profile_skill(self):
+    def test_delivery_quality_skills_are_registered_with_their_profiles(self):
         cwd = self.make_project()
 
-        init_project(cwd=cwd, skill_profiles={"planning"})
+        init_project(cwd=cwd, skill_profiles={"coding", "planning"})
 
         self.assertNotIn("design_discovery.md", CORE_SKILL_NAMES)
         self.assertIn("design_discovery.md", OPTIONAL_SKILL_NAMES)
+        self.assertNotIn("systematic_debugging.md", CORE_SKILL_NAMES)
+        self.assertIn("systematic_debugging.md", OPTIONAL_SKILL_NAMES)
         self.assertEqual(
             SKILL_PROFILES["planning"].skills,
             ("proposal_lifecycle.md", "design_discovery.md"),
         )
+        self.assertIn("systematic_debugging.md", SKILL_PROFILES["coding"].skills)
         self.assertTrue((cwd / ".memory-seed" / "skills" / "design_discovery.md").exists())
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "systematic_debugging.md").exists())
         registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
         self.assertIn("skill: design_discovery.md", registry)
+        self.assertIn("skill: systematic_debugging.md", registry)
 
     def test_update_respects_ignored_optional_skills(self):
         cwd = self.make_project()
@@ -811,6 +817,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/skill_architecture.md",
                 ".memory-seed/skills/subproject_runtime.md",
                 ".memory-seed/skills/superpowers_integration.md",
+                ".memory-seed/skills/systematic_debugging.md",
                 ".memory-seed/skills/topic_swarm.md",
                 ".memory-seed/topics.yaml",
                 "AGENTS.md",

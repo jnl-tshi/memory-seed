@@ -197,6 +197,16 @@ skills:
     do_not_load_when:
       - analysis-only task with no local validation needed
 
+  - skill: systematic_debugging.md
+    required: true
+    load_when:
+      - diagnosing an unexpected failure, regression, or unexplained behaviour
+      - reproducing a defect or tracing its causal path before a fix
+      - repeated hypothesis-led debugging attempts require architectural reconsideration
+    do_not_load_when:
+      - the cause is established and a narrow routine change has proportionate verification
+      - no unexpected behaviour is being diagnosed
+
   - skill: memory_consolidation.md
     required: true
     load_when:

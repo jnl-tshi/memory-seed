@@ -9329,6 +9329,10 @@ SEED_FILES = [
         ".memory-seed/skills/local_compilation.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "systematic_debugging.md",
+        ".memory-seed/skills/systematic_debugging.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_consolidation.md",
         ".memory-seed/skills/memory_consolidation.md",
     ),
@@ -9599,11 +9603,12 @@ CORE_SKILL_NAMES = (
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
-        "Source exploration, local validation, rendered-UI debugging, and durable data-structure work.",
+        "Source exploration, systematic debugging, local validation, rendered-UI debugging, and durable data-structure work.",
         (
             "code_search.md",
             "graphify_analysis.md",
             "local_compilation.md",
+            "systematic_debugging.md",
             "data_architecture.md",
             "developer-rendered-ui-debugging.md",
             "superpowers_integration.md",
@@ -9671,6 +9676,7 @@ SKILL_DESCRIPTIONS = {
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
     "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
     "superpowers_integration.md": "Route optional Superpowers delegation while retaining Memory Seed safety and integration ownership.",
+    "systematic_debugging.md": "Diagnose unexpected behaviour with causal hypotheses, discriminating tests, and fresh verification.",
     "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
 }
 
