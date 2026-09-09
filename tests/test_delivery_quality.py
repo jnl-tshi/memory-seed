@@ -256,6 +256,54 @@ class TestFreshVerificationEvidenceAcceptance:
 
 
 class TestDeliveryQualityScenarioHarness:
+    def test_external_superpowers_boundary_contract_is_complete_and_discriminating(self):
+        evaluator = load_delivery_quality_evaluator()
+        corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
+        scenarios = {scenario["id"]: scenario for scenario in corpus["scenarios"]}
+
+        approved = scenarios["external-approved-routes-boundary"]
+        required = {
+            (observation["action"], observation["subject"])
+            for observation in approved["required_observations"]
+        }
+        assert {
+            ("verify", "independent_read_only_external_work"),
+            ("route", "external_read_only_dispatch"),
+            ("verify", "approved_same_session_multitask_plan"),
+            ("route", "approved_external_sdd"),
+            ("retain_owner", "memory_seed_authority_risk_consent_task_packets"),
+            ("retain_owner", "memory_seed_worktrees_branches_integration_cleanup"),
+            ("retain_owner", "memory_seed_durable_records_and_return_receipt_verification"),
+            ("return_before", "return_before_memory_seed_integration"),
+            ("evaluate", "external_output_before_integration"),
+            ("classify", "external_recommendations_and_acceptance_references_as_evidence"),
+            ("preserve", "reflection_board_dormant"),
+        } <= required
+        prohibited = {
+            (observation["action"], observation["subject"])
+            for observation in approved["prohibited_observations"]
+        }
+        assert {
+            ("grant", "external_authority_override"),
+            ("copy", "external_execution_controller"),
+            ("copy", "external_worktree_manager"),
+            ("copy", "external_branch_finishing_workflow"),
+            ("alter", "reflection_board_configuration"),
+        } <= prohibited
+
+        fallback = scenarios["external-unavailable-local-fallback"]
+        assert {
+            (observation["action"], observation["subject"])
+            for observation in fallback["required_observations"]
+        } >= {
+            ("detect", "external_unavailable_unverified_unsupported_or_wrong_capability"),
+            ("route", "named_local_fallback"),
+        }
+        assert ("route", "unverified_external_route") in {
+            (observation["action"], observation["subject"])
+            for observation in fallback["prohibited_observations"]
+        }
+
     def test_declared_corpus_has_required_trigger_and_measurement_contracts(self):
         evaluator = load_delivery_quality_evaluator()
         corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
@@ -520,7 +568,10 @@ class TestDeliveryQualityScenarioHarness:
             "approved_external_sdd",
             "return_before_memory_seed_integration",
         } <= approved_subjects
-        assert {"external_unavailable_or_wrong_version", "named_local_fallback"} <= fallback_subjects
+        assert {
+            "external_unavailable_unverified_unsupported_or_wrong_capability",
+            "named_local_fallback",
+        } <= fallback_subjects
 
         review_subjects = {
             observation["subject"]
