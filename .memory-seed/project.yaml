@@ -6,3 +6,7 @@ participants:
 # Verified local integrations may land without a per-merge prompt. Agents still
 # use the session fuse and stop on validation failures or unresolved conflicts.
 merge_trigger: automatic
+
+# Temporary project-wide pause. Existing Reflection history remains readable
+# and verified; set to active to permit new board operations again.
+reflection_board: dormant
