@@ -2684,13 +2684,12 @@ def _create_retention_key(root: Path) -> None:
         os.fsync(stream.fileno())
 
 
-def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
-    """Inventory every reserved blob, including case aliases and nested runtimes."""
+def _reflection_tree_layout(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
+    """Validate and inventory reserved tree shape without loading ledger history."""
     code, raw = _git(root, "ls-tree", "-rz", "--full-tree", commit, binary=True)
     if code or not isinstance(raw, bytes):
         _fail("reflection-integration-tree", commit, "could not inventory the exact Git tree")
     entries: list[tuple[str, str, str]] = []
-    owners: dict[str, str] = {}
     for item in raw.split(b"\0"):
         if not item:
             continue
@@ -2706,6 +2705,19 @@ def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str,
         match = re.fullmatch(r"\.memory-seed/reflections/active/(rwl_[0-9abcdefghjkmnpqrstvwxyz]{20})/ledger\.md", path)
         if match is None or mode != CANONICAL_MODE or kind != "blob":
             _fail("unsupported-reflection-format", path, "reserved tree permits only canonical regular v1 ledgers", mode=mode)
+        entries.append((path, mode, oid))
+    return tuple(sorted(entries))
+
+
+def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
+    """Inventory every valid reserved blob, including trusted ledger owners."""
+    entries = _reflection_tree_layout(root, commit)
+    owners: dict[str, str] = {}
+    for path, mode, oid in entries:
+        if path == RETENTION_TRUST_PATH:
+            continue
+        match = re.fullmatch(r"\.memory-seed/reflections/active/(rwl_[0-9abcdefghjkmnpqrstvwxyz]{20})/ledger\.md", path)
+        assert match is not None
         loaded = load_trusted_workstream_ledger(root, trusted_ref=commit, ledger_path=path)
         if loaded.ledger.header.workstream_id != match.group(1):
             _fail("reflection-integration-tree", path, "directory does not bind its ledger identity")
@@ -2713,8 +2725,25 @@ def _reflection_tree_inventory(root: Path, commit: str) -> tuple[tuple[str, str,
         if owner in owners:
             _fail("branch-collision", path, "committed board contains duplicate effective owners", other=owners[owner])
         owners[owner] = path
-        entries.append((path, mode, oid))
-    return tuple(sorted(entries))
+    return entries
+
+
+def _inherited_identical_reflection_family(root: Path, *, base_commit: str, source_commit: str,
+                                           merge_base: str, merged_commit: str | None = None) -> bool:
+    """Whether a normal descendant carries an untouched complete Reflection family.
+
+    This deliberately proves more than one equal ledger blob.  It admits no
+    sibling join, ledger mutation, new ledger, removal, or trust-anchor change.
+    ``merged_commit`` binds the same family to the actual no-FF merge index.
+    """
+    if base_commit == source_commit or merge_base != base_commit or not _git_is_ancestor(root, base_commit, source_commit):
+        return False
+    base = _reflection_tree_layout(root, base_commit)
+    if not base:
+        return False
+    if _reflection_tree_layout(root, source_commit) != base or _reflection_tree_layout(root, merge_base) != base:
+        return False
+    return merged_commit is None or _reflection_tree_layout(root, merged_commit) == base
 
 
 def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str], ...]) -> None:
@@ -2796,13 +2825,16 @@ class ReflectionIntegrationPreview:
     base: tuple[tuple[str, str, str], ...]
     ancestor: tuple[tuple[str, str, str], ...]
     proposed: tuple[tuple[str, str, str], ...]
+    inherited_identical_family: bool
 
 
 def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref: str) -> ReflectionIntegrationPreview:
     """Read exact parents and the determinable reserved result without writes.
 
-    A ledger may enter a new merge through exactly one parent. General Git
-    content merges cannot combine or rewrite reflection histories.
+    A ledger may enter a new merge through exactly one parent. A normal
+    descendant may also carry a complete untouched Reflection family through
+    both parents. General Git content merges cannot combine or rewrite
+    reflection histories.
     """
     root = Path(cwd).resolve()
     source_commit, base_commit = _commit(root, source_ref), _commit(root, base_ref)
@@ -2819,7 +2851,12 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
     for path, _mode, _oid in ancestor:
         if path not in left or path not in right:
             _fail("reflection-integration-topology", path, "raw ledger removal is not admitted integration")
+    inherited_identical_family = _inherited_identical_reflection_family(
+        root, base_commit=base_commit, source_commit=source_commit, merge_base=bases[0],
+    )
     if _git_is_ancestor(root, source_commit, base_commit):
+        proposed = base
+    elif inherited_identical_family:
         proposed = base
     else:
         common = left.keys() & right.keys()
@@ -2842,7 +2879,10 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
     head = _commit(root, "HEAD")
     if head is None:
         _fail("reflection-integration-tree", str(root), "worktree HEAD must resolve")
-    return ReflectionIntegrationPreview(source_ref, base_ref, source_commit, base_commit, bases[0], head, source, base, ancestor, proposed)
+    return ReflectionIntegrationPreview(
+        source_ref, base_ref, source_commit, base_commit, bases[0], head,
+        source, base, ancestor, proposed, inherited_identical_family,
+    )
 
 
 def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrationPreview, *, merged: bool = False) -> None:
@@ -3355,10 +3395,21 @@ def _ledger_lineage(root: Path, head: str, ledger_path: str) -> tuple[str, GitBl
         parent_blobs = [(parent, _tree_blob(root, parent, ledger_path)) for parent in parents]
         ledger_parents = [(parent, item) for parent, item in parent_blobs if item is not None]
         if len(parents) > 1:
-            if len(ledger_parents) != 1:
+            if len(ledger_parents) == 1:
+                parent, parent_blob = ledger_parents[0]
+            elif (len(parents) == 2 and len(ledger_parents) == 2
+                  and _inherited_identical_reflection_family(
+                      root, base_commit=parents[0], source_commit=parents[1],
+                      merge_base=parents[0], merged_commit=current,
+                  )):
+                # A guarded no-FF integration may carry an untouched complete
+                # Reflection family through both parents.  The target is the
+                # proven ancestor, so first-parent traversal is deterministic
+                # and skips no ledger transition.
+                parent, parent_blob = ledger_parents[0]
+            else:
                 _fail("compaction-proof-history-ambiguous", ledger_path,
-                      "merge must have exactly one ledger-bearing parent", commit=current)
-            parent, parent_blob = ledger_parents[0]
+                      "merge must have exactly one ledger-bearing parent or an inherited identical family", commit=current)
         else:
             parent, parent_blob = parent_blobs[0]
         if parent_blob is None:

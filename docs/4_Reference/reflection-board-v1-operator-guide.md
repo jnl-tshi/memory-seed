@@ -113,6 +113,19 @@ In local mode, integrate as an exact two-parent target/source merge, then previe
 `reflection ledger rebind <workstream_id> --source <source-branch> --reason <reason>` on the target.
 Rebind appends integration evidence and transfers effective ownership; it never rewrites old records.
 
+### Inherited-family carrier for later ordinary branches
+
+After a board has reached the target branch, an unrelated normal descendant branch may still use
+`session merge-branch` when it has not changed **any** Reflection reserved state. The guarded preview
+admits this only if the target is an ancestor of the source and the complete Reflection inventory —
+every reserved path, canonical mode, and blob OID, including the retention anchor — is identical at
+target, source, and merge base. The ordinary no-FF merge/fuse/trailer workflow remains intact; the
+trusted ledger reader follows the deterministic target parent because no ledger transition occurred.
+
+This is not a fast-forward alternative and it does not transfer board ownership, so do not run rebind
+for that unrelated branch. A source that changes, adds, removes, aliases, or corrupts any Reflection
+path, or a sibling/non-descendant source with matching bytes, still refuses before mutation.
+
 In PR mode, finish source preparation against the current target and commit all source changes first.
 Preview/apply `reflection ledger prepare <workstream_id>` on that final source tip. It stores a
 canonical non-secret single-use handoff under the Git common directory, not in tracked memory.
