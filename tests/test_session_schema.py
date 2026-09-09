@@ -424,6 +424,31 @@ class SessionSchemaTests(unittest.TestCase):
             self.assertIn("skill: systematic_debugging.md", registry_path.read_text(encoding="utf-8"))
         self.assertIn(".memory-seed/skills/systematic_debugging.md", runtime_index)
 
+    def test_fresh_completion_evidence_contract_is_seeded_across_existing_owners(self):
+        owners = (
+            "local_compilation.md",
+            "end_of_turn.md",
+            "session_logging.md",
+        )
+
+        for name in owners:
+            live = Path(".memory-seed/skills") / name
+            seed = Path("memory_seed/seed/.memory-seed/skills") / name
+            self.assertEqual(live.read_bytes(), seed.read_bytes(), f"seed twin drifted for {name}")
+
+            content = live.read_text(encoding="utf-8")
+            for phrase in (
+                "changed scope",
+                "freshness marker",
+                "`passed`",
+                "`failed`",
+                "`blocked`",
+                "`unavailable`",
+                "`waived`",
+                "stale",
+            ):
+                self.assertIn(phrase, content, f"{name} is missing {phrase!r}")
+
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
 

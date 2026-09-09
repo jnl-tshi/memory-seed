@@ -236,6 +236,17 @@ decision or its validation.
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 
+## Fresh completion evidence
+
+When an entry records a completion claim, its `### Validation` section must cite verification
+executed after the relevant changed scope. Record the command or check, changed scope, execution
+point or freshness marker, outcome, and one status: `passed`, `failed`, `blocked`, `unavailable`,
+or `waived`. Only `passed` is passing validation. A pre-change result is stale and cannot support
+completion; `blocked` and `unavailable` include the omission reason, while `waived` includes both
+the reason and granting authority and remains non-passing. Start with the smallest relevant check
+and broaden for shared behavior without weakening any stricter project policy requiring tests
+before behavior changes.
+
 ## When To Append
 
 **Append at the milestone, not at the merge.** A long-running branch earns several entries, not one

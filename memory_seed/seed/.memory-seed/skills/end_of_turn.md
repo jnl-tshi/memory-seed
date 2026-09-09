@@ -52,7 +52,13 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
    the roadmap still calls pending misleads the next session's orientation read. Never edit roadmap
    prose by automation; this is a judgement question asked of a human (or answered in the entry).
 10. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
-11. Run the smallest verification that proves the work.
+11. Run the smallest verification that proves the work, broadening when the changed behavior is
+    shared. A completion claim needs fresh evidence from after the relevant change: record the
+    command or check, changed scope, execution point or freshness marker, and outcome. Classify it
+    as `passed`, `failed`, `blocked`, `unavailable`, or `waived`; only `passed` supports a passing
+    completion claim. For a non-run check, record the omission reason; a `waived` check also names
+    the granting authority and is never a pass. Pre-change evidence is stale. This does not weaken
+    any stricter project policy requiring tests before behavior changes.
 12. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
 13. Run the Stale Worktree Sweep when the project uses git worktrees.
 14. Run the Persona evolution check when a persona is active.
