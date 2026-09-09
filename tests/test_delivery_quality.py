@@ -18,7 +18,12 @@ HARNESS_ROOT = Path("experiments/delivery-quality")
 
 def test_optional_planning_runbooks_keep_live_seed_parity():
     root = Path(__file__).resolve().parents[1]
-    for name in ("agent_collaboration.md", "design_discovery.md", "local_compilation.md"):
+    for name in (
+        "agent_collaboration.md",
+        "design_discovery.md",
+        "local_compilation.md",
+        "session_logging.md",
+    ):
         live = root / ".memory-seed/skills" / name
         seed = root / "memory_seed/seed/.memory-seed/skills" / name
         assert live.read_bytes() == seed.read_bytes()
@@ -107,6 +112,77 @@ def supports_completion(evidence: ValidationEvidence) -> bool:
         and evidence.status == "passed"
         and evidence.executed_after_change
     )
+
+
+@dataclass(frozen=True)
+class ReviewRequest:
+    base: str
+    head: str
+    changed_files: tuple[str, ...]
+    acceptance_criteria: tuple[str, ...]
+    authority: tuple[str, ...]
+    local_rationale: tuple[str, ...]
+    validation_evidence: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ReviewFinding:
+    identifier: str
+    severity: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class FindingDisposition:
+    finding_id: str
+    disposition: str
+    reason: str
+    evidence: tuple[str, ...]
+    governing_resolution: str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewRecord:
+    request: ReviewRequest
+    findings: tuple[ReviewFinding, ...]
+    dispositions: tuple[FindingDisposition, ...]
+    accepted_fix_range: tuple[str, str] | None = None
+    scoped_re_review_range: tuple[str, str] | None = None
+    deferred_in_final_review: tuple[str, ...] = ()
+    final_verification_after_fix: bool = False
+
+
+def supports_review_completion(record: ReviewRecord, *, current_base: str, current_head: str) -> bool:
+    """Model the documentation-owned review receipt; it does not control execution."""
+    request = record.request
+    if not (
+        request.base == current_base
+        and request.head == current_head
+        and all((request.changed_files, request.acceptance_criteria, request.authority,
+                 request.local_rationale, request.validation_evidence))
+    ):
+        return False
+    findings = {finding.identifier: finding for finding in record.findings}
+    dispositions = {entry.finding_id: entry for entry in record.dispositions}
+    if set(findings) != set(dispositions):
+        return False
+    accepted = False
+    for identifier, finding in findings.items():
+        entry = dispositions[identifier]
+        if entry.disposition not in {"accept", "reject", "defer"} or not entry.reason or not entry.evidence:
+            return False
+        load_bearing = finding.severity in {"important", "critical"} or finding.kind in {"spec", "authority"}
+        if load_bearing and entry.disposition in {"reject", "defer"} and not entry.governing_resolution:
+            return False
+        if entry.disposition == "defer":
+            if identifier not in record.deferred_in_final_review:
+                return False
+            if load_bearing:
+                return False
+        accepted = accepted or entry.disposition == "accept"
+    if accepted and record.accepted_fix_range != record.scoped_re_review_range:
+        return False
+    return not accepted or record.final_verification_after_fix
 
 
 class TestSystematicDebuggingAcceptance:
@@ -250,6 +326,125 @@ class TestFreshVerificationEvidenceAcceptance:
         )
 
 
+class TestEvidenceAwareReviewAcceptance:
+    @staticmethod
+    def request() -> ReviewRequest:
+        return ReviewRequest(
+            base="a" * 40,
+            head="b" * 40,
+            changed_files=("memory_seed/planning.py",),
+            acceptance_criteria=("Review range stays immutable.",),
+            authority=(".memory-seed/policy.md",),
+            local_rationale=("Existing planning assessment owns authority.",),
+            validation_evidence=("python -m pytest tests/test_planning.py",),
+        )
+
+    def test_review_owners_require_evidence_and_preserve_boundaries(self):
+        collaboration = Path(".memory-seed/skills/agent_collaboration.md").read_text(encoding="utf-8")
+        session_logging = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "Evidence-aware review request",
+            "immutable base/head",
+            "changed-file scope",
+            "fresh validation evidence",
+            "`accept`, `reject`, or `defer`",
+            "scoped re-review",
+            "final whole-branch review",
+            "reflection_board: dormant",
+            "does not own Task Packets, worktrees, integration, durable memory, or cleanup",
+        ):
+            assert phrase in collaboration
+        for phrase in (
+            "review range",
+            "findings",
+            "dispositions",
+            "fix/re-review outcome",
+            "deferred items",
+            "final verification",
+            "append-only",
+        ):
+            assert phrase in session_logging
+
+    def test_valid_accepted_finding_requires_scoped_re_review_and_fresh_final_verification(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "important", "bug"),),
+            (FindingDisposition("f1", "accept", "Confirmed against current code.", ("diff:12",)),),
+            accepted_fix_range=("c" * 40, "d" * 40),
+            scoped_re_review_range=("c" * 40, "d" * 40),
+            final_verification_after_fix=True,
+        )
+
+        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
+
+    def test_contextually_wrong_finding_can_be_rejected_with_rationale_and_evidence(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "minor", "bug"),),
+            (FindingDisposition("f1", "reject", "Current code already preserves the invariant.", ("diff:12",)),),
+        )
+
+        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
+
+    def test_deferred_minor_finding_stays_visible_to_final_review(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "minor", "style"),),
+            (FindingDisposition("f1", "defer", "Useful but out of this task's scope.", ("packet:scope",)),),
+            deferred_in_final_review=("f1",),
+        )
+
+        assert supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
+
+    def test_stale_range_is_rejected_before_findings_are_acted_on(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "minor", "bug"),),
+            (FindingDisposition("f1", "reject", "Not current.", ("diff:12",)),),
+        )
+
+        assert not supports_review_completion(record, current_base="a" * 40, current_head="c" * 40)
+
+    def test_accepted_fix_without_scoped_re_review_is_rejected(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "important", "bug"),),
+            (FindingDisposition("f1", "accept", "Confirmed.", ("diff:12",)),),
+            accepted_fix_range=("c" * 40, "d" * 40),
+            final_verification_after_fix=True,
+        )
+
+        assert not supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
+
+    def test_final_verification_predating_accepted_fix_is_rejected(self):
+        record = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "important", "bug"),),
+            (FindingDisposition("f1", "accept", "Confirmed.", ("diff:12",)),),
+            accepted_fix_range=("c" * 40, "d" * 40),
+            scoped_re_review_range=("c" * 40, "d" * 40),
+        )
+
+        assert not supports_review_completion(record, current_base="a" * 40, current_head="b" * 40)
+
+    def test_load_bearing_finding_cannot_be_silently_rejected_or_deferred(self):
+        rejected = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "important", "spec"),),
+            (FindingDisposition("f1", "reject", "Disagree.", ("diff:12",)),),
+        )
+        deferred = ReviewRecord(
+            self.request(),
+            (ReviewFinding("f1", "critical", "authority"),),
+            (FindingDisposition("f1", "defer", "Later.", ("policy:1",), "needs authority review"),),
+            deferred_in_final_review=("f1",),
+        )
+
+        assert not supports_review_completion(rejected, current_base="a" * 40, current_head="b" * 40)
+        assert not supports_review_completion(deferred, current_base="a" * 40, current_head="b" * 40)
+
+
 class TestDeliveryQualityScenarioHarness:
     def test_declared_corpus_has_required_trigger_and_measurement_contracts(self):
         evaluator = load_delivery_quality_evaluator()
@@ -262,6 +457,7 @@ class TestDeliveryQualityScenarioHarness:
             "fresh_verification",
             "governed_planning_authority",
             "scoped_evidence_freshness",
+            "evidence_aware_review",
             "routine_non_trigger",
             "external_superpowers_boundary",
         } <= categories
@@ -486,3 +682,14 @@ class TestDeliveryQualityScenarioHarness:
             "return_before_memory_seed_integration",
         } <= approved_subjects
         assert {"external_unavailable_or_wrong_version", "named_local_fallback"} <= fallback_subjects
+
+        review_subjects = {
+            observation["subject"]
+            for observation in scenarios["evidence-aware-review-disposition"]["required_observations"]
+        }
+        assert {
+            "immutable_review_range",
+            "finding_disposition_evidence",
+            "scoped_fix_re_review",
+            "fresh_final_verification",
+        } <= review_subjects

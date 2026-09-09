@@ -425,6 +425,34 @@ Gates, in order:
 
 Capability tier guidance: exploration economy/standard; planning **frontier**; implementation standard; integration frontier or a senior orchestrator; review **frontier**. Planning and review both warrant the top tier — a weak plan is more expensive to catch later than a weak review.
 
+### Evidence-aware review request and disposition
+
+Extend this existing review ownership; do not create a second review controller. Before a reviewer acts
+on findings, the request records an exact immutable base/head (or an exact changed range), task
+acceptance criteria, applicable authority and local rationale, changed-file scope, and fresh validation evidence.
+Resolve the current range before review: a stale or moving range is rejected or refreshed before
+any finding is acted upon. A reviewer receives the exact range and criteria, not a presumed whole branch.
+
+The recipient evaluates every finding against current code, acceptance criteria, local rationale, and
+applicable authority. Feedback is advice until its recorded disposition is exactly `accept`, `reject`, or `defer`;
+every disposition records its reason and evidence. A rejection or deferral cannot silently dismiss
+an authority conflict or load-bearing finding (important, critical, specification, or authority): name the
+governing resolution/escalation and retain it for the orchestrator. A deferred minor finding remains visible
+to the final whole-branch review. Open important/critical or specification findings block task completion
+after the bounded fix loop.
+
+Apply only accepted findings. Each accepted fix declares its exact fix range and receives a scoped re-review
+over that range; a prior review cannot stand in for it. Run fresh final verification after the
+last accepted fix — verification that predates the fix is stale and cannot close review. Record the review
+range, findings, dispositions, fix/re-review outcome, deferred items, and final verification through the
+existing append-only session evidence owner in `session_logging.md`.
+
+For Fan-Out, this is the existing bounded review-to-rework loop and Final Handoff Gate. For Superpowers
+SDD, Superpowers may own only its internal per-task review loop inside the supplied safety envelope; it
+does not own Task Packets, worktrees, integration, durable memory, or cleanup. Memory Seed retains those
+owners and validates the SDD return receipt before its handoff. Preserve `reflection_board: dormant`:
+review neither activates nor mutates Reflection artifacts.
+
 ## Branch And Worktree Defaults
 
 - Read `.memory-seed/project.yaml` `integration_mode` before integration. Unset/`local-merge` keeps the existing local flow: from the integration/base checkout run `session integrate` or `session merge-branch`, never push. `pr` means from the task branch run `session integrate` or `session open-pr`; the declared mode authorizes only that normal non-force push and PR. A Task Packet's `integration_artifact` is a per-task override; force and destructive operations stay gated.

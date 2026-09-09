@@ -247,6 +247,22 @@ the reason and granting authority and remains non-passing. Start with the smalle
 and broaden for shared behavior without weakening any stricter project policy requiring tests
 before behavior changes.
 
+## Review evidence record
+
+When a task uses the collaboration review flow, the orchestrator's durable append-only session evidence
+records the exact review range, review request acceptance criteria, authority/local rationale, fresh
+validation evidence, changed-file scope, findings, and dispositions. For each finding, retain the exact
+`accept`, `reject`, or `defer` disposition with its reason and evidence; a rejected or deferred
+load-bearing/authority finding also names the governing resolution or escalation. Do not rewrite an
+earlier review record to make later code look as though it was already reviewed.
+
+If an accepted finding changes code, record the exact fix range and scoped fix/re-review outcome. Keep
+deferred items visible to the final whole-branch review. The completion record separately identifies final verification
+executed after the last accepted fix, including the changed scope, freshness marker, command
+or check, outcome, and status. Earlier verification is stale and cannot close the review. These are
+evidence fields in the existing session entry and handoff; they do not create a second review controller
+or transfer Task Packet, worktree, integration, or cleanup ownership.
+
 ## When To Append
 
 **Append at the milestone, not at the merge.** A long-running branch earns several entries, not one
