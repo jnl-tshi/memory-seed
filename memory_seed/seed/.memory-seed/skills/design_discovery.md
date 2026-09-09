@@ -60,6 +60,24 @@ Capture a concise, proportionate record in the existing planning or decision sur
    evidence and authority consulted, scope, trial decision, assumptions, and invalidation conditions.
    The existing plan compiler and execution controls remain the only execution path.
 
+## Optional Implementation Plan
+
+After discovery is approved under the existing authority and consent rules, use an implementation plan
+when multiple tasks or dependencies benefit from an ordered, reviewable breakdown. This is an optional
+path through the existing Plan Gate and Task Packet, not a new planning store or execution controller.
+Routine direct work following an already assessed decision remains lightweight: cite that decision,
+keep its constraints, and run proportionate fresh checks without manufacturing a multi-task plan.
+
+Use the `agent_collaboration.md` implementation-plan contract. Each task declares acceptance observables,
+exact edit ownership, dependencies (including an explicit empty list), evidence references, verification,
+and replan conditions. Declare the plan's test/verification strategy before behavior changes, following
+`local_compilation.md`. Approval references carry supplied evidence; they do not manufacture approval.
+
+Return to bounded discovery/planning for a new consequential decision, material scope expansion,
+invalidated authority/evidence, or a new topic branch outside the approved plan. Refresh the affected
+assessment and task boundaries; retain compatible, current evidence. Ordinary in-scope edits do not
+replay broad discovery. Rebinding stale evidence alone is not replanning.
+
 ## Handoff And Verification
 
 - A plan derived from discovery should retain the selected option, evidence references, constraints,

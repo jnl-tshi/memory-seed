@@ -288,6 +288,48 @@ record its debit alongside the missing question and tool call in the worker hand
 input tokens, never observed provider usage. All workers, including external Superpowers workers, keep
 the existing authority, worktree, integration, durable-memory, and return-receipt boundaries.
 
+#### Optional implementation planning
+
+After approved design discovery, use the existing Plan Gate for a multi-task or dependency-bearing
+implementation when the breakdown helps. Routine assessed direct work may omit the plan. Do not make
+planning a universal ceremony, add another plan store/controller, or replay discovery for ordinary
+in-scope edits. Approval, authority, branch ownership, integration, and cleanup keep their current owners.
+
+An assessed draft may carry one optional `implementation_plan` mapping. Existing prose fields cannot
+express task ordering, exact ranges, or a reviewable test strategy, so this additive field travels inside
+the same `planning_evidence` record and its existing fingerprint, freshness, and input ledger:
+
+- `approval_reference`: selected evidence containing the supplied approval of discovery/plan.
+- `tasks`: an ordered nonempty list. Each task has a unique `id`, nonempty
+  `acceptance_observables`, `edit_ownership`, `evidence_references`, `verification`, and
+  `replan_conditions`, plus explicit `dependencies` (empty for an independent task).
+- Each edit ownership entry names an exact assessed `path` and inclusive `line_range: [start, end]`.
+  Use positive line numbers against the declared base, including a single-line insertion anchor;
+  a new file uses `[1, 1]` and still requires the packet's `expected_absent`/allowed-file authority.
+  Overlapping ranges require an explicit earlier dependency, direct or transitive. These ranges
+  narrow task ownership; they never enlarge the packet's allowed files or override forbidden files.
+- Dependencies name earlier task IDs. Sources in `evidence_references`, the approval reference, and
+  exception authority references must belong to the assessment's selected sources.
+- `test_strategy`: `tests`, `alternative_checks`, `exceptions`, `behavior_changes`, and
+  `tests_before_behavior_change: true`, as specified by `local_compilation.md`. Each exception
+  carries reason, affected scope, compensating checks, risk, and supplied authority.
+
+The compiler validates structure; the planner verifies the approval's authenticity/scope and whether
+the checks and exceptions satisfy governing constraints. An exception never changes the assessment's
+authority order or conflict disposition and is never a passing result. The worker receives the plan
+unchanged in the packet, respects its exact ranges and dependency order, and returns actual verification
+evidence. The compiler does not dispatch tasks, enforce an editor's ranges, or run tests.
+
+Replan the affected tasks for a new consequential decision, material scope expansion, invalidated
+authority/evidence, or a new topic branch outside the approved plan. The existing compiler detects bound
+source/objective/scope changes; semantic new choices also require planner judgment even when paths are
+unchanged. Do not rebind merely to clear stale evidence. In-scope edits retain the assessed plan.
+
+The strict external Superpowers boundary still applies: verified independent read-only dispatch only;
+SDD only for approved same-session multi-task work under the existing safety envelope. No external
+worktree/finish controller is adopted. Preserve the configured `reflection_board: dormant` state;
+implementation planning neither activates nor mutates Reflection artifacts.
+
 #### Budget and supplemental retrieval
 
 The resolver's `token_estimate` is **evidence-only**; it is not total model input and never replaces the

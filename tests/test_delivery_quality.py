@@ -16,6 +16,14 @@ from pathlib import Path
 HARNESS_ROOT = Path("experiments/delivery-quality")
 
 
+def test_optional_planning_runbooks_keep_live_seed_parity():
+    root = Path(__file__).resolve().parents[1]
+    for name in ("agent_collaboration.md", "design_discovery.md", "local_compilation.md"):
+        live = root / ".memory-seed/skills" / name
+        seed = root / "memory_seed/seed/.memory-seed/skills" / name
+        assert live.read_bytes() == seed.read_bytes()
+
+
 def load_delivery_quality_evaluator():
     spec = importlib.util.spec_from_file_location(
         "delivery_quality_evaluator", HARNESS_ROOT / "evaluate.py"

@@ -33,6 +33,72 @@ from memory_seed.task_packet import (
 
 
 class TaskPacketTests(unittest.TestCase):
+    def implementation_dispatch(self, root):
+        from memory_seed.task_packet import prepare_planning_evidence
+        dispatch = self.planning_dispatch(root)
+        draft = self.planning_draft(dispatch["planning_evidence"][0])
+        source = draft["sources"][0]
+        draft["implementation_plan"] = {
+            "approval_reference": source,
+            "tasks": [{
+                "id": "document", "acceptance_observables": ["Exact slices remain visible."],
+                "edit_ownership": [{"path": "docs/evidence.md", "line_range": [1, 2]}],
+                "dependencies": [], "evidence_references": [source],
+                "verification": ["Inspect exact slices."],
+                "replan_conditions": ["Reassess scope or authority changes."],
+            }],
+            "test_strategy": {
+                "tests": [], "alternative_checks": ["Inspect exact slices."],
+                "exceptions": [], "tests_before_behavior_change": True, "behavior_changes": False,
+            },
+        }
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        return dispatch
+
+    def test_optional_implementation_plan_survives_existing_packet_and_budget_path(self):
+        root = self.make_project()
+        dispatch = self.implementation_dispatch(root)
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        item = packet["dispatch"]["planning_evidence"][0]
+        self.assertEqual(item["implementation_plan"], dispatch["planning_evidence"][0]["implementation_plan"])
+        self.assertFalse(item["authority_granted"])
+        self.assertEqual(canonical_task_packet_json(packet).count('"implementation_plan"'), 1)
+        self.assertEqual(packet["input_ledger"]["serialized_packet_input_tokens"],
+                         estimate_tokens(canonical_task_packet_json(packet)))
+        # A scoped record with no implementation plan remains a valid lightweight route.
+        routine = self.planning_dispatch(root)
+        self.assertNotIn("implementation_plan", routine["planning_evidence"][0])
+        compile_task_packet(routine, self.binding(root), root)
+
+    def test_implementation_plan_rejects_tamper_and_unreplanned_scope_expansion(self):
+        root = self.make_project()
+        dispatch = self.implementation_dispatch(root)
+        bad = copy.deepcopy(dispatch)
+        bad["planning_evidence"][0]["implementation_plan"]["tasks"][0]["verification"] = []
+        with self.assertRaises(TaskPacketValidationError):
+            compile_task_packet(bad, self.binding(root), root)
+        dispatch["execution"]["allowed_files"] = ["new.py"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "scope expanded"):
+            compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_implementation_plan_requires_explicit_strategy_and_bound_approval(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.implementation_dispatch(root)
+        for mutation in ("strategy", "approval", "policy", "ownership"):
+            draft = self.planning_draft(dispatch["planning_evidence"][0])
+            plan = draft["implementation_plan"]
+            if mutation == "strategy":
+                del plan["test_strategy"]
+            elif mutation == "approval":
+                plan["approval_reference"] = "invented-user-approval"
+            elif mutation == "policy":
+                plan["test_strategy"]["tests_before_behavior_change"] = False
+            else:
+                plan["tasks"][0]["edit_ownership"][0]["path"] = "../escape.py"
+            with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError):
+                prepare_planning_evidence(dispatch, [draft], root)
+
     def planning_dispatch(self, root):
         from memory_seed.task_packet import prepare_planning_evidence
         dispatch = self.dispatch()

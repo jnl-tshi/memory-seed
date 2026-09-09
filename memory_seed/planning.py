@@ -9,6 +9,7 @@ exhaustive coverage. Authority precedence is independent of retrieval order.
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -38,6 +39,115 @@ def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PlanningValidationError(f"{field} must be nonempty text")
     return value
+
+
+def validate_implementation_plan(
+    value: Mapping[str, Any] | None, *,
+    evidence_references: Sequence[str], assessed_paths: Sequence[str],
+) -> dict[str, Any] | None:
+    """Validate optional task/strategy evidence, without planning or executing work.
+
+    Paths are the exact, validated assessed paths supplied by the packet compiler.
+    References carry supplied approval/exception evidence, never authenticate it.
+    Semantic suitability of checks and compatibility with governing authority remain
+    review obligations; this validator cannot infer either from prose.
+    """
+    if value is None:
+        return None
+
+    def fields(item: Any, required: set[str], name: str) -> Mapping[str, Any]:
+        if not isinstance(item, Mapping):
+            raise PlanningValidationError(f"{name} must be a mapping")
+        missing, unknown = required - item.keys(), item.keys() - required
+        if missing or unknown:
+            raise PlanningValidationError(
+                f"{name} missing fields {sorted(missing)}; unknown fields {sorted(map(str, unknown))}"
+            )
+        return item
+
+    def strings(items: Any, name: str, *, empty: bool = False) -> list[str]:
+        if not isinstance(items, list) or (not items and not empty):
+            raise PlanningValidationError(f"{name} must be a {'possibly empty' if empty else 'nonempty'} list")
+        for item in items:
+            _text(item, name)
+        if len(set(items)) != len(items):
+            raise PlanningValidationError(f"{name} must not contain duplicates")
+        return items
+
+    sources, paths = set(evidence_references), set(assessed_paths)
+
+    def reference(item: Any, name: str) -> None:
+        if _text(item, name) not in sources:
+            raise PlanningValidationError(f"{name} must name selected evidence")
+
+    plan = fields(value, {"approval_reference", "tasks", "test_strategy"}, "implementation_plan")
+    reference(plan["approval_reference"], "approval_reference")
+    tasks = plan["tasks"]
+    if not isinstance(tasks, list) or not tasks:
+        raise PlanningValidationError("tasks must be a nonempty ordered list")
+    prior: dict[str, set[str]] = {}
+    ownership: dict[str, list[tuple[str, int, int]]] = {}
+    for task in tasks:
+        task = fields(task, {"id", "acceptance_observables", "edit_ownership", "dependencies",
+                             "evidence_references", "verification", "replan_conditions"}, "task")
+        identity = _text(task["id"], "task.id")
+        if identity in prior:
+            raise PlanningValidationError("task.id must be unique")
+        dependencies = strings(task["dependencies"], "dependencies", empty=True)
+        if not set(dependencies).issubset(prior):
+            raise PlanningValidationError("dependencies must name earlier tasks; unknown/forward/cyclic dependencies require replan")
+        ancestors = set(dependencies)
+        for dependency in dependencies:
+            ancestors.update(prior[dependency])
+        for field in ("acceptance_observables", "verification", "replan_conditions"):
+            strings(task[field], field)
+        for source in strings(task["evidence_references"], "evidence_references"):
+            reference(source, "evidence_references")
+        edits = task["edit_ownership"]
+        if not isinstance(edits, list) or not edits:
+            raise PlanningValidationError("edit_ownership must be a nonempty list")
+        for edit in edits:
+            edit = fields(edit, {"path", "line_range"}, "edit_ownership")
+            path = _text(edit["path"], "edit_ownership.path")
+            if path not in paths:
+                raise PlanningValidationError("edit_ownership.path expands assessed scope; replan required")
+            span = edit["line_range"]
+            if (not isinstance(span, list) or len(span) != 2
+                    or any(type(number) is not int for number in span)
+                    or not 1 <= span[0] <= span[1]):
+                raise PlanningValidationError("edit_ownership.line_range requires inclusive positive start/end")
+            for owner, start, end in ownership.get(path.casefold(), []):
+                if span[0] <= end and start <= span[1] and owner not in ancestors:
+                    raise PlanningValidationError("overlapping edit_ownership requires an explicit dependency")
+            ownership.setdefault(path.casefold(), []).append((identity, *span))
+        prior[identity] = ancestors
+    strategy = fields(plan["test_strategy"], {
+        "tests", "alternative_checks", "exceptions", "tests_before_behavior_change", "behavior_changes",
+    }, "test_strategy")
+    if strategy["tests_before_behavior_change"] is not True:
+        raise PlanningValidationError("test_strategy cannot weaken tests-before-behavior project policy")
+    tests = strings(strategy["tests"], "test_strategy.tests", empty=True)
+    alternatives = strings(strategy["alternative_checks"], "test_strategy.alternative_checks", empty=True)
+    if type(strategy["behavior_changes"]) is not bool:
+        raise PlanningValidationError("test_strategy.behavior_changes must be a boolean")
+    if strategy["behavior_changes"] and not tests:
+        raise PlanningValidationError("tests-before-behavior policy requires tests for behavior changes, including with exceptions")
+    if not tests and not alternatives:
+        raise PlanningValidationError("test_strategy requires viable tests or alternative checks; an exception is not a pass")
+    exceptions = strategy["exceptions"]
+    if not isinstance(exceptions, list):
+        raise PlanningValidationError("test_strategy.exceptions must be a list")
+    for exception in exceptions:
+        exception = fields(exception, {"reason", "affected_scope", "compensating_checks",
+                                       "risk", "authority_reference"}, "exception")
+        for field in ("reason", "risk"):
+            _text(exception[field], f"exception.{field}")
+        affected = strings(exception["affected_scope"], "exception.affected_scope")
+        if not {path.casefold() for path in affected}.issubset(ownership):
+            raise PlanningValidationError("exception.affected_scope must name planned edit paths")
+        strings(exception["compensating_checks"], "exception.compensating_checks")
+        reference(exception["authority_reference"], "exception.authority_reference")
+    return deepcopy(dict(plan))
 
 
 def _policy_block(value: Any, *, partial: bool = False) -> dict[str, Any]:

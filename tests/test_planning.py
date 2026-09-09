@@ -1,6 +1,7 @@
 """Planning selects evidence; it never grants authority or changes lifecycle."""
 
 from dataclasses import replace
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,151 @@ from memory_seed.planning import (
     resolve_delivery_quality,
 )
 from memory_seed.topics import TopicIndex, TopicRecord
+
+
+def implementation_plan():
+    return {
+        "approval_reference": "decision:approved",
+        "tasks": [{
+            "id": "test", "acceptance_observables": ["The regression fails before the fix."],
+            "edit_ownership": [{"path": "tests/test_example.py", "line_range": [1, 10]}],
+            "dependencies": [], "evidence_references": ["decision:approved"],
+            "verification": ["python -m pytest tests/test_example.py"],
+            "replan_conditions": ["New consequential choice or material scope expansion."],
+        }, {
+            "id": "fix", "acceptance_observables": ["The regression passes."],
+            "edit_ownership": [{"path": "example.py", "line_range": [10, 20]}],
+            "dependencies": ["test"], "evidence_references": ["decision:approved"],
+            "verification": ["python -m pytest tests/test_example.py"],
+            "replan_conditions": ["Invalidated authority/evidence or a new topic branch."],
+        }],
+        "test_strategy": {
+            "tests": ["python -m pytest tests/test_example.py"], "alternative_checks": [],
+            "exceptions": [], "tests_before_behavior_change": True, "behavior_changes": True,
+        },
+    }
+
+
+def validate_plan(plan):
+    from memory_seed.planning import validate_implementation_plan
+    return validate_implementation_plan(
+        plan, evidence_references=["decision:approved"],
+        assessed_paths=["tests/test_example.py", "example.py"],
+    )
+
+
+def test_implementation_plan_is_optional_and_validation_does_not_mutate():
+    plan = implementation_plan()
+    original = deepcopy(plan)
+    assert validate_plan(plan) == original
+    assert plan == original
+    assert validate_plan(None) is None  # routine assessed work needs no heavy plan
+
+
+def test_sequential_overlap_and_independent_disjoint_ranges_preserve_exact_ownership():
+    plan = implementation_plan()
+    plan["tasks"][1]["edit_ownership"] = deepcopy(plan["tasks"][0]["edit_ownership"])
+    assert validate_plan(plan) == plan  # overlap is ordered by the explicit dependency
+    plan["tasks"][1]["dependencies"] = []
+    plan["tasks"][1]["edit_ownership"][0]["line_range"] = [11, 20]
+    assert validate_plan(plan) == plan  # independent tasks can own disjoint ranges
+
+
+@pytest.mark.parametrize("field", [
+    "acceptance_observables", "edit_ownership", "dependencies", "evidence_references",
+    "verification", "replan_conditions",
+])
+def test_implementation_task_missing_contract_field_fails(field):
+    plan = implementation_plan()
+    del plan["tasks"][1][field]
+    with pytest.raises(PlanningValidationError, match=field):
+        validate_plan(plan)
+
+
+@pytest.mark.parametrize("mutation", [
+    "missing_strategy", "weaken_policy", "no_checks", "unknown_dependency",
+    "out_of_order", "unbound_evidence", "expanded_ownership", "invalid_range",
+    "missing_approval", "overlapping_ownership",
+])
+def test_implementation_plan_negative_controls(mutation):
+    plan = implementation_plan()
+    if mutation == "missing_strategy":
+        del plan["test_strategy"]
+    elif mutation == "weaken_policy":
+        plan["test_strategy"]["tests_before_behavior_change"] = False
+    elif mutation == "no_checks":
+        plan["test_strategy"]["tests"] = []
+    elif mutation == "unknown_dependency":
+        plan["tasks"][1]["dependencies"] = ["missing"]
+    elif mutation == "out_of_order":
+        plan["tasks"].reverse()
+    elif mutation == "unbound_evidence":
+        plan["tasks"][1]["evidence_references"] = ["invented"]
+    elif mutation == "expanded_ownership":
+        plan["tasks"][1]["edit_ownership"][0]["path"] = "unassessed.py"
+    elif mutation == "invalid_range":
+        plan["tasks"][1]["edit_ownership"][0]["line_range"] = [20, 10]
+    elif mutation == "missing_approval":
+        del plan["approval_reference"]
+    else:
+        plan["tasks"][1]["dependencies"] = []
+        plan["tasks"][1]["edit_ownership"] = deepcopy(plan["tasks"][0]["edit_ownership"])
+    with pytest.raises(PlanningValidationError):
+        validate_plan(plan)
+
+
+def plan_exception():
+    return {
+        "reason": "The integration service is unavailable.",
+        "affected_scope": ["example.py"], "compensating_checks": ["Inspect the saved contract."],
+        "risk": "Live integration remains unverified.", "authority_reference": "decision:approved",
+    }
+
+
+@pytest.mark.parametrize("field", [
+    "reason", "affected_scope", "compensating_checks", "risk", "authority_reference",
+])
+def test_exception_missing_justification_fails(field):
+    plan = implementation_plan()
+    exception = plan_exception()
+    del exception[field]
+    plan["test_strategy"]["exceptions"] = [exception]
+    with pytest.raises(PlanningValidationError, match=field):
+        validate_plan(plan)
+
+
+def test_alternative_checks_and_exceptions_never_become_passing_evidence():
+    plan = implementation_plan()
+    plan["test_strategy"].update(tests=[], behavior_changes=False, alternative_checks=["Review rendered document."],
+                                 exceptions=[plan_exception()])
+    result = validate_plan(plan)
+    assert result["test_strategy"] == plan["test_strategy"]
+    assert "passed" not in result
+    result["tasks"].clear()
+    assert plan["tasks"]  # no aliased caller state
+
+
+def test_exception_and_alternative_check_cannot_replace_tests_for_behavior_changes():
+    plan = implementation_plan()
+    plan["test_strategy"].update(tests=[], alternative_checks=["Read the changed code."],
+                                 exceptions=[plan_exception()])
+    with pytest.raises(PlanningValidationError, match="tests-before-behavior"):
+        validate_plan(plan)
+
+
+@pytest.mark.parametrize("authority", ["constitution", "control_file", "accepted_adr"])
+def test_plan_exception_does_not_change_governing_conflict_stop(topics, candidate, authority):
+    plan = implementation_plan()
+    plan["test_strategy"]["exceptions"] = [plan_exception()]
+    validate_plan(plan)
+    assessment = assess_candidate(replace(candidate, authority=authority), ("ranking",), topics)
+    outcome = assess_conflict(assessment, proposed_action="Remove required tests.",
+                              conflict_reason="Governing authority requires tests.",
+                              agent_recommendation="proceed",
+                              user_acceptance={"reference": "decision:approved",
+                                               "scope": "example.py", "reason": "Requested exception."})
+    assert outcome["disposition"] == "stop"
+    assert outcome["authority_granted"] is False
 
 
 @pytest.fixture

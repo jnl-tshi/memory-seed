@@ -42,7 +42,7 @@ from .retrieval_profiles import load_retrieval_profile
 from .retrieval_spec import normalize_retrieval_spec_v2, retrieval_spec_fingerprint
 from .planning import (
     PlanningCandidate, PlanningValidationError, assess_candidate, assess_conflict,
-    parse_delivery_quality,
+    parse_delivery_quality, validate_implementation_plan,
 )
 from .topics import load_topic_index
 
@@ -705,7 +705,7 @@ _PLANNING_DRAFT_KEYS = frozenset({
     "id", "selected_alternative", "sources", "candidate", "assessed_scope",
     "compatibility_constraints", "proposed_action", "conflict_reason",
     "agent_recommendation", "user_acceptance", "departure_reference",
-    "supporting_evidence_scope",
+    "supporting_evidence_scope", "implementation_plan",
 })
 _PLANNING_DERIVED_KEYS = frozenset({
     "assessment", "disposition", "effective_policy", "required_follow_up",
@@ -729,7 +729,7 @@ def _normalize_planning_evidence(value: Any) -> list[dict[str, Any]]:
     for item in result:
         item = _mapping(item, "planning_evidence")
         keys = _PLANNING_DRAFT_KEYS | _PLANNING_DERIVED_KEYS
-        _exact_keys(item, "planning_evidence", keys, required=keys)
+        _exact_keys(item, "planning_evidence", keys, required=keys - {"implementation_plan"})
         identity = _string(item["id"], "planning_evidence.id")
         if identity in ids:
             _fail("planning_evidence.id", "duplicate assessment", code="duplicate_planning_evidence")
@@ -806,7 +806,7 @@ def _bind_planning_assessment(draft: Mapping[str, Any], dispatch: Mapping[str, A
                              records: Sequence[Mapping[str, Any]], cwd: str | Path,
                              *, effective_policy: Mapping[str, Any] | None = None) -> dict[str, Any]:
     _exact_keys(draft, "planning_evidence", _PLANNING_DRAFT_KEYS,
-                required=_PLANNING_DRAFT_KEYS - {"supporting_evidence_scope"})
+                required=_PLANNING_DRAFT_KEYS - {"supporting_evidence_scope", "implementation_plan"})
     item = copy.deepcopy(dict(draft))
     for field in ("id", "selected_alternative", "proposed_action"):
         _string(item[field], f"planning_evidence.{field}")
@@ -831,6 +831,12 @@ def _bind_planning_assessment(draft: Mapping[str, Any], dispatch: Mapping[str, A
     paths = [_path_string(path, "planning_evidence.assessed_scope.paths")
              for path in _string_list(scope["paths"], "planning_evidence.assessed_scope.paths")]
     item["assessed_scope"] = scope = {"topics": topics, "paths": paths}
+    if "implementation_plan" in item:
+        if item["implementation_plan"] is None:
+            _fail("planning_evidence.implementation_plan", "omit the optional field for routine assessed work")
+        item["implementation_plan"] = validate_implementation_plan(
+            item["implementation_plan"], evidence_references=source_ids, assessed_paths=paths,
+        )
     if not topics and not paths:
         _fail("planning_evidence.assessed_scope", "requires bounded topics or paths")
     support = _mapping(item.get("supporting_evidence_scope", {"topics": [], "paths": []}),
@@ -963,7 +969,7 @@ def _validate_planning_evidence(dispatch: Mapping[str, Any], records: Sequence[M
     supporting_topics: set[str] = set()
     for item in dispatch["planning_evidence"]:
         try:
-            draft = {key: item[key] for key in _PLANNING_DRAFT_KEYS}
+            draft = {key: item[key] for key in _PLANNING_DRAFT_KEYS if key in item}
             draft["sources"] = [source["id"] for source in item["sources"]]
             current = _bind_planning_assessment(draft, dispatch, records, cwd, effective_policy=item["effective_policy"])
             previous_inputs = item["freshness"]["inputs"]
