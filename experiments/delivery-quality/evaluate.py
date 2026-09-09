@@ -70,7 +70,7 @@ def _canonical_json(value: Any) -> str:
 
 
 def _execution_provenance(
-    run: dict[str, Any], failures: list[str], artifact_root: Path | None
+    scenario_id: str, run: dict[str, Any], failures: list[str], artifact_root: Path | None
 ) -> dict[str, Any] | None:
     """Bind real-run records to an independently stored execution-surface artifact."""
     if run.get("evidence_class") != "real_agent_behavior":
@@ -120,6 +120,15 @@ def _execution_provenance(
         return None
     if artifact.get("run_id") != run_id or artifact.get("execution_surface") != surface:
         failures.append("execution provenance artifact is bound to a different run or surface")
+        return None
+    if artifact.get("scenario_id") != scenario_id:
+        failures.append("execution provenance artifact is bound to a different scenario id")
+        return None
+    if artifact.get("comparison_phase") != run.get("comparison_phase"):
+        failures.append("execution provenance artifact is bound to a different comparison phase")
+        return None
+    if _canonical_json(artifact.get("evidence")) != _canonical_json(run.get("evidence")):
+        failures.append("execution provenance artifact does not bind the reported evidence")
         return None
     if _canonical_json(artifact.get("observations")) != _canonical_json(run.get("observations")):
         failures.append("execution provenance artifact does not bind the reported observations")
@@ -196,7 +205,7 @@ def evaluate_run(
     scenario = _scenario(corpus, scenario_id)
     failures: list[str] = []
     _validate_result_schema(run, failures)
-    provenance = _execution_provenance(run, failures, artifact_root)
+    provenance = _execution_provenance(scenario_id, run, failures, artifact_root)
     measurements = _validate_measurements(scenario, run, failures, provenance)
     observations = run.get("observations")
     if not isinstance(observations, list):

@@ -375,6 +375,9 @@ class TestDeliveryQualityScenarioHarness:
             "schema": "delivery-quality-execution-artifact/v1",
             "run_id": "local-run-42",
             "execution_surface": {"id": "local-agent-runner", "kind": "actual_execution_surface"},
+            "scenario_id": scenario["id"],
+            "comparison_phase": run["comparison_phase"],
+            "evidence": run["evidence"],
             "observations": run["observations"],
             "measurements": run["measurements"],
         }
@@ -394,6 +397,36 @@ class TestDeliveryQualityScenarioHarness:
         assert result["workflow_claim_eligible"]
         assert result["task_complexity"] == scenario["complexity"]
         assert result["measurements"]["provider_token_usage"]["value"] == 321
+
+        mutated_evidence = json.loads(json.dumps(run))
+        mutated_evidence["evidence"][0]["record"] = "post-artifact mutation"
+        evidence_mutation = evaluator.evaluate_run(
+            corpus, scenario["id"], mutated_evidence, artifact_root=tmp_path
+        )
+        assert not evidence_mutation["passed"]
+        assert any("does not bind the reported evidence" in failure for failure in evidence_mutation["failures"])
+
+        baseline_artifact = json.loads(json.dumps(artifact))
+        baseline_artifact["comparison_phase"] = "baseline"
+        baseline_path = tmp_path / "baseline-artifact.json"
+        baseline_text = json.dumps(baseline_artifact, sort_keys=True)
+        baseline_path.write_text(baseline_text, encoding="utf-8")
+        relabeled_phase = json.loads(json.dumps(run))
+        relabeled_phase["execution_provenance"]["artifact_path"] = baseline_path.name
+        relabeled_phase["execution_provenance"]["artifact_sha256"] = hashlib.sha256(
+            baseline_text.encode("utf-8")
+        ).hexdigest()
+        phase_substitution = evaluator.evaluate_run(
+            corpus, scenario["id"], relabeled_phase, artifact_root=tmp_path
+        )
+        assert not phase_substitution["passed"]
+        assert any("comparison phase" in failure for failure in phase_substitution["failures"])
+
+        scenario_substitution = evaluator.evaluate_run(
+            corpus, "routine-assessed-edit", run, artifact_root=tmp_path
+        )
+        assert not scenario_substitution["passed"]
+        assert any("scenario id" in failure for failure in scenario_substitution["failures"])
 
         run["measurements"]["provider_token_usage"]["source"] = "caller-supplied-label"
         invalid_source = evaluator.evaluate_run(corpus, scenario["id"], run, artifact_root=tmp_path)

@@ -83,8 +83,10 @@ the actual execution surface supplies a `value`; its `source` must equal the bou
 Changing a fixture's `evidence_class` label never makes it workflow evidence. A real-run input must bind to
 a separate, relative JSON artifact whose SHA-256 matches `artifact_sha256`. The artifact uses
 `delivery-quality-execution-artifact/v1` and repeats the exact `run_id`, execution-surface object,
-observations, and measurements from the input. The evaluator rejects missing, escaped, stale, mismatched,
-or malformed artifacts; a fixture has no artifact binding and its measurements must remain unavailable.
+scenario ID, comparison phase, evidence records, observations, and measurements from the input. The evaluator
+rejects missing, escaped, stale, mismatched, or malformed artifacts; a fixture has no artifact binding and
+its measurements must remain unavailable. This rejects an artifact whose baseline phase is relabeled as
+post-adoption, a scenario substitution, or evidence added or altered after the artifact was recorded.
 
 This local binding proves that the scorer consumed an independently stored claimed execution record. It does
 not authenticate a remote provider or turn one passing run into a comparative conclusion; the orchestrator
