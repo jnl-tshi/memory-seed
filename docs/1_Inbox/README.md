@@ -1,5 +1,9 @@
 # Inbox
 
+- [Memory search parameter tuning and consistency](memory-search-parameter-tuning-and-consistency-plan.md)
+  — captured 2026-09-10 for review: reconcile search defaults, validate the production harness,
+  run bounded tuning with a sealed holdout, and separately assess relevance calibration.
+
 Status: **13 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
 [`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
