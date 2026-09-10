@@ -1159,6 +1159,95 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertIn("feature-merge", self._git(cwd, "branch").stdout)
 
     @pytest.mark.integration
+    def test_session_merge_branch_removes_exact_residue_after_git_partly_succeeds(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+        real_rmtree = shutil.rmtree
+
+        def deregister_but_leave_residue(root, path, *, max_attempts):
+            marker = (source / ".git").read_text(encoding="utf-8").strip()
+            admin = Path(marker.split(":", 1)[1].strip())
+            real_rmtree(admin)
+            return False, 1, "Access is denied"
+
+        with mock.patch(
+            "memory_seed.worktree_gc._remove_one_worktree",
+            side_effect=deregister_but_leave_residue,
+        ):
+            result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "removed")
+        self.assertIn("verified directory residue", result.worktree_cleanup_detail or "")
+        self.assertEqual(result.worktree_cleanup_attempts, 2)
+        self.assertFalse(source.exists())
+
+    @pytest.mark.integration
+    def test_session_merge_branch_reports_cleanup_pending_when_exact_residue_stays_locked(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+        real_rmtree = shutil.rmtree
+
+        def deregister_but_leave_residue(root, path, *, max_attempts):
+            marker = (source / ".git").read_text(encoding="utf-8").strip()
+            admin = Path(marker.split(":", 1)[1].strip())
+            real_rmtree(admin)
+            return False, 1, "Access is denied"
+
+        with mock.patch(
+            "memory_seed.worktree_gc._remove_one_worktree",
+            side_effect=deregister_but_leave_residue,
+        ), mock.patch("memory_seed.core.shutil.rmtree", side_effect=PermissionError("still locked")):
+            result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "cleanup-pending")
+        self.assertIn("still locked", result.worktree_cleanup_detail or "")
+        self.assertTrue(source.exists())
+        shutil.rmtree(source)
+
+    @pytest.mark.integration
+    def test_session_merge_branch_refuses_a_directory_replaced_during_residue_cleanup(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+
+        def replace_after_deregistering(root, path, *, max_attempts):
+            self._git(cwd, "worktree", "remove", "--force", path)
+            source.mkdir()
+            (source / "unrelated.txt").write_text("do not delete\n", encoding="utf-8")
+            return False, 1, "Access is denied"
+
+        with mock.patch(
+            "memory_seed.worktree_gc._remove_one_worktree",
+            side_effect=replace_after_deregistering,
+        ):
+            result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "cleanup-pending")
+        self.assertIn("directory was replaced", result.worktree_cleanup_detail or "")
+        self.assertTrue((source / "unrelated.txt").exists())
+        shutil.rmtree(source)
+
+    @pytest.mark.integration
     def test_session_merge_branch_retains_a_dirty_registered_source_worktree(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")

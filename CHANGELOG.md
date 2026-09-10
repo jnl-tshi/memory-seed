@@ -15,6 +15,14 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-10] **Successful local merges now close their source-worktree lifecycle.** The merge flow
+  still tries ordinary `git worktree remove` first. If Git deregisters the exact clean checkout but
+  Windows or OneDrive leaves its directory behind, Memory Seed rechecks the repository, branch,
+  administrative pointer, directory identity, and reparse-point boundary before deleting only that
+  residue. Dirty, locked, still-registered, replaced, or otherwise unproven paths remain untouched.
+  CLI and MCP callers receive an explicit incomplete result when cleanup remains pending, so a merged
+  task cannot silently present itself as fully closed while consuming disk space.
+
 - [2026-09-10] **Superpowers-informed delivery-quality controls now strengthen Memory Seed's native workflow.**
   Consequential work uses reuse-aware design discovery and governed planning against the Constitution,
   accepted ADR heads, and active decisions; debugging requires reproducible hypotheses; completion and
