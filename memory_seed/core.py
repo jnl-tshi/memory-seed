@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, Literal, Mapping, Sequence
 
+from .reflection_ledger import reflection_verification_operation
 from .text_files import (
     normalize_text,
     read_json_file,
@@ -8168,6 +8169,7 @@ def _recheck_session_reflections(root: Path, admission: Any, *, merged: bool = F
     return []
 
 
+@reflection_verification_operation
 def session_fuse(
     cwd: str | Path = ".",
     *,
@@ -8388,6 +8390,7 @@ def _abort_refused_merge(
     result.issues.append("merge aborted automatically; nothing was committed")
 
 
+@reflection_verification_operation
 def session_merge_branch(
     cwd: str | Path = ".",
     *,

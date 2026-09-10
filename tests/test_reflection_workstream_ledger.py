@@ -812,6 +812,34 @@ def test_nested_reflection_discovery_refuses_directory_links_without_following_t
     assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "never traverse or mutate\n"
 
 
+def test_warm_verification_scope_still_rejects_worktree_and_ref_changes(tmp_path):
+    from memory_seed.reflection_ledger import (
+        preview_reflection_integration, recheck_reflection_integration,
+        reflection_verification_operation,
+    )
+    root, ledger, path = _new_git_workstream(tmp_path)
+
+    @reflection_verification_operation
+    def operation():
+        preview = preview_reflection_integration(root, source_ref="HEAD", base_ref=ledger.header.base_sha)
+        recheck_reflection_integration(root, preview)
+        original = (root / path).read_bytes()
+        (root / path).write_bytes(original + b"tampered\n")
+        with pytest.raises(ReflectionValidationError):
+            recheck_reflection_integration(root, preview)
+        (root / path).write_bytes(original)
+        changed_blob = _git(root, "hash-object", "-w", "--stdin", input=original.decode("utf-8") + "tampered\n")
+        _git(root, "update-index", "--cacheinfo", f"100644,{changed_blob},{path}")
+        with pytest.raises(ReflectionValidationError, match="proposed index differs"):
+            recheck_reflection_integration(root, preview, merged=True)
+        _git(root, "add", "--", path)
+        _git(root, "commit", "--allow-empty", "-m", "move source after preview")
+        with pytest.raises(ReflectionValidationError, match="changed after preview"):
+            recheck_reflection_integration(root, preview)
+
+    operation()
+
+
 def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_writes(tmp_path):
     from memory_seed.core import session_merge_branch
     from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
@@ -829,7 +857,7 @@ def test_reflection_integration_admits_one_parent_and_rechecks_preview_before_wr
     assert preview.source_commit in _git(root, "rev-list", "--parents", "-n", "1", "HEAD")
 
 
-def test_reflection_integration_admits_inherited_identical_family_and_fuses_sessions(tmp_path):
+def test_reflection_integration_admits_inherited_identical_family_and_fuses_sessions(tmp_path, monkeypatch):
     from memory_seed.core import session_merge_branch
     from memory_seed.reflection_ledger import preview_reflection_integration
     root, ledger, path = _new_git_workstream(tmp_path)
@@ -853,7 +881,19 @@ def test_reflection_integration_admits_inherited_identical_family_and_fuses_sess
     preview = preview_reflection_integration(root, source_ref="descendant", base_ref="HEAD")
     assert preview.inherited_identical_family
     assert preview.source == preview.base == preview.ancestor == preview.proposed
-    result = session_merge_branch(root, branch="descendant")
+    import memory_seed.reflection_ledger as module
+    from collections import Counter
+    classifications = Counter()
+    original = module._classify_trusted_workstream_ledger
+
+    def counted(root, trusted_ref, head, ledger_path):
+        classifications[(str(root), head, ledger_path)] += 1
+        return original(root, trusted_ref, head, ledger_path)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(module, "_classify_trusted_workstream_ledger", counted)
+        result = session_merge_branch(root, branch="descendant")
+    assert classifications and max(classifications.values()) == 1, classifications
     assert result.committed, result.issues
     assert _git(root, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [inherited, source]
     assert "Memory-Entry: mse_0123456789abcdef" in _git(root, "show", "-s", "--format=%B", "HEAD")
