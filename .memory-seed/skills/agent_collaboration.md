@@ -121,6 +121,24 @@ The allocation identifies:
 - evidence that warrants escalation, and who decides a scope or budget change;
 - dependencies, editable ownership, and which assignments may run concurrently.
 
+Assess parallelisation opportunities as part of allocation, rather than only recording concurrency
+after tasks have been chosen. For each useful split, identify data/output dependencies, unresolved
+design decisions, shared mutable resources, edit ownership, and validation prerequisites. Disjoint files
+alone do not prove independence. Record the proposed parallel groups, the evidence needed before each
+group starts, the join conditions before dependent work starts, and why serial tasks must wait.
+
+Compare expected elapsed-time savings with extra context/model cost, coordination, integration, and
+resource contention. State estimates as estimates; a qualitative reason is sufficient when timings
+are unknown. Choose a concurrency limit within actual worker slots and the agreed budget. Prefer
+independent read-only exploration or isolated labelled-data batches; parallel code-writing still
+requires separate owned worktrees and sequential integration. Do not split tightly coupled work merely
+to occupy slots. Record "no beneficial parallelism" when that is the justified outcome.
+
+Before each parallel launch, recheck readiness, resource availability, ownership and evidence freshness.
+A failed prerequisite blocks its dependants, not unrelated ready work. Reassess affected groups when
+new dependencies appear; never weaken stage gates or review independence to preserve concurrency.
+This remains an orchestrator judgement and launch check, not an automatic scheduler.
+
 Use durable capability tiers in plans, not vendor/model names. At dispatch, map the requirement to an
 available model and supported reasoning effort explicitly. Use the tier vocabulary accepted by the
 actual dispatch surface: the semantic dispatch uses economy|balanced|frontier; legacy packet examples

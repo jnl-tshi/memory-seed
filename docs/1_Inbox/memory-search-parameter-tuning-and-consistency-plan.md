@@ -188,8 +188,9 @@ No worker is launched by approving this document edit.
 | C2: reproduce and correct discrepancies | C1 | Balanced / high | Independent frontier review; actual adapter parity and explicit-override tests |
 | B1: freeze baseline protocol, labels, budget | C2 | Frontier / high | Independent frontier method review; production fidelity, sampling, and leakage controls |
 | B2: implement bounded harness | B1 | Balanced / high | Independent frontier review of measurement logic and sensitivity controls |
-| B3: draft labels and execute frozen runs | B2 | Economy / medium; scripts compute metrics | Frontier adjudication of ambiguous labels plus blind sample review; reproducible run receipts |
-| B4: interpret baseline and scope floor experiment | B3 | Frontier / high | Report coverage, current performance, uncertainty, and justified scope |
+| B3a: prepare and adjudicate labels | B1 | Economy / medium, frontier adjudication | Blind review of ambiguous labels plus a sample of clear labels; sealed data kept out of development |
+| B3b: execute frozen baseline runs | B2, B3a | Economy / low or medium; scripts compute metrics | Validated harness and accepted labels; reproducible run receipts |
+| B4: interpret baseline and scope floor experiment | B3b | Frontier / high | Report coverage, current performance, uncertainty, and justified scope |
 | F1: freeze component-floor protocol | B4 | Frontier / high | Independent frontier review of loss tolerance, interval method, and holdout rules |
 | F2: implement shadow evaluation | F1 | Balanced / high | Independent frontier review of exclusions, fallback, and protected evidence paths |
 | F3: execute frozen sweeps | F2 | Economy / low or medium; deterministic scripts | Orchestrator verifies manifests, counts, failures, and complete outputs |
@@ -200,6 +201,21 @@ implementer and one independent read-only reviewer; parallelize only independent
 batches with disjoint ownership. Complete consistency before baseline measurement and baseline
 interpretation before floor evaluation. Reviewers get evidence and the contract, not instructions to
 confirm the author's recommendation.
+
+### Parallelisation assessment
+
+| Opportunity | Start and join conditions | Benefit and constraints |
+|---|---|---|
+| C1 interface inspections | Same pinned baseline and inventory format; reconcile all required routes before C2 | Independent read-only inspections may reduce elapsed time; use one worker if dispatch/context overhead dominates |
+| B2 harness work alongside B3a labelling | B1 protocol and source population frozen; both accepted before B3b | Code and blinded labels can progress independently; keep labels away from threshold fitting and holdout access restricted |
+| B3a label batches | Shared rubric and pilot pass; disjoint output ownership; all required adjudication before B3b | Parallelise by source/lineage without splitting it across development and holdout; preserve independent review |
+| F3 frozen development sweep batches | F1 protocol and F2 harness passed; combine all outputs before candidate selection and F4 | Prefer deterministic script batching to extra agents; concurrent runs need immutable inputs and isolated outputs |
+
+Timing/compute savings are unmeasured; the orchestrator sets a bounded concurrency limit at dispatch
+from available slots, budget, memory and CPU contention. Benchmark latency in controlled serial runs
+so parallel load does not distort comparisons. Holdout evaluation begins only after the candidate is
+frozen; it is not another development batch. C2, B1, B4, F1, and F4 retain their evidence dependencies.
+Reassess opportunities when coupling appears; a serial outcome is valid. No automatic scheduler is added.
 
 Each dispatch gets a bounded packet with exact sources, allowed files, context allowance, execution
 limit, return contract, and budget. Set numerical token/time/trial limits before launch after the pilot;
@@ -224,3 +240,4 @@ Retaining current settings is a valid success. Filter combinations and numerical
 - [ ] Confidence intervals interpreted at the correct sampling unit; inadequate evidence named.
 - [ ] Adoption, no change, or further-study recommendation reviewed with scope and limitations.
 - [ ] Every worker assignment has capability, review, budget, escalation, and dependency requirements.
+- [ ] Parallel opportunities and serial constraints are assessed, with start/join conditions, resource limits, and cost justification.
