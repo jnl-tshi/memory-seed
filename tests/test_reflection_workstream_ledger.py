@@ -894,6 +894,7 @@ def test_reflection_integration_admits_inherited_identical_family_and_fuses_sess
         scoped.setattr(module, "_classify_trusted_workstream_ledger", counted)
         result = session_merge_branch(root, branch="descendant")
     assert classifications and max(classifications.values()) == 1, classifications
+    assert sum(classifications.values()) == 2, classifications
     assert result.committed, result.issues
     assert _git(root, "rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [inherited, source]
     assert "Memory-Entry: mse_0123456789abcdef" in _git(root, "show", "-s", "--format=%B", "HEAD")
