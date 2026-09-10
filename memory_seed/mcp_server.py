@@ -1374,8 +1374,9 @@ def call_tool(
             if abort_code != 0:
                 result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
 
+        cleanup_complete = result.source_worktree is None or result.worktree_cleanup_status == "removed"
         return {
-            "ok": result.committed or (dry_run and not result.issues),
+            "ok": (result.committed and cleanup_complete) or (dry_run and not result.issues),
             "committed": result.committed,
             "integration_mode": mode,
             "dry_run": dry_run,
@@ -1390,6 +1391,7 @@ def call_tool(
             "worktree_cleanup_status": result.worktree_cleanup_status,
             "worktree_cleanup_detail": result.worktree_cleanup_detail,
             "worktree_cleanup_attempts": result.worktree_cleanup_attempts,
+            "cleanup_complete": cleanup_complete,
             "conflicts": result.conflicts,
             "merge_aborted": aborted,
             "merge_in_progress": result.merge_in_progress and not aborted,

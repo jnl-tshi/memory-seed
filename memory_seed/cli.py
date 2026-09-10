@@ -454,9 +454,9 @@ def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
     if result.worktree_cleanup_status == "removed":
         print(f"Removed source worktree: {result.source_worktree}")
         return
-    if result.worktree_cleanup_status == "deregistered-with-residue":
+    if result.worktree_cleanup_status == "cleanup-pending":
         print(
-            "Source worktree was deregistered, but its on-disk directory needs later cleanup: "
+            "Merge succeeded, but source-worktree cleanup is still pending: "
             f"{result.source_worktree} ({result.worktree_cleanup_detail or 'git worktree remove failed'})",
             file=sys.stderr,
         )
@@ -1921,6 +1921,8 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                 _print_session_merge_worktree_cleanup(result, dry_run=False)
+                if result.source_worktree is not None and result.worktree_cleanup_status != "removed":
+                    return 2
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0

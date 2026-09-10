@@ -5,6 +5,8 @@ import os
 import re
 import hashlib
 import secrets
+import shutil
+import stat
 import subprocess
 import sys
 import tomllib
@@ -8311,15 +8313,164 @@ def _source_branch_worktree(root: Path, branch: str) -> tuple[Path | None, str |
     return None, None
 
 
+def _worktree_admin_identity(
+    root: Path, path: Path, branch: str
+) -> tuple[Path | None, tuple[int, int] | None, str | None]:
+    """Prove that ``path`` is this repository's registered secondary checkout.
+
+    The returned Git administrative path is captured before removal.  It lets a
+    post-failure residue pass distinguish the exact checkout Git started
+    removing from an arbitrary directory at the same filesystem location.
+    """
+    root = root.resolve()
+    path = path.resolve()
+    if _casefold_parts(path) == _casefold_parts(root):
+        return None, None, "source worktree resolves to the primary checkout"
+    if _is_relative_to_casefold(root, path):
+        return None, None, "source worktree is an ancestor of the primary checkout"
+    try:
+        path_stat = path.lstat()
+        attributes = getattr(path_stat, "st_file_attributes", 0)
+    except OSError:
+        return None, None, "source worktree path could not be inspected"
+    directory_identity = (path_stat.st_dev, path_stat.st_ino)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if path.is_symlink() or (reparse_flag and attributes & reparse_flag):
+        return None, None, "source worktree path is a symlink or reparse point"
+
+    marker = path / ".git"
+    try:
+        marker_text = marker.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return None, None, "source worktree .git pointer could not be read"
+    if not marker.is_file() or not marker_text.lower().startswith("gitdir:"):
+        return None, None, "source worktree does not have a valid .git pointer"
+    raw_admin = marker_text.split(":", 1)[1].strip()
+    admin = Path(raw_admin)
+    if not admin.is_absolute():
+        admin = marker.parent / admin
+    try:
+        admin = admin.resolve()
+    except (OSError, ValueError):
+        return None, None, "source worktree Git administration path could not be resolved"
+
+    code, common_text = _git_text(root, ("rev-parse", "--git-common-dir"))
+    if code != 0 or not common_text:
+        return None, None, "repository Git administration directory could not be resolved"
+    common = Path(common_text)
+    if not common.is_absolute():
+        common = root / common
+    registered_admin_root = common.resolve() / "worktrees"
+    if (
+        not _is_relative_to_casefold(admin, registered_admin_root)
+        or _casefold_parts(admin.parent) != _casefold_parts(registered_admin_root)
+    ):
+        return None, None, "source worktree .git pointer is outside this repository's worktree registry"
+
+    code, current_branch = _git_text(path, ("branch", "--show-current"))
+    if code != 0 or current_branch != branch:
+        return None, None, "source worktree branch identity changed before cleanup"
+    return admin, directory_identity, None
+
+
+def _remove_deregistered_worktree_residue(
+    root: Path,
+    path: Path,
+    branch: str,
+    expected_admin: Path,
+    expected_directory_identity: tuple[int, int],
+    *,
+    remover: Callable[[Path], None] | None = None,
+) -> tuple[bool, str]:
+    """Remove one exact directory left by a partial ``git worktree remove``.
+
+    This is intentionally narrower than worktree GC.  It may act only on the
+    source checkout whose Git identity was proven immediately before this merge
+    attempted removal; it never discovers or sweeps other residue.
+    """
+    code, porcelain = _git_text(root, ("worktree", "list", "--porcelain"))
+    if code != 0:
+        return False, "could not re-read registered worktrees after removal failure"
+    target_parts = _casefold_parts(path.resolve())
+    for item in _parse_worktree_list(porcelain):
+        raw = item.get("path")
+        if not raw:
+            continue
+        try:
+            registered = Path(raw).resolve()
+        except (OSError, ValueError):
+            return False, "a registered worktree path could not be resolved"
+        if _casefold_parts(registered) == target_parts:
+            return False, "source worktree remains registered after removal failure"
+
+    if not path.exists():
+        return True, "Git removed the directory despite reporting failure"
+    try:
+        resolved = path.resolve()
+        path_stat = path.lstat()
+        attributes = getattr(path_stat, "st_file_attributes", 0)
+    except OSError:
+        return False, "residual source worktree path could not be inspected"
+    if _casefold_parts(resolved) != target_parts:
+        return False, "residual source worktree path identity changed"
+    if (path_stat.st_dev, path_stat.st_ino) != expected_directory_identity:
+        return False, "residual source worktree directory was replaced after Git removal began"
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if path.is_symlink() or (reparse_flag and attributes & reparse_flag):
+        return False, "residual source worktree became a symlink or reparse point"
+
+    marker = path / ".git"
+    if marker.exists():
+        try:
+            marker_text = marker.read_text(encoding="utf-8").strip()
+            raw_admin = marker_text.split(":", 1)[1].strip()
+            actual_admin = Path(raw_admin)
+            if not actual_admin.is_absolute():
+                actual_admin = marker.parent / actual_admin
+            actual_admin = actual_admin.resolve()
+        except (OSError, UnicodeError, ValueError, IndexError):
+            return False, "residual source worktree .git pointer could not be verified"
+        if _casefold_parts(actual_admin) != _casefold_parts(expected_admin):
+            return False, "residual source worktree .git identity changed"
+
+    merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
+    if merged_code != 0:
+        return False, "source branch is no longer confirmed merged into HEAD"
+
+    def _remove(target: Path) -> None:
+        removal_target = target
+        if os.name == "nt":
+            raw = str(target)
+            if raw.startswith("\\\\"):
+                removal_target = Path("\\\\?\\UNC\\" + raw[2:])
+            elif not raw.startswith("\\\\?\\"):
+                removal_target = Path("\\\\?\\" + raw)
+
+        def _clear_readonly(function: Callable[[str], None], name: str, _exc_info: object) -> None:
+            os.chmod(name, stat.S_IWRITE)
+            function(name)
+
+        shutil.rmtree(removal_target, onerror=_clear_readonly)
+
+    try:
+        (remover or _remove)(path)
+    except OSError as exc:
+        return False, f"verified residue removal failed: {exc}"
+    if path.exists():
+        return False, "verified residue removal returned without deleting the directory"
+    return True, "removed verified directory residue after Git deregistration"
+
+
 def _cleanup_merged_source_worktree(
     root: Path, branch: str
 ) -> tuple[str | None, str | None, str | None, int]:
     """Attempt the narrow, post-commit cleanup for one integrated branch.
 
-    The existing worktree-GC remover owns bounded retry and its no-raw-delete
-    guarantee. A failed cleanup is reporting-only: the merge is already a
-    durable fact, while a locked OneDrive checkout remains recoverable for a
-    later explicit cleanup pass.
+    The existing worktree-GC remover owns bounded Git retries.  If Git partly
+    succeeds by deregistering the checkout but leaves its directory behind, an
+    exact-target fallback removes only the checkout whose Git identity was
+    proven immediately before removal.  Any failed proof remains visible as a
+    cleanup-pending result; the successful merge is never rolled back.
     """
     path, discovery_issue = _source_branch_worktree(root, branch)
     if path is None:
@@ -8333,12 +8484,16 @@ def _cleanup_merged_source_worktree(
     if status.strip():
         return str(path), "retained", "source worktree has uncommitted or untracked changes", 0
 
+    admin, directory_identity, identity_issue = _worktree_admin_identity(root, path, branch)
+    if admin is None or directory_identity is None:
+        return str(path), "retained", identity_issue or "source worktree identity could not be proven", 0
+
     merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
     if merged_code != 0:
         return str(path), "retained", "source branch is not confirmed merged into HEAD", 0
 
-    # Keep the lock-aware, Git-only remover in one place. It has no raw
-    # filesystem fallback, even when Git reports a Windows/OneDrive denial.
+    # Keep the ordinary lock-aware Git remover in one place.  The fallback below
+    # is available only after this exact checkout has been deregistered.
     from .worktree_gc import _remove_one_worktree
 
     removed, attempts, detail = _remove_one_worktree(root, str(path), max_attempts=3)
@@ -8350,7 +8505,12 @@ def _cleanup_merged_source_worktree(
     # from an active checkout that was retained for later attention.
     remaining, _ = _source_branch_worktree(root, branch)
     if remaining is None:
-        return str(path), "deregistered-with-residue", detail, attempts
+        residue_removed, residue_detail = _remove_deregistered_worktree_residue(
+            root, path, branch, admin, directory_identity
+        )
+        if residue_removed:
+            return str(path), "removed", residue_detail, attempts + 1
+        return str(path), "cleanup-pending", f"{detail}; {residue_detail}", attempts + 1
     return str(path), "retained", detail, attempts
 
 

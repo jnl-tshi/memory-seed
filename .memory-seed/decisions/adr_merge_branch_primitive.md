@@ -37,6 +37,7 @@ Re-anchored from the control-file founding onto its session decision; related de
 
 - `mse_j41ywke76agqw4yj:d1` - session merge-branch remains the one-step integration primitive, and its refusal exits now abort their own...
 - `mse_87n8q05m0k01kjr4:d1` - After the post-fuse commit command reports failure, session merge-branch reconciles repository state before...
+- `mse_ghpefqfxx4n9cbnw:d1` - The one-step merge primitive includes source-worktree retirement: after committing and verifying the merge,...
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -246,3 +247,33 @@ A slow post-commit hook can outlive the shared 30-second Git subprocess timeout 
 #### Impact
 
 Refines the one-step integration primitive's commit-failure contract without weakening its timeout, genuine-failure preservation, or exact-target cleanup safeguards.
+
+### revision-proposed - 2026-09-10T14:56:00
+
+```json
+{
+  "decision_ref": "mse_ghpefqfxx4n9cbnw:d1",
+  "event_id": "adre_20b3c6d76185d6af743d",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_87n8q05m0k01kjr4:d1",
+      "relation_assertion": "link:mse_ghpefqfxx4n9cbnw:d1:evolves:mse_87n8q05m0k01kjr4:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_ghpefqfxx4n9cbnw"
+}
+```
+
+#### Decision
+
+The one-step merge primitive includes source-worktree retirement: after committing and verifying the merge, it removes the clean registered source through Git and may remove only the exact same directory residue after Git deregistration when repository, branch, administrative pointer, directory identity, and path-type checks still pass. A failure leaves the merge committed but the task cleanup incomplete.
+
+#### Reason
+
+A merge that silently leaves its task checkout consuming disk space is operationally incomplete, while exact pre-removal identity plus fresh post-failure checks bounds the destructive fallback to the source checkout already approved for Git removal.
+
+#### Impact
+
+Normal successful integrations reclaim their source-worktree disk space even when Git partially removes a checkout on Windows or OneDrive; unsafe or still-locked cases surface as cleanup-pending and cannot be mistaken for a fully closed task.

@@ -595,6 +595,37 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Merge committed.", out)
         self.assertIn("Removed source worktree: C:/worktrees/feature-merge", out)
 
+    def test_session_merge_branch_cli_keeps_task_open_for_pending_cleanup(self):
+        import contextlib
+        import io
+        import os
+        import unittest.mock
+
+        from memory_seed.core import SessionMergeBranchResult
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        stderr = io.StringIO()
+        try:
+            os.chdir(project)
+            with contextlib.redirect_stderr(stderr), unittest.mock.patch(
+                "memory_seed.cli.session_merge_branch",
+                return_value=SessionMergeBranchResult(
+                    committed=True,
+                    source_worktree="C:/worktrees/feature-merge",
+                    worktree_cleanup_status="cleanup-pending",
+                    worktree_cleanup_detail="verified residue is still locked",
+                    worktree_cleanup_attempts=4,
+                ),
+            ):
+                code, out = self._run(["session", "merge-branch", "--branch", "feature-merge"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 2)
+        self.assertIn("Merge committed.", out)
+        self.assertIn("cleanup is still pending", stderr.getvalue())
+
     def test_user_set_show_clear_and_session_target(self):
         import contextlib
 
