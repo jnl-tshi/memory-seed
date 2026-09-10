@@ -11,13 +11,13 @@ Status: Inbox proposal for review. Creating this plan does not approve parameter
 
 ## Outcome and expected uplift
 
-Make equivalent searches behave consistently across supported interfaces, then measure which settings
-find useful project memory with fewer irrelevant results. The practical aim is fewer missed decisions,
+Make equivalent searches behave consistently across supported interfaces, measure current retrieval
+performance, then evaluate whether component score floors can reliably exclude irrelevant candidates. The practical aim is fewer missed decisions,
 less time spent fetching context, and fewer confident answers when the memory contains no answer.
 This improves Retrieval, Validation, Trust, and Application under the Constitution's five-question test.
 
-The deliverable is a reproducible parameter recommendation with its limits, not a claim of universally
-optimal settings. No percentage improvement is promised before measurement.
+The deliverable is a reproducible assessment with its limits, including a valid retain-current-settings
+outcome. No globally optimal parameters or percentage improvement is promised before measurement.
 
 ## Starting evidence
 
@@ -79,91 +79,148 @@ rules, rewriting historical memory, or implementing the wider Superpowers workfl
 Exit: every relevant surface either agrees or has a documented, tested reason to differ. Unknown or
 unverified routes remain visible and prevent a claim of complete parity.
 
-## Phase 2 — Freeze a credible evaluation
+## Phase 2 — Bounded evaluation of current condition and performance
+
+Hold ranking weights and exclusion rules fixed after consistency is established. Measure the current
+system before deciding whether improvement is needed. Success may be evidence that the current settings
+are good enough; parameter changes are not a required outcome.
 
 Use real questions and independently checked source answers. Include exact identifiers, paraphrases,
-older still-valid decisions, superseded/evolved decisions, topic hierarchy, ambiguous requests, missing
-answers, and plausible near-miss negatives. Include relevant Constitution/ADR/decision lookup tasks,
-but score retrieval separately from whether an agent recognises a conflict and acts correctly.
+older valid decisions, superseded/evolved decisions, topic hierarchy, ambiguous requests, missing answers,
+and plausible near-miss negatives. Score retrieval separately from agent conflict recognition or action.
 
-Group all questions and paraphrases for the same source or decision lineage into one split. Keep a
-development set for tuning and a sealed holdout for the final candidate. Previously inspected examples
-are development/regression material, not fresh holdout evidence. Review labels before seeing rankings;
-an LLM may draft labels but cannot be the sole judge of its own results.
+Measure relevant-source recall at the actual result limit (also 1/5/8), irrelevant returned results,
+per-query misses, current/retired ordering, p50/p95 latency, and returned context tokens. Inspect candidate
+score distributions beyond the displayed top results: judging only what the existing ranker returns
+would hide both missed relevant decisions and the population that later floors would exclude.
+Unjudged candidates are unknown, not automatically irrelevant.
 
-Pin code, corpus and sidecar hashes, provider/model version, embeddings, tokenizer, effective settings,
-evaluation clock, seeds, query/label versions, and commands. The harness must use the production corpus
-loader and adapters; prove a deliberately degraded configuration worsens an appropriate sensitivity
-control before interpreting a zero difference as equivalence. Freeze dates only in the test harness.
+Pin code/corpus/sidecar hashes, provider and model version, embeddings, tokenizer, effective settings,
+evaluation clock, seeds, query/label versions, and commands. Use the production corpus loader and
+actual adapters. Confirm a deliberately degraded configuration changes an appropriate sensitivity
+control before interpreting zero difference as equivalence. Freeze the clock only inside the harness.
 
-Before running the sweep, agree a primary metric, minimum worthwhile gain, tolerated regressions,
-no-answer error ceiling, sample size, and compute cap. Proposed primary metric: relevant-source recall
-at the actual default result limit, also reported at 1/5/8. Choose sample size from the desired detectable
-gain and uncertainty; a small pilot is descriptive if it cannot support that conclusion.
+Use a small pilot to assess labelling quality and run cost, then freeze a bounded evaluation population.
+Group questions by source/decision lineage so paraphrases cannot leak between development and sealed
+holdout sets. Previously inspected questions belong to development/regression material. Review labels
+without seeing rankings or threshold proposals; use stronger independent review for ambiguous labels
+and a sample of seemingly clear ones. Report agreement, adjudication, and uncertain cases.
 
-## Phase 3 — Tune within a bounded budget
+Agree practical baseline adequacy criteria, sample size, and compute limits before scoring. For small
+samples, report descriptive findings and uncertainty rather than unsupported general conclusions.
+Numerical criteria remain to be selected during implementation planning.
 
-Start with local, deterministic runs and cached embeddings. Profile cost before any model-assisted
-evaluation; require a separate budget for network/provider calls. Run a small coarse sweep around
-current settings, one parameter family at a time, then only justified interactions. Record trial count
-and stopping rule. Avoid an exhaustive Cartesian grid or a new model by default.
+Exit: a reproducible report of current performance, known weaknesses, sample coverage, and uncertainty.
+Do not silently turn this baseline exercise into a broad weight sweep.
 
-Measure recall@k, first relevant result rank (MRR), ordering quality where graded labels exist (nDCG),
-current-versus-retired decision behavior, and false answerable/no-answer errors. Report per-query wins,
-losses, subgroup sizes, paired uncertainty intervals, and repeated-selection effects. Measure p50/p95
-latency and retrieved context tokens on identical hardware; mark actual provider cost unavailable unless
-measured. For equivalent results, prefer the simpler configuration and lower measured cost.
+## Phase 3 — Evaluate component exclusion floors
 
-Recency changes must preserve older valid decisions. Lifecycle ranking cannot grant authority, erase
-historical decisions, or silently change explicit filter semantics. Keep attention opt-in unless it
-independently passes the existing ranking gate.
+Question: can individual query-to-decision component scores reliably identify irrelevant candidates?
 
-## Phase 4 — Calibrate relevance and test the final candidate
+A score floor is an exclusion threshold. A blend weight controls ranking contribution. The existing
+RECENCY_FLOOR bounds an age multiplier; it is not a candidate filter. Start with lexical and semantic
+scores. Age, popularity, or supersession alone do not establish query irrelevance and must not become
+independent exclusion grounds through this experiment. Explicit authority selection and exact-reference
+retrieval keep their existing contracts; score filtering must not silently discard mandated evidence.
 
-Calibrate answerability separately after ranking is frozen. Compare current labels with simple candidate
-rules and an explicit uncalibrated outcome. Test realistic missing-answer and near-miss questions across
-corpus sizes and semantic/fallback modes. Select thresholds on development data; report false positives
-and false negatives with sample counts and uncertainty. If discrimination is inadequate, retain the
-uncalibrated flag and content-based judgement rather than claiming the band is trustworthy.
+Keep baseline ranking weights fixed. First evaluate each component separately, then compare only
+justified combinations. Neither AND nor OR exclusion is preselected. Missing semantic scores during
+fallback are unavailable evidence, not zero relevance. Record whether scores are raw, normalized, or
+weighted, and keep that definition constant within each comparison.
 
-Open the sealed holdout once for the selected candidate versus the corrected baseline. A failed or
-inconclusive result means retain baseline, narrow the claim, or design a new experiment with fresh data;
-do not tune repeatedly against that holdout. Use another representative project before claiming general
-defaults are better across projects. Without it, label the result project-specific.
+Run in shadow mode: preserve normal results while recording what candidate floors would discard.
+For each threshold report:
+- irrelevant candidates removed and total candidate reduction;
+- relevant decisions wrongly excluded, including per-query and critical-decision failures;
+- changes to final recall, ordering, returned irrelevant results, and empty-result behavior;
+- results by query type, corpus size, and provider/fallback mode;
+- measured latency and token effects at the actual point where the filter would run.
 
-Optionally replay a small frozen set of agent tasks with baseline/candidate context, using the same
-model/settings and repeated runs. Measure cited decision use, conflict recognition, unsupported claims,
-and task completion separately. Ranking improvement alone does not prove faster delivery or safer action.
+Scoring all candidates before filtering cannot save that already-incurred scoring cost. Returning the
+same number of similarly sized results may not save context tokens. Distinguish candidate reduction,
+downstream work reduction, and user-visible benefit rather than treating them as equivalent.
 
-## Phase 5 — Adopt, verify, and retain rollback evidence
+Fit a bounded set of candidate thresholds on development data, with a declared trial count and stopping
+rule. Freeze one candidate policy before opening the holdout. Compare against the consistent baseline
+on the same queries. Failed or inconclusive holdout results mean retain baseline or obtain fresh data,
+not repeat tuning against the holdout. Raw BM25F scales vary with query/corpus statistics; semantic
+scores depend on model and representation. A universal floor is a hypothesis, not an assumption.
+Consider normalization or scoped floors only if the simple approach fails for a demonstrated reason.
 
-Publish the parameter manifest, commands, labelled dataset/split hashes, per-query results, confidence
-limits, rejected candidates, and remaining gaps. Adoption requires the predeclared gain and regression
-limits, meaningful negative controls, production parity, fixtures, and the existing real-corpus gate.
-If no candidate clears those gates, retaining current parameters is a successful evidence outcome.
+### Confidence and adoption evidence
 
-After approval, land a bounded change with meaningful adapter/regression tests and relevant full-suite
-checks; record the chosen values and rationale in durable memory. Update affected docs/examples and
-release notes. Preserve the previous parameter manifest and a tested rollback path. Re-evaluate after
-material changes to corpus composition, provider, scorer, chunking, or lifecycle handling rather than
-silently adapting values during normal searches.
+Confidence intervals quantify uncertainty in measured rates such as relevant-decision loss; they do not
+turn raw scores into per-result relevance probabilities. Use intervals appropriate to the sampling:
+decisions within a query and paraphrases within a lineage are dependent, so avoid treating all
+query-candidate pairs as independent observations. Predeclare the estimand, sampling unit, interval
+method, and treatment of threshold selection.
 
-## Decisions at review
+Assess whether a floor's upper confidence bound on relevant-decision loss meets the agreed tolerance,
+while its useful exclusion benefit meets the agreed minimum. Zero observed misses in a small sample
+does not prove zero risk. If intervals are too wide, report insufficient evidence and price the
+additional sample before expanding. Per-result confidence calibration is a separate possible follow-up.
 
-| Decision | Proposed starting position |
-|---|---|
-| What happens first? | Confirm and repair surface drift, then freeze the tuning baseline. |
-| What does success mean? | Better relevant-source recall within agreed regression and cost limits. |
-| How much compute? | Bounded local sweeps first; price a pilot before allocating model calls. |
-| What is the evidence boundary? | Production-path tests plus an untouched holdout; broader claims need another project. |
-| What if relevance bands remain weak? | Keep them explicitly uncalibrated. |
-| What gets approved now? | Review of this inbox plan; implementation and numerical acceptance gates remain to be agreed. |
+Exit: recommend a supported floor policy, further bounded investigation, or no filtering change.
+All three are valid outcomes. No reliable floor is preferable to a confident but unsupported exclusion.
 
-## Completion checklist
+## Adoption and follow-up boundary
 
-- [ ] Source-backed configuration inventory and tested surface parity.
-- [ ] Corrected baseline, independent labels, frozen protocol, budget, and sealed split.
-- [ ] Bounded experiment report with per-query regressions and reproducible commands.
-- [ ] Separate relevance/abstention verdict, including failed or inconclusive outcomes.
-- [ ] Evidence-backed adoption or retain-baseline decision with scope and limitations.
-- [ ] If adopted: integration checks, durable decision, documentation, and rollback evidence.
+Preserve the existing real-corpus ranking gate and fixtures. Any production filtering change requires
+the frozen acceptance criteria, held-out evidence, adapter parity, meaningful negative controls,
+relevant regression/full-suite checks, and a reviewed rollout/rollback plan. Retain the previous
+parameter manifest and record the chosen policy and rationale in durable memory.
+
+The first evidence claim is project-specific. Broader claims require another representative corpus.
+Re-evaluate after material changes to corpus composition, scorer, model, chunking, or lifecycle
+handling. Broad weight tuning, new ranking machinery, per-result confidence labels, and agent-task
+replays remain separately justified follow-ups, not assumed work in this proposal.
+
+## Capability allocation and execution sequence
+
+This is the proposed allocation for future implementation, governed by the capability-allocation
+contract in [agent collaboration](../../.memory-seed/skills/agent_collaboration.md).
+Tiers describe requirements; actual model names and effort are recorded at dispatch.
+No worker is launched by approving this document edit.
+
+| Task | Depends on | Worker tier / effort | Review and acceptance |
+|---|---|---|---|
+| C1: inventory defaults and actual routes | None | Economy / medium | Orchestrator checks cited sources and coverage; no unsupported parity claims |
+| C2: reproduce and correct discrepancies | C1 | Balanced / high | Independent frontier review; actual adapter parity and explicit-override tests |
+| B1: freeze baseline protocol, labels, budget | C2 | Frontier / high | Independent frontier method review; production fidelity, sampling, and leakage controls |
+| B2: implement bounded harness | B1 | Balanced / high | Independent frontier review of measurement logic and sensitivity controls |
+| B3: draft labels and execute frozen runs | B2 | Economy / medium; scripts compute metrics | Frontier adjudication of ambiguous labels plus blind sample review; reproducible run receipts |
+| B4: interpret baseline and scope floor experiment | B3 | Frontier / high | Report coverage, current performance, uncertainty, and justified scope |
+| F1: freeze component-floor protocol | B4 | Frontier / high | Independent frontier review of loss tolerance, interval method, and holdout rules |
+| F2: implement shadow evaluation | F1 | Balanced / high | Independent frontier review of exclusions, fallback, and protected evidence paths |
+| F3: execute frozen sweeps | F2 | Economy / low or medium; deterministic scripts | Orchestrator verifies manifests, counts, failures, and complete outputs |
+| F4: assess holdout and recommendation | F3 | Frontier / high | Independent frontier review; adopt, retain, or request more evidence with reasons |
+
+The orchestrator owns stage transitions, scope, integration, and durable decisions. Normally use one
+implementer and one independent read-only reviewer; parallelize only independent inventory or labelling
+batches with disjoint ownership. Complete consistency before baseline measurement and baseline
+interpretation before floor evaluation. Reviewers get evidence and the contract, not instructions to
+confirm the author's recommendation.
+
+Each dispatch gets a bounded packet with exact sources, allowed files, context allowance, execution
+limit, return contract, and budget. Set numerical token/time/trial limits before launch after the pilot;
+no unbounded provider calls or retry loops. Report estimates separately from observed usage.
+
+Pilot economy assignments. Escalate to balanced for unresolved call paths or repeated mechanical errors;
+to frontier for disputed meaning, statistical uncertainty, policy conflict, or a proposed scope change.
+After two failed repair attempts on the same bounded assignment, return evidence to the orchestrator;
+do not silently reset the retry counter, increase budget, or reduce review strength.
+Actual model/effort availability and substitutions are checked before dispatch.
+
+## Review decisions and acceptance checklist
+
+Settled through discovery: consistency first; bounded baseline second; component-floor evaluation third.
+Retaining current settings is a valid success. Filter combinations and numerical tolerances remain open.
+
+- [ ] Configuration inventory and actual surface parity established.
+- [ ] Baseline protocol, independent labels, budget, and split frozen.
+- [ ] Current performance measured with uncertainty and production-path controls.
+- [ ] Individual component floors tested in shadow mode before combination selection.
+- [ ] Relevant-decision loss and useful exclusion assessed on held-out data.
+- [ ] Confidence intervals interpreted at the correct sampling unit; inadequate evidence named.
+- [ ] Adoption, no change, or further-study recommendation reviewed with scope and limitations.
+- [ ] Every worker assignment has capability, review, budget, escalation, and dependency requirements.

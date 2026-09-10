@@ -73,6 +73,10 @@ exact edit ownership, dependencies (including an explicit empty list), evidence 
 and replan conditions. Declare the plan's test/verification strategy before behavior changes, following
 `local_compilation.md`. Approval references carry supplied evidence; they do not manufacture approval.
 
+Include task capability allocation under `agent_collaboration.md`: worker and reviewer requirements,
+reasoning effort, budget, escalation conditions, and dependencies. Resolve model names at dispatch;
+the collaboration skill owns the procedure and the distinction between planned and observed capability.
+
 Return to bounded discovery/planning for a new consequential decision, material scope expansion,
 invalidated authority/evidence, or a new topic branch outside the approved plan. Refresh the affected
 assessment and task boundaries; retain compatible, current evidence. Ordinary in-scope edits do not

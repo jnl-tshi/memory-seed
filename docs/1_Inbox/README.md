@@ -1,8 +1,8 @@
 # Inbox
 
 - [Memory search parameter tuning and consistency](memory-search-parameter-tuning-and-consistency-plan.md)
-  — captured 2026-09-10 for review: reconcile search defaults, validate the production harness,
-  run bounded tuning with a sealed holdout, and separately assess relevance calibration.
+  — refined 2026-09-10 through discovery: establish consistency, measure current performance,
+  then evaluate component exclusion floors; includes staged capability allocation and review.
 
 Status: **13 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
