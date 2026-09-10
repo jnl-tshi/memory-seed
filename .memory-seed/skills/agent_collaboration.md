@@ -107,6 +107,69 @@ Two packet fields carry it:
 Set `context_load: full` deliberately, not defensively. If a worker truly needs whole-project state,
 the packet is probably under-specified.
 
+## Capability allocation during planning
+
+For every delegated task in a plan, the orchestrator records a proportionate capability allocation
+before dispatch. For direct work, make the same choice briefly; do not create workers or a multi-task
+plan merely to fill an allocation table.
+
+The allocation identifies:
+- worker capability tier and desired reasoning effort, with a short reason based on ambiguity,
+  consequence of error, and verifiability;
+- reviewer capability and required independence, preserving the existing strong planning/review gates;
+- bounded context allowance, execution budget, and retry/stop limits;
+- evidence that warrants escalation, and who decides a scope or budget change;
+- dependencies, editable ownership, and which assignments may run concurrently.
+
+Assess parallelisation opportunities as part of allocation, rather than only recording concurrency
+after tasks have been chosen. For each useful split, identify data/output dependencies, unresolved
+design decisions, shared mutable resources, edit ownership, and validation prerequisites. Disjoint files
+alone do not prove independence. Record the proposed parallel groups, the evidence needed before each
+group starts, the join conditions before dependent work starts, and why serial tasks must wait.
+
+Compare expected elapsed-time savings with extra context/model cost, coordination, integration, and
+resource contention. State estimates as estimates; a qualitative reason is sufficient when timings
+are unknown. Choose a concurrency limit within actual worker slots and the agreed budget. Prefer
+independent read-only exploration or isolated labelled-data batches; parallel code-writing still
+requires separate owned worktrees and sequential integration. Do not split tightly coupled work merely
+to occupy slots. Record "no beneficial parallelism" when that is the justified outcome.
+
+Before each parallel launch, recheck readiness, resource availability, ownership and evidence freshness.
+A failed prerequisite blocks its dependants, not unrelated ready work. Reassess affected groups when
+new dependencies appear; never weaken stage gates or review independence to preserve concurrency.
+This remains an orchestrator judgement and launch check, not an automatic scheduler.
+
+Use durable capability tiers in plans, not vendor/model names. At dispatch, map the requirement to an
+available model and supported reasoning effort explicitly. Use the tier vocabulary accepted by the
+actual dispatch surface: the semantic dispatch uses economy|balanced|frontier; legacy packet examples
+use standard for the middle tier. Do not pass an unsupported value between contracts.
+
+Keep this allocation in the existing human-readable plan and dispatch/handoff record. This is a
+workflow requirement, not a new compiler-enforced field. Do not add unsupported keys to the strict
+implementation_plan or Task Packet schemas. Use existing capability_tier and budget fields where they
+apply; record additional rationale, reviewer selection, effort, and limits in the plan/dispatch record.
+
+Immediately before spawning, the orchestrator:
+1. Checks that dependencies passed and the task's evidence, scope, and allocation remain current.
+2. Resolves the requested tier and effort against models actually available on that execution surface.
+3. Records the requested model/effort and, when observable, the actual model/effort used. If the runtime
+   does not expose the actual selection, mark it unavailable rather than claiming verification.
+4. Names and justifies any substitution. An equivalent or stronger substitute may proceed within the
+   existing budget and authority; weaker capability, reduced review independence, or budget expansion
+   returns to the orchestrator for an explicit decision and any required user approval.
+5. Supplies a bounded Worker Context Contract packet and checks that model selection did not cause
+   accidental inheritance of the full parent conversation.
+
+Start with the least costly capability likely to satisfy the contract. Use a small representative
+assignment to check unfamiliar economy workers; upgrade on evidence such as missed constraints,
+unresolved ambiguity, or repeated failed verification. Escalation preserves the task's accumulated
+attempt count and evidence; it never silently resets a retry limit. A stronger model is not a substitute
+for deterministic checks, grounded labels, or independent review.
+
+The return receipt records verification, unresolved issues, budget consumption when available,
+substitutions/escalations and their reasons. Keep estimates distinct from measured usage. The
+orchestrator owns acceptance and stage transitions; model choice never grants additional authority.
+
 ## Task Packet
 
 Every worker packet should include:

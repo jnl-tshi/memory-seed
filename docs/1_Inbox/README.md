@@ -1,5 +1,9 @@
 # Inbox
 
+- [Memory search parameter tuning and consistency](memory-search-parameter-tuning-and-consistency-plan.md)
+  — refined 2026-09-10 through discovery: establish consistency, measure current performance,
+  then evaluate component exclusion floors; includes staged capability allocation and review.
+
 Status: **13 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
 comparison lines retired to `7_Replaced/` this same day — see
 [`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
