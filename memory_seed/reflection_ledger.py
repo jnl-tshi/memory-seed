@@ -10,7 +10,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
+from functools import lru_cache, wraps
 from hashlib import sha256, sha512
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -2686,6 +2686,20 @@ def _create_retention_key(root: Path) -> None:
 
 def _reflection_tree_layout(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
     """Validate and inventory reserved tree shape without loading ledger history."""
+    context = _REFLECTION_VERIFICATION_CONTEXT.get()
+    # Only complete object identities are immutable; never memoize a ref name.
+    cacheable = context is not None and re.fullmatch(r"[0-9a-f]{40}", commit)
+    key = (str(root.resolve()), commit)
+    if cacheable and key in context.layouts:
+        return context.layouts[key]
+    result = _read_reflection_tree_layout(root, commit)
+    if cacheable and len(context.layouts) < 32768:
+        context.layouts[key] = result
+    return result
+
+
+def _read_reflection_tree_layout(root: Path, commit: str) -> tuple[tuple[str, str, str], ...]:
+    """Read the complete tree, retaining alias and trust-anchor validation."""
     code, raw = _git(root, "ls-tree", "-rz", "--full-tree", commit, binary=True)
     if code or not isinstance(raw, bytes):
         _fail("reflection-integration-tree", commit, "could not inventory the exact Git tree")
@@ -2851,6 +2865,26 @@ class ReflectionIntegrationPreview:
     inherited_identical_family: bool
 
 
+def reflection_verification_operation(function):
+    """Share bounded immutable-history proofs only within one synchronous operation.
+
+    Nested preview/recheck calls reuse classifications, not mutable ref, index,
+    worktree, or admission results. Exceptions also discard the outer context.
+    Nothing is persisted or accepted as caller-supplied verification evidence.
+    """
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        if _REFLECTION_VERIFICATION_CONTEXT.get() is not None:
+            return function(*args, **kwargs)
+        token = _REFLECTION_VERIFICATION_CONTEXT.set(_ReflectionVerificationContext())
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _REFLECTION_VERIFICATION_CONTEXT.reset(token)
+    return wrapped
+
+
+@reflection_verification_operation
 def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref: str) -> ReflectionIntegrationPreview:
     """Read exact parents and the determinable reserved result without writes.
 
@@ -2908,6 +2942,7 @@ def preview_reflection_integration(cwd: Path | str, *, source_ref: str, base_ref
     )
 
 
+@reflection_verification_operation
 def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrationPreview, *, merged: bool = False) -> None:
     """Recheck preview bindings and actual reserved files before mutation."""
     root = Path(cwd).resolve()
@@ -2939,6 +2974,7 @@ def recheck_reflection_integration(cwd: Path | str, preview: ReflectionIntegrati
     _check_reflection_worktree(root, expected)
 
 
+@reflection_verification_operation
 def reflection_commit_admission(cwd: Path | str, *, candidate: str | None = None,
                                 plan: WorkstreamCommitPreview | None = None) -> dict[str, Any]:
     """Shared reserved-family gate for kernel transactions and commit hooks.
@@ -3558,6 +3594,19 @@ _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT: ContextVar[_TrustedLedgerClassificationC
 )
 
 
+@dataclass
+class _ReflectionVerificationContext:
+    """Bounded result reuse, separate from each dependency graph's safety budget."""
+
+    completed: dict[tuple[str, str, str, str], TrustedWorkstreamLedger] = field(default_factory=dict)
+    layouts: dict[tuple[str, str], tuple[tuple[str, str, str], ...]] = field(default_factory=dict)
+
+
+_REFLECTION_VERIFICATION_CONTEXT: ContextVar[_ReflectionVerificationContext | None] = ContextVar(
+    "reflection_verification_context", default=None,
+)
+
+
 def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_path: str) -> TrustedWorkstreamLedger:
     """Load only a committed, history-classified v1 ledger from a host-selected ref.
 
@@ -3572,11 +3621,17 @@ def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_
     if head is None:
         _fail("compaction-proof-history-missing", ledger_path, "trusted ledger ref does not resolve to a commit", trusted_ref=trusted_ref)
     context = _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT.get()
+    operation = _REFLECTION_VERIFICATION_CONTEXT.get()
+    key = (str(root), trusted_ref, head, ledger_path)
+    # Reuse only whole, independently verified root graphs. Nested loads retain
+    # the original cycle/depth/work budget; warm child proofs cannot bypass it.
+    root_load = context is None
+    if root_load and operation is not None and key in operation.completed:
+        return operation.completed[key]
     token = None
     if context is None:
         context = _TrustedLedgerClassificationContext()
         token = _TRUSTED_LEDGER_CLASSIFICATION_CONTEXT.set(context)
-    key = (str(root), trusted_ref, head, ledger_path)
     try:
         if key in context.completed:
             return context.completed[key]
@@ -3590,6 +3645,8 @@ def load_trusted_workstream_ledger(cwd: Path | str, *, trusted_ref: str, ledger_
         try:
             result = _classify_trusted_workstream_ledger(root, trusted_ref, head, ledger_path)
             context.completed[key] = result
+            if root_load and operation is not None and len(operation.completed) < MAX_TRUSTED_LEDGER_CLASSIFICATIONS:
+                operation.completed[key] = result
             return result
         finally:
             context.in_progress.remove(key)
