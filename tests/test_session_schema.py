@@ -250,6 +250,8 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: memory_hygiene.md",
             "skill: risk_signaling.md",
             "skill: proposal_lifecycle.md",
+            "skill: design_discovery.md",
+            "skill: systematic_debugging.md",
             "skill: subproject_runtime.md",
         ):
             self.assertIn(phrase, content)
@@ -316,6 +318,15 @@ class SessionSchemaTests(unittest.TestCase):
                 "Trigger Registry Discipline",
                 "Seed / Live Parity",
             ),
+            "systematic_debugging.md": (
+                "Systematic Debugging",
+                "Observation or reproduction",
+                "Relevant recent changes and scope",
+                "Falsifiable causal hypothesis",
+                "Smallest discriminating change",
+                "Actual verification",
+                "At the effective threshold",
+            ),
             "adr_sweep.md": (
                 "ADR Sweep Skill",
                 "Recommendation Contract",
@@ -360,6 +371,83 @@ class SessionSchemaTests(unittest.TestCase):
             for registry in (live_registry, seed_registry):
                 self.assertIn(f"skill: {skill}", registry)
             self.assertIn(f".memory-seed/skills/{skill}", runtime_index)
+
+    def test_design_discovery_preserves_a_routine_work_bypass(self):
+        live = Path(".memory-seed/skills/design_discovery.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/design_discovery.md")
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "consequential new product, architectural, data, safety, or workflow",
+            "Capability and reuse inventory",
+            "Relevant authority and evidence",
+            "Realistic alternatives",
+            "Selected option",
+            "Trial decision",
+            "existing plan and Task Packet path",
+            "Routine, already assessed work follows a decision whose scope and evidence remain current.",
+        ):
+            self.assertIn(phrase, content)
+        for registry in (live_registry, seed_registry):
+            self.assertIn("skill: design_discovery.md", registry)
+            self.assertIn(
+                "routine work directly follows an already assessed decision whose scope and evidence remain current",
+                registry,
+            )
+
+    def test_systematic_debugging_is_registered_and_seeded(self):
+        live = Path(".memory-seed/skills/systematic_debugging.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/systematic_debugging.md")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "Observation or reproduction",
+            "Relevant recent changes and scope",
+            "Falsifiable causal hypothesis",
+            "Smallest discriminating change",
+            "Actual verification",
+            "tracked project default is **three**",
+            "At the effective threshold",
+        ):
+            self.assertIn(phrase, content)
+        for registry_path in (
+            Path(".memory-seed/skills/index.md"),
+            Path("memory_seed/seed/.memory-seed/skills/index.md"),
+        ):
+            self.assertIn("skill: systematic_debugging.md", registry_path.read_text(encoding="utf-8"))
+        self.assertIn(".memory-seed/skills/systematic_debugging.md", runtime_index)
+
+    def test_fresh_completion_evidence_contract_is_seeded_across_existing_owners(self):
+        owners = (
+            "local_compilation.md",
+            "end_of_turn.md",
+            "session_logging.md",
+        )
+
+        for name in owners:
+            live = Path(".memory-seed/skills") / name
+            seed = Path("memory_seed/seed/.memory-seed/skills") / name
+            self.assertEqual(live.read_bytes(), seed.read_bytes(), f"seed twin drifted for {name}")
+
+            content = live.read_text(encoding="utf-8")
+            for phrase in (
+                "changed scope",
+                "freshness marker",
+                "`passed`",
+                "`failed`",
+                "`blocked`",
+                "`unavailable`",
+                "`waived`",
+                "stale",
+            ):
+                self.assertIn(phrase, content, f"{name} is missing {phrase!r}")
 
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")

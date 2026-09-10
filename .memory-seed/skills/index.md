@@ -169,6 +169,16 @@ skills:
       - ordinary documentation edit with no proposal, roadmap, inbox, todo, reference, or completed status change
       - code-only implementation work where proposal files are not being moved or resolved
 
+  - skill: design_discovery.md
+    required: true
+    load_when:
+      - making a consequential new product, architectural, data, safety, or workflow choice
+      - choosing a new capability, component, policy, workflow, or data approach before implementation
+      - deciding whether uncertainty warrants a bounded trial before committing to an approach
+    do_not_load_when:
+      - routine work directly follows an already assessed decision whose scope and evidence remain current
+      - a task only executes an approved detailed plan and introduces no consequential new choice
+
   - skill: subproject_runtime.md
     required: true
     load_when:
@@ -196,6 +206,16 @@ skills:
       - reproducing a local failure
     do_not_load_when:
       - analysis-only task with no local validation needed
+
+  - skill: systematic_debugging.md
+    required: true
+    load_when:
+      - diagnosing an unexpected failure, regression, or unexplained behaviour
+      - reproducing a defect or tracing its causal path before a fix
+      - repeated hypothesis-led debugging attempts require architectural reconsideration
+    do_not_load_when:
+      - the cause is established and a narrow routine change has proportionate verification
+      - no unexpected behaviour is being diagnosed
 
   - skill: memory_consolidation.md
     required: true

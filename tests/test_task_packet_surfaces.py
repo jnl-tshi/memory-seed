@@ -20,6 +20,36 @@ from memory_seed.task_packet import canonical_task_packet_json, compile_task_pac
 
 
 class TaskPacketSurfaceTests(unittest.TestCase):
+    def test_planning_evidence_additive_dispatch_has_cli_mcp_parity_and_structured_failure(self):
+        from memory_seed.task_packet import prepare_planning_evidence
+        root = self.make_project()
+        dispatch = self.dispatch()
+        source = next(item for item in compile_task_packet(dispatch, self.binding(root), root)["materialized_evidence"]
+                      if item["kind"] == "markdown")
+        draft = {"id": "compiler", "selected_alternative": "Reuse existing compiler",
+                 "sources": [source["id"]],
+                 "candidate": {"reference": source["id"], "decision": "Keep canonical evidence", "authority": "derived_projection"},
+                 "assessed_scope": {"topics": [], "paths": [source["source"]]},
+                 "compatibility_constraints": [], "proposed_action": "Reuse compiler", "conflict_reason": None,
+                 "agent_recommendation": "proceed", "user_acceptance": None, "departure_reference": None}
+        dispatch["planning_evidence"] = prepare_planning_evidence(dispatch, [draft], root)
+        dispatch_file, binding_file = self.write_inputs(root)
+        dispatch_file.write_text(json.dumps(dispatch), encoding="utf-8")
+        expected = compile_task_packet(dispatch, self.binding(root), root)
+        before = self.snapshot(root)
+        code, stdout, stderr = self.cli(["task-packet", "compile", "--dispatch-file", str(dispatch_file),
+                                        "--binding-file", str(binding_file), "--cwd", str(root)])
+        self.assertEqual((code, stderr), (0, ""))
+        self.assertEqual(json.loads(stdout), expected)
+        response = call_tool("memory_task_packet_compile", {"dispatch": dispatch, "binding": self.binding(root), "cwd": str(root)})
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["packet"], expected)
+        self.assertEqual(self.snapshot(root), before)
+        dispatch["planning_evidence"][0]["authority_granted"] = True
+        response = call_tool("memory_task_packet_compile", {"dispatch": dispatch, "binding": self.binding(root), "cwd": str(root)})
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "planning_fingerprint_mismatch")
+
     def test_reflection_missing_capability_is_refused_by_cli_and_mcp_before_export(self):
         root = self.make_project()
         dispatch, binding = self.dispatch(), self.binding(root)

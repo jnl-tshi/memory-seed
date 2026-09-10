@@ -9297,6 +9297,10 @@ SEED_FILES = [
         ".memory-seed/skills/proposal_lifecycle.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "design_discovery.md",
+        ".memory-seed/skills/design_discovery.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subproject_runtime.md",
         ".memory-seed/skills/subproject_runtime.md",
     ),
@@ -9323,6 +9327,10 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "local_compilation.md",
         ".memory-seed/skills/local_compilation.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "systematic_debugging.md",
+        ".memory-seed/skills/systematic_debugging.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_consolidation.md",
@@ -9595,11 +9603,12 @@ CORE_SKILL_NAMES = (
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
-        "Source exploration, local validation, rendered-UI debugging, and durable data-structure work.",
+        "Source exploration, systematic debugging, local validation, rendered-UI debugging, and durable data-structure work.",
         (
             "code_search.md",
             "graphify_analysis.md",
             "local_compilation.md",
+            "systematic_debugging.md",
             "data_architecture.md",
             "developer-rendered-ui-debugging.md",
             "superpowers_integration.md",
@@ -9614,8 +9623,8 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         ("agent_collaboration.md",),
     ),
     "planning": SkillProfile(
-        "Proposal inbox, todo, completed, and reference lifecycle management.",
-        ("proposal_lifecycle.md",),
+        "Proposal lifecycle management and evidence-backed consequential design discovery.",
+        ("proposal_lifecycle.md", "design_discovery.md"),
     ),
     "release": SkillProfile(
         "Package publishing, tags, changelog, and release verification.",
@@ -9654,6 +9663,7 @@ SKILL_DESCRIPTIONS = {
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
     "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
     "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",
+    "design_discovery.md": "Assess consequential choices through reuse, evidence, alternatives, and proportionate trials.",
     "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
@@ -9666,6 +9676,7 @@ SKILL_DESCRIPTIONS = {
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
     "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
     "superpowers_integration.md": "Route optional Superpowers delegation while retaining Memory Seed safety and integration ownership.",
+    "systematic_debugging.md": "Diagnose unexpected behaviour with causal hypotheses, discriminating tests, and fresh verification.",
     "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
 }
 

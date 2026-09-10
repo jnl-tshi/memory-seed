@@ -139,6 +139,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/risk_signaling.md`
 - `.memory-seed/skills/skill_architecture.md`
 - `.memory-seed/skills/proposal_lifecycle.md`
+- `.memory-seed/skills/design_discovery.md`
+- `.memory-seed/skills/systematic_debugging.md`
 - `.memory-seed/skills/subproject_runtime.md`
 - `.memory-seed/skills/data_architecture.md`
 - `.memory-seed/skills/local_compilation.md`

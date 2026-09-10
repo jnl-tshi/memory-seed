@@ -10,3 +10,12 @@ merge_trigger: automatic
 # Temporary project-wide pause. Existing Reflection history remains readable
 # and verified; set to active to permit new board operations again.
 reflection_board: dormant
+
+# Shared planning policy. Local/task settings may tighten these values only.
+delivery_quality:
+  schema_version: 1
+  constitutional_conflict: stop
+  adr_conflict: stop
+  individual_decision_conflict: warn
+  failed_hypothesis_threshold: 3
+  tests_before_behavior_change: true

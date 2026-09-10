@@ -15,6 +15,15 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-10] **Superpowers-informed delivery-quality controls now strengthen Memory Seed's native workflow.**
+  Consequential work uses reuse-aware design discovery and governed planning against the Constitution,
+  accepted ADR heads, and active decisions; debugging requires reproducible hypotheses; completion and
+  review require fresh structured evidence. Optional implementation/test planning stays inside the existing
+  Task Packet contract. A behavioral corpus exercises trigger and non-trigger routes, safe external fallback,
+  and return-before-integration ordering while keeping Superpowers optional and Memory Seed authoritative.
+  The initial bounded Reflection Board comparison demonstrates route viability only; token, latency, cost,
+  and causal delivery uplift remain unmeasured.
+
 - [2026-09-01] **Semantic dispatch now reconstructs a complete bounded Task Packet.** Six immutable,
   project-local core v1 Retrieval Profiles support exact lookup, composition, bounded overrides, and
   shared inline/profile preview and resolution. The deterministic Task Packet compiler combines semantic

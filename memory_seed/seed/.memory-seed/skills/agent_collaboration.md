@@ -242,6 +242,94 @@ provenance and a supplemental-gap route, not permission to duplicate included co
 repeated fetches as a packet-procedure failure. Excerpts stay disabled in compiled manifests so each
 evidence slice appears exactly once, under `materialized_evidence`.
 
+#### Scoped planning evidence
+
+When discovery or a conflict assessment informs the task, include optional `planning_evidence`
+in the semantic dispatch. Keep the existing v1 dispatch/packet and Evidence Pack identities.
+Use `memory_seed.task_packet.prepare_planning_evidence(dispatch, assessments, cwd)` to bind
+explicitly assessed drafts after reviewing the sources. This read-only compiler helper resolves the
+same exact profile; it does not choose alternatives, accept a departure, or create a planning ledger.
+
+Each draft contains `id`, `selected_alternative`, `sources` (selected Evidence Pack IDs),
+`candidate` (the existing PlanningCandidate fields), `assessed_scope` (`topics` and exact `paths`),
+`compatibility_constraints`, `proposed_action`, `conflict_reason` (null when compatible),
+`agent_recommendation`, `user_acceptance`, and `departure_reference`. The latter three may be null.
+`assessed_scope` describes the task's topics and exact editable paths. Optional
+`supporting_evidence_scope` separately declares `topics` and retrieval `paths` needed only for
+supporting reads; it defaults to empty lists. The expanded profile's topic/path filters, including
+inherited clauses and overrides, must be explicitly covered by these two scopes. Supporting read
+scope never contributes to edit coverage. A narrow task assessment cannot silently admit broader
+profile-derived retrieval; declare and assess that supporting scope or narrow the profile.
+Acceptance has its own `reference`, `scope`, and `reason`; acceptance and departure references must
+be selected sources. A recommendation never supplies acceptance. References remain unverified
+claims of human acceptance; compilation never proves authenticity or grants authority, resolves a
+stop, changes lifecycle, weakens shared policy, or substitutes for the governing workflow.
+
+The helper adds assessed applicability, disposition, required follow-up, effective delivery-quality
+policy, and freshness. SHA-256 of canonical JSON binds each assessment to source identities/digests,
+current authority head/lifecycle for every listed source (including supporting ADRs and session
+decisions, not just the primary candidate), the relevant topic nodes and ancestors, tracked/effective policy,
+exact profile version and expansion, objective, and assessed scope. A tightening-only effective policy
+may be supplied explicitly. Read each conflict as a concrete proposed action/prior decision pair;
+retain compatible narrower constraints and complete the required follow-up before proceeding.
+
+Carry the returned records unchanged in `dispatch.planning_evidence`. They appear there once, with
+source content only in the existing materialization. The CLI and MCP compile/preview surfaces accept
+this additive dispatch field directly. Invalid input fails explicitly. On a source, authority, scope,
+topic-tree, policy, or profile change, compilation reports affected assessment IDs and invalidation
+reasons. Reassess those records and keep unaffected records for the same plan scope. Do not rebind
+stale evidence merely to clear a check. Plan-scoped reuse never bypasses Evidence Pack corpus pinning,
+exact-source verification, measured runtime binding, or the existing context ledgers.
+
+Before a supplemental gap read, `validate_task_packet_supplemental_fetch(packet, source, line_range,
+token_estimate=..., prior_debits=...)` rejects overlap with already materialized evidence/governance
+and checks the remaining reserved input envelope. It performs no fetch and does not mutate the packet;
+record its debit alongside the missing question and tool call in the worker handoff. These are estimated
+input tokens, never observed provider usage. All workers, including external Superpowers workers, keep
+the existing authority, worktree, integration, durable-memory, and return-receipt boundaries.
+
+#### Optional implementation planning
+
+After approved design discovery, use the existing Plan Gate for a multi-task or dependency-bearing
+implementation when the breakdown helps. Routine assessed direct work may omit the plan. Do not make
+planning a universal ceremony, add another plan store/controller, or replay discovery for ordinary
+in-scope edits. Approval, authority, branch ownership, integration, and cleanup keep their current owners.
+
+An assessed draft may carry one optional `implementation_plan` mapping. Existing prose fields cannot
+express task ordering, exact ranges, or a reviewable test strategy, so this additive field travels inside
+the same `planning_evidence` record and its existing fingerprint, freshness, and input ledger:
+
+- `approval_reference`: selected evidence containing the supplied approval of discovery/plan.
+- `tasks`: an ordered nonempty list. Each task has a unique `id`, nonempty
+  `acceptance_observables`, `edit_ownership`, `evidence_references`, `verification`, and
+  `replan_conditions`, plus explicit `dependencies` (empty for an independent task).
+- Each edit ownership entry names an exact assessed `path` and inclusive `line_range: [start, end]`.
+  Use positive line numbers against the declared base, including a single-line insertion anchor;
+  a new file uses `[1, 1]` and still requires the packet's `expected_absent`/allowed-file authority.
+  Overlapping ranges require an explicit earlier dependency, direct or transitive. These ranges
+  narrow task ownership; they never enlarge the packet's allowed files or override forbidden files.
+- Dependencies name earlier task IDs. Sources in `evidence_references`, the approval reference, and
+  exception authority references must belong to the assessment's selected sources.
+- `test_strategy`: `tests`, `alternative_checks`, `exceptions`, `behavior_changes`, and
+  `tests_before_behavior_change: true`, as specified by `local_compilation.md`. Each exception
+  carries reason, affected scope, compensating checks, risk, and supplied authority.
+
+The compiler validates structure; the planner verifies the approval's authenticity/scope and whether
+the checks and exceptions satisfy governing constraints. An exception never changes the assessment's
+authority order or conflict disposition and is never a passing result. The worker receives the plan
+unchanged in the packet, respects its exact ranges and dependency order, and returns actual verification
+evidence. The compiler does not dispatch tasks, enforce an editor's ranges, or run tests.
+
+Replan the affected tasks for a new consequential decision, material scope expansion, invalidated
+authority/evidence, or a new topic branch outside the approved plan. The existing compiler detects bound
+source/objective/scope changes; semantic new choices also require planner judgment even when paths are
+unchanged. Do not rebind merely to clear stale evidence. In-scope edits retain the assessed plan.
+
+The strict external Superpowers boundary still applies: verified independent read-only dispatch only;
+SDD only for approved same-session multi-task work under the existing safety envelope. No external
+worktree/finish controller is adopted. Preserve the configured `reflection_board: dormant` state;
+implementation planning neither activates nor mutates Reflection artifacts.
+
 #### Budget and supplemental retrieval
 
 The resolver's `token_estimate` is **evidence-only**; it is not total model input and never replaces the
@@ -336,6 +424,34 @@ Gates, in order:
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
 Capability tier guidance: exploration economy/standard; planning **frontier**; implementation standard; integration frontier or a senior orchestrator; review **frontier**. Planning and review both warrant the top tier — a weak plan is more expensive to catch later than a weak review.
+
+### Evidence-aware review request and disposition
+
+Extend this existing review ownership; do not create a second review controller. Before a reviewer acts
+on findings, the request records an exact immutable base/head (or an exact changed range), task
+acceptance criteria, applicable authority and local rationale, changed-file scope, and fresh validation evidence.
+Resolve the current range before review: a stale or moving range is rejected or refreshed before
+any finding is acted upon. A reviewer receives the exact range and criteria, not a presumed whole branch.
+
+The recipient evaluates every finding against current code, acceptance criteria, local rationale, and
+applicable authority. Feedback is advice until its recorded disposition is exactly `accept`, `reject`, or `defer`;
+every disposition records its reason and evidence. A rejection or deferral cannot silently dismiss
+an authority conflict or load-bearing finding (important, critical, specification, or authority): name the
+governing resolution/escalation and retain it for the orchestrator. A deferred minor finding remains visible
+to the final whole-branch review. Open important/critical or specification findings block task completion
+after the bounded fix loop.
+
+Apply only accepted findings. Each accepted fix declares its exact fix range and receives a scoped re-review
+over that range; a prior review cannot stand in for it. Run fresh final verification after the
+last accepted fix — verification that predates the fix is stale and cannot close review. Record the review
+range, findings, dispositions, fix/re-review outcome, deferred items, and final verification through the
+existing append-only session evidence owner in `session_logging.md`.
+
+For Fan-Out, this is the existing bounded review-to-rework loop and Final Handoff Gate. For Superpowers
+SDD, Superpowers may own only its internal per-task review loop inside the supplied safety envelope; it
+does not own Task Packets, worktrees, integration, durable memory, or cleanup. Memory Seed retains those
+owners and validates the SDD return receipt before its handoff. Preserve `reflection_board: dormant`:
+review neither activates nor mutates Reflection artifacts.
 
 ## Branch And Worktree Defaults
 

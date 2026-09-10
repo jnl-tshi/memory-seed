@@ -119,12 +119,15 @@ Decision-level topic keying is the exception: its governing D2 explicitly record
 disposition, so it lives in [`decision-level-topics-proposal.md`](../8_Deferred/decision-level-topics-proposal.md) with a
 revisit trigger rather than in Inbox.
 
-## Separate plan — do not fold into this route
+## Superpowers collaboration follow-up
 
 [Superpowers collaboration integration](superpowers-collaboration-integration-proposal.md) is the existing
-accepted integration programme in Todo, with its own Phase 0 routing and approved multi-task trial. It is
-distinct from the newly authored, unassessed Superpowers delivery-quality uplift plan being handled in
-the separate Superpowers worktree; this page does not merge, retire, or rewrite either plan.
+accepted integration programme in Todo, with its own remaining Phase 0 routing and multi-task trial work.
+The separate [delivery-quality uplift plan](../5_Completed/superpowers-delivery-quality-uplift-plan.md) shipped
+on 2026-09-10: discovery, governed planning evidence, debugging, verification, implementation/test planning,
+review disposition, and behavioral evaluation are now part of the native workflow. Its first bounded trial
+established route viability but did not prove causal speed, cost, or quality uplift; future trials belong
+under the existing collaboration programme rather than reopening the completed implementation plan.
 
 ## Terminal history
 

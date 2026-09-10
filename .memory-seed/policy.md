@@ -47,6 +47,30 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - General precedence rule across sidecar families: a `derived` block may never *implicitly* override a `write-time` block on recency alone — it may only fill a gap. An explicit override requires a human-reviewed `retracts:` naming the block it supersedes. (ADR [`adr_derived_precedence`](decisions/adr_derived_precedence.md))
 - Before trusting a subagent's file reads, citations, or "this doesn't exist" claims for this repository, verify `pwd` and `git rev-parse HEAD` against the intended base commit — a pinned or frozen worktree can silently diverge from the live tree.
 
+## Governed Planning
+
+- Resolve `delivery_quality` in tracked `.memory-seed/project.yaml` through `memory_seed.planning`;
+  malformed recognized settings stop explicitly. Local/task overrides may tighten shared settings only.
+- Preserve Constitution → concern-owning control file → accepted ADR head → session evidence → derived
+  projection precedence. Discovery order never establishes authority; retain compatible narrower constraints.
+- An applicable recorded decision topic is a task topic or its ancestor in the existing topic tree.
+  Canonicalize aliases; area/activity remain topic types. Descendant-only constraints apply when the task
+  reaches that branch. Untagged records stay unclassified, semantic nominations require source/applicability
+  judgment, and superseded records remain explanatory. Never claim exhaustive coverage from retrieval.
+- Show the concrete proposed action beside each applicable decision and state the contradiction before
+  disposition. Constitutional conflict always stops for the formal amendment process. Concern-owning
+  control-file conflict stops for resolution by its governing authority. ADR conflict defaults to stop;
+  shared warn/proceed settings apply only where governing authority permits the departure.
+- Individual active pre-ADR decision conflict defaults to visible warning; before proceeding, durably record
+  the prior decision, reason, actual departure, and later promote/supersede/retain review. Never silently retire
+  an earlier decision. A tightened stop requires resolution by governing authority.
+- Keep agent recommendation separate from supplied explicit user acceptance reference, scope, and reason.
+  A packet or policy result carries authorization evidence; it never invents approval or grants authority.
+- After the effective threshold of failed independent causal hypotheses (default three), require the
+  architectural reconsideration and rationale owned by `skills/systematic_debugging.md` before continuing.
+- Planning assessment preserves the existing integration controller, external Superpowers boundary, and
+  project `reflection_board: dormant` state. It does not activate or mutate the board.
+
 ## File Ownership
 
 - `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` route tools into the shared runtime; `AGENTS.md`'s orientation-chain completion requirement is governed by (ADR [`adr_orientation_completion_gate`](decisions/adr_orientation_completion_gate.md)).
