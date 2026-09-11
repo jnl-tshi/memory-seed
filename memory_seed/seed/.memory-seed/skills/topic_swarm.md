@@ -137,7 +137,7 @@ kind of thing you can only learn by making declining possible. A proposal is a R
 ESR queue for a human to rule on; it never becomes vocabulary by being used.
 
 The conventions below are corpus-measured, not imposed; they are recorded live in
-`docs/2_Todo/decision-level-topics-proposal.md` and this prompt teaches them verbatim.
+`docs/8_Deferred/decision-level-topics-proposal.md` and this prompt teaches them verbatim.
 
 1. **Two axes, one of each, ~2 slugs per decision.** Name **where** the work is (`axis: area` — WHAT
    you are working on) and **what was done** (`axis: activity` — what KIND of work it is). This is no
@@ -436,7 +436,7 @@ heading title (`- topics (swarm batch 3, corrected)`), which is free text.
 - Roll-up to entry level is a **read-time derivation** (Invariant #6). Never store the union; the
   sidecar holds decision-keyed slugs and `entry_topic_sidecars` exposes both channels.
 - A decision-level consumer must exist before the full campaign runs — the gate recorded in
-  `docs/2_Todo/decision-level-topics-proposal.md`. Judging 922 units that nothing renders is waste.
+  `docs/8_Deferred/decision-level-topics-proposal.md`. Judging 922 units that nothing renders is waste.
 
 See `docs/3_Spec/draft/decision-level-topic-sidecars.md` for the grammar and precedence contract, and
-`docs/2_Todo/decision-level-topics-proposal.md` for the two-axis conventions and why the cap is 3.
+`docs/8_Deferred/decision-level-topics-proposal.md` for the two-axis conventions and why the cap is 3.

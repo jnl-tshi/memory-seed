@@ -4,7 +4,7 @@ import importlib
 import json
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,7 +94,7 @@ class TaskPacketCalibrationHarnessTests(unittest.TestCase):
             arm="compiled_packet",
             fixture=self.temp / "runtime",
             audit_log=self.temp / "audit.jsonl",
-            mcp_python=Path("C:/hermes/python.exe"),
+            mcp_python=PureWindowsPath("C:/hermes/python.exe"),
         )
         self.assertEqual(
             config["platform_toolsets"]["cli"], ["mcp-memory_seed_calibration"]
@@ -109,7 +109,7 @@ class TaskPacketCalibrationHarnessTests(unittest.TestCase):
             arm="no_memory",
             fixture=self.temp / "runtime",
             audit_log=self.temp / "audit.jsonl",
-            mcp_python=Path("C:/hermes/python.exe"),
+            mcp_python=PureWindowsPath("C:/hermes/python.exe"),
         )
         self.assertNotIn("mcp_servers", no_memory)
         self.assertEqual(no_memory["platform_toolsets"]["cli"], [])
