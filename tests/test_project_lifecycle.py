@@ -50,7 +50,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         (d / f"{user}.md").write_text("\n".join(fm + body) + "\n", encoding="utf-8")
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.20")
+        self.assertEqual(get_version(), "2.21")
 
     def test_doctor_summarizes_session_integrity_issues(self):
         cwd = self.make_project()
