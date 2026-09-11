@@ -563,7 +563,7 @@ class TaskPacketTests(unittest.TestCase):
         # they're SHA-256 integrity digests over append-only ledger content, meant to be publicly
         # inspectable like a checksum, not confidential material (see memory_seed/cli.py's session
         # append/ledger-view printing for the same false positive).
-        target.write_text(render_workstream_ledger(ledger), encoding="utf-8", newline="\n")  # codeql[py/clear-text-storage-sensitive-data]
+        target.write_text(render_workstream_ledger(ledger), encoding="utf-8", newline="\n")  # lgtm[py/clear-text-storage-sensitive-data]
         self.git(root, "add", path)
         self.git(root, "commit", "-m", "initialize fixture ledger")
         dispatch = self.dispatch(write_intent="writing")

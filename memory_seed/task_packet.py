@@ -2496,6 +2496,18 @@ def compile_task_packet(
     # The serialized packet is itself worker input.  Its ledger and cost record
     # affect that size, so converge on the stable integer estimate.  The final
     # fingerprint has the same byte length as the placeholder.
+    #
+    # `estimate_tokens` is a ceiling-division byte-length estimate: crossing a
+    # 4-byte boundary (e.g. a digit added/removed from an embedded count, or a
+    # different absolute path length across machines/checkouts) can shift the
+    # re-serialized estimate by +/-1 in a way that never lands on a single
+    # fixed point, oscillating between a small set of values instead. `history`
+    # detects that: once an iteration's starting estimate repeats one already
+    # seen, every value in the cycle is known and none is any more "correct"
+    # than another, so pick the largest total_input_tokens observed - never
+    # under-report the budget - rather than exhausting the loop into a hard
+    # failure for a case that has no true fixed point.
+    history: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
     for _ in range(20):
         serialized_tokens = estimate_tokens(canonical_json(packet))
         ledger = assess_context_budget(
@@ -2512,15 +2524,21 @@ def compile_task_packet(
             _enforce=False,
         )
         packet["input_ledger"] = ledger
-        packet["cost_ledger"] = calculate_cost_ledger(
+        cost_ledger = calculate_cost_ledger(
             input_tokens=ledger["total_input_tokens"],
             output_tokens=ledger["output_reasoning_reserve_tokens"],
             pricing=pricing,
             cached_input_tokens=normalized_environment["cached_input_tokens"],
             _validate_cached_input=False,
         )
+        packet["cost_ledger"] = cost_ledger
         if estimate_tokens(canonical_json(packet)) == serialized_tokens:
             break
+        if any(serialized_tokens == prior for prior, _, _ in history):
+            best = max((*history, (serialized_tokens, ledger, cost_ledger)), key=lambda item: item[1]["total_input_tokens"])
+            packet["input_ledger"], packet["cost_ledger"] = best[1], best[2]
+            break
+        history.append((serialized_tokens, ledger, cost_ledger))
     else:
         _fail(
             "input_ledger",

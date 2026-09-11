@@ -1600,11 +1600,11 @@ def main(argv: list[str] | None = None) -> int:
             # memory_seed/reflection_ledger.py) as a "secret" purely on the word "digest". These
             # are SHA-256 integrity digests over append-only ledger content, meant to be publicly
             # inspectable like a checksum, not confidential material.
-            print(payload["ledger"], end="")  # codeql[py/clear-text-logging-sensitive-data]
+            print(payload["ledger"], end="")  # lgtm[py/clear-text-logging-sensitive-data]
         else:
             # Same false positive as above: payload can carry the same ledger digest fields when
             # printed as JSON instead of raw ledger text.
-            print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False),  # codeql[py/clear-text-logging-sensitive-data]
+            print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False),  # lgtm[py/clear-text-logging-sensitive-data]
                   file=sys.stdout if payload["ok"] else sys.stderr)
         return 0 if payload["ok"] else 1
 
