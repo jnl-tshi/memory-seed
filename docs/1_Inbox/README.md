@@ -114,6 +114,7 @@ were themselves reference material, not undecided captures — moved the same da
 | [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
 | [adr-ledger-evolution-and-reasoning-semantics-plan.md](adr-ledger-evolution-and-reasoning-semantics-plan.md) | P1 | — | Independently review the semantic model and decide whether to promote a revised plan to docs/2_… |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [memory-search-parameter-tuning-and-consistency-plan.md](memory-search-parameter-tuning-and-consistency-plan.md) | proposed | — | Review the experiment scope and adoption gates before promoting to Todo. |
 | [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo. |
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
 | [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
