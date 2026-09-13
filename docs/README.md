@@ -107,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 13 · 2_Todo 41 · 3_Spec 9 · 4_Reference 25 · 5_Completed 78 · 6_Rejected 2 · 7_Replaced 33 · 8_Deferred 5
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 14 · 2_Todo 42 · 3_Spec 9 · 4_Reference 25 · 5_Completed 78 · 6_Rejected 2 · 7_Replaced 33 · 8_Deferred 5
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [seed-pod-p0-reconciliation-plan.md](2_Todo/seed-pod-p0-reconciliation-plan.md) — Focused G0 re-review of legacy root Task Packet compatibility and distinct-path root provenance migration; retain reviewed Reflection Board…
@@ -127,5 +127,6 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [reflection-ledger-workstream-evolution-plan.md](2_Todo/reflection-ledger-workstream-evolution-plan.md) — Complete integrated launch verification and first-board evaluation; track public retention-extension authoring separately.
 - **P1** [reflection-prototype-retirement-plan.md](2_Todo/reflection-prototype-retirement-plan.md) — Verify the retired prototype stays absent in the integrated launch matrix and first-board evaluation.
+- **P1** [resolve-stale-worktrees-and-decision-origins-plan.md](2_Todo/resolve-stale-worktrees-and-decision-origins-plan.md) — —
 - **P1** [task-packet-calibration-harness-plan.md](2_Todo/task-packet-calibration-harness-plan.md) — Freeze the representative development population and sealed holdout design now that the Qwen3.5 9B M0 plumbing gate has passed.
 <!-- docs-index:end -->

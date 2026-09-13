@@ -26,6 +26,7 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Complete integrated launch verification and first-board evaluation; track public retention-exte… |
 | [reflection-prototype-retirement-plan.md](reflection-prototype-retirement-plan.md) | P1 | — | Verify the retired prototype stays absent in the integrated launch matrix and first-board evalu… |
+| [resolve-stale-worktrees-and-decision-origins-plan.md](resolve-stale-worktrees-and-decision-origins-plan.md) | P1 | — | todo |
 | [task-packet-calibration-harness-plan.md](task-packet-calibration-harness-plan.md) | P1 | — | Freeze the representative development population and sealed holdout design now that the Qwen3.5… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [adr-attached-decisions-earn-a-diagram-proposal.md](adr-attached-decisions-earn-a-diagram-proposal.md) | P2 | — | ACCEPTED 2026-08-07 (JNL) - not a JNL gate any more. Blocked on the ADR backlog draining (open … |

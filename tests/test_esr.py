@@ -70,6 +70,29 @@ class EsrReportTests(unittest.TestCase):
         for section in ("Integrity", "Topics", "Lifecycle link gaps", "Integration mode", "Worktrees", "Seed twins", "Docs lifecycle"):
             self.assertIn(section, text)
 
+    def test_esr_publishes_temporal_classifications_when_cache_is_ignored(self):
+        from memory_seed.temporal_lineage import GITIGNORE_ENTRY
+
+        session = self.sessions / "2026-06-01.md"
+        session.write_text(
+            "## 2026-06-01 09:00 - temporal\n\n```yaml\nentry_id: mse_" + "c" * 16 + "\n```\n\n"
+            "### Decision\n\n- D: Preserve a temporal classification.\n- R: Git order differs from calendar proof.\n",
+            encoding="utf-8",
+        )
+        (self.cwd / ".gitignore").write_text(GITIGNORE_ENTRY + "\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.cwd), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(self.cwd), "config", "user.name", "Test"], check=True)
+        subprocess.run(["git", "-C", str(self.cwd), "config", "user.email", "test@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(self.cwd), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(self.cwd), "commit", "-q", "-m", "seed decision"], check=True)
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        classification = report.temporal_lineage["classifications"]["mse_" + "c" * 16 + ":d1"]
+        self.assertEqual(report.temporal_lineage["cache_status"], "missing")
+        self.assertEqual(classification["relative_order"], "verified-reachable-order")
+        self.assertIn("calendar", format_esr_report(report))
+
     def test_docs_lifecycle_section_skips_without_docs_and_reports_errors_with(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 
