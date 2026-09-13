@@ -651,10 +651,11 @@ Follow these gates in order:
    echo `head` as `--expected-head` and, for append/close, `pre_ledger_digest` as
    `--expected-ledger-digest`. Apply remeasures authority; stale state requires a fresh judgment.
 5. Integrate through the project's existing guarded workflow, preserving the live source ref and exact
-   two-parent target/source merge. A later ordinary descendant branch may carry an existing Reflection
-   family only when the target is its ancestor and the complete reserved family is byte-identical at
-   target, source, and merge base; this inherited identity carrier is still a guarded no-FF session
-   merge, not a fast-forward or a rebind. For a workstream ledger entering through its source branch,
+   two-parent target/source merge. A later ordinary descendant or sibling branch may carry an existing
+   Reflection family only when target and source have exactly one merge base and the complete reserved
+   family is byte-identical at target, source, and that merge base; this inherited identity carrier is
+   still a guarded no-FF session merge, not a fast-forward or a rebind. For a workstream ledger entering
+   through its source branch,
    run `reflection ledger rebind <workstream_id>
    --source <source-branch> --reason <reason>` on the integration branch, preview then apply.
    For PR mode, finish all source preparation against the current target, run

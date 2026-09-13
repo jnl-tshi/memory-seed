@@ -690,12 +690,13 @@ deleted, rewritten, reordered, or inserted before existing bytes in that classif
 The loader builds the unique ledger lineage from the canonical init image reachable after the immutable
 header's `base_sha` through the trusted head. A merge normally carries exactly one already-valid ledger parent
 while the other parent has no ledger path, as a board workstream enters its integration target. The one narrow
-identity-carrier exception is an ordinary descendant branch whose target is its ancestor and whose *complete*
-reserved Reflection family is byte-identical at target, source, and merge base; the merge result must carry
-that same family. Its first target parent is then deterministic and no ledger transition is skipped. This is
-not a general equal-bytes rule, a fast-forward path, or a rebind. Any other two-ledger-parent merge — including
-unequal blobs, a changed/additional/removed reserved path, a sibling join, an untraceable genesis, or ambiguous
-predecessor lineage — refuses; it is never silently resolved by Git first-parent order. Each ledger transition
+identity-carrier exception is an ordinary two-parent merge whose target and source have exactly one merge base and
+whose *complete* reserved Reflection family is byte-identical at target, source, and that merge base; the merge
+result must carry that same family. Its first target parent is then deterministic and no ledger transition is skipped.
+This is not a general equal-bytes rule, a fast-forward path, or a rebind. Any other two-ledger-parent merge —
+including unequal blobs, a changed/additional/removed reserved path, a missing or ambiguous merge base, an
+untraceable genesis, or ambiguous predecessor lineage — refuses; it is never silently resolved by Git first-parent
+order. Each ledger transition
 is classified against its two committed tree blobs: an exact canonical suffix append/rebind is monotonic; every
 other ledger-path change is non-monotonic. Thus removal of a middle chain, a tail chain whose survivors still
 pass standalone validation, or the only chain leaving a header-only ledger all require compaction admission. A
