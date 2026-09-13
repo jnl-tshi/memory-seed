@@ -148,6 +148,14 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
         else:
             supplied_ordinals.append(ordinal)
 
+        origin = raw.get("origin")
+        if not isinstance(origin, str) or origin not in {"user", "agent"}:
+            issues.append(
+                f"decisions[{index}].origin is required and must be 'user' or 'agent' "
+                "(user = direct user instruction, answer, or correction; "
+                "agent = implementation, investigation, test, or review finding)"
+            )
+
         topics = raw.get("topics")
         if not isinstance(topics, dict):
             issues.append(f"decisions[{index}].topics must be an object with required area and activity")
@@ -637,11 +645,12 @@ TOOLS: list[dict[str, Any]] = [
                 "decisions": {
                     "type": "array",
                     "minItems": 1,
-                    "description": "Required decision-sidecar envelope. Supply exactly one object for every body decision: {decision: 'dN', topics: {area: slug, activity: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. Each decision must carry one Area and at least one Activity; topic and lifecycle values are written only to their respective sidecars.",
+                    "description": "Required decision-sidecar envelope. Supply exactly one object for every body decision: {decision: 'dN', origin: 'user' | 'agent', topics: {area: slug, activity: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. origin is user only for a direct user instruction, answer, or correction; it is agent for an implementation, investigation, test, or review finding. Each decision must carry one Area and at least one Activity; topic and lifecycle values are written only to their respective sidecars.",
                     "items": {
                         "type": "object",
                         "properties": {
                             "decision": {"type": "string", "minLength": 1, "description": "Body decision ordinal, e.g. d1."},
+                            "origin": {"type": "string", "enum": ["user", "agent"], "description": "Required accountable source: user for a direct user instruction, answer, or correction; agent for an implementation, investigation, test, or review finding."},
                             "topics": {
                                 "type": "object",
                                 "properties": {
@@ -699,7 +708,7 @@ TOOLS: list[dict[str, Any]] = [
                                 },
                             },
                         },
-                        "required": ["decision", "topics"],
+                        "required": ["decision", "origin", "topics"],
                     },
                 },
                 "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},

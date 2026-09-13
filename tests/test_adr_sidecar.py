@@ -227,6 +227,7 @@ topics:
             "auto_branch": False,
             "decisions": [{
                 "decision": "d1",
+                "origin": "agent",
                 "topics": {"area": "schema", "activity": "feature-build"},
                 "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]},
             }],
@@ -317,6 +318,7 @@ topics:
         )
         decisions = [{
             "decision": "d1",
+            "origin": "agent",
             "topics": {"area": "schema", "activity": "feature-build"},
             "links": {"evolves": [{
                 "ref": "mse_12345678",
@@ -616,6 +618,7 @@ topics:
             "auto_branch": False,
             "decisions": [{
                 "decision": "d1",
+                "origin": "agent",
                 "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
                 "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]},
             }],
@@ -684,7 +687,7 @@ topics:
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:00",
             "auto_branch": False,
-            "decisions": [{"decision": "d1", "topics": {"area": "schema", "activity": "feature-build"}, "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]}}],
+            "decisions": [{"decision": "d1", "origin": "agent", "topics": {"area": "schema", "activity": "feature-build"}, "links": {"evolves": [{"ref": "mse_12345678", "type": "refines", "why": "test fixture edge"}]}}],
         }
         first = call_tool("memory_session_append", payload)
         payload["adr_review_receipt"] = first["adr_review_receipt"]

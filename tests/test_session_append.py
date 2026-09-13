@@ -193,6 +193,7 @@ topics:
         entry = result.path.read_text(encoding="utf-8")
         self.assertNotIn("topics:", entry)
         self.assertNotIn("evolves:", entry)
+        self.assertNotIn("decision_origins:", entry)
         self.assertEqual(len(result.sidecar_paths), 2)
         self.assertIsNotNone(result.journal_path)
         journal = json.loads(result.journal_path.read_text(encoding="utf-8"))
@@ -206,6 +207,65 @@ topics:
         self.assertIn("- feature-build:d1", topic_path.read_text(encoding="utf-8"))
         self.assertIn(f"- d1 -> {older.entry_id}", link_path.read_text(encoding="utf-8"))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_lower_level_origins_are_optional_but_render_when_complete(self):
+        self._vocabulary()
+        result = self._append(
+            decisions=[
+                {
+                    "decision": "d1",
+                    "origin": "user",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ]
+        )
+
+        self.assertTrue(result.ok, result.issues)
+        self.assertIn(
+            "decision_origins:\n  d1: user",
+            result.path.read_text(encoding="utf-8"),
+        )
+
+    def test_lower_level_origin_requires_complete_body_decision_coverage(self):
+        self._vocabulary()
+        body = (
+            "### Summary\n\n- Two choices.\n\n### Decisions\n\n"
+            "#### D1 - User choice\n\n- D: Honor it.\n- R: Direct instruction.\n\n"
+            "#### D2 - Agent finding\n\n- D: Keep the guard.\n- R: Tests require it.\n"
+        )
+        incomplete_envelope = self._append(
+            body=body,
+            decisions=[
+                {
+                    "decision": "d1",
+                    "origin": "user",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ],
+        )
+        mixed_origins = self._append(
+            body=body,
+            decisions=[
+                {
+                    "decision": "d1",
+                    "origin": "user",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                },
+                {
+                    "decision": "d2",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                },
+            ],
+        )
+
+        for result in (incomplete_envelope, mixed_origins):
+            self.assertFalse(result.ok)
+            self.assertFalse(result.written)
+            self.assertIn(
+                "decision origins must cover every body decision",
+                " ".join(result.issues),
+            )
+        self.assertEqual(list((self.cwd / MEMORY_DIR_NAME / "sessions").rglob("*.md")), [])
 
     def _vocabulary(self):
         (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
