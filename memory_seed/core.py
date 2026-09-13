@@ -2488,66 +2488,76 @@ def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
             continue
         entry_id = id_match.group(1)
         lines = yaml_block.splitlines()
-        try:
-            start = next(
-                index
-                for index, line in enumerate(lines)
-                if re.match(r"^decision_origins\s*:", line)
+        declarations = [
+            index
+            for index, line in enumerate(lines)
+            if re.match(
+                r"""^(?:decision_origins|"decision_origins"|'decision_origins')\s*:""",
+                line,
             )
-        except StopIteration:
+        ]
+        if not declarations:
             continue
 
-        if lines[start].strip() != "decision_origins:":
-            issues.append(
-                (
-                    entry_id,
-                    "decision_origins must be a block mapping with indented 'dN: user|agent' entries",
-                )
-            )
-            continue
+        if len(declarations) > 1:
+            issues.append((entry_id, "decision_origins is declared more than once"))
 
-        mapping_lines: list[str] = []
-        for line in lines[start + 1 :]:
-            if line and not line[0].isspace():
-                break
-            mapping_lines.append(line)
-
-        origins: dict[str, str] = {}
-        for line in mapping_lines:
-            if not line.strip():
-                continue
-            match = re.fullmatch(r"\s{2}(d[1-9][0-9]*):\s*(\S+)\s*", line)
-            if not match:
+        expected = body_ordinals.get(entry_id, set())
+        for start in declarations:
+            declaration = lines[start]
+            if declaration != "decision_origins:":
                 issues.append(
                     (
                         entry_id,
-                        "decision_origins must contain indented 'dN: user|agent' entries",
+                        "decision_origins must be an unquoted block mapping with indented "
+                        "'dN: user|agent' entries",
                     )
                 )
-                continue
-            ordinal, origin = match.groups()
-            if ordinal in origins:
-                issues.append((entry_id, f"decision_origins repeats {ordinal}"))
-            origins[ordinal] = origin
-            if origin not in {"user", "agent"}:
-                issues.append(
-                    (entry_id, f"decision_origins.{ordinal} must be 'user' or 'agent'")
-                )
 
-        expected = body_ordinals.get(entry_id, set())
-        missing = sorted(expected - set(origins), key=lambda item: int(item[1:]))
-        unexpected = sorted(set(origins) - expected, key=lambda item: int(item[1:]))
-        if missing:
-            issues.append(
-                (entry_id, "decision_origins is missing " + ", ".join(missing))
-            )
-        if unexpected:
-            issues.append(
-                (
-                    entry_id,
-                    "decision_origins names no body decision: " + ", ".join(unexpected),
+            mapping_lines: list[str] = []
+            for line in lines[start + 1 :]:
+                if not line.strip() or line.lstrip().startswith("#"):
+                    mapping_lines.append(line)
+                    continue
+                if not line[0].isspace():
+                    break
+                mapping_lines.append(line)
+
+            origins: dict[str, str] = {}
+            for line in mapping_lines:
+                if not line.strip() or line.lstrip().startswith("#"):
+                    continue
+                match = re.fullmatch(r"\s{2}(d[1-9][0-9]*):\s*(\S+)\s*", line)
+                if not match:
+                    issues.append(
+                        (
+                            entry_id,
+                            "decision_origins must contain indented 'dN: user|agent' entries",
+                        )
+                    )
+                    continue
+                ordinal, origin = match.groups()
+                if ordinal in origins:
+                    issues.append((entry_id, f"decision_origins repeats {ordinal}"))
+                origins[ordinal] = origin
+                if origin not in {"user", "agent"}:
+                    issues.append(
+                        (entry_id, f"decision_origins.{ordinal} must be 'user' or 'agent'")
+                    )
+
+            missing = sorted(expected - set(origins), key=lambda item: int(item[1:]))
+            unexpected = sorted(set(origins) - expected, key=lambda item: int(item[1:]))
+            if missing:
+                issues.append(
+                    (entry_id, "decision_origins is missing " + ", ".join(missing))
                 )
-            )
+            if unexpected:
+                issues.append(
+                    (
+                        entry_id,
+                        "decision_origins names no body decision: " + ", ".join(unexpected),
+                    )
+                )
     return issues
 
 

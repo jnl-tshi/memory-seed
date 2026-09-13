@@ -174,6 +174,35 @@ class LinksCheckTests(unittest.TestCase):
         self.assertEqual(len(origin_issues), 1)
         self.assertIn("decision_origins.d1", origin_issues[0].detail)
 
+    def test_links_check_catches_duplicate_origin_declarations_after_comments(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        text = (
+            "## 2026-06-02 09:00 - Duplicate origin declarations\n\n"
+            "```yaml\nentry_id: ms-bbbbbbbc\n"
+            '"decision_origins":\n  d1: user\n'
+            "# this comment does not terminate the first mapping\n"
+            "  d1: review\n"
+            "decision_origins:\n  d1: agent\n"
+            "```\n\n"
+            "### Decision\n\n- D: Keep provenance.\n- R: Attribution matters.\n"
+        )
+        (sessions / "2026-06-02.md").write_text(text, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        details = [
+            issue.detail
+            for issue in result.issues
+            if issue.kind == "malformed-decision-origin"
+        ]
+        self.assertTrue(any("declared more than once" in detail for detail in details))
+        self.assertTrue(any("unquoted block mapping" in detail for detail in details))
+        self.assertTrue(any("repeats d1" in detail for detail in details))
+        self.assertTrue(any("decision_origins.d1" in detail for detail in details))
+
     def test_links_check_flags_an_unclosed_metadata_fence(self):
         # The exact shape a bad three-way merge left in the corpus: git anchored
         # on the line-identical `topics:`/`related_entries:` run every entry
