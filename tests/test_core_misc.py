@@ -197,6 +197,65 @@ class CoreMiscTests(unittest.TestCase):
             any("block mapping" in issue for _, issue in check_entry_decision_origins(malformed))
         )
 
+    def test_decision_origin_lint_checks_every_top_level_declaration(self):
+        from memory_seed.core import check_entry_decision_origins
+
+        body = (
+            "### Decision\n\n"
+            "- D: Keep the decision accountable.\n"
+            "- R: Attribution must remain auditable.\n"
+        )
+
+        duplicate = (
+            "## 2026-06-05 09:00 - Duplicate origin declarations\n\n```yaml\n"
+            "entry_id: ms-a0000008\n"
+            "decision_origins:\n  d1: user\n"
+            "decision_origins:\n  d1: review\n"
+            f"```\n\n{body}"
+        )
+        quoted = (
+            "## 2026-06-05 09:00 - Quoted origin declaration\n\n```yaml\n"
+            "entry_id: ms-a0000009\n"
+            '"decision_origins":\n  d1: agent\n'
+            f"```\n\n{body}"
+        )
+
+        duplicate_issues = [
+            issue for _, issue in check_entry_decision_origins(duplicate)
+        ]
+        self.assertTrue(
+            any("declared more than once" in issue for issue in duplicate_issues)
+        )
+        self.assertTrue(
+            any("decision_origins.d1" in issue for issue in duplicate_issues)
+        )
+        self.assertTrue(
+            any(
+                "unquoted block mapping" in issue
+                for _, issue in check_entry_decision_origins(quoted)
+            )
+        )
+
+    def test_decision_origin_lint_keeps_mapping_open_across_unindented_comments(self):
+        from memory_seed.core import check_entry_decision_origins
+
+        text = (
+            "## 2026-06-05 09:00 - Comment in origin mapping\n\n```yaml\n"
+            "entry_id: ms-a0000010\n"
+            "decision_origins:\n"
+            "  d1: user\n"
+            "# the following authored value remains part of this mapping\n"
+            "  d1: review\n"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Keep the decision accountable.\n"
+            "- R: Attribution must remain auditable.\n"
+        )
+
+        issues = [issue for _, issue in check_entry_decision_origins(text)]
+        self.assertTrue(any("repeats d1" in issue for issue in issues))
+        self.assertTrue(any("decision_origins.d1" in issue for issue in issues))
+
     def test_cli_session_entry_id_reproduces_canonical_id(self):
         import contextlib
         import io
