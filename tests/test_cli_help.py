@@ -31,15 +31,19 @@ class CliHelpTests(unittest.TestCase):
         import subprocess
 
         subprocess.run(["git", "-C", str(cwd), "init", "-q"], check=True, capture_output=True)
+        # Persist identity into the repo's own config rather than passing it as a one-off
+        # `-c` override on this commit: later calls in this test invoke git directly (notably
+        # `session_merge_branch`, a library call with no `-c` of its own), and `git merge
+        # --no-ff --no-commit` validates committer identity up front even though it never
+        # commits. A dev machine with global user.name/user.email masks the gap; CI runners
+        # do not carry one, so an identity-less repo fails merge setup with no MERGE_HEAD.
+        subprocess.run(["git", "-C", str(cwd), "config", "user.name", "test"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(cwd), "config", "user.email", "test@example.com"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(cwd), "config", "commit.gpgsign", "false"], check=True, capture_output=True)
         (cwd / "README.txt").write_text("x", encoding="utf-8")
         subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, capture_output=True)
         subprocess.run(
-            [
-                "git", "-C", str(cwd),
-                "-c", "user.name=test", "-c", "user.email=test@example.com",
-                "-c", "commit.gpgsign=false",
-                "commit", "-q", "-m", "initial",
-            ],
+            ["git", "-C", str(cwd), "commit", "-q", "-m", "initial"],
             check=True,
             capture_output=True,
         )

@@ -28,7 +28,7 @@ from .text_files import (
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.20"
+VERSION = "2.21"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -2559,6 +2559,58 @@ def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
                     )
                 )
     return issues
+_LEGACY_OR_MODERN_ENTRY_HEADING_RE = re.compile(
+    r"^##\s+\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?\s+-\s*.*$", re.MULTILINE
+)
+
+
+def _declared_entry_ids(text: str) -> list[str]:
+    """The ``entry_id`` each entry in ``text`` declares in its own metadata
+    fence - one per entry heading, not one per ``entry_id:`` line in the file.
+
+    A workstream receipt block (Reflection Board) cites the session entry it
+    attaches to with its own ``entry_id:`` line, once per record - a chain
+    with five records under one entry legitimately repeats it five times.
+    Scanning the whole file for that key, as a plain ``_ENTRY_ID_RE.findall``
+    does, counts every citation as a second declaration and reports the
+    entry as duplicated within its own file, alongside any real cross-file
+    duplicate `links check` exists to catch. Anchoring to the first metadata
+    fence after each heading - the same anchor `check_entry_metadata_fences`
+    uses - keeps a citation from being mistaken for a declaration.
+
+    Splits on ``_LEGACY_OR_MODERN_ENTRY_HEADING_RE``, not the canonical
+    ``_ENTRY_HEADING_RE`` that append/fuse/reorder use: those need to refuse a
+    body line that merely looks like a heading, but this function only reads
+    id/fence structure, so treating a rare untimed pre-convention heading (the
+    corpus predates ``## <date> <time> - <title>``) as a boundary too is safe,
+    while treating it as body content is not - it swallows that legacy
+    entry's own fence into whichever entry precedes it and drops its
+    declared id from ``known_entries``, orphaning every topic/link sidecar
+    that legitimately cites it (caught via the 2026-05-25 corpus fixture).
+    """
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _LEGACY_OR_MODERN_ENTRY_HEADING_RE.match(ln)]
+    declared: list[str] = []
+    for k, start in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        block = lines[start:end]
+        opener = next(
+            (i for i, ln in enumerate(block[1:], 1) if _METADATA_FENCE_OPEN_RE.match(ln)),
+            None,
+        )
+        if opener is None:
+            continue
+        closer = next(
+            (i for i, ln in enumerate(block[opener + 1:], opener + 1) if _FENCE_CLOSE_RE.match(ln)),
+            len(block),
+        )
+        entry_id = next(
+            (m.group(1) for ln in block[opener + 1:closer] if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
+            None,
+        )
+        if entry_id:
+            declared.append(entry_id)
+    return declared
 
 
 def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
@@ -2770,7 +2822,7 @@ def check_session_links(
             issues.append(LinkIssue(rel, "unreadable", str(exc)))
             continue
 
-        for entry_id in _ENTRY_ID_RE.findall(text):
+        for entry_id in _declared_entry_ids(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
 
         # Structural integrity first: an unclosed metadata fence means the entry

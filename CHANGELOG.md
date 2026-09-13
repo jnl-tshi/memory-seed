@@ -4,6 +4,11 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.21.0 - 2026-09-11
+
+Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git
+history is used only as a cross-check.
+
 ### Changed (breaking)
 
 - [2026-08-31] **Ephemeral Evidence Packs now use one typed identity contract.** Pack and resolver version

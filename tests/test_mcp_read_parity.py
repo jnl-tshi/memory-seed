@@ -126,6 +126,12 @@ class McpReadParityTests(unittest.TestCase):
         self._git("init", "-q")
         self._git("config", "user.name", "Test User")
         self._git("config", "user.email", "test@example.com")
+        # These tests snapshot every file under the repo before and after a read-only call to
+        # prove nothing was written. `git commit` can fork a detached `git gc --auto` in the
+        # background; on a loaded CI runner that fork can still be mid-run (a stray
+        # `.git/objects/maintenance.lock`, rewritten refs/packs) when the second snapshot fires,
+        # failing the equality check on background git activity rather than a real regression.
+        self._git("config", "gc.auto", "0")
         self._git("add", ".")
         self._git("commit", "-qm", "fixture")
 

@@ -222,15 +222,20 @@ export interface components {
             /** Decision Ref */
             decision_ref?: string | null;
             /**
+             * Evolution
+             * @default
+             */
+            evolution: string;
+            /**
              * Impact
              * @default
              */
             impact: string;
             /**
-             * Evolution
+             * Reason
              * @default
              */
-            evolution: string;
+            reason: string;
             /**
              * Why
              * @default
@@ -248,15 +253,6 @@ export interface components {
             decision_ref?: string | null;
             /** Event Id */
             event_id: string;
-            /** Impact */
-            impact: string;
-            /** Impact Evidence */
-            impact_evidence?: string[];
-            /**
-             * Impact Provenance
-             * @default
-             */
-            impact_provenance: string;
             /**
              * Evolution
              * @default
@@ -264,6 +260,18 @@ export interface components {
             evolution: string;
             /** Expected Authoritative Decision */
             expected_authoritative_decision?: string | null;
+            /**
+             * Impact
+             * @default
+             */
+            impact: string;
+            /** Impact Evidence */
+            impact_evidence?: string[];
+            /**
+             * Impact Provenance
+             * @default preserved
+             */
+            impact_provenance: string;
             /** Kind */
             kind: string;
             /** Matched Decisions */

@@ -558,7 +558,12 @@ class TaskPacketTests(unittest.TestCase):
         path = workstream_ledger_path(ledger.header.workstream_id)
         target = root / path
         target.parent.mkdir(parents=True)
-        target.write_text(render_workstream_ledger(ledger), encoding="utf-8", newline="\n")
+        # False positive below: CodeQL's sensitive-data heuristic traces the ledger's
+        # "detail_digest"/"pre_ledger_digest" fields as a "secret" purely on the word "digest" -
+        # they're SHA-256 integrity digests over append-only ledger content, meant to be publicly
+        # inspectable like a checksum, not confidential material (see memory_seed/cli.py's session
+        # append/ledger-view printing for the same false positive).
+        target.write_text(render_workstream_ledger(ledger), encoding="utf-8", newline="\n")  # lgtm[py/clear-text-storage-sensitive-data]
         self.git(root, "add", path)
         self.git(root, "commit", "-m", "initialize fixture ledger")
         dispatch = self.dispatch(write_intent="writing")

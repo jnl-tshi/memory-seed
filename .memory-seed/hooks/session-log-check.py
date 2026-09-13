@@ -329,5 +329,10 @@ elif agent == "gemini":
     # Gemini CLI AfterAgent: hookSpecificOutput.additionalContext injects context.
     print(json.dumps({"hookSpecificOutput": {"additionalContext": reminder}}))
 else:
-    # Claude Code Stop hook: systemMessage injects into model context
-    print(json.dumps({"systemMessage": reminder}))
+    # Claude Code Stop hook: `systemMessage` is user-facing UI text only and is
+    # never added to the model's context - a Stop hook only reaches the model
+    # (and can make it keep going instead of stopping) via `decision: "block"`
+    # with `reason` as the text fed back. Verified against
+    # memory-retrieval-check.py's UserPromptSubmit branch below, which already
+    # gets this right for its own event type.
+    print(json.dumps({"decision": "block", "reason": reminder}))
