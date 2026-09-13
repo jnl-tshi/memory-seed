@@ -1,0 +1,15 @@
+schema: memory-seed/retrieval-profile
+schema_version: 1
+id: refactoring
+profile_version: 1
+extends: []
+spec:
+  required:
+    related_decisions:
+      depth: 3
+  optional:
+    sessions:
+      neighbouring_entries: 10
+  limits:
+    max_entries: 40
+    max_tokens: 16000

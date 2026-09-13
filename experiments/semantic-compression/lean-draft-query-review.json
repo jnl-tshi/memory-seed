@@ -1,0 +1,19 @@
+{
+  "schema": "lean-draft-query-review.v1",
+  "query_sha256": "sha256:18ee379659abc407435071eb465565e4dd0b661364b089a1ed56ea8c6a34bcbd",
+  "mechanical_validation": {
+    "query_count": 60,
+    "phrase_or_metadata_leaks": 0,
+    "semantic_queries_with_exact_anchor": 0,
+    "identifier_queries_without_source_anchor": 0
+  },
+  "semantic_review": {
+    "reviewer_model": "gpt-5.6-terra",
+    "reasoning_effort": "high",
+    "input_access": "canonical-source-and-query-only",
+    "reviewed": 60,
+    "accepted": 60,
+    "rejected": []
+  },
+  "ranking_seen_before_freeze": false
+}

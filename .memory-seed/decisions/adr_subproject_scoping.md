@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_subproject_scoping
 title: Sub-project runtime scoping and inheritance defaults
 topics:
@@ -24,11 +24,11 @@ Authoritative decision: `ms-0bd3d8b2:d2`
 
 A sub-project is a normal folder carrying its own nested .memory-seed/ runtime scoped to its containing folder. Detailed session logs remain in the nearest active runtime; parent/root memory receives only coordination summaries addressing root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. Parent policy and skills are inherited by default; local skill files exist only to override parent behavior or hold genuinely local runbooks.
 
-### Why
+### Reason
 
 Localized context is preserved while root awareness of cross-project consequences is maintained. Mirroring sub-project sessions into root memory would duplicate noise and weaken runtime isolation. Each runtime's nearest folder is read first, allowing inheritance while keeping detailed logs local.
 
-### How it evolved
+### Impact
 
 Operational guardrails were restored in v2 language, including sub-project inheritance conflict guidance. This was then distilled into the scoping rule: detailed logs stay in the nearest active runtime, and parent gets only coordination summaries for cross-project visibility.
 
@@ -58,6 +58,7 @@ Operational guardrails were restored in v2 language, including sub-project inher
   "event_id": "adre_afd079601ed2e4ae78fa",
   "founding_quote": "A nested `.memory-seed/` runtime scopes work under its containing folder.",
   "founding_source": ".memory-seed/policy.md#L78",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-0bd3d8b2:d2",
@@ -70,11 +71,11 @@ Operational guardrails were restored in v2 language, including sub-project inher
 
 A sub-project is a normal folder carrying its own nested `.memory-seed/` runtime, never a folder nested inside the root runtime. The nested runtime scopes work under its containing folder: active state is local by default, detailed session logs stay in the nearest runtime, and parent active state is not read unless the sub-project index explicitly links to it. Parent policy and parent skills are inherited by default; local skill files exist only to override parent behaviour or to hold genuinely local runbooks.
 
-#### Why
+#### Reason
 
 Runtime discovery walks upward to the nearest `.memory-seed/`, so co-locating the runtime with the folder it governs makes scope a property of position rather than configuration. Keeping detail local preserves runtime isolation while a coordination summary keeps the root aware of cross-project consequences; mirroring sub-project sessions upward was rejected as duplicated noise. Inheriting by default keeps a sub-project small, with an explicit index override as the single escape hatch.
 
-#### Evolution
+#### Impact
 
 Recorded 2026-05-26 alongside the deterministic skill trigger registry, which set the local-logs and parent-summary split, and reinforced when the restored v1.4 guardrails added explicit sub-project inheritance-conflict guidance.
 
@@ -84,13 +85,22 @@ Recorded 2026-05-26 alongside the deterministic skill trigger registry, which se
 {
   "event_id": "adre_8ca415eacd7b46454612",
   "founding_source": ".memory-seed/policy.md#L78",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/policy.md#L78.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/policy.md#L78 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-08T19:12:00Z
 
@@ -108,6 +118,7 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
   ],
   "decision_ref": "ms-0bd3d8b2:d2",
   "event_id": "adre_7f32ad4ecbda93f1e4b8",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_kqna9hegj35dwsqj"
 }
@@ -117,11 +128,11 @@ Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Camp
 
 A sub-project is a normal folder carrying its own nested `.memory-seed/` runtime, never a folder nested inside the root runtime. The nested runtime scopes work under its containing folder: active state is local by default, detailed session logs stay in the nearest runtime, and parent active state is not read unless the sub-project index explicitly links to it. Parent policy and parent skills are inherited by default; local skill files exist only to override parent behaviour or to hold genuinely local runbooks.
 
-#### Why
+#### Reason
 
 Rests on the session decision that instituted it: "Detailed session logs remain in the nearest active runtime; parent/root memory gets only" (ms-0bd3d8b2:d2). This decision established the scoping rule that sub-projects keep detailed logs locally while parent gets coordination summaries.
 
-#### Evolution
+#### Impact
 
 Founded from .memory-seed/policy.md#L78; this revision moves the concern off that control-file line onto ms-0bd3d8b2:d2, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
 
@@ -131,14 +142,23 @@ Founded from .memory-seed/policy.md#L78; this revision moves the concern off tha
 {
   "decision_ref": "ms-0bd3d8b2:d2",
   "event_id": "adre_e09247b981848e44f0a7",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
 
+#### Decision
+
+Reject ms-0bd3d8b2:d2.
+
 #### Reason
 
 Wording retired, not the decision. This summary restated a single decision (or, for a founded concern, the control-file line) instead of synthesising every live member of the chain. Re-proposed on the same decision with that synthesis.
+
+#### Impact
+
+ms-0bd3d8b2:d2 is not adopted and the current authoritative decision remains unchanged.
 
 ### revision-proposed - 2026-08-08T23:20:20Z
 
@@ -156,6 +176,7 @@ Wording retired, not the decision. This summary restated a single decision (or, 
   ],
   "decision_ref": "ms-0bd3d8b2:d2",
   "event_id": "adre_5698c4edc692006b3fa3",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-f776aff0:d1"
@@ -168,11 +189,11 @@ Wording retired, not the decision. This summary restated a single decision (or, 
 
 A sub-project is a normal folder carrying its own nested .memory-seed/ runtime scoped to its containing folder. Detailed session logs remain in the nearest active runtime; parent/root memory receives only coordination summaries addressing root-visible topology, shared design, release behavior, inheritance, dependencies, risks, or priorities. Parent policy and skills are inherited by default; local skill files exist only to override parent behavior or hold genuinely local runbooks.
 
-#### Why
+#### Reason
 
 Localized context is preserved while root awareness of cross-project consequences is maintained. Mirroring sub-project sessions into root memory would duplicate noise and weaken runtime isolation. Each runtime's nearest folder is read first, allowing inheritance while keeping detailed logs local.
 
-#### Evolution
+#### Impact
 
 Operational guardrails were restored in v2 language, including sub-project inheritance conflict guidance. This was then distilled into the scoping rule: detailed logs stay in the nearest active runtime, and parent gets only coordination summaries for cross-project visibility.
 
@@ -183,7 +204,20 @@ Operational guardrails were restored in v2 language, including sub-project inher
   "decision_ref": "ms-0bd3d8b2:d2",
   "event_id": "adre_a907bf9d4f6826f9fa86",
   "expected_authoritative_decision": "founding:.memory-seed/policy.md#L78",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_rfw60ctv535cbseq"
 }
 ```
+
+#### Decision
+
+Accept ms-0bd3d8b2:d2.
+
+#### Reason
+
+Reason was not recorded in the schema-v1 event.
+
+#### Impact
+
+ms-0bd3d8b2:d2 becomes the authoritative decision; later contrary evidence requires a successor revision.

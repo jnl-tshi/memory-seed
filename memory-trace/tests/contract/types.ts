@@ -227,6 +227,16 @@ export interface components {
              */
             evolution: string;
             /**
+             * Impact
+             * @default
+             */
+            impact: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
              * Why
              * @default
              */
@@ -250,6 +260,18 @@ export interface components {
             evolution: string;
             /** Expected Authoritative Decision */
             expected_authoritative_decision?: string | null;
+            /**
+             * Impact
+             * @default
+             */
+            impact: string;
+            /** Impact Evidence */
+            impact_evidence?: string[];
+            /**
+             * Impact Provenance
+             * @default preserved
+             */
+            impact_provenance: string;
             /** Kind */
             kind: string;
             /** Matched Decisions */

@@ -15,6 +15,12 @@ Lifecycle:
 When a reference document produces actionable work, promote the actionable scope into a focused
 `docs/2_Todo/*.md` plan and keep the source document here.
 
+Other retained provenance:
+
+- `warranty-file-structure-index.md` is an imported warranty-claims ML project index retained as the
+  source that informed Memory Seed's tree-first runtime-index format. Its companion `QUICKSTART.md` and
+  `MIGRATION.md` files were not included in this repository.
+
 Current Memory Trace provenance:
 
 - `memory-trace-next-generation-plan-document-set.md` records the 2026-07-11 imported plan package
@@ -27,16 +33,27 @@ Current Memory Trace provenance:
 |---|---|---|---|
 | [21st-dev-components.md](21st-dev-components.md) | — | — | — |
 | [agent-memory-product-functionality-report.md](agent-memory-product-functionality-report.md) | — | — | source-only |
+| [clean-session-high-signal-task-packet-pilot.md](clean-session-high-signal-task-packet-pilot.md) | — | — | — |
 | [designing-user-interfaces-source-learnings.md](designing-user-interfaces-source-learnings.md) | — | — | source-learnings |
 | [fffuel-svg-css-generators.md](fffuel-svg-css-generators.md) | — | — | — |
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |
+| [inbox-2026-08-20-drop-review-claude.md](inbox-2026-08-20-drop-review-claude.md) | — | — | inbox-assessed |
+| [inbox-2026-08-20-drop-review-codex.md](inbox-2026-08-20-drop-review-codex.md) | — | — | inbox-assessed |
+| [INBOX-ASSESSMENT-2026-08-13-DROP.md](INBOX-ASSESSMENT-2026-08-13-DROP.md) | — | — | inbox-assessed |
+| [INBOX-ASSESSMENT-2026-08-20-DROP.md](INBOX-ASSESSMENT-2026-08-20-DROP.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT.md](INBOX-ASSESSMENT.md) | — | — | inbox-assessed |
 | [INBOX-CAPABILITY-CROSSWALK.md](INBOX-CAPABILITY-CROSSWALK.md) | — | — | inbox-crosswalk |
+| [inbox-todo-lifecycle-audit-2026-09-09.md](inbox-todo-lifecycle-audit-2026-09-09.md) | — | — | reference |
 | [information-theoretic-evolution-disposition.md](information-theoretic-evolution-disposition.md) | — | — | disposition |
 | [leg-b-per-decision-attribution-measurement.md](leg-b-per-decision-attribution-measurement.md) | — | — | — |
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
+| [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
+| [next-steps-history-2026-09-09.md](next-steps-history-2026-09-09.md) | — | — | reference |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
+| [reflection-board-v1-operator-guide.md](reflection-board-v1-operator-guide.md) | — | — | reference |
+| [todo-lifecycle-audit-2026-09-08.md](todo-lifecycle-audit-2026-09-08.md) | — | — | reference |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
+| [warranty-file-structure-index.md](warranty-file-structure-index.md) | — | — | — |
 <!-- docs-index:end -->

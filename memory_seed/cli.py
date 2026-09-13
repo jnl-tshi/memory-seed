@@ -3,16 +3,21 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any, Mapping
 
 from . import processes as process_tools
 from .core import (
     KNOWN_AGENTS,
     RETRACTABLE_KINDS,
     add_agent,
+    amend_topic_sidecar,
     add_skill,
     apply_link_retract,
     branch_status,
@@ -57,6 +62,379 @@ from .text_files import (
 )
 
 
+def _read_json_object(path_text: str, *, label: str) -> dict:
+    """Read one UTF-8 JSON object, including the conventional stdin marker."""
+    raw = sys.stdin.read() if path_text == "-" else Path(path_text).read_text(encoding="utf-8")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    return value
+
+
+# Provenance is deliberately persisted as a sequence of Markdown blocks rather
+# than one mutable JSON document.  The validation contract owns meaning; this
+# thin adapter owns only append-only transport and public-surface parity.
+_PROVENANCE_EVENT_RE = re.compile(
+    r"<!-- memory-seed-provenance:(runtime|binding|replacement) -->\s*```json\s*(.*?)\s*```",
+    re.DOTALL,
+)
+
+
+def _provenance_event(kind: str, value: Mapping[str, Any]) -> str:
+    return (
+        f"<!-- memory-seed-provenance:{kind} -->\n"
+        "```json\n"
+        + json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False)
+        + "\n```\n"
+    )
+
+
+def _provenance_topology(
+    cwd: str | Path, owner: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], Path, Path, bool]:
+    """Measure the selected runtime against nested ``.memory-seed`` topology."""
+
+    from .provenance import build_runtime_ownership, normalize_runtime_ownership
+
+    active = resolve_runtime(cwd)
+    outer = active.workspace_root
+    if not (active.workspace_root / ".git").exists():
+        parent = active.workspace_root.parent
+        for candidate in (parent, *parent.parents):
+            if (candidate / ".memory-seed").is_dir():
+                outer = candidate
+                break
+    active_path = active.workspace_root.relative_to(outer).as_posix() if active.workspace_root != outer else "."
+    runtime = (
+        normalize_runtime_ownership(owner)
+        if owner is not None
+        else build_runtime_ownership(runtime_path=".", owner_kind="runtime", owner_id="root", owner_state="active")
+    )
+    declared_path = runtime["runtime_path"]
+    selected = outer if declared_path == "." else outer / declared_path
+    owner_data = runtime["owner"]
+    if owner_data["kind"] == "runtime":
+        if declared_path != "." or active_path != ".":
+            raise ValueError("a runtime root record is valid only for the measured root runtime")
+    elif owner_data["kind"] == "pod" and owner_data["state"] == "active":
+        if declared_path == "." or not (selected / ".memory-seed").is_dir():
+            raise ValueError("an active pod must name a measured nested .memory-seed runtime")
+        if owner_data["id"] != Path(declared_path).name:
+            raise ValueError("active pod id must match the measured runtime path leaf")
+    return runtime, outer, selected, active_path == declared_path
+
+
+def _provenance_sidecar(root: Path, runtime: Mapping[str, Any]) -> Path:
+    return root / str(runtime["sidecar_path"])
+
+
+def _read_provenance_ledger(root: Path, runtime: Mapping[str, Any]) -> tuple[dict[str, Any], Path, list[str]]:
+    """Read a complete event stream, refusing malformed or cross-runtime history."""
+
+    from .provenance import build_ledger, normalize_ledger
+
+    path = _provenance_sidecar(root, runtime)
+    if not path.exists():
+        return build_ledger(runtime=runtime), path, []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"provenance sidecar is unreadable: {exc}") from exc
+    events = list(_PROVENANCE_EVENT_RE.finditer(text))
+    if not events:
+        raise ValueError("provenance sidecar has no recognized append-only events")
+    declared_runtime: dict[str, Any] | None = None
+    bindings: list[dict[str, Any]] = []
+    replacements: list[dict[str, Any]] = []
+    problems: list[str] = []
+    for index, match in enumerate(events, start=1):
+        kind, raw = match.groups()
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"provenance event {index} is not valid JSON: {exc.msg}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(f"provenance event {index} must contain a JSON object")
+        if kind == "runtime":
+            if declared_runtime is not None:
+                problems.append("more than one runtime event")
+            declared_runtime = payload
+        elif kind == "binding":
+            bindings.append(payload)
+        else:
+            replacements.append(payload)
+    if declared_runtime is None:
+        raise ValueError("provenance sidecar is missing its initial runtime event")
+    ledger = normalize_ledger({
+        "schema": "memory-seed/provenance-ledger", "version": 1,
+        "runtime": declared_runtime, "bindings": bindings, "replacements": replacements,
+    })
+    if ledger["runtime"] != dict(runtime):
+        problems.append("sidecar runtime does not match the explicitly selected runtime")
+    if problems:
+        raise ValueError("provenance sidecar is tampered: " + "; ".join(problems))
+    return ledger, path, []
+
+
+def _git_sidecar_baseline(root: Path, path: Path) -> dict[str, Any]:
+    """Read one Git baseline using unavailable-Git audit semantics."""
+
+    from .provenance_git import GitUnavailableError, git_head
+
+    try:
+        relative = path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return {"text": None, "status": "unverifiable", "anchor": "outside-runtime"}
+    try:
+        git_head(root)
+    except GitUnavailableError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-unavailable", "detail": str(exc)}
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "show", f"HEAD:{relative}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+    except OSError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-unavailable", "detail": str(exc)}
+    if completed.returncode:
+        return {"text": None, "status": "unverifiable", "anchor": "no-committed-sidecar"}
+    try:
+        text = completed.stdout.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        return {"text": None, "status": "unverifiable", "anchor": "git-baseline-unreadable", "detail": str(exc)}
+    return {"text": text, "status": "available", "anchor": "git-head-prefix"}
+
+
+def _append_only_status(root: Path, path: Path) -> dict[str, Any]:
+    """Mechanically anchor event order to committed Git prefixes when present."""
+
+    if not path.exists():
+        baseline = _git_sidecar_baseline(root, path)
+        if baseline["text"] is not None:
+            return {"status": "violated", "anchor": baseline["anchor"], "detail": "committed sidecar is missing from the working tree"}
+        return {"status": "unverifiable" if baseline["anchor"] == "git-unavailable" else "not-applicable", "anchor": baseline["anchor"], **({"detail": baseline["detail"]} if baseline.get("detail") else {})}
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return {"status": "violated", "anchor": "unreadable", "detail": str(exc)}
+    baseline = _git_sidecar_baseline(root, path)
+    baseline_text = baseline["text"]
+    if baseline_text is None:
+        return {"status": "unverifiable", "anchor": baseline["anchor"], **({"detail": baseline["detail"]} if baseline.get("detail") else {})}
+    if not current.startswith(baseline_text):
+        return {"status": "violated", "anchor": "git-head-prefix", "detail": "working sidecar does not retain committed event prefix"}
+    try:
+        relative = path.resolve().relative_to(root.resolve()).as_posix()
+        history = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%H", "--reverse", "HEAD", "--", relative],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        )
+        if history.returncode:
+            return {"status": "unverifiable", "anchor": "git-history-unavailable"}
+        commits = history.stdout.decode("ascii", "strict").splitlines()
+        previous: str | None = None
+        for commit in commits:
+            version = subprocess.run(
+                ["git", "-C", str(root), "show", f"{commit}:{relative}"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            )
+            if version.returncode:
+                if previous is not None:
+                    return {"status": "violated", "anchor": "git-history-prefix", "detail": "a committed sidecar revision deleted the event history"}
+                continue
+            text = version.stdout.decode("utf-8", "strict")
+            if previous is not None and not text.startswith(previous):
+                return {"status": "violated", "anchor": "git-history-prefix", "detail": "a committed sidecar revision rewrote or reordered event history"}
+            previous = text
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {"status": "unverifiable", "anchor": "git-history-unavailable"}
+    return {"status": "verified", "anchor": "git-history-prefix"}
+
+
+def _provenance_decision(cwd: str | Path, decision_ref: str) -> dict[str, Any]:
+    """Return first-hand decision text plus a small D/R projection when present."""
+
+    import hashlib
+
+    from .semantic_cache import extract_memory_chunks
+
+    for chunk in extract_memory_chunks(cwd, granularity="decision"):
+        if chunk.chunk_id != decision_ref:
+            continue
+        lines = chunk.text.splitlines()
+        decision = next((line[4:].strip() for line in lines if line.startswith("- D:")), chunk.title)
+        reason = next((line[4:].strip() for line in lines if line.startswith("- R:")), None)
+        return {
+            "ref": decision_ref, "decision": decision, "reason": reason,
+            "source_path": chunk.source_path,
+            "source_digest": "sha256:" + hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            "claimed_timestamp": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
+        }
+    return {"ref": decision_ref, "decision": None, "reason": None, "source_path": None, "source_digest": None, "claimed_timestamp": None}
+
+
+def provenance_surface(
+    action: str, *, cwd: str | Path = ".", decision_ref: str | None = None,
+    binding: Mapping[str, Any] | None = None, owner: Mapping[str, Any] | None = None,
+    context_lines: int = 3, apply: bool = False,
+) -> dict[str, Any]:
+    """Shared CLI/MCP provenance adapter with one validation and write path."""
+
+    from .provenance import (
+        authorize_runtime_operation, build_ledger, normalize_binding,
+        project_ledger, validate_append_only_update,
+    )
+    from .provenance_git import GitUnavailableError, project_binding, verify_binding
+
+    if type(context_lines) is not int or not 0 <= context_lines <= 20:
+        raise ValueError("context_lines must be an integer from 0 through 20")
+    runtime, root, selected_runtime, is_current_runtime = _provenance_topology(cwd, owner)
+    try:
+        ledger, path, _ = _read_provenance_ledger(root, runtime)
+    except ValueError as exc:
+        if action != "check":
+            raise
+        path = _provenance_sidecar(root, runtime)
+        return {"ok": False, "action": "check", "path": str(path), "runtime": runtime,
+                "append_only": {"status": "violated", "anchor": "event-parse", "detail": str(exc)},
+                "reference_audit": [], "error": str(exc)}
+    if action == "bind":
+        if binding is None:
+            raise ValueError("binding is required")
+        if not is_current_runtime:
+            raise ValueError("a caller may inspect a descendant runtime but cannot append to its sidecar")
+        normalized = normalize_binding(binding)
+        decision = _provenance_decision(selected_runtime, normalized["decision_ref"])
+        if decision["decision"] is None:
+            raise ValueError("binding decision_ref does not exist in the owning runtime corpus")
+        authorization = authorize_runtime_operation(runtime, operation="append")
+        if not authorization.ok:
+            raise ValueError(authorization.issues[0].message)
+        candidate = build_ledger(
+            runtime=runtime, bindings=[*ledger["bindings"], normalized], replacements=ledger["replacements"],
+        )
+        checked = validate_append_only_update(ledger, candidate)
+        if not checked.ok:
+            raise ValueError(checked.issues[0].message)
+        payload = {
+            "ok": True, "action": "bind", "dry_run": not apply, "written": False,
+            "path": str(path), "binding": normalized, "runtime": runtime,
+        }
+        if apply:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            prefix = "" if path.exists() and path.stat().st_size else _provenance_event("runtime", runtime)
+            with path.open("a", encoding="utf-8", newline="\n") as stream:
+                stream.write(prefix + _provenance_event("binding", normalized))
+            payload["written"] = True
+        return payload
+    if action == "check":
+        verification: list[dict[str, Any]] = []
+        for item in ledger["bindings"]:
+            try:
+                result = verify_binding(item, root)
+            except GitUnavailableError as exc:
+                result = {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}
+            verification.append({"binding_id": item["binding_id"], **result})
+        append_only = _append_only_status(root, path)
+        return {
+            "ok": (all(row.get("verified") for row in verification) if verification else True)
+            and append_only["status"] not in {"violated", "unavailable"},
+            "action": "check", "path": str(path), "ledger": project_ledger(ledger),
+            "append_only": append_only, "reference_audit": verification,
+        }
+    if action != "show":
+        raise ValueError("action must be 'show', 'bind', or 'check'")
+    if not isinstance(decision_ref, str) or not decision_ref.strip():
+        raise ValueError("decision_ref is required")
+    decision_ref = decision_ref.strip()
+    decision = _provenance_decision(selected_runtime, decision_ref)
+    rows: list[dict[str, Any]] = []
+    for item in ledger["bindings"]:
+        if item["decision_ref"] != decision_ref:
+            continue
+        try:
+            rows.append(project_binding(item, root, before=context_lines, after=context_lines, decision=decision, reason=decision["reason"]))
+        except GitUnavailableError as exc:
+            rows.append({"binding_id": item["binding_id"], "decision_ref": decision_ref, "decision": decision, "reason": decision["reason"], "code_available": False, "verification": {"verified": False, "evidence_state": "git-unavailable", "detail": str(exc)}, "hunks": []})
+    return {"ok": True, "action": "show", "path": str(path), "runtime": runtime, "decision": decision, "context_lines": context_lines, "projections": rows, "code_available": any(row.get("code_available") for row in rows)}
+
+
+def provenance_audit_all(cwd: str | Path = ".") -> dict[str, Any]:
+    """Audit every discoverable sidecar without granting cross-runtime writes."""
+
+    root = resolve_runtime(cwd).workspace_root
+    directory = root / ".memory-seed" / "provenance"
+    paths = {directory / "bindings.md"}
+    if directory.is_dir():
+        paths.update(directory.glob("pods/*.md"))
+        paths.update(directory.glob("detached-roots/*.md"))
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--", ".memory-seed/provenance"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if tracked.returncode == 0:
+        paths.update(root / item for item in tracked.stdout.decode("utf-8", "replace").splitlines() if item.endswith(".md"))
+    audits: list[dict[str, Any]] = []
+    for path in sorted(paths):
+        if not path.exists():
+            status = _append_only_status(root, path)
+            if status["status"] == "not-applicable":
+                continue
+            audits.append({"path": str(path), "ok": False, "append_only": status, "reference_audit": [], "error": "committed sidecar is missing from the working tree"})
+            continue
+        try:
+            events = list(_PROVENANCE_EVENT_RE.finditer(path.read_text(encoding="utf-8")))
+            if not events or events[0].group(1) != "runtime":
+                raise ValueError("missing initial runtime event")
+            runtime = json.loads(events[0].group(2))
+            result = provenance_surface("check", cwd=root, owner=runtime)
+            audits.append({"path": str(path), **result})
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+            audits.append({"path": str(path), "ok": False, "append_only": {"status": "violated", "anchor": "event-parse"}, "reference_audit": [], "error": str(exc)})
+    return {
+        "ok": all(item["ok"] for item in audits), "sidecars": audits,
+        "sidecar_count": len(audits),
+    }
+
+
+def _atomic_export_json(path_text: str, payload: str, *, overwrite: bool) -> None:
+    """Write an explicitly requested export without exposing a partial file."""
+    target = Path(path_text)
+    if target.exists() and not overwrite:
+        raise FileExistsError(f"output already exists: {target}; pass --overwrite to replace it")
+    if not target.parent.is_dir():
+        raise FileNotFoundError(f"output directory does not exist: {target.parent}")
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", newline="", dir=target.parent,
+            prefix=f".{target.name}.", suffix=".tmp", delete=False,
+        ) as temporary:
+            temporary.write(payload)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_name = temporary.name
+        if overwrite:
+            os.replace(temporary_name, target)
+        else:
+            # ``exists`` is only an early, friendly error.  The hard link is
+            # the publication step: its create-new semantics are atomic on the
+            # target filesystem, so a file created after the early check is
+            # never replaced.  A sibling temp file keeps both paths on the
+            # same volume (including Windows/OneDrive-backed workspaces).
+            try:
+                os.link(temporary_name, target)
+            except FileExistsError as exc:
+                raise FileExistsError(
+                    f"output already exists: {target}; pass --overwrite to replace it"
+                ) from exc
+            Path(temporary_name).unlink()
+        temporary_name = None
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
+
+
 def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
     """Report narrow source-worktree cleanup without hiding merge success."""
     if result.source_worktree is None:
@@ -76,9 +454,9 @@ def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
     if result.worktree_cleanup_status == "removed":
         print(f"Removed source worktree: {result.source_worktree}")
         return
-    if result.worktree_cleanup_status == "deregistered-with-residue":
+    if result.worktree_cleanup_status == "cleanup-pending":
         print(
-            "Source worktree was deregistered, but its on-disk directory needs later cleanup: "
+            "Merge succeeded, but source-worktree cleanup is still pending: "
             f"{result.source_worktree} ({result.worktree_cleanup_detail or 'git worktree remove failed'})",
             file=sys.stderr,
         )
@@ -441,8 +819,10 @@ def main(argv: list[str] | None = None) -> int:
     adr_promote.add_argument("--agent-type", required=True)
     adr_promote.add_argument("--source", required=True, choices=("write-time", "derived"))
     adr_promote.add_argument("--summary-decision", default="See the authoritative session decision.")
-    adr_promote.add_argument("--why", default="See the authoritative session decision rationale.")
-    adr_promote.add_argument("--evolution", default="This is the first revision of this architectural concern.")
+    adr_promote.add_argument("--reason", default=None, help="canonical ADR rationale")
+    adr_promote.add_argument("--impact", default=None, help="expected falsifiable ADR impact")
+    adr_promote.add_argument("--why", default=None, help="deprecated alias for --reason")
+    adr_promote.add_argument("--evolution", default=None, help="deprecated alias for --impact")
     adr_promote.add_argument("--update-entry-id", default=None, help="promotion/update entry; defaults to source entry")
     adr_promote.add_argument(
         "--predecessor",
@@ -468,8 +848,10 @@ def main(argv: list[str] | None = None) -> int:
     adr_revise.add_argument("--adr-id", required=True)
     adr_revise.add_argument("--decision-ref", required=True, help="canonical session decision ref")
     adr_revise.add_argument("--decision", required=True, help="concise current-decision synopsis")
-    adr_revise.add_argument("--why", required=True)
-    adr_revise.add_argument("--evolution", required=True)
+    adr_revise.add_argument("--reason", default=None, help="canonical ADR rationale")
+    adr_revise.add_argument("--impact", default=None, help="expected falsifiable ADR impact")
+    adr_revise.add_argument("--why", default=None, help="deprecated alias for --reason")
+    adr_revise.add_argument("--evolution", default=None, help="deprecated alias for --impact")
     adr_revise.add_argument("--update-entry-id", required=True)
     adr_revise.add_argument("--source", required=True, choices=("write-time", "derived"))
     adr_revise.add_argument("--predecessor", action="append", default=[], help="decision=relation_assertion")
@@ -550,6 +932,22 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="file to inspect for topic suggestions",
     )
+    topics_amend = topics_sub.add_parser(
+        "amend",
+        help="append a corrected full decision-topic snapshot without editing history",
+    )
+    topics_amend.add_argument("--entry", required=True, help="existing session entry id")
+    topics_amend.add_argument("--decision", required=True, help="decision ordinal to amend, e.g. d1")
+    topics_amend.add_argument("--area", required=True, help="canonical area topic slug")
+    topics_amend.add_argument(
+        "--activity",
+        action="append",
+        required=True,
+        help="canonical activity topic slug; repeat for a second activity",
+    )
+    topics_amend.add_argument("--reason", required=True, help="short audit reason retained in the sidecar heading")
+    topics_amend.add_argument("--timestamp", help="optional later timestamp on the entry's original date")
+    topics_amend.add_argument("--dry-run", action="store_true", help="render and validate without writing")
 
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
@@ -645,6 +1043,50 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="rank lexically only (shared files + title terms); skips loading the embedding model",
     )
+    link_batch_plan = link_sub.add_parser(
+        "batch-plan", help="pack complete link-audit pairs into context-bounded, read-only batches"
+    )
+    link_batch_plan.add_argument("--context-window", type=int, required=True,
+                                 help="declared model context window in tokens")
+    link_batch_plan.add_argument("--evidence-fraction", type=float, default=0.16,
+                                 help="fraction of context reserved for the complete worker document (default: 0.16)")
+    link_batch_plan.add_argument("--minimum-score", type=float, default=0.0,
+                                 help="minimum combined candidate score admitted to a worker (default: 0)")
+    link_batch_plan.add_argument("--semantic-cutoff", type=float, default=None,
+                                 help="raw cosine cutoff for semantic-only candidates; when set, admit every pair at or above it")
+    link_batch_plan.add_argument("--output-tokens-per-pair", type=int, default=160,
+                                 help="estimated structured report reserve per pair (default: 160)")
+    link_batch_plan.add_argument("--output-dir", default=None,
+                                 help="materialize plan, worker batches, findings slots, and analytics ledger")
+    link_batch_plan.add_argument("--for", dest="for_entry", metavar="ENTRY_ID", default=None)
+    link_batch_plan.add_argument("--date", dest="audit_date", metavar="YYYY-MM-DD", default=None)
+    link_batch_plan.add_argument("--top-k", type=int, default=0,
+                                 help="cap lexical candidates per source; 0 enumerates all (default: 0)")
+    link_batch_plan.add_argument("--no-semantic", dest="semantic", action="store_false",
+                                 help="rank lexically only; skips loading the embedding model")
+    link_batch_collect = link_sub.add_parser(
+        "batch-collect", help="validate file-written TOON findings and update a run analytics ledger"
+    )
+    link_batch_collect.add_argument("--run-dir", required=True,
+                                    help="materialized run directory containing plan.json and findings/")
+    link_batch_finalize = link_sub.add_parser(
+        "batch-finalize", help="seal an approved or rejected run for retention and later compaction"
+    )
+    link_batch_finalize.add_argument("--run-dir", required=True,
+                                     help="collected materialized run directory")
+    link_batch_finalize.add_argument("--approval-file", required=True,
+                                     help="memory-seed.link-swarm-approval.v1 JSON file")
+    link_batch_finalize.add_argument("--retention-days", type=int, default=30,
+                                     help="days to retain raw batches/findings after finalization (default: 30)")
+    link_batch_gc = link_sub.add_parser(
+        "batch-gc", help="find finalized runs whose raw evidence is eligible for compaction"
+    )
+    link_batch_gc.add_argument("--runs-dir", default=None,
+                               help="run root or one finalized run (default: .memory-seed/link-swarm-runs)")
+    link_batch_gc.add_argument("--apply", action="store_true",
+                               help="remove hash-verified expired raw artifacts; default is dry-run")
+    link_batch_gc.add_argument("--purge-now", action="store_true",
+                               help="ignore expiry dates, but still require a valid finalized receipt and hashes")
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -807,6 +1249,25 @@ def main(argv: list[str] | None = None) -> int:
         help="install or refresh Memory Seed-managed trailer hooks without overwriting foreign hooks",
     )
 
+    provenance_parser = subparsers.add_parser(
+        "provenance",
+        help="inspect, append, and audit reference-only decision-to-Git provenance",
+    )
+    provenance_sub = provenance_parser.add_subparsers(dest="provenance_command", required=True)
+    provenance_show = provenance_sub.add_parser("show", help="show verified temporary before/after code projections")
+    provenance_show.add_argument("decision_ref", help="exact <entry_id>:dN decision reference")
+    provenance_show.add_argument("--context-lines", type=int, default=3, help="Git context lines per side, 0-20 (default: 3)")
+    provenance_show.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record for descendant/retired inspection")
+    provenance_show.add_argument("--json", action="store_true", help="emit machine-readable output")
+    provenance_bind = provenance_sub.add_parser("bind", help="append one validated binding reference")
+    provenance_bind.add_argument("--binding-file", required=True, help="UTF-8 JSON binding object; use - for stdin")
+    provenance_bind.add_argument("--apply", action="store_true", help="append after validation; default is a dry run")
+    provenance_bind.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record; writes require the current measured runtime")
+    provenance_bind.add_argument("--json", action="store_true", help="emit machine-readable output")
+    provenance_check = provenance_sub.add_parser("check", help="audit append-only sidecar and Git references")
+    provenance_check.add_argument("--runtime-file", help="explicit UTF-8 JSON measured runtime record for descendant/retired inspection")
+    provenance_check.add_argument("--json", action="store_true", help="emit machine-readable output")
+
     esr_parser = subparsers.add_parser(
         "esr",
         help="end-of-session mechanical preflight: every deterministic check in one read-only report",
@@ -846,14 +1307,132 @@ def main(argv: list[str] | None = None) -> int:
     )
     retrieval_spec_preview.add_argument(
         "--spec-file",
-        required=True,
         help="UTF-8 JSON file containing the inline spec; use - for stdin",
+    )
+    retrieval_spec_preview.add_argument(
+        "--profile",
+        help="exact project-local retrieval profile ID (requires --profile-version)",
+    )
+    retrieval_spec_preview.add_argument(
+        "--profile-version",
+        type=int,
+        help="exact project-local retrieval profile version (requires --profile)",
+    )
+    retrieval_spec_preview.add_argument(
+        "--overrides-file",
+        help="optional UTF-8 JSON object of profile overrides; use - for stdin",
     )
     retrieval_spec_preview.add_argument(
         "--cwd",
         default=".",
         help="project path used for nearest-runtime discovery (default: current directory)",
     )
+
+    task_packet_parser = subparsers.add_parser(
+        "task-packet",
+        help="preview or compile one deterministic Task Packet",
+    )
+    task_packet_sub = task_packet_parser.add_subparsers(
+        dest="task_packet_command", required=True,
+    )
+    for task_packet_command in ("preview", "compile"):
+        task_packet_operation = task_packet_sub.add_parser(
+            task_packet_command,
+            help=(
+                "validate, measure, resolve, and print the complete deterministic packet"
+                if task_packet_command == "preview"
+                else "compile and print the complete deterministic packet"
+            ),
+        )
+        task_packet_operation.add_argument(
+            "--dispatch-file", required=True,
+            help="UTF-8 JSON Task Dispatch object; use - for stdin",
+        )
+        task_packet_operation.add_argument(
+            "--binding-file", required=True,
+            help="UTF-8 JSON measured runtime binding object",
+        )
+        task_packet_operation.add_argument(
+            "--cwd", default=".",
+            help="project path used for runtime discovery (default: current directory)",
+        )
+        task_packet_operation.add_argument(
+            "--environment-file",
+            help="optional UTF-8 JSON environment object",
+        )
+        task_packet_operation.add_argument(
+            "--pricing-file",
+            help="optional UTF-8 JSON pricing object",
+        )
+        if task_packet_command == "compile":
+            task_packet_operation.add_argument(
+                "--output", help="explicit file export path; stdout is the default",
+            )
+            task_packet_operation.add_argument(
+                "--overwrite", action="store_true",
+                help="allow --output to replace an existing file",
+            )
+
+    reflection_parser = subparsers.add_parser(
+        "reflection", help="inspect or append the governed Reflection Board v1 ledger"
+    )
+    reflection_sub = reflection_parser.add_subparsers(dest="reflection_command", required=True)
+    reflection_trust = reflection_sub.add_parser("trust", help="initialize local reflection retention trust")
+    reflection_trust_sub = reflection_trust.add_subparsers(dest="reflection_trust_command", required=True)
+    reflection_trust_init = reflection_trust_sub.add_parser("init", help="preview or apply one-time trust bootstrap on the default branch")
+    reflection_trust_init.add_argument("--apply", action="store_true")
+    reflection_trust_init.add_argument("--json", action="store_true")
+    reflection_ledger = reflection_sub.add_parser("ledger", help="operate on one branch-owned v1 ledger")
+    reflection_ledger_sub = reflection_ledger.add_subparsers(dest="reflection_ledger_command", required=True)
+    reflection_init = reflection_ledger_sub.add_parser("init", help="preview or initialize the current branch ledger")
+    reflection_init.add_argument("--retention-days", type=int, default=7, choices=(7, 14, 30))
+    reflection_init.add_argument("--apply", action="store_true", help="commit the kernel-issued initialization plan")
+    reflection_init.add_argument("--json", action="store_true")
+    reflection_append = reflection_ledger_sub.add_parser("append", help="preview or append one v1 record")
+    reflection_append.add_argument("workstream_id")
+    reflection_append.add_argument("--role", required=True, choices=("planner", "implementer", "reviewer", "orchestrator"))
+    reflection_append.add_argument("--chain-id")
+    reflection_append.add_argument("--relationship", default="refines")
+    reflection_append.add_argument("--parent", action="append", default=[])
+    reflection_append.add_argument("--no-related-thread", action="store_true")
+    reflection_append.add_argument("--conclusion", required=True)
+    reflection_append.add_argument("--reasoning", required=True)
+    reflection_append.add_argument("--source", required=True)
+    reflection_append.add_argument("--confidence", default="high")
+    reflection_append.add_argument("--to-phase")
+    reflection_append.add_argument("--apply", action="store_true", help="commit the kernel-issued append plan")
+    reflection_append.add_argument("--json", action="store_true")
+    reflection_close = reflection_ledger_sub.add_parser("close", help="preview receipt requirements or close a resolved chain")
+    reflection_close.add_argument("workstream_id")
+    reflection_close.add_argument("--chain-id", required=True)
+    reflection_close.add_argument("--receipts", default="[]", help="JSON array of session_path, entry_id, decision_id, disposition and optional record_id mappings")
+    reflection_close.add_argument("--apply", action="store_true")
+    reflection_close.add_argument("--json", action="store_true")
+    reflection_expire = reflection_ledger_sub.add_parser("expire", help="preview or apply signed elapsed-retention chain expiry")
+    reflection_expire.add_argument("workstream_id")
+    reflection_expire.add_argument("--chain-id", required=True)
+    reflection_expire.add_argument("--apply", action="store_true")
+    reflection_expire.add_argument("--json", action="store_true")
+    for command in ("rebind", "prepare", "finalize"):
+        rebind = reflection_ledger_sub.add_parser(command, help=f"preview or apply reflection integration {command}")
+        rebind.add_argument("workstream_id")
+        if command != "prepare":
+            rebind.add_argument("--source", required=True, help="live local source branch name or refs/heads locator")
+            rebind.add_argument("--reason", required=True)
+        rebind.add_argument("--apply", action="store_true")
+        rebind.add_argument("--json", action="store_true")
+    for reflection_write in (reflection_init, reflection_append, reflection_close):
+        reflection_write.add_argument("--expected-head", help="refuse if HEAD differs from the reviewed preview")
+    for reflection_write in (reflection_append, reflection_close):
+        reflection_write.add_argument("--expected-ledger-digest", help="refuse if ledger bytes differ from the reviewed preview")
+    for command in ("check", "view"):
+        reflection_read = reflection_ledger_sub.add_parser(command, help=f"{command} one trusted v1 ledger")
+        reflection_read.add_argument("workstream_id")
+        reflection_read.add_argument("--json", action="store_true")
+    reflection_board = reflection_sub.add_parser("board", help="inspect all active Reflection Board v1 candidates")
+    reflection_board_sub = reflection_board.add_subparsers(dest="reflection_board_command", required=True)
+    reflection_board_view = reflection_board_sub.add_parser("view", help="read the complete active-board projection")
+    reflection_board_view.add_argument("--json", action="store_true")
 
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
@@ -897,27 +1476,39 @@ def main(argv: list[str] | None = None) -> int:
         from .retrieval import (
             RetrievalSpecResolutionError,
             canonical_retrieval_json,
-            preview_retrieval_spec,
         )
+        from .retrieval_adapters import RetrievalInputValidationError, preview_retrieval_input
+        from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
         try:
-            raw = (
-                sys.stdin.read()
-                if args.spec_file == "-"
-                else Path(args.spec_file).read_text(encoding="utf-8")
+            spec = _read_json_object(args.spec_file, label="spec") if args.spec_file else None
+            overrides = (
+                _read_json_object(args.overrides_file, label="overrides")
+                if args.overrides_file else None
             )
-            spec = json.loads(raw)
-            if not isinstance(spec, dict):
-                raise ValueError("spec must be an inline JSON object")
             payload = {
                 "ok": True,
-                "preview": preview_retrieval_spec(spec, args.cwd),
+                "preview": preview_retrieval_input(
+                    spec=spec,
+                    profile=args.profile,
+                    profile_version=args.profile_version,
+                    overrides=overrides,
+                    cwd=args.cwd,
+                ),
             }
             sys.stdout.write(canonical_retrieval_json(payload))
             return 0
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-            if isinstance(exc, RetrievalSpecValidationError):
+            if isinstance(exc, RetrievalProfileValidationError):
+                error = {
+                    "code": "invalid_profile",
+                    "message": str(exc),
+                    "stage": "profile_expansion",
+                    "completed_stages": [],
+                    "details": {},
+                }
+            elif isinstance(exc, (RetrievalInputValidationError, RetrievalSpecValidationError)):
                 error = {
                     "code": "invalid_spec",
                     "message": str(exc),
@@ -940,6 +1531,82 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "task-packet":
+        from .retrieval import RetrievalSpecResolutionError, canonical_retrieval_json
+        from .retrieval_profiles import RetrievalProfileValidationError
+        from .task_packet import TaskPacketValidationError, canonical_task_packet_json, compile_task_packet
+
+        try:
+            dispatch = _read_json_object(args.dispatch_file, label="dispatch")
+            binding = _read_json_object(args.binding_file, label="binding")
+            environment = (
+                _read_json_object(args.environment_file, label="environment")
+                if args.environment_file else None
+            )
+            pricing = (
+                _read_json_object(args.pricing_file, label="pricing")
+                if args.pricing_file else None
+            )
+            packet = compile_task_packet(
+                dispatch, binding, args.cwd, environment=environment, pricing=pricing
+            )
+            rendered = canonical_task_packet_json(packet)
+            if getattr(args, "output", None):
+                _atomic_export_json(args.output, rendered, overwrite=args.overwrite)
+            else:
+                sys.stdout.write(rendered)
+            return 0
+        except TaskPacketValidationError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+            return 1
+        except RetrievalSpecResolutionError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+            return 1
+        except RetrievalProfileValidationError as exc:
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                "code": "invalid_profile", "message": str(exc),
+                "stage": "profile_expansion", "details": {},
+            }}))
+            return 1
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            error = {
+                "code": "invalid_input",
+                "message": str(exc),
+                "stage": "input",
+                "details": {},
+            }
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": error}))
+            return 2
+
+    if args.command == "reflection":
+        from .reflection_operations import run_reflection_operation
+        operation = ("board_view" if args.reflection_command == "board" else "trust_init"
+                     if args.reflection_command == "trust" else "ledger_" + args.reflection_ledger_command)
+        fields = {key: value for key, value in vars(args).items()
+                  if key not in {"command", "reflection_command", "reflection_ledger_command", "reflection_board_command", "reflection_trust_command", "json"}
+                  and value is not None}
+        if "parent" in fields:
+            fields["parents"] = fields.pop("parent")
+        try:
+            if "receipts" in fields:
+                fields["receipts"] = json.loads(fields["receipts"])
+            payload = run_reflection_operation(operation, fields)
+        except ValueError as exc:
+            payload = {"ok": False, "error": {"code": "invalid_arguments", "path": ".", "message": str(exc), "details": {}}}
+        if payload["ok"] and not args.json and operation in {"ledger_check", "ledger_view"}:
+            # False positive below: CodeQL's sensitive-data heuristic traces WorkstreamRebind's
+            # "detail_digest"/"pre_ledger_digest" fields (rendered via render_trusted_rebind in
+            # memory_seed/reflection_ledger.py) as a "secret" purely on the word "digest". These
+            # are SHA-256 integrity digests over append-only ledger content, meant to be publicly
+            # inspectable like a checksum, not confidential material.
+            print(payload["ledger"], end="")  # lgtm[py/clear-text-logging-sensitive-data]
+        else:
+            # Same false positive as above: payload can carry the same ledger digest fields when
+            # printed as JSON instead of raw ledger text.
+            print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False),  # lgtm[py/clear-text-logging-sensitive-data]
+                  file=sys.stdout if payload["ok"] else sys.stderr)
+        return 0 if payload["ok"] else 1
 
     if args.command == "user":
         target = Path(".").resolve()
@@ -1006,8 +1673,7 @@ def main(argv: list[str] | None = None) -> int:
                 agent_type=args.agent_type,
                 source=args.source,
                 decision=args.summary_decision,
-                why=args.why,
-                evolution=args.evolution,
+                reason=args.reason, impact=args.impact, why=args.why, evolution=args.evolution,
                 update_entry_id=args.update_entry_id,
                 direct_predecessors=predecessors,
                 supporting_decisions=tuple(args.supporting_decision),
@@ -1030,8 +1696,7 @@ def main(argv: list[str] | None = None) -> int:
                 adr_id=args.adr_id,
                 decision_ref=args.decision_ref,
                 decision=args.decision,
-                why=args.why,
-                evolution=args.evolution,
+                reason=args.reason, impact=args.impact, why=args.why, evolution=args.evolution,
                 update_entry_id=args.update_entry_id,
                 source=args.source,
                 predecessors=predecessors,
@@ -1263,6 +1928,8 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                 _print_session_merge_worktree_cleanup(result, dry_run=False)
+                if result.source_worktree is not None and result.worktree_cleanup_status != "removed":
+                    return 2
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0
@@ -2037,6 +2704,29 @@ def main(argv: list[str] | None = None) -> int:
             for item in suggestions:
                 print(f"  - {item.topic.slug}")
             return 0
+        if args.topics_command == "amend":
+            result = amend_topic_sidecar(
+                cwd=Path(".").resolve(),
+                entry_id=args.entry,
+                decision=args.decision,
+                area=args.area,
+                activities=args.activity,
+                reason=args.reason,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+            if not result.ok:
+                print("Topic amendment refused:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if args.dry_run:
+                print(f"Would append corrected snapshot to {result.path}")
+                print()
+                print(result.rendered, end="")
+            else:
+                print(f"Appended corrected snapshot for {result.entry_id}:{result.decision} to {result.path}")
+            return 0
 
     if args.command == "docs":
         if args.docs_command == "check":
@@ -2177,8 +2867,90 @@ def main(argv: list[str] | None = None) -> int:
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")
             return 0
-        if args.link_command == "audit":
-            from .retrieval import apply_link_gap_stubs, audit_link_gaps, link_audit_payload
+        if args.link_command == "batch-collect":
+            from .retrieval import collect_link_swarm_run
+
+            try:
+                result = collect_link_swarm_run(args.run_dir)
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
+        if args.link_command == "batch-finalize":
+            from .retrieval import finalize_link_swarm_run
+
+            try:
+                approval = _read_json_object(args.approval_file, label="approval file")
+                result = finalize_link_swarm_run(
+                    args.run_dir,
+                    approval,
+                    cwd=cwd,
+                    retention_days=args.retention_days,
+                )
+            except (FileExistsError, FileNotFoundError, json.JSONDecodeError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
+        if args.link_command == "batch-gc":
+            from .retrieval import gc_link_swarm_runs
+
+            runs_dir = args.runs_dir or (
+                resolve_runtime(cwd).memory_dir / "link-swarm-runs"
+            )
+            try:
+                result = gc_link_swarm_runs(
+                    runs_dir, apply=args.apply, purge_now=args.purge_now,
+                )
+            except (FileNotFoundError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+
+        if args.link_command in {"audit", "batch-plan"}:
+            from .retrieval import (
+                apply_link_gap_stubs,
+                audit_link_gaps,
+                link_audit_payload,
+                materialize_link_swarm_run,
+                plan_link_audit_batches,
+            )
+
+            if args.link_command == "batch-plan":
+                semantic_status: dict[str, Any] = {}
+                try:
+                    runtime = resolve_runtime(cwd)
+                    worker_skill_path = runtime.memory_dir / "skills" / "link_swarm.md"
+                    worker_skill_text = worker_skill_path.read_text(encoding="utf-8")
+                    worker_skill_source = worker_skill_path.relative_to(
+                        runtime.workspace_root
+                    ).as_posix()
+                    gaps = audit_link_gaps(
+                        cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
+                        top_k=None if args.top_k == 0 else args.top_k,
+                        semantic_enabled=args.semantic, semantic_status=semantic_status,
+                        semantic_candidate_threshold=args.semantic_cutoff,
+                    )
+                    plan = plan_link_audit_batches(
+                        link_audit_payload(gaps, semantic_status),
+                        context_window_tokens=args.context_window,
+                        evidence_fraction=args.evidence_fraction,
+                        minimum_score=args.minimum_score,
+                        output_tokens_per_pair=args.output_tokens_per_pair,
+                        worker_skill_text=worker_skill_text,
+                        worker_skill_source=worker_skill_source,
+                    )
+                    if args.output_dir:
+                        result = materialize_link_swarm_run(plan, args.output_dir, cwd=cwd)
+                except (FileExistsError, LookupError, OSError, ValueError) as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 1
+                print(json.dumps(result if args.output_dir else plan, indent=2, ensure_ascii=False))
+                return 0
 
             if args.apply and args.audit_date is None:
                 print("link audit --apply requires --date YYYY-MM-DD", file=sys.stderr)
@@ -2656,6 +3428,38 @@ def main(argv: list[str] | None = None) -> int:
             for action in actions:
                 print(action)
             return 0
+
+    if args.command == "provenance":
+        try:
+            runtime = _read_json_object(args.runtime_file, label="runtime") if args.runtime_file else None
+            if args.provenance_command == "bind":
+                payload = provenance_surface(
+                    "bind", cwd=Path(".").resolve(),
+                    binding=_read_json_object(args.binding_file, label="binding"), owner=runtime, apply=args.apply,
+                )
+            elif args.provenance_command == "show":
+                payload = provenance_surface(
+                    "show", cwd=Path(".").resolve(), decision_ref=args.decision_ref,
+                    owner=runtime, context_lines=args.context_lines,
+                )
+            else:
+                payload = provenance_surface("check", cwd=Path(".").resolve(), owner=runtime)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"provenance {args.provenance_command} refused: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        elif args.provenance_command == "bind":
+            print(("Appended" if payload["written"] else "Would append") + f" {payload['binding']['binding_id']} to {payload['path']}")
+        elif args.provenance_command == "show":
+            print(f"{payload['decision_ref'] if 'decision_ref' in payload else payload['decision']['ref']}: {len(payload['projections'])} binding(s); code available: {payload['code_available']}")
+            if payload["decision"]["reason"]:
+                print(f"Reason: {payload['decision']['reason']}")
+        else:
+            print("Provenance references OK" if payload["ok"] else "Provenance references need attention")
+            for row in payload["reference_audit"]:
+                print(f"  {row['binding_id']}: {row.get('evidence_state', 'available')}")
+        return 0 if payload["ok"] else 1
 
     if args.command == "esr":
         from .esr import esr_report, format_esr_report

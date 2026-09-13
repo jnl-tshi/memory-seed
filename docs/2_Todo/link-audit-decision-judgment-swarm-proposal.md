@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: In-core foundation SHIPPED 2026-07-23 (link audit --json judgment-ready candidates). Open before building the swarm layer: where the orchestration lives (skill vs Workflow), the human-approval gate, and how verdicts become :dN edges. Awaiting JNL's call on those.
+next_action: "Batching and retention are shipped. Design the broader vendor-neutral queue orchestration around probe/claim/complete plus the agreed merge hook/controller boundary; do not reopen the settled decision-level edge or approval contracts."
 ---
 
 # link audit → decision-judgment swarm

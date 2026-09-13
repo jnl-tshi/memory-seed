@@ -1,0 +1,113 @@
+{
+  "schema": "delivery-quality-result-input/v1",
+  "scenario_id": "new-consequential-design",
+  "evidence_class": "real_agent_behavior",
+  "comparison_phase": "post_adoption",
+  "execution_provenance": {
+    "run_id": "reflection-board-overlap-post-adoption-e3e6d233",
+    "execution_surface": {
+      "id": "delegated-terminal-report-post-adoption-e3e6d233",
+      "kind": "actual_execution_surface"
+    },
+    "artifact_path": "post-adoption-run.json",
+    "artifact_sha256": "afa158241b6bff80495c07811d7fd6fd8510a5125760ce68497ef3d8f114a7af"
+  },
+  "limitations": [
+    "Selected overlap case; no causal generalization.",
+    "The run was read-only advisory rather than implementation.",
+    "The active-client upstream version was unavailable.",
+    "The Board CLI did not return within 30 seconds.",
+    "Provider token usage, latency, and cost were unavailable.",
+    "These records are reconstructed from the delegated terminal report; local artifact binding does not establish provider authenticity or first-hand capture."
+  ],
+  "selection_bias": [
+    "The scenario was selected as an overlap case about Reflection Board and Superpowers SDD rather than sampled randomly.",
+    "One selected overlap case limits comparability and generalization."
+  ],
+  "rework_reopen_events": [
+    {
+      "event": "reconsideration",
+      "cause": "The Board CLI did not return within 30 seconds; Board reactivation remains deferred to a bounded reversible trial."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "post-context",
+      "source": "delegated post-adoption agent terminal report (reconstructed provenance)",
+      "record": "The same overlap scenario and model tier were assessed at clean HEAD e3e6d233e586a83a34c35e2b4e6e105f2e8a1d88. The post-adoption agent applied the new design-discovery and governed-planning contracts."
+    },
+    {
+      "id": "post-discovery-authority",
+      "source": "delegated post-adoption agent terminal report (reconstructed provenance)",
+      "record": "The post-adoption agent observed the same three new-consequential-design requirements and additionally consulted the Constitution, accepted ADR heads, active decision evidence, governed policy/config, and defined a two-plan reversible trial."
+    },
+    {
+      "id": "post-decision",
+      "source": "delegated post-adoption agent terminal report (reconstructed provenance)",
+      "record": "The post-adoption recommendation was to retain Reflection code/history/read-only integrity, keep writes dormant, use verified SDD for eligible approved same-session multi-task work, and reconsider Board reactivation only through a bounded trial demonstrating a unique coordination gap."
+    },
+    {
+      "id": "post-limitations",
+      "source": "delegated post-adoption agent terminal report (reconstructed provenance)",
+      "record": "The post-adoption report selected the overlap case, was read-only advisory rather than implementation, could not verify the active-client upstream version, observed that the Board CLI did not return within 30 seconds, and had no provider token, latency, or cost measurements."
+    }
+  ],
+  "observations": [
+    {
+      "action": "inspect",
+      "subject": "existing_capabilities",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    },
+    {
+      "action": "compare",
+      "subject": "realistic_alternatives",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    },
+    {
+      "action": "record_decision",
+      "subject": "selected_design",
+      "status": "observed",
+      "evidence_ids": ["post-decision"]
+    },
+    {
+      "action": "consult",
+      "subject": "constitution",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    },
+    {
+      "action": "consult",
+      "subject": "accepted_adr_heads",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    },
+    {
+      "action": "consult",
+      "subject": "active_decision_evidence",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    },
+    {
+      "action": "define",
+      "subject": "two_plan_reversible_trial",
+      "status": "observed",
+      "evidence_ids": ["post-discovery-authority"]
+    }
+  ],
+  "measurements": {
+    "provider_token_usage": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose provider token usage."
+    },
+    "latency": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose latency."
+    },
+    "cost": {
+      "availability": "unavailable",
+      "reason": "The delegated terminal report did not expose cost."
+    }
+  }
+}

@@ -1,0 +1,469 @@
+{
+  "corpus": {
+    "archive_sha256": "sha256:01c744c088f6a08d6efa8921db03e31504414e9c28648e7fa8d6d32f54ab3b48",
+    "corpus_fingerprint": "sha256:ab68ed673415ccf53cc9674476a6f0b49ec2f0cb782cfbc8a26d156d2a64ae00",
+    "decision_count": 1288,
+    "source_revision": "54de83ca7f3e279f1199b721e6aa1bec825e04ac"
+  },
+  "display": {
+    "complete_dra": {
+      "count": 60,
+      "fallback_count": 4,
+      "fallback_rate": 0.06666666666666667,
+      "fallback_reasons": {
+        "projection is not smaller than raw": 4
+      },
+      "full_source_affordance": "Full source: <decision_ref>",
+      "identifier_query_count": 20,
+      "identifier_query_display_covered_count": 17,
+      "mean_displayed_to_raw_utf8_ratio": 0.788288398793023,
+      "mean_displayed_token_proxy": 268.26666666666665,
+      "mean_displayed_utf8_bytes": 1071.1,
+      "mean_full_source_affordance_utf8_bytes": 37.4,
+      "median_displayed_to_raw_utf8_ratio": 0.813458316055454,
+      "median_displayed_token_proxy": 294.0,
+      "median_displayed_utf8_bytes": 1173.5,
+      "query_identifier_display_coverage": 0.85
+    },
+    "current_lean": {
+      "count": 60,
+      "fallback_count": 0,
+      "fallback_rate": 0.0,
+      "fallback_reasons": {},
+      "full_source_affordance": "Full source: <decision_ref>",
+      "identifier_query_count": 20,
+      "identifier_query_display_covered_count": 18,
+      "mean_displayed_to_raw_utf8_ratio": 0.5002821185879351,
+      "mean_displayed_token_proxy": 170.33333333333334,
+      "mean_displayed_utf8_bytes": 679.7666666666667,
+      "mean_full_source_affordance_utf8_bytes": 37.4,
+      "median_displayed_to_raw_utf8_ratio": 0.5607001755926251,
+      "median_displayed_token_proxy": 168.5,
+      "median_displayed_utf8_bytes": 673.0,
+      "query_identifier_display_coverage": 0.9
+    },
+    "query_evidence": {
+      "count": 60,
+      "fallback_count": 4,
+      "fallback_rate": 0.06666666666666667,
+      "fallback_reasons": {
+        "projection is not smaller than raw": 4
+      },
+      "full_source_affordance": "Full source: <decision_ref>",
+      "identifier_query_count": 20,
+      "identifier_query_display_covered_count": 20,
+      "mean_displayed_to_raw_utf8_ratio": 0.8241787895885975,
+      "mean_displayed_token_proxy": 280.46666666666664,
+      "mean_displayed_utf8_bytes": 1119.8666666666666,
+      "mean_full_source_affordance_utf8_bytes": 37.4,
+      "median_displayed_to_raw_utf8_ratio": 0.8620806633999245,
+      "median_displayed_token_proxy": 294.0,
+      "median_displayed_utf8_bytes": 1173.5,
+      "query_identifier_display_coverage": 1.0
+    },
+    "raw": {
+      "count": 60,
+      "fallback_count": 0,
+      "fallback_rate": 0.0,
+      "fallback_reasons": {},
+      "full_source_affordance": null,
+      "identifier_query_count": 20,
+      "identifier_query_display_covered_count": 20,
+      "mean_displayed_to_raw_utf8_ratio": 1.0,
+      "mean_displayed_token_proxy": 340.03333333333336,
+      "mean_displayed_utf8_bytes": 1358.7666666666667,
+      "mean_full_source_affordance_utf8_bytes": 0.0,
+      "median_displayed_to_raw_utf8_ratio": 1.0,
+      "median_displayed_token_proxy": 349.0,
+      "median_displayed_utf8_bytes": 1393.5,
+      "query_identifier_display_coverage": 1.0
+    }
+  },
+  "limitations": [
+    "reuses the lean pilot's source-conditioned 30 target / 60 query development set",
+    "ranking changes lexical evidence only; display never affects rank input",
+    "oracle span disclosure is not human comprehension or delayed recall"
+  ],
+  "oracle_disclosure": {
+    "complete_dra": {
+      "all_required_spans_visible_count": 58,
+      "all_required_spans_visible_rate": 0.9666666666666667,
+      "by_kind": {
+        "anchor": {
+          "all_required_spans_visible_count": 28,
+          "all_required_spans_visible_rate": 0.9333333333333333,
+          "coverage": 0.9523809523809523,
+          "query_count": 30,
+          "span_count": 42,
+          "visible_span_count": 40
+        },
+        "semantic": {
+          "all_required_spans_visible_count": 30,
+          "all_required_spans_visible_rate": 1.0,
+          "coverage": 1.0,
+          "query_count": 30,
+          "span_count": 48,
+          "visible_span_count": 48
+        }
+      },
+      "coverage": 0.9777777777777777,
+      "query_count": 60,
+      "span_count": 90,
+      "visible_span_count": 88
+    },
+    "current_lean": {
+      "all_required_spans_visible_count": 11,
+      "all_required_spans_visible_rate": 0.18333333333333332,
+      "by_kind": {
+        "anchor": {
+          "all_required_spans_visible_count": 5,
+          "all_required_spans_visible_rate": 0.16666666666666666,
+          "coverage": 0.16666666666666666,
+          "query_count": 30,
+          "span_count": 42,
+          "visible_span_count": 7
+        },
+        "semantic": {
+          "all_required_spans_visible_count": 6,
+          "all_required_spans_visible_rate": 0.2,
+          "coverage": 0.1875,
+          "query_count": 30,
+          "span_count": 48,
+          "visible_span_count": 9
+        }
+      },
+      "coverage": 0.17777777777777778,
+      "query_count": 60,
+      "span_count": 90,
+      "visible_span_count": 16
+    },
+    "query_evidence": {
+      "all_required_spans_visible_count": 58,
+      "all_required_spans_visible_rate": 0.9666666666666667,
+      "by_kind": {
+        "anchor": {
+          "all_required_spans_visible_count": 28,
+          "all_required_spans_visible_rate": 0.9333333333333333,
+          "coverage": 0.9523809523809523,
+          "query_count": 30,
+          "span_count": 42,
+          "visible_span_count": 40
+        },
+        "semantic": {
+          "all_required_spans_visible_count": 30,
+          "all_required_spans_visible_rate": 1.0,
+          "coverage": 1.0,
+          "query_count": 30,
+          "span_count": 48,
+          "visible_span_count": 48
+        }
+      },
+      "coverage": 0.9777777777777777,
+      "query_count": 60,
+      "span_count": 90,
+      "visible_span_count": 88
+    },
+    "raw": {
+      "all_required_spans_visible_count": 60,
+      "all_required_spans_visible_rate": 1.0,
+      "by_kind": {
+        "anchor": {
+          "all_required_spans_visible_count": 30,
+          "all_required_spans_visible_rate": 1.0,
+          "coverage": 1.0,
+          "query_count": 30,
+          "span_count": 42,
+          "visible_span_count": 42
+        },
+        "semantic": {
+          "all_required_spans_visible_count": 30,
+          "all_required_spans_visible_rate": 1.0,
+          "coverage": 1.0,
+          "query_count": 30,
+          "span_count": 48,
+          "visible_span_count": 48
+        }
+      },
+      "coverage": 1.0,
+      "query_count": 60,
+      "span_count": 90,
+      "visible_span_count": 90
+    }
+  },
+  "oracle_review": {
+    "accepted_count": 60,
+    "rejected_count": 0,
+    "review_count": 60
+  },
+  "oracle_review_sha256": "sha256:dd1e5908d92727e298dc8ce0cc11994aac5c81b627d80f58e76df3b93a664adc",
+  "oracle_sha256": "sha256:5888f16cace1791e811a348c1abddff4d9f7633337a6d112d5f10583df981f64",
+  "paired_effects": {
+    "authored_exact_terms_vs_body_only_anchor_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "anchor",
+      "seed": 20260810,
+      "treatment": "authored_exact_terms"
+    },
+    "authored_exact_terms_vs_body_only_semantic_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "semantic",
+      "seed": 20260810,
+      "treatment": "authored_exact_terms"
+    },
+    "authored_exact_terms_vs_current_lexical_terms_anchor_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "current_lexical_terms",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "anchor",
+      "seed": 20260810,
+      "treatment": "authored_exact_terms"
+    },
+    "authored_exact_terms_vs_current_lexical_terms_semantic_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "current_lexical_terms",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "semantic",
+      "seed": 20260810,
+      "treatment": "authored_exact_terms"
+    },
+    "current_lexical_terms_vs_body_only_anchor_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "anchor",
+      "seed": 20260810,
+      "treatment": "current_lexical_terms"
+    },
+    "current_lexical_terms_vs_body_only_semantic_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "semantic",
+      "seed": 20260810,
+      "treatment": "current_lexical_terms"
+    },
+    "union_terms_vs_body_only_anchor_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "anchor",
+      "seed": 20260810,
+      "treatment": "union_terms"
+    },
+    "union_terms_vs_body_only_semantic_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "body_only",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "semantic",
+      "seed": 20260810,
+      "treatment": "union_terms"
+    },
+    "union_terms_vs_current_lexical_terms_anchor_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "current_lexical_terms",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "anchor",
+      "seed": 20260810,
+      "treatment": "union_terms"
+    },
+    "union_terms_vs_current_lexical_terms_semantic_mrr": {
+      "bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "control": "current_lexical_terms",
+      "decision_count": 30,
+      "difference": 0.0,
+      "kind": "semantic",
+      "seed": 20260810,
+      "treatment": "union_terms"
+    }
+  },
+  "query_sha256": "sha256:18ee379659abc407435071eb465565e4dd0b661364b089a1ed56ea8c6a34bcbd",
+  "retrieval": {
+    "authored_exact_terms": {
+      "all": {
+        "mrr": 0.6693368660411673,
+        "query_count": 60,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7,
+        "recall_at_5": 0.7333333333333333
+      },
+      "anchor": {
+        "mrr": 0.8182407407407408,
+        "query_count": 30,
+        "recall_at_1": 0.7666666666666667,
+        "recall_at_3": 0.8666666666666667,
+        "recall_at_5": 0.8666666666666667
+      },
+      "semantic": {
+        "mrr": 0.5204329913415935,
+        "query_count": 30,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.6
+      }
+    },
+    "body_only": {
+      "all": {
+        "mrr": 0.6693368660411673,
+        "query_count": 60,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7,
+        "recall_at_5": 0.7333333333333333
+      },
+      "anchor": {
+        "mrr": 0.8182407407407408,
+        "query_count": 30,
+        "recall_at_1": 0.7666666666666667,
+        "recall_at_3": 0.8666666666666667,
+        "recall_at_5": 0.8666666666666667
+      },
+      "semantic": {
+        "mrr": 0.5204329913415935,
+        "query_count": 30,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.6
+      }
+    },
+    "current_lexical_terms": {
+      "all": {
+        "mrr": 0.6693368660411673,
+        "query_count": 60,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7,
+        "recall_at_5": 0.7333333333333333
+      },
+      "anchor": {
+        "mrr": 0.8182407407407408,
+        "query_count": 30,
+        "recall_at_1": 0.7666666666666667,
+        "recall_at_3": 0.8666666666666667,
+        "recall_at_5": 0.8666666666666667
+      },
+      "semantic": {
+        "mrr": 0.5204329913415935,
+        "query_count": 30,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.6
+      }
+    },
+    "union_terms": {
+      "all": {
+        "mrr": 0.6693368660411673,
+        "query_count": 60,
+        "recall_at_1": 0.6,
+        "recall_at_3": 0.7,
+        "recall_at_5": 0.7333333333333333
+      },
+      "anchor": {
+        "mrr": 0.8182407407407408,
+        "query_count": 30,
+        "recall_at_1": 0.7666666666666667,
+        "recall_at_3": 0.8666666666666667,
+        "recall_at_5": 0.8666666666666667
+      },
+      "semantic": {
+        "mrr": 0.5204329913415935,
+        "query_count": 30,
+        "recall_at_1": 0.43333333333333335,
+        "recall_at_3": 0.5333333333333333,
+        "recall_at_5": 0.6
+      }
+    }
+  },
+  "schema": "front-door-ablation.v1",
+  "selection_fingerprint": "sha256:cc25b1744931bb75f7c17ce563c5e965795baa6b2188edef091c1209c00c710a",
+  "selector_sha256": "sha256:cf4e0627c50c5d20e96aabbeae682a3fcb6b66bea9c21c93ffe8fd4f80951c9c",
+  "shared_display_rank_invariant": {
+    "display_arms_excluded_from_ranking": [
+      "raw",
+      "current_lean",
+      "complete_dra",
+      "query_evidence"
+    ],
+    "holds": true,
+    "mismatched_retrieval_arms": [],
+    "rank_surface": "raw decision body plus the declared lexical-evidence arm only",
+    "shared_rank_table": "one rank table is reused for every display arm"
+  },
+  "status": "development-diagnostic-not-human-comprehension",
+  "structural_projection": {
+    "dra_projection_integrity": {
+      "exact_source_block_visible_count": 234,
+      "exact_source_block_visible_rate": 1.0,
+      "source_block_count": 234
+    },
+    "effective_with_fallback_to_raw_token_ratio": 0.7878486055776892,
+    "effective_with_fallback_to_raw_utf8_ratio": 0.7876284548387327,
+    "fallback_count": 16,
+    "fallback_rate": 0.16,
+    "fallback_reasons": {
+      "missing required D or R field": 1,
+      "projection is not smaller than raw": 15
+    },
+    "projected_count": 84,
+    "projected_mean_token_proxy": 283.01190476190476,
+    "projected_mean_utf8_bytes": 1130.5357142857142,
+    "projected_median_token_proxy": 261.5,
+    "projected_median_utf8_bytes": 1045.0,
+    "raw_mean_token_proxy": 351.4,
+    "raw_mean_utf8_bytes": 1404.19,
+    "raw_median_token_proxy": 327.5,
+    "raw_median_utf8_bytes": 1308.0,
+    "sample_count": 100,
+    "successful_projection_to_source_utf8_ratio": 0.7610228711554181
+  }
+}

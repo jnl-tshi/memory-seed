@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_hook_merge_framework
 title: Hook installation is a per-agent merge, idempotent on script filename
 topics:
@@ -26,11 +26,11 @@ Authoritative decision: not yet accepted
 
 Hook configuration is merged per agent rather than copied, across every supported agent's own config file. Hooks install unconditionally for the selected agents, and update is idempotent by matching on the script filename rather than the full command, so a flag change in a later version upserts instead of appending a duplicate.
 
-### Why
+### Reason
 
 Merging preserves configuration the project already owns, which copying would destroy. Matching on the script filename is what makes upgrade safe: the command line changes between versions, so comparing full commands would leave a stale entry beside the new one every time. Installing unconditionally keeps the seed model-agnostic rather than betting on which agent a contributor uses.
 
-### How it evolved
+### Impact
 
 2026-05-27 established merge-not-clobber for the Claude settings file, then added a Cursor session-start hook; 2026-05-29 made upsert idempotent by script filename; 2026-06-11 wired the remaining agents and brought Copilot into the supported set.
 
@@ -59,6 +59,7 @@ Merging preserves configuration the project already owns, which copying would de
   ],
   "decision_ref": "ms-5e366ef4:d2",
   "event_id": "adre_63d3523695e95e31525b",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-7c4e1f9a:d1",
@@ -73,10 +74,10 @@ Merging preserves configuration the project already owns, which copying would de
 
 Hook configuration is merged per agent rather than copied, across every supported agent's own config file. Hooks install unconditionally for the selected agents, and update is idempotent by matching on the script filename rather than the full command, so a flag change in a later version upserts instead of appending a duplicate.
 
-#### Why
+#### Reason
 
 Merging preserves configuration the project already owns, which copying would destroy. Matching on the script filename is what makes upgrade safe: the command line changes between versions, so comparing full commands would leave a stale entry beside the new one every time. Installing unconditionally keeps the seed model-agnostic rather than betting on which agent a contributor uses.
 
-#### Evolution
+#### Impact
 
 2026-05-27 established merge-not-clobber for the Claude settings file, then added a Cursor session-start hook; 2026-05-29 made upsert idempotent by script filename; 2026-06-11 wired the remaining agents and brought Copilot into the supported set.

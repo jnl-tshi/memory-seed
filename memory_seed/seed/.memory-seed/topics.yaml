@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 # Project-local controlled topic vocabulary. Meaningful session entries carry 1-3 `topics:` slugs
 # drawn from this index; `memory-seed topics check` validates entries against it. This file is
 # deploy-once project-local state: `memory-seed update` never overwrites it - curate it for your
@@ -8,10 +8,14 @@ schema_version: 2
 # describe your project and are not meant to be. What you should copy is the structure below;
 # what you should replace is most of the names.
 #
-# TWO AXES. Every slug declares `axis:` - one of exactly two values:
+# TWO AXES. `topics:` has exactly two branches:
 #
 #   area      WHAT you are working on. The part of the project a decision touches.
 #   activity  What KIND of work it was. What you did to that part.
+#
+# Under each branch, the slug itself is the mapping key and its detail rows (`label`,
+# `description`, `status`, and `aliases`) sit beneath it. The tree position is the axis; do not
+# repeat it as an `axis:` detail row.
 #
 # A well-formed entry names one of each: where the work was, and what the work was. Two slugs is
 # the target, three the ceiling. Naming two activities and no area records that you were busy
@@ -29,66 +33,60 @@ schema_version: 2
 # or `graph` and `retrieval`, or `pleadings` and `discovery`, as soon as you know what those are.
 # Areas earn their keep by being specific; the ones below are deliberately not.
 #
-# NO SLUG HERE HAS A `parent:`, AND THAT IS THE RULE, NOT AN OMISSION. The vocabulary supports a
-# hierarchy - a slug may declare `parent:` and nest arbitrarily deep within its own axis, and a
-# child never crosses its parent's axis (leave `axis:` blank on a child and it inherits). But depth
-# is EARNED BY CONCENTRATION: a slug earns children once it is carrying too much of its scope to
-# distinguish anything, and a thin one stays a leaf. A new project has no corpus yet, so it has
-# paid for no depth. Add children when a slug starts swallowing the log, not before.
+# NO SLUG HERE HAS `children:`, AND THAT IS THE RULE, NOT AN OMISSION. The vocabulary supports an
+# arbitrarily deep hierarchy within either axis: add `children:` beneath a slug and put narrower
+# slug mappings there. Their parent and axis are derived from their position. But depth is EARNED
+# BY CONCENTRATION: a slug earns children once it is carrying too much of its scope to distinguish
+# anything, and a thin one stays a leaf. A new project has no corpus yet, so it has paid for no
+# depth. Add children when a slug starts swallowing the log, not before.
 #
 # ALIASES ARE SPELLING VARIANTS ONLY (`perf` -> `performance`). Resolution folds an alias into its
 # canonical name and DISCARDS it, so a NARROWER concept filed here loses the specificity its author
-# recorded. A narrower concept is a child: give it its own slug and a `parent:`.
+# recorded. A narrower concept is a child: give it its own slug beneath `children:`.
 #
 # Prefer renaming via `aliases:` over deleting, and mark a retired slug `status: deprecated` rather
 # than removing it - entries that already carry it stay valid and `topics check` warns instead of
 # failing.
 topics:
-  - slug: deliverable
-    label: Deliverable
-    description: The thing this project exists to produce. PLACEHOLDER - split it into the real parts of your project as soon as you can name them.
-    status: active
-    axis: area
-    aliases: []
-  - slug: research
-    label: Research
-    description: Gathering, reading, and understanding the source material the work rests on.
-    status: active
-    axis: area
-    aliases: []
-  - slug: operations
-    label: Operations
-    description: How the work itself runs - tooling, process, environment, and collaboration conventions.
-    status: active
-    axis: area
-    aliases: []
-  - slug: planning
-    label: Planning
-    description: Deciding what to do, in what order, and what to leave out.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: drafting
-    label: Drafting
-    description: Producing a first version of something - a draft, a prototype, an implementation.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: review
-    label: Review
-    description: Reading the work back critically before it stands - editing, checking, evaluating.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: correction
-    label: Correction
-    description: Repairing something already shipped or already believed - a defect, an error, a wrong assumption.
-    status: active
-    axis: activity
-    aliases: []
-  - slug: publishing
-    label: Publishing
-    description: Putting the work in front of whoever it is for - a release, an issue, a filing, a handoff.
-    status: active
-    axis: activity
-    aliases: []
+  area:
+    deliverable:
+      label: Deliverable
+      description: The thing this project exists to produce. PLACEHOLDER - split it into the real parts of your project as soon as you can name them.
+      status: active
+      aliases: []
+    research:
+      label: Research
+      description: Gathering, reading, and understanding the source material the work rests on.
+      status: active
+      aliases: []
+    operations:
+      label: Operations
+      description: How the work itself runs - tooling, process, environment, and collaboration conventions.
+      status: active
+      aliases: []
+  activity:
+    planning:
+      label: Planning
+      description: Deciding what to do, in what order, and what to leave out.
+      status: active
+      aliases: []
+    drafting:
+      label: Drafting
+      description: Producing a first version of something - a draft, a prototype, an implementation.
+      status: active
+      aliases: []
+    review:
+      label: Review
+      description: Reading the work back critically before it stands - editing, checking, evaluating.
+      status: active
+      aliases: []
+    correction:
+      label: Correction
+      description: Repairing something already shipped or already believed - a defect, an error, a wrong assumption.
+      status: active
+      aliases: []
+    publishing:
+      label: Publishing
+      description: Putting the work in front of whoever it is for - a release, an issue, a filing, a handoff.
+      status: active
+      aliases: []

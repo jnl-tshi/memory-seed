@@ -208,9 +208,9 @@ class HookMergeTests(unittest.TestCase):
         entry = hook["hooks"]["sessionStart"][0]
         self.assertEqual(entry["type"], "prompt")
         self.assertIn("AGENTS.md", entry["prompt"])
-        self.assertIn("five newest applicable", entry["prompt"])
+        self.assertIn("orientation.md", entry["prompt"])
+        self.assertIn("context_route", entry["prompt"])
         self.assertIn("Do NOT use memory_search", entry["prompt"])
-        self.assertIn(".memory-seed/sessions/", entry["prompt"])
 
     def test_copilot_merges_are_idempotent(self):
         from memory_seed.core import _merge_copilot_mcp, _merge_copilot_startup_hook

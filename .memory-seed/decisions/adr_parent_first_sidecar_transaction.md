@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_parent_first_sidecar_transaction
 title: Parent-first recoverable sidecar transaction
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `mse_17d0qqh34a07qp5b:d2`
 
 Publish ADR ledger events with topic and lifecycle sidecars after the canonical session parent inside one recoverable transaction.
 
-### Why
+### Reason
 
 The parent-first invariant prevents orphan enrichment, while structural reconciliation preserves independent ledger history and detects competing authority.
 
-### How it evolved
+### Impact
 
 Extends the parent-first decision-sidecar transaction to living ADR events and branch fusion.
 
@@ -43,6 +43,7 @@ Extends the parent-first decision-sidecar transaction to living ADR events and b
 {
   "decision_ref": "mse_d06t9bccm3yykfqs:d1",
   "event_id": "adre_f6786257035191a4352f",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_qbp1ndbnhezj34eb:d1",
@@ -58,11 +59,11 @@ Extends the parent-first decision-sidecar transaction to living ADR events and b
 
 Publish the canonical session parent before topic, lifecycle, and ADR sidecars.
 
-#### Why
+#### Reason
 
 Interruptions can leave incomplete enrichment but never orphan sidecars that point to a missing parent.
 
-#### Evolution
+#### Impact
 
 Builds on staged recovery by making parent-first publication the governing transaction order.
 
@@ -72,14 +73,23 @@ Builds on staged recovery by making parent-first publication the governing trans
 {
   "decision_ref": "mse_d06t9bccm3yykfqs:d1",
   "event_id": "adre_15968f9ec76140857b17",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_kbc2mq9972ppy1vw"
 }
 ```
 
+#### Decision
+
+Accept mse_d06t9bccm3yykfqs:d1.
+
 #### Reason
 
 Accepted as the parent-first transaction head before ADR-event integration.
+
+#### Impact
+
+mse_d06t9bccm3yykfqs:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
 
 ### revision-proposed - 2026-08-03T15:41:00
 
@@ -87,6 +97,7 @@ Accepted as the parent-first transaction head before ADR-event integration.
 {
   "decision_ref": "mse_17d0qqh34a07qp5b:d2",
   "event_id": "adre_9fb8d17e212bfc5a38df",
+  "impact_provenance": "preserved",
   "predecessors": [
     {
       "decision": "mse_d06t9bccm3yykfqs:d1",
@@ -102,11 +113,11 @@ Accepted as the parent-first transaction head before ADR-event integration.
 
 Publish ADR ledger events with topic and lifecycle sidecars after the canonical session parent inside one recoverable transaction.
 
-#### Why
+#### Reason
 
 The parent-first invariant prevents orphan enrichment, while structural reconciliation preserves independent ledger history and detects competing authority.
 
-#### Evolution
+#### Impact
 
 Extends the parent-first decision-sidecar transaction to living ADR events and branch fusion.
 
@@ -117,11 +128,20 @@ Extends the parent-first decision-sidecar transaction to living ADR events and b
   "decision_ref": "mse_17d0qqh34a07qp5b:d2",
   "event_id": "adre_f3559625659a0a4767e7",
   "expected_authoritative_decision": "mse_d06t9bccm3yykfqs:d1",
+  "impact_provenance": "preserved",
   "source": "write-time",
   "update_entry_id": "mse_17d0qqh34a07qp5b"
 }
 ```
 
+#### Decision
+
+Accept mse_17d0qqh34a07qp5b:d2.
+
 #### Reason
 
 Accepted after transactional writer and branch-fuse regression gates passed.
+
+#### Impact
+
+mse_17d0qqh34a07qp5b:d2 becomes the authoritative decision; later contrary evidence requires a successor revision.

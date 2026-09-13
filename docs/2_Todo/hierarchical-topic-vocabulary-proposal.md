@@ -1,6 +1,6 @@
 ---
-priority: P2
-next_action: JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + read-time ancestor derivation, (2) reclassify the aliases that are really children, (3) point community colour at the parent level and grouping at the child level, (4) only then any topic sweep. Blocks and supersedes the flat splits recommended in topic-vocabulary-concentration-review.md.
+priority: P3
+next_action: "ACCEPTED 2026-07-26/27 (JNL, settled inline below) - not a JNL gate any more. Build order steps 1, 2, 4, and one neutral starter under step 6 are shipped. The one still-open piece: a per-project-type starter vocabulary (a `--project-type` at `init`, or named starter sets) needs its own JNL call on the axis - see the step-6 correction below. Superseded serialization-wise (not decision-wise) by the schema_version 3 zone/nesting work."
 ---
 
 # Hierarchical topic vocabulary: parent subsystems, child subsystems
@@ -84,7 +84,7 @@ against the **parent's** population rather than the whole corpus — a child tak
 volume is the next candidate to split.
 
 This makes the vocabulary **self-governing**: the concentration review in
-`topic-vocabulary-concentration-review.md` stops being a one-off audit and becomes a periodic health
+[`topic-vocabulary-concentration-review.md`](../7_Replaced/topic-vocabulary-concentration-review.md) stops being a one-off audit and becomes a periodic health
 check that says *where* to deepen and *when to stop*. Depth is then bounded by evidence rather than by
 a rule nobody can justify — which is the real protection against a taxonomy nobody maintains, since no
 level exists unless the corpus paid for it.
@@ -196,7 +196,7 @@ mis-filed there becomes a child slug, which *recovers* specificity the corpus al
 
 ## Why this beats the flat splits
 
-`topic-vocabulary-concentration-review.md` recommended carving `trail` out of `memory-trace` and
+[`topic-vocabulary-concentration-review.md`](../7_Replaced/topic-vocabulary-concentration-review.md) recommended carving `trail` out of `memory-trace` and
 splitting `graph`. A hierarchy achieves the same specificity **without the two costs of a flat split**:
 
 1. A flat split leaves `memory-trace` and its new sibling as unrelated peers, so the 197 historical

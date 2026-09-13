@@ -12,7 +12,11 @@ import pytest
 from pathlib import Path
 
 from memory_seed.core import MEMORY_DIR_NAME
-from memory_seed.situate import format_situate_report, situate_report
+from memory_seed.situate import (
+    SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS,
+    format_situate_report,
+    situate_report,
+)
 
 A = "mse_" + "a" * 16
 B = "mse_" + "b" * 16
@@ -49,7 +53,8 @@ class SituateReportTests(unittest.TestCase):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
         month = self.sessions / "2026-07"
         month.mkdir()
-        (month / "2026-07-05.md").write_text(
+        newest = month / "2026-07-05.md"
+        newest.write_text(
             _entry("2026-07-05 09:00", B) + _entry("2026-07-05 14:30", C), encoding="utf-8"
         )
 
@@ -58,7 +63,55 @@ class SituateReportTests(unittest.TestCase):
         self.assertEqual(report.newest_session_date, "2026-07-05")
         self.assertIn("2026-07-05", report.newest_session_path or "")
         self.assertEqual(report.newest_entry, "2026-07-05 14:30 - entry cccc")
-        self.assertIn("do not rely on memory_search", format_situate_report(report))
+        self.assertEqual(report.newest_session_entries, 2)
+        self.assertEqual(
+            report.newest_session_characters,
+            len(newest.read_bytes().decode("utf-8")),
+        )
+        self.assertEqual(report.context_route, "direct")
+        self.assertIn("Do not rely on memory_search", format_situate_report(report))
+
+    def test_context_route_is_pinned_at_the_character_boundary(self):
+        target = self.sessions / "2026-07-05.md"
+        target.write_text("x" * SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS, encoding="utf-8")
+        direct = situate_report(cwd=self.cwd)
+        self.assertEqual(direct.newest_session_characters, 12_000)
+        self.assertEqual(direct.context_route, "direct")
+
+        target.write_text("x" * (SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS + 1), encoding="utf-8")
+        summarize = situate_report(cwd=self.cwd)
+        self.assertEqual(summarize.newest_session_characters, 12_001)
+        self.assertEqual(summarize.context_route, "summarize")
+        self.assertEqual(
+            summarize.to_dict()["newest_session"]["compression_threshold_characters"],
+            12_000,
+        )
+
+    def test_invalid_utf8_reports_unavailable_context_without_guessing_a_route(self):
+        (self.sessions / "2026-07-05.md").write_bytes(b"\xff\xfe")
+
+        report = situate_report(cwd=self.cwd)
+
+        self.assertEqual(report.newest_session_bytes, 2)
+        self.assertIsNone(report.newest_session_characters)
+        self.assertIsNone(report.newest_session_entries)
+        self.assertIsNone(report.context_route)
+        self.assertEqual(report.newest_session_read_error, "invalid UTF-8")
+        self.assertIn("session context: unavailable", format_situate_report(report))
+
+    def test_active_user_selects_applicable_latest_file_and_reports_contributors(self):
+        month_day = self.sessions / "2026-07" / "2026-07-05"
+        month_day.mkdir(parents=True)
+        (month_day / "jean.md").write_text(_entry("2026-07-05 10:00", B), encoding="utf-8")
+        (month_day / "amina.md").write_text(_entry("2026-07-05 11:00", C), encoding="utf-8")
+
+        report = situate_report(cwd=self.cwd, explicit_user="jean")
+
+        self.assertTrue((report.newest_session_path or "").endswith("2026-07-05/jean.md"))
+        self.assertEqual(report.newest_session_user, "jean")
+        self.assertEqual(len(report.session_contributors), 1)
+        self.assertEqual(report.session_contributors[0].user, "amina")
+        self.assertEqual(report.session_contributors[0].entries, 1)
 
     def test_no_sessions_reports_none(self):
         report = situate_report(cwd=self.cwd)
@@ -129,6 +182,28 @@ class SituateReportTests(unittest.TestCase):
         self.assertEqual(report.ahead, 1)
         self.assertEqual(report.ahead_ref, "main")  # no origin remote -> compares to local main
         self.assertIn("1 commit(s) ahead of main", format_situate_report(report))
+
+    @pytest.mark.integration
+    def test_cadence_measurement_is_rendered_from_the_same_worktree_guard(self):
+        def git(*args):
+            return subprocess.run(["git", "-C", str(self.cwd), *args], check=True, capture_output=True, text=True)
+
+        git("init", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        (self.cwd / "base.txt").write_text("base\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        git("switch", "-c", "codex/cadence")
+        (self.cwd / "large.txt").write_text("x\n" * 750, encoding="utf-8")
+
+        report = situate_report(cwd=self.cwd)
+        text = format_situate_report(report)
+
+        self.assertIsNotNone(report.cadence)
+        self.assertTrue(any("churn=750" in item for item in report.cadence.high_signals))
+        self.assertIn("## Checkpoint cadence", text)
+        self.assertIn("Checkpoint cadence warning", text)
 
     @pytest.mark.integration
     def test_phantom_worktree_path_still_reports_the_primary_checkout(self):

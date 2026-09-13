@@ -1,11 +1,10 @@
 """`memory-seed link audit` (Phase 3): find entries that share files/topics but
 carry no recorded edge.
 
-Candidate MEMBERSHIP is decided lexically and never by semantic similarity. An
-all-pairs cosine IS computed (since 2026-07-22) and does reorder the surviving
-candidates; what the lexical gate rules out is cosine deciding *whether* a pair
-is a candidate at all. So the semantic term can change rank but structurally
-cannot change reach - see LinkAuditSemanticExposureTests.
+Candidate membership starts with the lexical gate. An all-pairs cosine is also
+computed (since 2026-07-22): by default it reorders lexical candidates and adds
+two semantic-only recall candidates; an explicit semantic cutoff admits every
+semantic-only pair above that run's threshold.
 
 Candidate generation: for each target, only OLDER entries sharing >=1 F: file
 OR >=1 topic. File overlap qualifies a pair even with no shared topic (files
@@ -21,7 +20,9 @@ import os
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from memory_seed.core import MEMORY_DIR_NAME, check_session_links
 from memory_seed.cli import main as cli_main
@@ -29,6 +30,12 @@ from memory_seed.retrieval import (
     apply_link_gap_stubs,
     audit_link_gaps,
     augment_chunks_with_link_sidecars,
+    collect_link_swarm_run,
+    finalize_link_swarm_run,
+    gc_link_swarm_runs,
+    materialize_link_swarm_run,
+    parse_link_swarm_toon,
+    plan_link_audit_batches,
 )
 from memory_seed.semantic_cache import extract_memory_chunks
 
@@ -73,6 +80,12 @@ class LinkAuditTests(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
         self.sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
         self.sessions.mkdir(parents=True, exist_ok=True)
+        skills = self.cwd / MEMORY_DIR_NAME / "skills"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "link_swarm.md").write_text(
+            "# Test lifecycle-link swarm skill\n\nJudge every assigned pair.\n",
+            encoding="utf-8",
+        )
 
     def _write(self, *entries):
         (self.sessions / "2026-06-01.md").write_text("\n".join(entries), encoding="utf-8")
@@ -274,6 +287,365 @@ class LinkAuditTests(unittest.TestCase):
         code, _out, err = self._run_cli("link", "audit", "--json", "--apply", "--date", "2026-06-01")
         self.assertEqual(code, 2)
         self.assertIn("cannot be combined", err)
+
+    def test_batch_plan_packs_complete_pairs_and_reports_oversize_pairs(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-01",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new body"}],
+                "candidates": [
+                    {"entry_id": A, "title": "old", "session_date": "2026-06-01", "decisions": [{"ordinal": "d1", "name": "old", "text": "old body"}]},
+                    {"entry_id": C, "title": "older", "session_date": "2026-06-01", "decisions": [{"ordinal": "d1", "name": "older", "text": "older body"}]},
+                ],
+            }],
+        }
+        roomy = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        self.assertEqual(roomy["pair_count"], 2)
+        self.assertEqual(roomy["batch_count"], 1)
+        self.assertEqual(len(roomy["batches"][0]["pairs"]), 2)
+        self.assertEqual(roomy["oversize_pair_count"], 0)
+        self.assertEqual(roomy["measurement"]["evidence_budget_tokens"], 1600)
+
+        tight = plan_link_audit_batches(payload, context_window_tokens=10)
+        self.assertEqual(tight["batch_count"], 0)
+        self.assertEqual(tight["oversize_pair_count"], 2)
+
+    def test_cli_batch_plan_is_read_only_json(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Beta"]),
+        )
+        code, out, err = self._run_cli(
+            "link", "batch-plan", "--for", B, "--context-window", "400000", "--no-semantic"
+        )
+        self.assertEqual(code, 0, err)
+        plan = json.loads(out)
+        self.assertEqual(plan["measurement"]["evidence_budget_tokens"], 64000)
+        self.assertEqual(plan["pair_count"], 1)
+        self.assertEqual(plan["batch_count"], 1)
+        self.assertFalse((self.sessions / "links").exists())
+
+    def test_cli_materialized_batch_embeds_the_active_skill(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Beta"]),
+        )
+        run_dir = self.cwd / "embedded-skill-run"
+        code, out, err = self._run_cli(
+            "link", "batch-plan", "--for", B, "--context-window", "400000",
+            "--no-semantic", "--output-dir", str(run_dir),
+        )
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["batch_count"], 1)
+        active_skill = (self.cwd / MEMORY_DIR_NAME / "skills" / "link_swarm.md").read_text(
+            encoding="utf-8"
+        )
+        worker_batch = (run_dir / "batches" / "batch-0001.md").read_text(encoding="utf-8")
+        self.assertIn(f"<required_skill>\n{active_skill.rstrip()}\n</required_skill>", worker_batch)
+        self.assertFalse((run_dir / "batches" / "batch-0001.json").exists())
+
+    def test_cli_batch_plan_enumerates_all_lexical_candidates_by_default(self):
+        older = ["mse_" + char * 16 for char in "abdefgh"]
+        self._write(*[
+            _entry(f"2026-06-01 0{index}:00", entry_id, files=["pkg/shared.py"], decisions=["Old"])
+            for index, entry_id in enumerate(older, 1)
+        ], _entry("2026-06-01 10:00", C, files=["pkg/shared.py"], decisions=["New"]))
+        code, out, err = self._run_cli(
+            "link", "batch-plan", "--for", C, "--context-window", "400000", "--no-semantic"
+        )
+        self.assertEqual(code, 0, err)
+        plan = json.loads(out)
+        self.assertEqual(plan["pair_count"], 7)
+
+    def test_batch_plan_excludes_linked_and_decisionless_candidates(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-01",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new body"}],
+                "candidates": [
+                    {"entry_id": A, "title": "linked", "session_date": "2026-06-01",
+                     "already_related": True,
+                     "decisions": [{"ordinal": "d1", "name": "old", "text": "old body"}]},
+                    {"entry_id": C, "title": "decisionless", "session_date": "2026-06-01",
+                     "decisions": []},
+                ],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        self.assertEqual(plan["pair_count"], 0)
+        self.assertEqual(plan["batch_count"], 0)
+        self.assertEqual(plan["excluded_pair_count"], 2)
+        self.assertEqual(
+            [item["reason"] for item in plan["excluded_pairs"]],
+            ["already_related", "missing_decision"],
+        )
+
+    def test_batch_plan_logs_decomposed_scores_threshold_and_assignment(self):
+        payload = {
+            "semantic": {"active": True}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "a sufficiently long new decision body"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 12.0,
+                    "score_components": {"file": 1.0, "keyword": 2.0, "topic": 3.0,
+                                         "semantic_raw": 0.05, "semantic_weighted": 8.0,
+                                         "temporal": 0.967742, "temporal_distance_days": 1},
+                    "shared_files": ["pkg/foo.py"], "shared_topics": ["alpha"],
+                    "shared_title_terms": ["contract"],
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "a sufficiently long old decision body"}],
+                }],
+            }],
+        }
+        excluded = plan_link_audit_batches(payload, context_window_tokens=10_000, minimum_score=13.0)
+        self.assertEqual(excluded["pair_count"], 0)
+        self.assertEqual(excluded["candidate_ledger"][0]["status"], "excluded")
+        self.assertEqual(excluded["candidate_ledger"][0]["validation"], "below_score_threshold")
+        self.assertEqual(excluded["candidate_ledger"][0]["score_components"]["semantic_raw"], 0.05)
+
+        admitted = plan_link_audit_batches(payload, context_window_tokens=10_000, minimum_score=10.0)
+        row = admitted["candidate_ledger"][0]
+        self.assertEqual(row["status"], "assigned")
+        self.assertEqual(row["batch"], 1)
+        self.assertIsNone(row["verdict"])
+        self.assertEqual(admitted["batches"][0]["estimated_output_tokens"], 160)
+
+    def test_materialized_run_collects_strict_file_written_toon(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "the newer decision implements the older proposal exactly"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 20.0, "score_components": {"semantic_raw": 0.1},
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "the older proposal remains useful as design rationale"}],
+                }],
+            }],
+        }
+        skill_text = "# Embedded worker skill\n\nApply the lifecycle rubric exactly.\n"
+        plan = plan_link_audit_batches(
+            payload,
+            context_window_tokens=10_000,
+            worker_skill_text=skill_text,
+            worker_skill_source=".memory-seed/skills/link_swarm.md",
+        )
+        run_dir = self.cwd / "run"
+        materialize_link_swarm_run(plan, run_dir)
+        worker_path = run_dir / "batches" / "batch-0001.md"
+        worker_batch = worker_path.read_text(encoding="utf-8")
+        self.assertTrue(worker_batch.startswith("# Lifecycle-Link Worker Batch 1\n"))
+        self.assertIn(f"<required_skill>\n{skill_text.rstrip()}\n</required_skill>", worker_batch)
+        self.assertIn(
+            f"skill_sha256: {plan['measurement']['worker_skill_sha256']}", worker_batch,
+        )
+        self.assertIn('"finding_path":"findings/batch-0001.toon"', worker_batch)
+        self.assertEqual(
+            len(worker_batch.encode("utf-8")),
+            plan["batches"][0]["worker_batch_utf8_bytes"],
+        )
+        self.assertLessEqual(
+            plan["batches"][0]["estimated_tokens"],
+            plan["measurement"]["evidence_budget_tokens"],
+        )
+        self.assertEqual(plan["batches"][0]["estimated_output_tokens"], 160)
+        report = (
+            "schema: memory-seed.link-swarm-verdicts.v1\n"
+            "batch: 1\n"
+            "verdicts[1]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:\n"
+            f'{B},d1,{A},d1,evolves,"the older proposal remains useful as design rationale",{A},"implements the proposal",0.91,null\n'
+        )
+        (run_dir / "findings" / "batch-0001.toon").write_text(report, encoding="utf-8")
+        parsed = parse_link_swarm_toon(report, expected_batch=1, expected_pair_count=1)
+        self.assertEqual(parsed["verdicts"][0]["confidence"], 0.91)
+
+        result = collect_link_swarm_run(run_dir)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["survivor_count"], 1)
+        analytics = [json.loads(line) for line in (run_dir / "analytics.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(analytics[0]["verdict"], "evolves")
+        self.assertEqual(analytics[0]["validation"], "passed")
+        summary = json.loads((run_dir / "analytics-summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["by_verdict"]["evolves"]["count"], 1)
+        self.assertEqual(summary["by_verdict"]["evolves"]["features"]["semantic_raw"]["mean"], 0.1)
+
+    def test_toon_parser_rejects_non_rectangular_rows(self):
+        report = (
+            "schema: memory-seed.link-swarm-verdicts.v1\n"
+            "batch: 4\n"
+            "verdicts[1]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:\n"
+            f"{B},d1,{A},d1,none,null,null,why,null\n"
+        )
+        with self.assertRaisesRegex(ValueError, "cells"):
+            parse_link_swarm_toon(report, expected_batch=4, expected_pair_count=1)
+
+    def test_collector_keeps_valid_rows_when_another_row_fails_grounding(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": C, "title": "new", "session_date": "2026-06-03",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "the new decision implements both earlier proposals"}],
+                "candidates": [
+                    {"entry_id": A, "title": "old a", "session_date": "2026-06-01", "score": 20.0,
+                     "decisions": [{"ordinal": "d1", "name": "old", "text": "first proposal remains available as rationale"}]},
+                    {"entry_id": B, "title": "old b", "session_date": "2026-06-02", "score": 19.0,
+                     "decisions": [{"ordinal": "d1", "name": "old", "text": "second proposal remains available as rationale"}]},
+                ],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        run_dir = self.cwd / "partial-run"
+        materialize_link_swarm_run(plan, run_dir)
+        report = (
+            "schema: memory-seed.link-swarm-verdicts.v1\n"
+            "batch: 1\n"
+            "verdicts[2]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:\n"
+            f'{C},d1,{A},d1,evolves,"first proposal remains available as rationale",{A},"implements first",0.9,null\n'
+            f'{C},d1,{B},d1,evolves,"invented quotation absent from evidence",{B},"implements second",0.8,null\n'
+        )
+        (run_dir / "findings" / "batch-0001.toon").write_text(report, encoding="utf-8")
+
+        result = collect_link_swarm_run(run_dir)
+
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["valid_batches"], 1)
+        self.assertEqual(result["survivor_count"], 1)
+        rows = [json.loads(line) for line in (run_dir / "analytics.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([row["status"] for row in rows], ["validated", "rejected"])
+
+    def _finalized_rejected_run(self, name="retention-run", *, retention_days=30):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new decision body"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 20.0,
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "old decision body"}],
+                }],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        run_dir = self.cwd / name
+        materialize_link_swarm_run(plan, run_dir)
+        validation = collect_link_swarm_run(run_dir)
+        self.assertEqual(validation["status"], "incomplete")
+        approval = {
+            "schema": "memory-seed.link-swarm-approval.v1",
+            "run_id": plan.get("run_id") or json.loads(
+                (run_dir / "plan.json").read_text(encoding="utf-8")
+            )["run_id"],
+            "disposition": "rejected",
+            "approved_pair_ids": [],
+            "reviewer": "test-orchestrator",
+            "note": "Rejected malformed or missing findings.",
+        }
+        receipt = finalize_link_swarm_run(
+            run_dir,
+            approval,
+            cwd=self.cwd,
+            retention_days=retention_days,
+            now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        return run_dir, receipt
+
+    def test_finalized_run_retains_analytics_and_gc_is_dry_run_then_idempotent(self):
+        run_dir, receipt = self._finalized_rejected_run()
+        self.assertEqual(receipt["status"], "finalized")
+        self.assertEqual(receipt["retention"]["raw_days"], 30)
+        self.assertTrue((run_dir / "plan.json").is_file())
+
+        retained = gc_link_swarm_runs(
+            run_dir, now=datetime(2026, 1, 15, tzinfo=timezone.utc)
+        )
+        self.assertEqual(retained["runs"][0]["status"], "retained")
+        eligible = gc_link_swarm_runs(
+            run_dir, now=datetime(2026, 2, 1, tzinfo=timezone.utc)
+        )
+        self.assertEqual(eligible["mode"], "dry-run")
+        self.assertEqual(eligible["runs"][0]["status"], "eligible")
+        self.assertTrue((run_dir / "plan.json").is_file())
+
+        compacted = gc_link_swarm_runs(
+            run_dir, apply=True, now=datetime(2026, 2, 1, tzinfo=timezone.utc)
+        )
+        self.assertEqual(compacted["runs"][0]["status"], "compacted")
+        self.assertFalse((run_dir / "plan.json").exists())
+        self.assertFalse((run_dir / "batches").exists())
+        self.assertTrue((run_dir / "analytics.jsonl").is_file())
+        self.assertTrue((run_dir / "receipt.json").is_file())
+        self.assertTrue((run_dir / "gc.json").is_file())
+        repeated = gc_link_swarm_runs(run_dir, apply=True, purge_now=True)
+        self.assertEqual(repeated["runs"][0]["status"], "already_compacted")
+
+    def test_gc_refuses_raw_artifact_changed_after_finalization(self):
+        run_dir, _receipt = self._finalized_rejected_run("tampered-run", retention_days=0)
+        batch_path = run_dir / "batches" / "batch-0001.md"
+        batch_path.write_text(batch_path.read_text(encoding="utf-8") + "tampered\n", encoding="utf-8")
+
+        result = gc_link_swarm_runs(run_dir, apply=True, purge_now=True)
+
+        self.assertEqual(result["runs"][0]["status"], "blocked")
+        self.assertIn("changed after finalization", result["runs"][0]["problems"][0])
+        self.assertTrue((run_dir / "plan.json").is_file())
+        self.assertTrue(batch_path.is_file())
+
+    def test_approved_finalization_verifies_graph_links_and_commit_trailer(self):
+        payload = {
+            "semantic": {}, "criteria": {},
+            "gaps": [{
+                "entry_id": B, "title": "new", "session_date": "2026-06-02",
+                "decisions": [{"ordinal": "d1", "name": "new", "text": "new decision extends old design"}],
+                "candidates": [{
+                    "entry_id": A, "title": "old", "session_date": "2026-06-01",
+                    "score": 20.0,
+                    "decisions": [{"ordinal": "d1", "name": "old", "text": "old design remains useful rationale"}],
+                }],
+            }],
+        }
+        plan = plan_link_audit_batches(payload, context_window_tokens=10_000)
+        run_dir = self.cwd / "approved-run"
+        materialize_link_swarm_run(plan, run_dir, cwd=self.cwd)
+        report = (
+            "schema: memory-seed.link-swarm-verdicts.v1\n"
+            "batch: 1\n"
+            "verdicts[1]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:\n"
+            f'{B},d1,{A},d1,related,"old design remains useful rationale",{A},"supports the newer design",0.9,null\n'
+        )
+        (run_dir / "findings" / "batch-0001.toon").write_text(report, encoding="utf-8")
+        self.assertEqual(collect_link_swarm_run(run_dir)["status"], "complete")
+        stored_plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+        memory_entry = "mse_" + "z" * 16
+        approval = {
+            "schema": "memory-seed.link-swarm-approval.v1",
+            "run_id": stored_plan["run_id"],
+            "disposition": "approved",
+            "approved_pair_ids": [stored_plan["batches"][0]["pairs"][0]["pair_id"]],
+            "reviewer": "test-orchestrator",
+            "graph_delta_reviewed": True,
+            "write_commit": "abc123",
+            "memory_entry": memory_entry,
+        }
+
+        def fake_git(_root, args):
+            if args[0] == "rev-parse":
+                return 0, "a" * 40
+            if args[0] == "show":
+                return 0, f"link write\n\nMemory-Entry: {memory_entry}"
+            return 1, ""
+
+        with mock.patch("memory_seed.core._git_text", side_effect=fake_git):
+            receipt = finalize_link_swarm_run(run_dir, approval, cwd=self.cwd)
+
+        self.assertEqual(receipt["disposition"], "approved")
+        self.assertTrue(receipt["checks"]["links"]["ok"])
+        self.assertEqual(receipt["checks"]["graph_diff"]["verdict"], "unchanged")
+        self.assertEqual(receipt["commit"]["memory_entry"], memory_entry)
 
     def test_decision_level_sidecar_edge_suppresses_the_pair(self):
         # A `<id>:dN` ref records the pair at finer granularity. It never
@@ -905,6 +1277,24 @@ class LinkAuditSemanticExposureTests(unittest.TestCase):
         # A is still here on file overlap, and is NOT mislabelled.
         self.assertIn(A, by_id)
         self.assertFalse(by_id[A].ungated)
+
+    def test_semantic_cutoff_is_recorded_and_controls_ungated_membership(self):
+        self._write(
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], title="alpha"),
+            _entry("2026-06-01 09:00", D, files=["pkg/other.py"], title="delta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma"),
+        )
+        self._patch_provider(_StubProvider(near=(D, C)))
+        status = {}
+
+        gap = audit_link_gaps(
+            cwd=self.cwd, entry_id=C, semantic_status=status,
+            semantic_candidate_threshold=1.0,
+        )[0]
+
+        self.assertIn(D, [candidate.entry_id for candidate in gap.candidates])
+        self.assertEqual(status["candidate_mode"], "threshold")
+        self.assertEqual(status["candidate_threshold"], 1.0)
 
     def test_ungated_candidates_never_displace_gated_ones(self):
         """A separate cap, so recall widening cannot cost checkable evidence."""

@@ -4,6 +4,65 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.21.0 - 2026-09-11
+
+Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git
+history is used only as a cross-check.
+
+### Changed (breaking)
+
+- [2026-08-31] **Ephemeral Evidence Packs now use one typed identity contract.** Pack and resolver version
+  2 replace the generic per-item `ref` field with `id`; path-selected ADRs emit `kind: adr` and their
+  frontmatter `adr_id`, decision slices emit `kind: decision` and their canonical decision ID, `source`
+  remains the canonical Markdown location, and `content_digest` verifies the selected content. Evidence
+  Packs are inline, non-authoritative results, so v1 consumers re-resolve the Retrieval Specification
+  rather than migrating stored packs; v2 validation rejects v1 packs.
+
+### Added
+
+- [2026-09-10] **Successful local merges now close their source-worktree lifecycle.** The merge flow
+  still tries ordinary `git worktree remove` first. If Git deregisters the exact clean checkout but
+  Windows or OneDrive leaves its directory behind, Memory Seed rechecks the repository, branch,
+  administrative pointer, directory identity, and reparse-point boundary before deleting only that
+  residue. Dirty, locked, still-registered, replaced, or otherwise unproven paths remain untouched.
+  CLI and MCP callers receive an explicit incomplete result when cleanup remains pending, so a merged
+  task cannot silently present itself as fully closed while consuming disk space.
+
+- [2026-09-10] **Superpowers-informed delivery-quality controls now strengthen Memory Seed's native workflow.**
+  Consequential work uses reuse-aware design discovery and governed planning against the Constitution,
+  accepted ADR heads, and active decisions; debugging requires reproducible hypotheses; completion and
+  review require fresh structured evidence. Optional implementation/test planning stays inside the existing
+  Task Packet contract. A behavioral corpus exercises trigger and non-trigger routes, safe external fallback,
+  and return-before-integration ordering while keeping Superpowers optional and Memory Seed authoritative.
+  The initial bounded Reflection Board comparison demonstrates route viability only; token, latency, cost,
+  and causal delivery uplift remain unmeasured.
+
+- [2026-09-01] **Semantic dispatch now reconstructs a complete bounded Task Packet.** Six immutable,
+  project-local core v1 Retrieval Profiles support exact lookup, composition, bounded overrides, and
+  shared inline/profile preview and resolution. The deterministic Task Packet compiler combines semantic
+  dispatch, a measured existing-runtime binding, an exact profile version, and the pinned corpus revision;
+  it materializes Evidence Pack sources once and keeps input, output/reasoning, and cost accounting
+  distinct. The input ledger accounts only for the caller-supplied packet/fixed-instruction/tool-schema
+  envelope; provider totals and hidden platform overhead remain post-run evidence. Task Dispatch file lists
+  bound execution edits, not memory reads, and required retrieval clauses cannot be weakened. CLI
+  preview/compile and read-only MCP twins share the same compiler. Init/update deploy missing
+  core profile versions but never overwrite existing versions or custom IDs. Packets remain derived and
+  ephemeral; no registry, worker dispatch, authority, provider/pricing lookup, or network dependency was
+  added.
+
+### Changed
+
+- [2026-08-13] **Bootstrap-generated runtime indexes are now tree-first.** Every new project index
+  must put a purpose-annotated repository tree and an expanded `.memory-seed/` tree immediately after
+  its purpose. A small path/purpose/read-when table may clarify non-obvious entry points, but cannot
+  replace the visual trees or grow into an exhaustive file inventory.
+
+- [2026-08-13] **SessionStart now routes whole-session context by measured size instead of injecting five
+  capped entries.** `situate` reports the latest applicable session's character/byte/entry counts and
+  selects direct reading at or below 12,000 characters or an ≤800-token, source-linked economy-worker
+  briefing above it. The hook consumes that shared report, remains model-free, and keeps policy,
+  Constitution, roadmap, and release checks lazy until the task requires them.
+
 ## 2.20.0 - 2026-08-12
 
 Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git
@@ -273,7 +332,7 @@ history is used only as a cross-check.
   with a stated pass/fail line: rolled-up macro-recall against blind-judged authored topics, plus
   human-adjudicated per-decision attribution that must beat free inheritance. Registered under the
   `curation` skill profile. No swarm has been run; zero topic sidecars exist. Specs:
-  `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/2_Todo/decision-level-topics-proposal.md`.
+  `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/8_Deferred/decision-level-topics-proposal.md`.
 - [2026-07-25] **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
   of small models judges `link audit` gaps at decision granularity — the automated judgment layer above
   the mechanical sweep. It only suggests: a mechanical validator (quote-grounding, ordinal existence,

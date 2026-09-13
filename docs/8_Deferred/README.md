@@ -17,6 +17,7 @@ return.
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [agent-skill-workflow-architecture-proposal.md](agent-skill-workflow-architecture-proposal.md) | — | — | — |
+| [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [memory-seed-publishability-check-evaluation.md](memory-seed-publishability-check-evaluation.md) | P3 | — | deferred |
 | [memory-trace-commercialisation-and-monetisation-report.md](memory-trace-commercialisation-and-monetisation-report.md) | — | — | — |
 | [memory-trace-hosted-product-and-security-architecture.md](memory-trace-hosted-product-and-security-architecture.md) | — | — | — |

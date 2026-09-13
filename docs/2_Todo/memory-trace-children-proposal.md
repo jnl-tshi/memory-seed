@@ -6,7 +6,7 @@ next_action: DONE 2026-07-27 - 17 slugs live in .memory-seed/topics.yaml and 166
 # Proposal: the topic vocabulary change
 
 Status: **PROPOSAL — 2026-07-27, consolidated the same evening.** Triggered by the concentration
-measurement as [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) requires.
+measurement as [vocabulary-proposal-mode-proposal.md](../5_Completed/vocabulary-proposal-mode-proposal.md) requires.
 No vocabulary change has been made; `topics.yaml` is untouched.
 
 > **The filename says `memory-trace-children` and the scope outgrew it.** The ask now also covers a

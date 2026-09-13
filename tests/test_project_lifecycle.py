@@ -1,10 +1,15 @@
+import contextlib
+import io
+import os
 import shutil
 import tempfile
 import tomllib
 import unittest
 from pathlib import Path
 
+from memory_seed.cli import main as cli_main
 from memory_seed.core import (
+    CORE_RETRIEVAL_PROFILES,
     MEMORY_DIR_NAME,
     PACKAGE_ROOT,
     SEED_FILES,
@@ -45,7 +50,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         (d / f"{user}.md").write_text("\n".join(fm + body) + "\n", encoding="utf-8")
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.20")
+        self.assertEqual(get_version(), "2.21")
 
     def test_doctor_summarizes_session_integrity_issues(self):
         cwd = self.make_project()
@@ -145,6 +150,127 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue((cwd / ".agents" / "developer.md").exists())
         self.assertTrue((cwd / ".agents" / "solo-founder.md").exists())
         self.assertFalse((cwd / ".agents" / "_registry.yaml").exists())
+
+    def test_core_retrieval_profiles_install_update_and_remain_immutable(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile_root = cwd / MEMORY_DIR_NAME / "retrieval-profiles"
+        expected = {
+            f"{profile_id}/v{profile_version}.yaml"
+            for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+        }
+        installed = {
+            path.relative_to(profile_root).as_posix()
+            for path in profile_root.glob("*/v*.yaml")
+        }
+        self.assertEqual(installed, expected)
+
+        implementation = profile_root / "implementation" / "v1.yaml"
+        customized = implementation.read_text(encoding="utf-8") + "# local note\n"
+        implementation.write_text(customized, encoding="utf-8")
+        custom = profile_root / "team-review" / "v7.yaml"
+        custom.parent.mkdir(parents=True)
+        custom.write_text("project-owned\n", encoding="utf-8")
+        missing = profile_root / "research" / "v1.yaml"
+        missing.unlink()
+
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(implementation.read_text(encoding="utf-8"), customized)
+        self.assertEqual(custom.read_text(encoding="utf-8"), "project-owned\n")
+        self.assertTrue(missing.is_file())
+        self.assertIn(
+            ".memory-seed/retrieval-profiles/research/v1.yaml", result.created
+        )
+        self.assertNotIn(
+            ".memory-seed/retrieval-profiles/implementation/v1.yaml", result.created
+        )
+
+    def test_force_init_preserves_existing_core_profile_and_custom_ids(self):
+        cwd = self.make_project()
+        implementation = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        implementation.parent.mkdir(parents=True)
+        implementation.write_text("existing-core-version\n", encoding="utf-8")
+        custom = (
+            cwd / MEMORY_DIR_NAME / "retrieval-profiles" / "my-custom" / "v2.yaml"
+        )
+        custom.parent.mkdir(parents=True)
+        custom.write_text("existing-custom-id\n", encoding="utf-8")
+
+        init_project(cwd=cwd, force=True)
+
+        self.assertEqual(
+            implementation.read_text(encoding="utf-8"), "existing-core-version\n"
+        )
+        self.assertEqual(custom.read_text(encoding="utf-8"), "existing-custom-id\n")
+
+    def test_doctor_is_unhealthy_when_managed_retrieval_profile_identity_is_wrong(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "id: implementation", "id: wrong-profile"
+            ),
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        warning = next(
+            warning
+            for warning in result.warnings
+            if "Managed retrieval profile implementation:v1 is invalid" in warning
+        )
+        self.assertIn("identity does not match exact path", warning)
+        self.assertFalse(result.control_plane_ok)
+        self.assertFalse(result.ok)
+
+    def test_doctor_and_cli_are_unhealthy_when_managed_profile_effective_spec_is_invalid(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        profile = (
+            cwd
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / "implementation"
+            / "v1.yaml"
+        )
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                "max_tokens: 12000", "max_tokens: 0"
+            ),
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+        self.assertFalse(result.control_plane_ok)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("max_tokens" in warning for warning in result.warnings))
+
+        output = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(cwd)
+            with contextlib.redirect_stdout(output):
+                status = cli_main(["doctor"])
+        finally:
+            os.chdir(previous)
+        self.assertEqual(status, 1)
+        self.assertIn("control plane has issues", output.getvalue())
+        self.assertIn("max_tokens", output.getvalue())
 
     def test_init_merges_into_foreign_routing_file_without_force(self):
         # A pre-existing foreign entry-point file (no frontmatter, e.g. a host's
@@ -456,8 +582,10 @@ class ProjectLifecycleTests(unittest.TestCase):
         installed = {p.name for p in (cwd / ".memory-seed" / "skills").glob("*.md")}
         self.assertIn("code_search.md", installed)
         self.assertIn("local_compilation.md", installed)
+        self.assertIn("systematic_debugging.md", installed)
         self.assertIn("data_architecture.md", installed)
         self.assertIn("proposal_lifecycle.md", installed)
+        self.assertIn("design_discovery.md", installed)
         self.assertTrue((cwd / "docs" / "inbox" / ".gitkeep").exists())
         self.assertTrue((cwd / "docs" / "todo" / ".gitkeep").exists())
         self.assertTrue((cwd / "docs" / "todo" / "completed" / ".gitkeep").exists())
@@ -467,6 +595,26 @@ class ProjectLifecycleTests(unittest.TestCase):
         project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
         self.assertIn("coding", project_yaml)
         self.assertIn("planning", project_yaml)
+
+    def test_delivery_quality_skills_are_registered_with_their_profiles(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd, skill_profiles={"coding", "planning"})
+
+        self.assertNotIn("design_discovery.md", CORE_SKILL_NAMES)
+        self.assertIn("design_discovery.md", OPTIONAL_SKILL_NAMES)
+        self.assertNotIn("systematic_debugging.md", CORE_SKILL_NAMES)
+        self.assertIn("systematic_debugging.md", OPTIONAL_SKILL_NAMES)
+        self.assertEqual(
+            SKILL_PROFILES["planning"].skills,
+            ("proposal_lifecycle.md", "design_discovery.md"),
+        )
+        self.assertIn("systematic_debugging.md", SKILL_PROFILES["coding"].skills)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "design_discovery.md").exists())
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "systematic_debugging.md").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("skill: design_discovery.md", registry)
+        self.assertIn("skill: systematic_debugging.md", registry)
 
     def test_update_respects_ignored_optional_skills(self):
         cwd = self.make_project()
@@ -633,12 +781,20 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/hooks/session-log-check.py",
                 ".memory-seed/hooks/session-start-context.py",
                 ".memory-seed/project-bootstrap.md",
+                ".memory-seed/retrieval-profiles/adr-review/v1.yaml",
+                ".memory-seed/retrieval-profiles/architecture/v1.yaml",
+                ".memory-seed/retrieval-profiles/bug-investigation/v1.yaml",
+                ".memory-seed/retrieval-profiles/implementation/v1.yaml",
+                ".memory-seed/retrieval-profiles/refactoring/v1.yaml",
+                ".memory-seed/retrieval-profiles/research/v1.yaml",
                 ".memory-seed/sessions/.gitkeep",
+                ".memory-seed/skills/adr_sweep.md",
                 ".memory-seed/skills/agent_collaboration.md",
                 ".memory-seed/skills/code_search.md",
                 ".memory-seed/skills/compact_mermaid_diagrams.md",
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
+                ".memory-seed/skills/design_discovery.md",
                 ".memory-seed/skills/developer-rendered-ui-debugging.md",
                 ".memory-seed/skills/document_ingestion.md",
                 ".memory-seed/skills/docx_render_windows.md",
@@ -661,6 +817,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/skill_architecture.md",
                 ".memory-seed/skills/subproject_runtime.md",
                 ".memory-seed/skills/superpowers_integration.md",
+                ".memory-seed/skills/systematic_debugging.md",
                 ".memory-seed/skills/topic_swarm.md",
                 ".memory-seed/topics.yaml",
                 "AGENTS.md",

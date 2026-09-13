@@ -126,6 +126,12 @@ class McpReadParityTests(unittest.TestCase):
         self._git("init", "-q")
         self._git("config", "user.name", "Test User")
         self._git("config", "user.email", "test@example.com")
+        # These tests snapshot every file under the repo before and after a read-only call to
+        # prove nothing was written. `git commit` can fork a detached `git gc --auto` in the
+        # background; on a loaded CI runner that fork can still be mid-run (a stray
+        # `.git/objects/maintenance.lock`, rewritten refs/packs) when the second snapshot fires,
+        # failing the equality check on background git activity rather than a real regression.
+        self._git("config", "gc.auto", "0")
         self._git("add", ".")
         self._git("commit", "-qm", "fixture")
 
@@ -305,9 +311,9 @@ class McpReadParityTests(unittest.TestCase):
         self.assertEqual(payload["corpus_cache"]["health"], "missing")
         self.assertFalse(missing.exists())
 
-    def test_registry_adds_exactly_three_read_tools_without_changing_writes(self) -> None:
+    def test_registry_preserves_read_write_classification(self) -> None:
         names = [tool["name"] for tool in TOOLS]
-        self.assertEqual(len(names), 23)
+        self.assertEqual(len(names), len(set(names)))
         self.assertEqual(
             MUTATING_TOOL_NAMES,
             {
@@ -315,9 +321,26 @@ class McpReadParityTests(unittest.TestCase):
                 "memory_session_integrate",
                 "memory_adr_reviewed",
                 "memory_link_retract",
+                "memory_decision_provenance_bind",
+                "memory_reflection_ledger_init",
+                "memory_reflection_ledger_append",
+                "memory_reflection_ledger_close",
+                "memory_reflection_ledger_rebind",
+                "memory_reflection_ledger_finalize",
+                "memory_reflection_ledger_expire",
             },
         )
-        for name in ("memory_links_chain", "memory_link_audit", "memory_esr"):
+        self.assertTrue(MUTATING_TOOL_NAMES <= set(names))
+        for name in (
+            "memory_links_chain",
+            "memory_link_audit",
+            "memory_esr",
+            "memory_task_packet_preview",
+            "memory_task_packet_compile",
+            "memory_reflection_board_view",
+            "memory_reflection_ledger_view",
+            "memory_reflection_ledger_check",
+        ):
             self.assertNotIn(name, MUTATING_TOOL_NAMES)
             tool = next(tool for tool in TOOLS if tool["name"] == name)
             self.assertNotIn("dry_run", tool["inputSchema"]["properties"])

@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_semantic_provider
 title: Model2Vec default provider; silent lexical degrade; model2vec the only required dep
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `founding:.memory-seed/index.md#L85`
 
 `model2vec` is a REQUIRED dependency and the package's only one. MCP memory search uses the static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata and recency ranking when semantic scoring fails or is disabled. `pip install --no-deps memory-seed` is the supported lightweight install without semantic ranking, and a test pins that `project.dependencies` contains exactly one entry.
 
-### Why
+### Reason
 
 A local static embedding provider gives semantic ranking with no network, no API key and no per-query cost, which is what a local-first memory substrate requires. Making it required rather than an extra means the default install ranks well; `--no-deps` remains the documented escape for a genuinely minimal install. Degrading silently to lexical keeps retrieval working when the provider cannot load - and because a silent degrade is a trust hazard, `esr` reports it on every run.
 
-### How it evolved
+### Impact
 
 Founded from the control file: the lightweight install was settled as `--no-deps` rather than an extra, pinned by a test asserting model2vec is the sole required dependency.
 
@@ -59,6 +59,7 @@ Founded from the control file: the lightweight install was settled as `--no-deps
   "event_id": "adre_5641978d0da225ea3da1",
   "founding_quote": "`model2vec` is a REQUIRED dependency and the package's only one",
   "founding_source": ".memory-seed/index.md#L85",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_9r00krq403dsmdnq:d1"
@@ -70,11 +71,11 @@ Founded from the control file: the lightweight install was settled as `--no-deps
 
 `model2vec` is a REQUIRED dependency and the package's only one. MCP memory search uses the static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata and recency ranking when semantic scoring fails or is disabled. `pip install --no-deps memory-seed` is the supported lightweight install without semantic ranking, and a test pins that `project.dependencies` contains exactly one entry.
 
-#### Why
+#### Reason
 
 A local static embedding provider gives semantic ranking with no network, no API key and no per-query cost, which is what a local-first memory substrate requires. Making it required rather than an extra means the default install ranks well; `--no-deps` remains the documented escape for a genuinely minimal install. Degrading silently to lexical keeps retrieval working when the provider cannot load - and because a silent degrade is a trust hazard, `esr` reports it on every run.
 
-#### Evolution
+#### Impact
 
 Founded from the control file: the lightweight install was settled as `--no-deps` rather than an extra, pinned by a test asserting model2vec is the sole required dependency.
 
@@ -84,10 +85,19 @@ Founded from the control file: the lightweight install was settled as `--no-deps
 {
   "event_id": "adre_91aa7e2447fa0be5721c",
   "founding_source": ".memory-seed/index.md#L85",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L85.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L85 becomes the authoritative decision; later contrary evidence requires a successor revision.

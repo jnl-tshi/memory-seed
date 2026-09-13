@@ -54,6 +54,8 @@ JSON_RE = re.compile(r"```json\s*\n(?P<json>.*?)\n```", re.DOTALL)
 # this cannot mistake one for the other.
 EVENT_HEADING_RE = re.compile(r"^### (?P<kind>[a-z][a-z0-9-]*) - \S", re.MULTILINE)
 ALLOWED_SOURCES = {"write-time", "derived"}
+ADR_SCHEMA_VERSIONS = {1, 2}
+IMPACT_PROVENANCE = {"preserved", "reconstructed", "not-recorded"}
 
 # Constitution bindings live IN the ADR event ledger (JNL, 2026-08-06: "why can't the adr
 # reference the constitution location directly?") rather than a separate sidecar family. A ref
@@ -105,6 +107,12 @@ class AdrEvent:
     constitution_refs: tuple[ConstitutionRef, ...] = ()
     founding_source: str | None = None
     founding_quote: str = ""
+    # v2 keeps the three human sections uniform.  The legacy fields remain only so schema-v1
+    # records and callers can be read without rewriting history.
+    impact: str = ""
+    impact_provenance: str = "preserved"
+    impact_evidence: tuple[str, ...] = ()
+    body_issues: tuple[str, ...] | None = None
 
     @property
     def revision_key(self) -> str | None:
@@ -138,6 +146,7 @@ class AdrRecord:
     source: str
     events: list[AdrEvent] = field(default_factory=list)
     path: Path | None = None
+    format_version: int = 1
 
     @property
     def state(self) -> AdrState:
@@ -229,6 +238,34 @@ def _list(block: str, key: str) -> tuple[str, ...]:
 def _section(block: str, heading: str) -> str:
     match = re.search(rf"^#### {re.escape(heading)}\s*\n(?P<text>.*?)(?=^#### |\Z)", block, re.MULTILINE | re.DOTALL)
     return match.group("text").strip() if match else ""
+
+
+def _canonical_reason(event: AdrEvent) -> str:
+    """Return the v2 Reason, falling back to the v1 Why field."""
+    return event.reason or event.why
+
+
+def _canonical_impact(event: AdrEvent) -> str:
+    """Return the v2 Impact, falling back to the v1 Evolution field."""
+    return event.impact or event.evolution
+
+
+def _v2_body_issues(body: str) -> tuple[str, ...]:
+    """Validate the authored v2 event body before it becomes replay input."""
+    issues: list[str] = []
+    json_blocks = list(JSON_RE.finditer(body))
+    if len(json_blocks) != 1:
+        issues.append("requires exactly one JSON metadata envelope")
+    headings = re.findall(r"^#### ([^\n]+)\s*$", body, re.MULTILINE)
+    expected = ["Decision", "Reason", "Impact"]
+    if headings != expected:
+        issues.append("requires exactly one Decision, Reason, Impact section in that order")
+    remainder = JSON_RE.sub("", body)
+    remainder = re.sub(r"^#### [^\n]+\s*\n.*?(?=^#### |\Z)", "", remainder,
+                       flags=re.MULTILINE | re.DOTALL)
+    if remainder.strip():
+        issues.append("contains prose outside its JSON envelope and canonical sections")
+    return tuple(issues)
 
 
 def proposal_for(record: AdrRecord, decision_ref: str | None) -> AdrEvent | None:
@@ -336,6 +373,7 @@ def current_proposal(record: AdrRecord) -> AdrEvent | None:
 
 
 def event_to_dict(event: AdrEvent) -> dict[str, Any]:
+    reason, impact = _canonical_reason(event), _canonical_impact(event)
     return {
         "kind": event.kind, "event_id": event.event_id, "timestamp": event.timestamp,
         "source": event.source, "decision_ref": event.decision_ref,
@@ -344,7 +382,11 @@ def event_to_dict(event: AdrEvent) -> dict[str, Any]:
         "predecessors": [{"decision": p.decision, "relation_assertion": p.relation_assertion} for p in event.predecessors],
         "supporting_decisions": list(event.supporting_decisions),
         "matched_decisions": list(event.matched_decisions), "decision": event.decision,
-        "why": event.why, "evolution": event.evolution, "reason": event.reason,
+        "reason": reason, "impact": impact,
+        "impact_provenance": event.impact_provenance,
+        "impact_evidence": list(event.impact_evidence),
+        # Compatibility aliases for v1 API consumers.  New code must use reason/impact.
+        "why": reason, "evolution": impact,
         "replacement_adr": event.replacement_adr,
         "constitution_refs": [{"ref": r.ref, "role": r.role} for r in event.constitution_refs],
         "founding_source": event.founding_source,
@@ -352,10 +394,14 @@ def event_to_dict(event: AdrEvent) -> dict[str, Any]:
     }
 
 
-def render_event(event: AdrEvent) -> str:
-    metadata = {k: v for k, v in event_to_dict(event).items() if k not in {"kind", "timestamp", "decision", "why", "evolution", "reason"} and v not in (None, [], "")}
+def render_event(event: AdrEvent, *, schema_version: int = 1) -> str:
+    metadata = {k: v for k, v in event_to_dict(event).items() if k not in {"kind", "timestamp", "decision", "why", "evolution", "reason", "impact"} and v not in (None, [], "")}
+    if schema_version == 1:
+        metadata.pop("impact_provenance", None)
+        metadata.pop("impact_evidence", None)
     lines = [f"### {event.kind} - {event.timestamp}", "", "```json", json.dumps(metadata, indent=2, ensure_ascii=False, sort_keys=True), "```"]
-    for heading, text in (("Decision", event.decision), ("Why", event.why), ("Evolution", event.evolution), ("Reason", event.reason)):
+    sections = (("Decision", event.decision), ("Reason", _canonical_reason(event)), ("Impact", _canonical_impact(event))) if schema_version == 2 else (("Decision", event.decision), ("Why", event.why), ("Evolution", event.evolution), ("Reason", event.reason))
+    for heading, text in sections:
         if text:
             lines.extend(["", f"#### {heading}", "", text])
     return "\n".join(lines)
@@ -440,7 +486,7 @@ def _first_sentence(text: str, cap: int = 110) -> str:
 def render_adr(record: AdrRecord) -> str:
     state, proposal = replay_adr(record), current_proposal(record)
     authority = f"`{state.authoritative_decision}`" if state.authoritative_decision else "not yet accepted"
-    front = ["---", "format: memory-seed-adr/1", f"schema_version: {record.schema_version}", f"adr_id: {record.adr_id}", f"title: {_yaml_scalar(record.title)}"]
+    front = ["---", f"format: memory-seed-adr/{record.schema_version}", f"schema_version: {record.schema_version}", f"adr_id: {record.adr_id}", f"title: {_yaml_scalar(record.title)}"]
     if record.topics:
         front.extend(["topics:", *(f"  - {topic}" for topic in record.topics)])
     front.extend([f"created_at: {record.created_at}", f"user_initials: {record.user_initials}", f"agent_type: {record.agent_type}", f"source: {record.source}", "---", ""])
@@ -448,8 +494,8 @@ def render_adr(record: AdrRecord) -> str:
         f"# {record.title}", "", "## Current view", "", "<!-- memory-seed-derived-current-view:start -->",
         f"Status: **{state.current_status.title()}**", "", f"Authoritative decision: {authority}", "",
         "### Decision", "", proposal.decision if proposal else "Not recorded.", "",
-        "### Why", "", proposal.why if proposal else "Not recorded.", "",
-        "### How it evolved", "", proposal.evolution if proposal else "No evolution has been recorded.", "",
+        ("### Reason" if record.schema_version == 2 else "### Why"), "", _canonical_reason(proposal) if proposal else "Not recorded.", "",
+        ("### Impact" if record.schema_version == 2 else "### How it evolved"), "", _canonical_impact(proposal) if proposal else "No impact has been recorded.", "",
     ]
     if proposal and proposal.constitution_refs:
         # Rendered only when bindings exist, so every ADR written before the field stays
@@ -474,7 +520,7 @@ def render_adr(record: AdrRecord) -> str:
             view.append(f"- `{ref}`" + (f" - {summary}" if summary else ""))
         view.append("")
     view.extend(["<!-- memory-seed-derived-current-view:end -->", "", "## Event ledger", "", ""])
-    events = "\n\n".join(render_event(event) for event in record.events)
+    events = "\n\n".join(render_event(event, schema_version=record.schema_version) for event in record.events)
     return "\n".join(front + view) + events + "\n"
 
 
@@ -483,10 +529,13 @@ def parse_adr_text(text: str, *, path: Path | None = None) -> AdrRecord:
         raise ValueError("ADR sidecar has no closed YAML frontmatter")
     end = text.find("\n---\n", 4)
     front = text[4:end]
-    required = {key: _scalar(front, key) for key in ("schema_version", "adr_id", "title", "created_at", "user_initials", "agent_type", "source")}
+    required = {key: _scalar(front, key) for key in ("format", "schema_version", "adr_id", "title", "created_at", "user_initials", "agent_type", "source")}
     missing = [key for key, value in required.items() if value is None]
     if missing:
         raise ValueError("ADR sidecar is missing frontmatter field(s): " + ", ".join(missing))
+    schema_version = int(required["schema_version"] or "0")
+    if required["format"] != f"memory-seed-adr/{schema_version}":
+        raise ValueError("ADR format must match schema_version")
     events: list[AdrEvent] = []
     for match in EVENT_RE.finditer(text[end + 5:].lstrip("\n")):
         body = match.group("body")
@@ -496,14 +545,17 @@ def parse_adr_text(text: str, *, path: Path | None = None) -> AdrRecord:
         meta = json.loads(json_match.group("json"))
         predecessors = tuple(AdrPredecessor(str(item.get("decision", "")), str(item.get("relation_assertion", ""))) for item in meta.get("predecessors", []) if isinstance(item, Mapping))
         bindings = tuple(ConstitutionRef(str(item.get("ref", "")), str(item.get("role", ""))) for item in meta.get("constitution_refs", []) if isinstance(item, Mapping))
+        is_v2 = schema_version == 2
         events.append(AdrEvent(
             match.group("kind"), str(meta.get("event_id", "")), match.group("timestamp").strip(), str(meta.get("source", "")),
             meta.get("decision_ref"), meta.get("update_entry_id"), meta.get("expected_authoritative_decision"), predecessors,
             tuple(str(x) for x in meta.get("supporting_decisions", [])), tuple(str(x) for x in meta.get("matched_decisions", [])),
             _section(body, "Decision"), _section(body, "Why"), _section(body, "Evolution"), _section(body, "Reason"), meta.get("replacement_adr"),
             bindings, meta.get("founding_source"), str(meta.get("founding_quote", "")),
+            _section(body, "Impact") if is_v2 else "", str(meta.get("impact_provenance", "preserved")),
+            tuple(str(x) for x in meta.get("impact_evidence", [])), _v2_body_issues(body) if is_v2 else (),
         ))
-    return AdrRecord(int(required["schema_version"] or "0"), required["adr_id"] or "", required["title"] or "", _list(front, "topics"), required["created_at"] or "", required["user_initials"] or "", required["agent_type"] or "", required["source"] or "", events, path)
+    return AdrRecord(schema_version, required["adr_id"] or "", required["title"] or "", _list(front, "topics"), required["created_at"] or "", required["user_initials"] or "", required["agent_type"] or "", required["source"] or "", events, path, schema_version)
 
 
 def unknown_event_kinds(text: str) -> tuple[str, ...]:
@@ -529,11 +581,64 @@ def load_adr_for_write(path: Path, cwd: str | Path = ".") -> tuple[AdrRecord | N
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         return None, (f"existing ADR is not writable: {exc}",)
     issues = validate_adr(record, cwd)
+    unknown = unknown_event_kinds(source_text)
+    if unknown:
+        issues.append("existing ADR has unsupported event kind(s): " + ", ".join(unknown))
     if render_adr(record) != source_text:
         issues.append(
             "existing ADR is not canonical; run adr check and repair it explicitly before lifecycle writes"
         )
     return (None, tuple(issues)) if issues else (record, ())
+
+
+def _migration_lifecycle_text(event: AdrEvent) -> tuple[str, str, str]:
+    """The only permitted v1 -> v2 reconciliation projection.
+
+    This mirrors the one-time corpus migration but deliberately accepts no prose supplied by a
+    caller: values come only from a v1 event or its explicit lifecycle envelope. It is a merge
+    compatibility guard, not a general rewrite capability.
+    """
+    ref = event.decision_ref or (f"founding:{event.founding_source}" if event.founding_source else "the selected revision")
+    if event.kind == "revision-proposed":
+        return event.decision, event.why, event.evolution or "Impact was not recorded in the schema-v1 event."
+    reason = event.reason or "Reason was not recorded in the schema-v1 event."
+    if event.kind == "revision-accepted":
+        return f"Accept {ref}.", reason, f"{ref} becomes the authoritative decision; later contrary evidence requires a successor revision."
+    if event.kind == "revision-rejected":
+        return f"Reject {ref}.", reason, f"{ref} is not adopted and the current authoritative decision remains unchanged."
+    if event.kind == "reviewed-no-change":
+        return f"Retain {ref} as the governing decision.", reason, "The review retained the governing decision; the original impact was not otherwise recorded."
+    if event.kind == "adr-superseded":
+        return f"Supersede this ADR with {event.replacement_adr or 'the replacement ADR'}.", reason, f"Authority for this concern moves to {event.replacement_adr or 'the replacement ADR'} while this ledger remains historical evidence."
+    if event.kind == "context-added":
+        return "Record the supplied decisions as context for this ADR.", reason, "This adds supporting context only; it does not change ADR membership, status, or authority."
+    return "", "", ""
+
+
+def _is_exact_v2_migration(base: AdrRecord, incoming: AdrRecord) -> bool:
+    """True only for the ratified v1 prose projection, with no changed ledger facts."""
+    if base.schema_version != 1 or incoming.schema_version != 2:
+        return False
+    fields = ("adr_id", "title", "topics", "created_at", "user_initials", "agent_type", "source")
+    if any(getattr(base, name) != getattr(incoming, name) for name in fields):
+        return False
+    if len(base.events) != len(incoming.events):
+        return False
+    for old, new in zip(base.events, incoming.events):
+        # All non-prose envelope fields must be literal equality.
+        envelope = ("kind", "event_id", "timestamp", "source", "decision_ref", "update_entry_id",
+                    "expected_authoritative_decision", "predecessors", "supporting_decisions",
+                    "matched_decisions", "replacement_adr", "constitution_refs", "founding_source",
+                    "founding_quote")
+        if any(getattr(old, name) != getattr(new, name) for name in envelope):
+            return False
+        decision, reason, impact = _migration_lifecycle_text(old)
+        provenance = "preserved" if old.kind != "revision-proposed" or old.evolution else "not-recorded"
+        if (new.decision, new.reason, new.impact, new.impact_provenance, new.impact_evidence) != (
+            decision, reason, impact, provenance, (),
+        ):
+            return False
+    return True
 
 
 def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrRecord | None, list[str]]:
@@ -543,6 +648,10 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
     ordered deterministically. A reused event id with different content or a
     transition whose expected head is stale is an explicit conflict.
     """
+    # Constitution v1.10 permits exactly this lossless historical projection. A normal branch
+    # reconciliation otherwise remains fail-closed for a changed event id or schema identity.
+    if _is_exact_v2_migration(base, incoming):
+        return incoming, []
     issues: list[str] = []
     identity_fields = (
         "schema_version", "adr_id", "title", "topics", "created_at",
@@ -682,8 +791,8 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
     anchors = _constitution_anchors(cwd)
     pending, pending_entry_ids = set(pending_decisions), set(pending_entries)
     issues: list[str] = []
-    if record.schema_version != 1:
-        issues.append("unsupported ADR schema_version; expected 1")
+    if record.schema_version not in ADR_SCHEMA_VERSIONS:
+        issues.append("unsupported ADR schema_version; expected 1 or 2")
     if not ADR_ID_RE.fullmatch(record.adr_id):
         issues.append("adr_id must match adr_<lowercase-slug>")
     if not record.title.strip() or not record.user_initials.strip() or not record.agent_type.strip():
@@ -727,6 +836,16 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
     last_timestamp: datetime | None = None
     for index, event in enumerate(record.events, 1):
         label = f"event {index} ({event.kind})"
+        if record.schema_version == 2 and event.body_issues is not None:
+            issues.extend(f"{label} {issue}" for issue in event.body_issues)
+            if not all((event.decision.strip(), _canonical_reason(event).strip(), _canonical_impact(event).strip())):
+                issues.append(f"{label} requires non-empty Decision, Reason, and Impact")
+            if event.impact_provenance not in IMPACT_PROVENANCE:
+                issues.append(f"{label} impact_provenance must be preserved, reconstructed, or not-recorded")
+            if event.impact_provenance == "reconstructed" and not event.impact_evidence:
+                issues.append(f"{label} reconstructed Impact requires direct evidence references")
+            if event.impact_provenance != "reconstructed" and event.impact_evidence:
+                issues.append(f"{label} impact_evidence is allowed only for reconstructed Impact")
         if event.kind not in EVENT_TYPES:
             issues.append(f"{label} has unsupported type")
         if not EVENT_ID_RE.fullmatch(event.event_id):
@@ -768,7 +887,7 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
             else:
                 issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
             issues.extend(_replay_step(cursor, event, record, phrase))
-            if not event.decision.strip() or not event.why.strip():
+            if record.schema_version == 1 and (not event.decision.strip() or not event.why.strip()):
                 issues.append(f"{label} requires Decision and Why")
             for predecessor in event.predecessors:
                 issues.extend(_ref_issues(predecessor.decision, known, ordinals, f"{label} predecessor", pending))
@@ -816,20 +935,45 @@ def iter_adrs(cwd: str | Path = ".") -> Iterable[AdrRecord]:
 
 
 def record_digest(record: AdrRecord) -> str:
-    payload = {"adr_id": record.adr_id, "title": record.title, "topics": record.topics, "events": [event_to_dict(item) for item in record.events]}
+    # Schema-v1 receipts were published before canonical fields/provenance existed. Keep their
+    # byte-level digest payload stable so merely learning to read v2 does not stale old receipts.
+    def legacy_event(item: AdrEvent) -> dict[str, Any]:
+        return {
+            "kind": item.kind, "event_id": item.event_id, "timestamp": item.timestamp,
+            "source": item.source, "decision_ref": item.decision_ref,
+            "update_entry_id": item.update_entry_id,
+            "expected_authoritative_decision": item.expected_authoritative_decision,
+            "predecessors": [{"decision": p.decision, "relation_assertion": p.relation_assertion} for p in item.predecessors],
+            "supporting_decisions": list(item.supporting_decisions),
+            "matched_decisions": list(item.matched_decisions), "decision": item.decision,
+            "why": item.why, "evolution": item.evolution, "reason": item.reason,
+            "replacement_adr": item.replacement_adr,
+            "constitution_refs": [{"ref": r.ref, "role": r.role} for r in item.constitution_refs],
+            "founding_source": item.founding_source, "founding_quote": item.founding_quote,
+        }
+    events = [event_to_dict(item) for item in record.events] if record.schema_version == 2 else [legacy_event(item) for item in record.events]
+    payload = {"adr_id": record.adr_id, "title": record.title, "topics": record.topics, "events": events}
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def adr_to_dict(record: AdrRecord, *, include_events: bool = True) -> dict[str, Any]:
     state, proposal = replay_adr(record), current_proposal(record)
+    reason = _canonical_reason(proposal) if proposal else ""
+    impact = _canonical_impact(proposal) if proposal else ""
     result: dict[str, Any] = {
         "adr_id": record.adr_id, "title": record.title, "topics": list(record.topics),
         "created_at": record.created_at, "source": record.source,
         "current_status": state.current_status, "authoritative_decision": state.authoritative_decision,
         "pending_decisions": list(state.pending_decisions), "rejected_decisions": list(state.rejected_decisions),
         "superseded_by": state.superseded_by, "membership": sorted(adr_membership(record)),
-        "current": {"decision_ref": proposal.decision_ref if proposal else None, "decision": proposal.decision if proposal else "", "why": proposal.why if proposal else "", "evolution": proposal.evolution if proposal else ""},
+        "current": {
+            "decision_ref": proposal.decision_ref if proposal else None,
+            "decision": proposal.decision if proposal else "",
+            "reason": reason, "impact": impact,
+            # Deprecated aliases retained through the v1 compatibility window.
+            "why": reason, "evolution": impact,
+        },
         "digest": record_digest(record), "path": str(record.path) if record.path else None,
     }
     if include_events:
@@ -986,10 +1130,18 @@ def preflight_append_adr_review(
                 )
             elif outcome == "revise" and not all(
                 isinstance(action.get(field), str) and action[field].strip()
-                for field in ("decision", "why", "evolution")
+                for field in ("decision",)
             ):
                 malformed_outcomes.append(
-                    f"ADR {adr_id} revise outcome requires non-empty decision, why, and evolution"
+                    f"ADR {adr_id} revise outcome requires non-empty decision, reason, and impact"
+                )
+            elif outcome == "revise" and not all(
+                isinstance(action.get(field, action.get(legacy, "")), str)
+                and str(action.get(field, action.get(legacy, ""))).strip()
+                for field, legacy in (("reason", "why"), ("impact", "evolution"))
+            ):
+                malformed_outcomes.append(
+                    f"ADR {adr_id} revise outcome requires non-empty decision, reason, and impact"
                 )
             if outcome == "no-change" and not (
                 isinstance(action.get("reason"), str) and action["reason"].strip()
@@ -1032,7 +1184,10 @@ def _save(record: AdrRecord, cwd: str | Path, dry_run: bool, *, pending_decision
     path = record.path or resolve_runtime(cwd).memory_dir / "decisions" / f"{record.adr_id}.md"
     record.path = path
     rendered = render_adr(record)
-    issues = validate_adr(record, cwd, pending_decisions=pending_decisions, pending_entries=pending_entries)
+    # Validate the exact bytes to be written.  This catches v2 body grammar even when the
+    # writer constructed an in-memory event directly rather than parsing it first.
+    validated = parse_adr_text(rendered, path=path) if record.schema_version == 2 else record
+    issues = validate_adr(validated, cwd, pending_decisions=pending_decisions, pending_entries=pending_entries)
     if issues:
         return AdrOperationResult(False, path, record.adr_id, record.current_status, record.authoritative_decision, tuple(issues), False, rendered)
     if not dry_run:
@@ -1041,7 +1196,7 @@ def _save(record: AdrRecord, cwd: str | Path, dry_run: bool, *, pending_decision
     return AdrOperationResult(True, path, record.adr_id, record.current_status, record.authoritative_decision, (), not dry_run, rendered if dry_run else None)
 
 
-def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str | None = None, source_decision: str | None = None, title: str, topics: Sequence[str], user_initials: str, agent_type: str, source: str, decision: str = "See the authoritative session decision.", why: str = "See the authoritative session decision rationale.", evolution: str = "This is the first revision of this architectural concern.", update_entry_id: str | None = None, direct_predecessors: Sequence[AdrPredecessor] = (), supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), founding_source: str | None = None, founding_quote: str = "", timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str | None = None, source_decision: str | None = None, title: str, topics: Sequence[str], user_initials: str, agent_type: str, source: str, decision: str = "See the authoritative session decision.", why: str | None = None, evolution: str | None = None, reason: str | None = None, impact: str | None = None, update_entry_id: str | None = None, direct_predecessors: Sequence[AdrPredecessor] = (), supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), founding_source: str | None = None, founding_quote: str = "", timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
     """Create a new ADR from a session decision OR from a founding source.
 
     Decision-sourced (the original path): `source_entry_id` + `source_decision` name the
@@ -1056,19 +1211,21 @@ def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str
     if path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR already exists",))
     stamp = timestamp or _now()
+    reason = reason or why or "See the authoritative session decision rationale."
+    impact = impact or evolution or "The decision is expected to govern this architectural concern; contrary evidence requires a successor revision."
     if founding_source is not None:
         if source_entry_id or source_decision:
             return AdrOperationResult(False, path, adr_id, issues=("supply a session decision or a founding source, not both",))
-        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", founding_source, stamp), stamp, source, None, update_entry_id, predecessors=(), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs), founding_source=founding_source, founding_quote=founding_quote)
+        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", founding_source, stamp), stamp, source, None, update_entry_id, predecessors=(), supporting_decisions=tuple(supporting_decisions), decision=decision, reason=reason, constitution_refs=tuple(constitution_refs), founding_source=founding_source, founding_quote=founding_quote, impact=impact)
     else:
         if not source_entry_id or not source_decision:
             return AdrOperationResult(False, path, adr_id, issues=("promotion requires source_entry_id and source_decision (or a founding_source)",))
         ref = f"{source_entry_id}:{source_decision}"
-        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", ref, stamp), stamp, source, ref, update_entry_id or source_entry_id, predecessors=tuple(direct_predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs))
-    return _save(AdrRecord(1, adr_id, title, tuple(dict.fromkeys(topics)), stamp, user_initials, agent_type, source, [event], path), cwd, dry_run)
+        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", ref, stamp), stamp, source, ref, update_entry_id or source_entry_id, predecessors=tuple(direct_predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, reason=reason, constitution_refs=tuple(constitution_refs), impact=impact)
+    return _save(AdrRecord(2, adr_id, title, tuple(dict.fromkeys(topics)), stamp, user_initials, agent_type, source, [event], path, 2), cwd, dry_run)
 
 
-def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decision: str, why: str, evolution: str, update_entry_id: str, source: str, predecessors: Sequence[AdrPredecessor], supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decision: str, why: str | None = None, evolution: str | None = None, reason: str | None = None, impact: str | None = None, update_entry_id: str, source: str, predecessors: Sequence[AdrPredecessor], supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if not path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
@@ -1076,7 +1233,11 @@ def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decisio
     if record is None:
         return AdrOperationResult(False, path, adr_id, issues=existing_issues)
     stamp = timestamp or _now()
-    record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs)))
+    reason, impact = reason or why or "", impact or evolution or ""
+    if record.schema_version == 2:
+        record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, reason=reason, constitution_refs=tuple(constitution_refs), impact=impact))
+    else:
+        record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=reason, evolution=impact, constitution_refs=tuple(constitution_refs)))
     return _save(record, cwd, dry_run)
 
 
@@ -1096,6 +1257,7 @@ def transition_adr(cwd: str | Path = ".", *, adr_id: str, status: str, decision_
     kind = {"accepted": "revision-accepted", "rejected": "revision-rejected", "superseded": "adr-superseded"}.get(status)
     if not kind:
         return AdrOperationResult(False, path, adr_id, issues=("unsupported ADR status",))
+    reason = reason or f"Record the {status} transition for this ADR revision."
     if expected_authoritative_decision is None and expected_previous_status == "proposed":
         expected_authoritative_decision = record.authoritative_decision
     # A founding revision is tracked under its pseudo-ref. Store it back on the event's founding
@@ -1103,7 +1265,23 @@ def transition_adr(cwd: str | Path = ".", *, adr_id: str, status: str, decision_
     founding_source: str | None = None
     if decision_ref and decision_ref.startswith("founding:"):
         founding_source, decision_ref = decision_ref[len("founding:"):], None
-    record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref or founding_source, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, reason=reason, replacement_adr=replacement_adr, founding_source=founding_source))
+    ref = decision_ref or (f"founding:{founding_source}" if founding_source else "the selected revision")
+    if record.schema_version == 2:
+        decision = (
+            f"Accept {ref}." if status == "accepted" else
+            f"Reject {ref}." if status == "rejected" else
+            f"Supersede this ADR with {replacement_adr or 'the replacement ADR'}."
+        )
+        impact = (
+            f"{ref} becomes the authoritative decision; later contrary evidence must create a successor revision."
+            if status == "accepted" else
+            f"{ref} is not adopted and the current authoritative decision remains unchanged."
+            if status == "rejected" else
+            f"Authority for this concern moves to {replacement_adr or 'the replacement ADR'} while this ledger remains historical evidence."
+        )
+        record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref or founding_source, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, decision=decision, reason=reason, replacement_adr=replacement_adr, founding_source=founding_source, impact=impact))
+    else:
+        record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref or founding_source, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, reason=reason, replacement_adr=replacement_adr, founding_source=founding_source))
     return _save(record, cwd, dry_run)
 
 
@@ -1123,10 +1301,19 @@ def add_context(cwd: str | Path = ".", *, adr_id: str, supporting_decisions: Seq
     if record is None:
         return AdrOperationResult(False, path, adr_id, issues=existing_issues)
     stamp = timestamp or _now()
-    record.events.append(AdrEvent(
-        "context-added", _event_id(adr_id, "context", tuple(supporting_decisions), stamp), stamp,
-        source, None, update_entry_id, supporting_decisions=tuple(supporting_decisions), reason=reason,
-    ))
+    if record.schema_version == 2:
+        refs = ", ".join(supporting_decisions)
+        record.events.append(AdrEvent(
+            "context-added", _event_id(adr_id, "context", tuple(supporting_decisions), stamp), stamp,
+            source, None, update_entry_id, supporting_decisions=tuple(supporting_decisions),
+            decision=f"Record {refs} as context for this ADR.", reason=reason,
+            impact="This adds supporting context only; it does not change ADR membership, status, or authority.",
+        ))
+    else:
+        record.events.append(AdrEvent(
+            "context-added", _event_id(adr_id, "context", tuple(supporting_decisions), stamp), stamp,
+            source, None, update_entry_id, supporting_decisions=tuple(supporting_decisions), reason=reason,
+        ))
     return _save(record, cwd, dry_run)
 
 
@@ -1136,9 +1323,18 @@ def append_outcome_event(record: AdrRecord, *, outcome: Mapping[str, Any], decis
     if kind == "revise":
         assertions = outcome.get("assertions", {}) if isinstance(outcome.get("assertions"), Mapping) else {}
         predecessors = tuple(AdrPredecessor(item, str(assertions.get(item, ""))) for item in matched_decisions)
-        event = AdrEvent("revision-proposed", _event_id(record.adr_id, "proposed", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, predecessors=predecessors, decision=str(outcome.get("decision", "")), why=str(outcome.get("why", "")), evolution=str(outcome.get("evolution", "")))
+        reason = str(outcome.get("reason", outcome.get("why", "")))
+        impact = str(outcome.get("impact", outcome.get("evolution", "")))
+        if record.schema_version == 2:
+            event = AdrEvent("revision-proposed", _event_id(record.adr_id, "proposed", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, predecessors=predecessors, decision=str(outcome.get("decision", "")), reason=reason, impact=impact)
+        else:
+            event = AdrEvent("revision-proposed", _event_id(record.adr_id, "proposed", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, predecessors=predecessors, decision=str(outcome.get("decision", "")), why=reason, evolution=impact)
     elif kind == "no-change":
-        event = AdrEvent("reviewed-no-change", _event_id(record.adr_id, "no-change", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, matched_decisions=tuple(matched_decisions), reason=str(outcome.get("reason", "")))
+        reason = str(outcome.get("reason", ""))
+        if record.schema_version == 2:
+            event = AdrEvent("reviewed-no-change", _event_id(record.adr_id, "no-change", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, matched_decisions=tuple(matched_decisions), decision=f"Retain {decision_ref} as the governing decision.", reason=reason, impact="The reviewed evidence supports retaining the current decision; no successor revision is required.")
+        else:
+            event = AdrEvent("reviewed-no-change", _event_id(record.adr_id, "no-change", decision_ref, timestamp), timestamp, source, decision_ref, update_entry_id, matched_decisions=tuple(matched_decisions), reason=reason)
     if event is not None and all(existing.event_id != event.event_id for existing in record.events):
         record.events.append(event)
 

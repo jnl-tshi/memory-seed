@@ -17,11 +17,13 @@ docs/3_Spec/graph-edge-contract.md.
 from __future__ import annotations
 
 import hashlib
+import csv
+import io
 import json
 import re
 import time
-from dataclasses import dataclass, replace
-from datetime import date, datetime
+from dataclasses import dataclass, field, replace
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
@@ -361,10 +363,11 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     return payload
 
 
-RETRIEVAL_RESOLVER_VERSION = 1
+RETRIEVAL_RESOLVER_VERSION = 2
+RETRIEVAL_V2_RESOLVER_VERSION = 3
 RETRIEVAL_PREVIEW_SCHEMA = "memory-seed/retrieval-spec-preview"
 EVIDENCE_PACK_SCHEMA = "memory-seed/evidence-pack"
-EVIDENCE_PACK_VERSION = 1
+EVIDENCE_PACK_VERSION = 2
 DEFAULT_RETRIEVAL_TIMEOUT_MS = 5_000
 _RETRIEVAL_REQUIRED_CLAUSES = (
     "required.constitution",
@@ -407,7 +410,7 @@ class RetrievalSpecResolutionError(RuntimeError):
 
 @dataclass
 class _RetrievalCandidate:
-    ref: str
+    evidence_id: str
     kind: str
     source: str
     line_range: tuple[int, int]
@@ -417,11 +420,17 @@ class _RetrievalCandidate:
     text: str
     selected_by: set[str]
     reasons: set[str]
+    model_selection_reasons: set[str] = field(default_factory=set)
+    pinned_required: bool = False
 
     @property
     def token_estimate(self) -> int:
         # Fixed local proxy. It is deliberately provider/tokenizer independent.
         return max(1, (len(self.text.encode("utf-8")) + 3) // 4)
+
+    @property
+    def content_digest(self) -> str:
+        return "sha256:" + hashlib.sha256(self.text.encode("utf-8")).hexdigest()
 
 
 def canonical_retrieval_json(payload: Mapping[str, Any]) -> str:
@@ -438,27 +447,73 @@ def _retrieval_corpus_revision(
 
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root.resolve()
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="corpus_revision",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     inputs: set[Path] = set()
     for constitution in (root / "docs" / "CONSTITUTION.md", root / "CONSTITUTION.md"):
         if constitution.is_file():
-            inputs.add(constitution)
+            inputs.add(
+                _runtime_scoped_candidate_path(
+                    root,
+                    constitution,
+                    stage="corpus_revision",
+                    details={"path": constitution.as_posix()},
+                )
+            )
     topics_index = runtime.memory_dir / "topics.yaml"
     if topics_index.is_file():
-        inputs.add(topics_index)
+        inputs.add(
+            _runtime_scoped_candidate_path(
+                root,
+                topics_index,
+                stage="corpus_revision",
+                details={"path": topics_index.as_posix()},
+            )
+        )
     sessions = runtime.memory_dir / "sessions"
     if sessions.is_dir():
-        inputs.update(path for path in sessions.rglob("*.md") if path.is_file())
+        _assert_runtime_tree_confined(root, sessions, stage="corpus_revision")
+        inputs.update(
+            _runtime_scoped_candidate_path(
+                root,
+                path,
+                stage="corpus_revision",
+                details={"path": path.as_posix()},
+            )
+            for path in sessions.rglob("*.md")
+            if path.is_file()
+        )
+    if (
+        normalized_spec.get("version") == 2
+        and any(
+            record.get("kind") == "adr"
+            for record in normalized_spec.get("selectors", {}).get("pinned", [])
+        )
+    ):
+        decisions = runtime.memory_dir / "decisions"
+        if decisions.is_dir():
+            _assert_runtime_tree_confined(root, decisions, stage="corpus_revision")
+            for path in decisions.rglob("*.md"):
+                if path.is_file():
+                    inputs.add(
+                        _runtime_scoped_candidate_path(
+                            root,
+                            path,
+                            stage="corpus_revision",
+                            details={"path": path.as_posix()},
+                        )
+                    )
     for relative in normalized_spec["filters"]["paths"]:
         if any(
             part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS
             for part in Path(relative).parts
         ):
             continue
-        candidate = (root / relative).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            continue
+        candidate = _runtime_scoped_path(root, relative)
         if candidate.is_file() and candidate.suffix.lower() == ".md":
             inputs.add(candidate)
 
@@ -490,17 +545,52 @@ def _runtime_scoped_path(root: Path, relative: str) -> Path:
             stage="path_filters",
             details={"path": relative},
         )
-    target = (root / relative).resolve()
+    return _runtime_scoped_candidate_path(
+        root,
+        root / relative,
+        stage="path_filters",
+        details={"path": relative},
+    )
+
+
+def _runtime_scoped_candidate_path(
+    root: Path,
+    candidate: Path,
+    *,
+    stage: str,
+    details: Mapping[str, Any] | None = None,
+) -> Path:
+    """Resolve a local source and reject symlink/junction escapes before reads."""
     try:
+        target = candidate.resolve()
         target.relative_to(root.resolve())
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         raise RetrievalSpecResolutionError(
             "forbidden_path",
-            "path resolves outside the active runtime",
-            stage="path_filters",
-            details={"path": relative},
+            "path cannot be resolved inside the active runtime",
+            stage=stage,
+            details=dict(details or {"path": candidate.as_posix()}),
         ) from exc
     return target
+
+
+def _assert_runtime_tree_confined(root: Path, directory: Path, *, stage: str) -> None:
+    """Preflight every retrieval-visible source path before a reader opens it."""
+    _runtime_scoped_candidate_path(
+        root,
+        directory,
+        stage=stage,
+        details={"path": directory.as_posix()},
+    )
+    if not directory.is_dir():
+        return
+    for candidate in directory.rglob("*"):
+        _runtime_scoped_candidate_path(
+            root,
+            candidate,
+            stage=stage,
+            details={"path": candidate.as_posix()},
+        )
 
 
 def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
@@ -508,19 +598,24 @@ def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
     distance = -1 if candidate.graph_distance is None else candidate.graph_distance
     # ISO dates sort lexically; invert their integer representation for newest first.
     recency = -int(candidate.session_date.replace("-", "")) if candidate.session_date else 0
-    return (0 if required else 1, distance, recency, candidate.ref)
+    # Required pinned evidence has an explicit caller mandate and must precede
+    # every otherwise-required candidate.  The leading field is constant for
+    # v1 candidates, preserving the frozen v1 order byte-for-byte.
+    return (0 if candidate.pinned_required else 1, 0 if required else 1, distance, recency, candidate.evidence_id)
 
 
 def _merge_candidate(
     candidates: dict[str, _RetrievalCandidate],
     candidate: _RetrievalCandidate,
 ) -> None:
-    existing = candidates.get(candidate.ref)
+    existing = candidates.get(candidate.evidence_id)
     if existing is None:
-        candidates[candidate.ref] = candidate
+        candidates[candidate.evidence_id] = candidate
         return
     existing.selected_by.update(candidate.selected_by)
     existing.reasons.update(candidate.reasons)
+    existing.model_selection_reasons.update(candidate.model_selection_reasons)
+    existing.pinned_required = existing.pinned_required or candidate.pinned_required
     if existing.graph_distance is None:
         existing.graph_distance = candidate.graph_distance
     elif candidate.graph_distance is not None:
@@ -536,6 +631,7 @@ def _decision_candidates(
     reasons: set[str],
     graph_distance: int,
     ordinals: set[str] | None = None,
+    canonical_ids: bool = False,
 ) -> list[_RetrievalCandidate]:
     from .core import entry_body_decisions
 
@@ -549,7 +645,7 @@ def _decision_candidates(
             path_lines = tuple(source.read_text(encoding="utf-8").splitlines())
         except (OSError, UnicodeDecodeError) as exc:
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "canonical session Markdown is unreadable",
                 stage="related_decisions",
                 details={"source": chunk.source_path},
@@ -590,19 +686,19 @@ def _decision_candidates(
         span = spans.get(decision.ordinal)
         if span is None:
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "canonical decision line range could not be resolved",
                 stage="related_decisions",
                 details={
-                    "ref": f"{chunk.entry_id}:{decision.ordinal}",
+                    "id": f"{chunk.entry_id}:{decision.ordinal}",
                     "source": chunk.source_path,
                 },
             )
         candidates.append(
             _RetrievalCandidate(
-                ref=(
+                evidence_id=(
                     f"{chunk.entry_id}:{decision.ordinal}"
-                    if multiple
+                    if canonical_ids or multiple
                     else str(chunk.entry_id)
                 ),
                 kind="decision",
@@ -630,7 +726,7 @@ def _entry_candidate(
     graph_distance: int,
 ) -> _RetrievalCandidate:
     return _RetrievalCandidate(
-        ref=str(chunk.entry_id or chunk.chunk_id),
+        evidence_id=str(chunk.entry_id or chunk.chunk_id),
         kind="session",
         source=chunk.source_path,
         line_range=(chunk.start_line, chunk.end_line),
@@ -641,6 +737,178 @@ def _entry_candidate(
         selected_by=set(selected_by),
         reasons=set(reasons),
     )
+
+
+def _adr_current_view_candidate(
+    *,
+    root: Path,
+    record: Any,
+    selected_by: set[str],
+    reason: str,
+    required: bool,
+) -> _RetrievalCandidate:
+    """Materialize only an ADR's canonical Current view, never its event ledger."""
+    path = _runtime_scoped_candidate_path(
+        root,
+        Path(record.path),
+        stage="pinned_selectors",
+        details={"id": record.adr_id},
+    )
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "canonical ADR Markdown is unreadable",
+            stage="pinned_selectors",
+            details={"id": record.adr_id},
+        ) from exc
+    start = next((index for index, line in enumerate(lines) if line == "## Current view"), None)
+    end = next((index for index, line in enumerate(lines) if line == "## Event ledger"), None)
+    if start is None or end is None or end <= start:
+        raise RetrievalSpecResolutionError(
+            "invalid_adr",
+            "ADR has no canonical Current view slice",
+            stage="pinned_selectors",
+            details={"id": record.adr_id},
+        )
+    return _RetrievalCandidate(
+        evidence_id=record.adr_id,
+        kind="adr",
+        source=path.relative_to(root).as_posix(),
+        line_range=(start + 1, end),
+        chunk_id=None,
+        session_date=None,
+        graph_distance=0,
+        text="\n".join(lines[start:end]),
+        selected_by=selected_by,
+        reasons={"explicit canonical pinned selector"},
+        model_selection_reasons={reason},
+        pinned_required=required,
+    )
+
+
+def _pinned_decision_candidate(
+    *,
+    root: Path,
+    chunk: MemoryChunk,
+    ordinal: str,
+    source_lines: dict[str, tuple[str, ...]],
+    reason: str,
+    required: bool,
+) -> _RetrievalCandidate | None:
+    """Use the existing decision reader, retaining its exact Markdown slice."""
+    candidates = _decision_candidates(
+        chunk,
+        root=root,
+        source_lines=source_lines,
+        selected_by={"selectors.pinned"},
+        reasons={"explicit canonical pinned selector"},
+        graph_distance=0,
+        ordinals={ordinal},
+        canonical_ids=True,
+    )
+    if not candidates:
+        return None
+    candidate = candidates[0]
+    candidate.model_selection_reasons.add(reason)
+    candidate.pinned_required = required
+    return candidate
+
+
+def _pinned_candidates(
+    pinned: Sequence[Mapping[str, Any]],
+    *,
+    root: Path,
+    memory_dir: Path,
+    by_id: Mapping[str, MemoryChunk],
+) -> tuple[list[_RetrievalCandidate], list[dict[str, str]]]:
+    """Resolve exact pinned identities via the existing ADR/session readers."""
+    if not pinned:
+        return [], []
+    from .adr import parse_adr
+
+    adr_pins = [record for record in pinned if record["kind"] == "adr"]
+    adrs: dict[str, Any] = {}
+    for record in adr_pins:
+        evidence_id = str(record["id"])
+        path = _runtime_scoped_candidate_path(
+            root,
+            memory_dir / "decisions" / f"{evidence_id}.md",
+            stage="pinned_selectors",
+            details={"id": evidence_id},
+        )
+        if not path.is_file():
+            continue
+        try:
+            adr = parse_adr(path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise RetrievalSpecResolutionError(
+                "invalid_adr",
+                "pinned ADR source is not a valid Memory Seed ADR",
+                stage="pinned_selectors",
+                details={"id": evidence_id},
+            ) from exc
+        if adr.adr_id == evidence_id:
+            adrs[evidence_id] = adr
+    source_lines: dict[str, tuple[str, ...]] = {}
+    candidates: list[_RetrievalCandidate] = []
+    warnings: list[dict[str, str]] = []
+    for record in pinned:
+        kind = str(record["kind"])
+        evidence_id = str(record["id"])
+        required = bool(record["required"])
+        reason = str(record["reason"])
+        candidate: _RetrievalCandidate | None = None
+        if kind == "adr":
+            adr = adrs.get(evidence_id)
+            if adr is not None:
+                candidate = _adr_current_view_candidate(
+                    root=root,
+                    record=adr,
+                    selected_by={"selectors.pinned"},
+                    reason=reason,
+                    required=required,
+                )
+        else:
+            entry_id, ordinal = evidence_id.rsplit(":", 1)
+            chunk = by_id.get(entry_id)
+            if chunk is not None:
+                candidate = _pinned_decision_candidate(
+                    root=root,
+                    chunk=chunk,
+                    ordinal=ordinal,
+                    source_lines=source_lines,
+                    reason=reason,
+                    required=required,
+                )
+        if candidate is not None:
+            # A required exact pin is canonical evidence in its own right.  A
+            # decision pin supplies the exact decision and latest-evidence
+            # obligations; an ADR pin supplies evidence but cannot pretend to
+            # be a related session decision.  Optional pins never broaden the
+            # inherited required coverage.
+            if required:
+                candidate.selected_by.add("required.evidence")
+                if kind == "decision":
+                    candidate.selected_by.add("required.related_decisions")
+            candidates.append(candidate)
+            continue
+        if required:
+            raise RetrievalSpecResolutionError(
+                "missing_required",
+                "a required pinned evidence identity was not found",
+                stage="pinned_selectors",
+                details={"id": evidence_id, "clause": "selectors.pinned"},
+            )
+        warnings.append(
+            {
+                "code": "optional_missing",
+                "clause": "selectors.pinned",
+                "detail": evidence_id,
+            }
+        )
+    return candidates, warnings
 
 
 def _check_retrieval_timeout(
@@ -668,6 +936,7 @@ def _build_retrieval_plan(
     clock: Callable[[], float],
     started: float,
     timeout_ms: int,
+    pinned: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     from .core import resolve_runtime
     from .semantic_cache import _entry_file_refs
@@ -686,6 +955,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clauses": list(_RETRIEVAL_REQUIRED_CLAUSES)},
         )
+    _runtime_scoped_candidate_path(
+        root,
+        runtime.memory_dir,
+        stage="runtime",
+        details={"path": runtime.memory_dir.as_posix()},
+    )
     completed.append("runtime")
     trace.append(
         {
@@ -715,6 +990,12 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clause": "required.constitution"},
         )
+    constitution_path = _runtime_scoped_candidate_path(
+        root,
+        constitution_path,
+        stage="constitution",
+        details={"path": constitution_path.as_posix()},
+    )
     try:
         constitution_text = constitution_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -730,7 +1011,7 @@ def _build_retrieval_plan(
     _merge_candidate(
         candidates,
         _RetrievalCandidate(
-            ref=constitution_source,
+            evidence_id=constitution_source,
             kind="constitution",
             source=constitution_source,
             line_range=(1, max(1, len(constitution_text.splitlines()))),
@@ -754,6 +1035,16 @@ def _build_retrieval_plan(
         clock, started, timeout_ms, stage="sessions", completed_stages=completed
     )
 
+    sessions_dir = runtime.memory_dir / "sessions"
+    _assert_runtime_tree_confined(root, sessions_dir, stage="sessions")
+    topics_index_path = runtime.memory_dir / "topics.yaml"
+    if topics_index_path.exists():
+        _runtime_scoped_candidate_path(
+            root,
+            topics_index_path,
+            stage="topic_filters",
+            details={"path": topics_index_path.as_posix()},
+        )
     chunks = augment_chunks_with_topic_sidecars(
         augment_chunks_with_link_sidecars(
             extract_memory_chunks(root, granularity="entry"),
@@ -773,6 +1064,24 @@ def _build_retrieval_plan(
             "candidate_count": len(by_id),
         }
     )
+    pinned_candidates, pinned_warnings = _pinned_candidates(
+        pinned,
+        root=root,
+        memory_dir=runtime.memory_dir,
+        by_id=by_id,
+    )
+    for candidate in pinned_candidates:
+        _merge_candidate(candidates, candidate)
+    warnings.extend(pinned_warnings)
+    if pinned:
+        trace.append(
+            {
+                "stage": "pinned_selectors",
+                "reader": "canonical ADR and session decision readers",
+                "requested": len(pinned),
+                "resolved": len(pinned_candidates),
+            }
+        )
     _check_retrieval_timeout(
         clock, started, timeout_ms, stage="topic_filters", completed_stages=completed
     )
@@ -856,20 +1165,24 @@ def _build_retrieval_plan(
 
     direct_markdown: list[_RetrievalCandidate] = []
     normalized_paths = list(normalized["filters"]["paths"])
+    include_path_references = bool(
+        normalized.get("selectors", {}).get("path_references", False)
+    )
     for requested in normalized_paths:
         target = _runtime_scoped_path(root, requested)
         matched = False
-        for chunk in chunks:
-            if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
-                add_root(
-                    chunk.entry_id,
-                    "",
-                    f"path {requested!r} matched canonical session file evidence"
-                )
-                matched = True
+        if include_path_references:
+            for chunk in chunks:
+                if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
+                    add_root(
+                        chunk.entry_id,
+                        "",
+                        f"path {requested!r} matched canonical session file evidence"
+                    )
+                    matched = True
         if target.is_file() and target.suffix.lower() == ".md":
             try:
-                text = target.read_text(encoding="utf-8")
+                source_text = target.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 raise RetrievalSpecResolutionError(
                     "forbidden_path",
@@ -878,12 +1191,33 @@ def _build_retrieval_plan(
                     completed_stages=completed,
                     details={"path": requested},
                 ) from exc
-            text = "\n".join(text.splitlines())
+            text = "\n".join(source_text.splitlines())
             source = target.relative_to(root).as_posix()
+            evidence_id = source
+            evidence_kind = "markdown"
+            try:
+                target.relative_to(runtime.memory_dir / "decisions")
+            except ValueError:
+                pass
+            else:
+                from .adr import parse_adr_text
+
+                try:
+                    adr = parse_adr_text(source_text, path=target)
+                except (ValueError, json.JSONDecodeError) as exc:
+                    raise RetrievalSpecResolutionError(
+                        "invalid_adr",
+                        "declared ADR path does not contain a valid Memory Seed ADR",
+                        stage="path_filters",
+                        completed_stages=completed,
+                        details={"path": requested},
+                    ) from exc
+                evidence_id = adr.adr_id
+                evidence_kind = "adr"
             direct_markdown.append(
                 _RetrievalCandidate(
-                    ref=source,
-                    kind="markdown",
+                    evidence_id=evidence_id,
+                    kind=evidence_kind,
                     source=source,
                     line_range=(1, max(1, len(text.splitlines()))),
                     chunk_id=None,
@@ -911,6 +1245,7 @@ def _build_retrieval_plan(
             "stage": "path_filters",
             "reader": "runtime-bounded canonical Markdown path reader",
             "requested": normalized_paths,
+            "path_references": include_path_references,
             "matched_entries": sum(
                 1
                 for selectors in root_selection.values()
@@ -1060,12 +1395,13 @@ def _build_retrieval_plan(
             reasons=reasons,
             graph_distance=distance,
             ordinals={ordinal},
+            canonical_ids=normalized["version"] == 2,
         )
         for candidate in decision_candidates:
             _merge_candidate(candidates, candidate)
             if state in root_state_reasons:
                 root_decision_refs_by_entry.setdefault(entry_id, []).append(
-                    candidate.ref
+                    candidate.evidence_id
                 )
             related_count += 1
 
@@ -1223,17 +1559,29 @@ def _build_retrieval_plan(
         if clause in _RETRIEVAL_REQUIRED_CLAUSES
     }
     lost = [clause for clause in _RETRIEVAL_REQUIRED_CLAUSES if clause not in covered]
-    if lost:
+    lost_pins = [
+        candidate.evidence_id
+        for candidate in ordered
+        if candidate.pinned_required and candidate not in selected
+    ]
+    if lost or lost_pins:
+        details: dict[str, Any] = {
+            "clauses": lost,
+            "max_entries": max_entries,
+            "max_tokens": max_tokens,
+        }
+        if lost_pins:
+            details["pinned_ids"] = lost_pins
         raise RetrievalSpecResolutionError(
             "required_limit_exceeded",
-            "limits would remove required clause coverage",
+            (
+                "limits would remove required clause coverage or pinned evidence"
+                if lost_pins
+                else "limits would remove required clause coverage"
+            ),
             stage="limits",
             completed_stages=completed,
-            details={
-                "clauses": lost,
-                "max_entries": max_entries,
-                "max_tokens": max_tokens,
-            },
+            details=details,
         )
     if omitted:
         warnings.append(
@@ -1269,6 +1617,7 @@ def _evidence_record(
     candidate: _RetrievalCandidate,
     *,
     include_excerpt: bool,
+    include_v2_selection_fields: bool = False,
 ) -> dict[str, Any]:
     fetch = (
         {
@@ -1282,8 +1631,8 @@ def _evidence_record(
             "line_end": candidate.line_range[1],
         }
     )
-    return {
-        "ref": candidate.ref,
+    record = {
+        "id": candidate.evidence_id,
         "kind": candidate.kind,
         "source": candidate.source,
         "line_range": list(candidate.line_range),
@@ -1293,6 +1642,7 @@ def _evidence_record(
         "selected_by": sorted(candidate.selected_by),
         "reasons": sorted(candidate.reasons),
         "token_estimate": candidate.token_estimate,
+        "content_digest": candidate.content_digest,
         "fetch": fetch,
         "excerpt": (
             (
@@ -1306,31 +1656,81 @@ def _evidence_record(
             else None
         ),
     }
+    if include_v2_selection_fields:
+        # ``reasons`` stays source-derived.  A profile/dispatch author's
+        # requested purpose is carried separately and can never masquerade as
+        # corpus evidence.
+        record["model_selection_reasons"] = sorted(candidate.model_selection_reasons)
+        record["pinned_required"] = candidate.pinned_required
+    return record
+
+
+def _source_slice(path: Path, line_range: Any) -> str:
+    if (
+        not isinstance(line_range, Sequence)
+        or isinstance(line_range, (str, bytes))
+        or len(line_range) != 2
+        or not all(isinstance(value, int) for value in line_range)
+        or line_range[0] < 1
+        or line_range[1] < line_range[0]
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "evidence line_range must contain two ascending positive integers",
+            stage="pack_validation",
+        )
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "canonical evidence source is unreadable",
+            stage="pack_validation",
+        ) from exc
+    start, end = line_range
+    if lines and end > len(lines):
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "evidence line_range extends beyond its canonical source",
+            stage="pack_validation",
+        )
+    if not lines and (start, end) != (1, 1):
+        raise RetrievalSpecResolutionError(
+            "unfetchable_evidence",
+            "empty evidence source must use line_range [1, 1]",
+            stage="pack_validation",
+        )
+    return "\n".join(lines[start - 1 : end])
 
 
 def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
+    v2 = pack.get("resolver_version") == RETRIEVAL_V2_RESOLVER_VERSION
     identity = {
         "pack_schema": pack["pack_schema"],
         "pack_version": pack["pack_version"],
         "resolver_version": pack["resolver_version"],
         "corpus_revision": pack["corpus_revision"],
         "effective_spec_fingerprint": pack["effective_spec_fingerprint"],
-        "evidence": [
-            {
-                key: item[key]
-                for key in (
-                    "ref",
-                    "kind",
-                    "source",
-                    "line_range",
-                    "chunk_id",
-                    "graph_distance",
-                    "selected_by",
-                )
-            }
-            for item in pack["evidence"]
-        ],
+        "evidence": [],
     }
+    for item in pack["evidence"]:
+        record = {
+            key: item[key]
+            for key in (
+                "id",
+                "kind",
+                "source",
+                "line_range",
+                "chunk_id",
+                "graph_distance",
+                "selected_by",
+                "content_digest",
+            )
+        }
+        if v2:
+            record["model_selection_reasons"] = item["model_selection_reasons"]
+            record["pinned_required"] = item["pinned_required"]
+        identity["evidence"].append(record)
     return "sha256:" + hashlib.sha256(
         canonical_retrieval_json(identity).encode("utf-8")
     ).hexdigest()
@@ -1344,9 +1744,9 @@ def _stable_retrieval_plan(
     timeout_ms: int,
     revision_reader: Callable[[str | Path, Mapping[str, Any]], str],
 ) -> tuple[dict[str, Any], dict[str, Any], str, int, float]:
-    from .retrieval_spec import normalize_retrieval_spec
+    from .retrieval_spec import normalize_any_retrieval_spec
 
-    normalized = normalize_retrieval_spec(spec)
+    normalized = normalize_any_retrieval_spec(spec)
     started = clock()
     seen: list[tuple[str, str]] = []
     for attempt in (1, 2):
@@ -1357,6 +1757,7 @@ def _stable_retrieval_plan(
             clock=clock,
             started=started,
             timeout_ms=timeout_ms,
+            pinned=normalized.get("selectors", {}).get("pinned", ()),
         )
         end_revision = revision_reader(cwd, normalized)
         _check_retrieval_timeout(
@@ -1401,7 +1802,11 @@ def preview_retrieval_spec(
     preview = {
         "preview_schema": RETRIEVAL_PREVIEW_SCHEMA,
         "preview_version": 1,
-        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "resolver_version": (
+            RETRIEVAL_V2_RESOLVER_VERSION
+            if normalized["version"] == 2
+            else RETRIEVAL_RESOLVER_VERSION
+        ),
         "valid": True,
         "corpus_revision": revision,
         "effective_spec": normalized,
@@ -1448,7 +1853,11 @@ def resolve_retrieval_spec(
     pack: dict[str, Any] = {
         "pack_schema": EVIDENCE_PACK_SCHEMA,
         "pack_version": EVIDENCE_PACK_VERSION,
-        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "resolver_version": (
+            RETRIEVAL_V2_RESOLVER_VERSION
+            if normalized["version"] == 2
+            else RETRIEVAL_RESOLVER_VERSION
+        ),
         "corpus_revision": revision,
         "effective_spec": normalized,
         "effective_spec_fingerprint": retrieval_spec_fingerprint(normalized),
@@ -1458,6 +1867,7 @@ def resolve_retrieval_spec(
             _evidence_record(
                 candidate,
                 include_excerpt=normalized["output"]["include_excerpts"],
+                include_v2_selection_fields=normalized["version"] == 2,
             )
             for candidate in plan["selected"]
         ],
@@ -1492,9 +1902,11 @@ def validate_evidence_pack(
     from .core import resolve_runtime
     from .retrieval_spec import retrieval_spec_fingerprint
 
-    if pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA or pack.get(
-        "pack_version"
-    ) != EVIDENCE_PACK_VERSION:
+    if (
+        pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA
+        or pack.get("pack_version") != EVIDENCE_PACK_VERSION
+        or pack.get("resolver_version") not in {RETRIEVAL_RESOLVER_VERSION, RETRIEVAL_V2_RESOLVER_VERSION}
+    ):
         raise RetrievalSpecResolutionError(
             "invalid_pack",
             "unsupported Evidence Pack identity",
@@ -1507,6 +1919,17 @@ def validate_evidence_pack(
             "effective_spec is missing",
             stage="pack_validation",
         )
+    resolver_version = pack.get("resolver_version")
+    if (
+        (effective_spec.get("version") == 1 and resolver_version != RETRIEVAL_RESOLVER_VERSION)
+        or (effective_spec.get("version") == 2 and resolver_version != RETRIEVAL_V2_RESOLVER_VERSION)
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "resolver version does not match the effective Retrieval Specification version",
+            stage="pack_validation",
+        )
+    v2 = resolver_version == RETRIEVAL_V2_RESOLVER_VERSION
     if pack.get("effective_spec_fingerprint") != retrieval_spec_fingerprint(
         effective_spec
     ):
@@ -1526,45 +1949,269 @@ def validate_evidence_pack(
                 "current_revision": current_revision,
             },
         )
-    if pack.get("fingerprint") != _evidence_pack_fingerprint(pack):
+    evidence = pack.get("evidence")
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, Mapping) for item in evidence
+    ):
         raise RetrievalSpecResolutionError(
-            "fingerprint_mismatch",
-            "Evidence Pack fingerprint does not match its canonical references",
+            "invalid_pack",
+            "evidence must be a list of records",
             stage="pack_validation",
         )
-    root = Path(resolve_runtime(cwd).workspace_root).resolve()
-    for item in pack.get("evidence", []):
+    try:
+        expected_fingerprint = _evidence_pack_fingerprint(pack)
+    except (KeyError, TypeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "evidence records are missing required identity fields",
+            stage="pack_validation",
+        ) from exc
+    if pack.get("fingerprint") != expected_fingerprint:
+        raise RetrievalSpecResolutionError(
+            "fingerprint_mismatch",
+            "Evidence Pack fingerprint does not match its canonical evidence identities",
+            stage="pack_validation",
+        )
+    runtime = resolve_runtime(cwd)
+    root = Path(runtime.workspace_root).resolve()
+    session_chunks: list[MemoryChunk] | None = None
+    source_lines: dict[str, tuple[str, ...]] = {}
+    pinned_by_identity = {
+        (record["kind"], record["id"]): record
+        for record in effective_spec.get("selectors", {}).get("pinned", [])
+    } if v2 else {}
+    required_pins = {
+        identity
+        for identity, record in pinned_by_identity.items()
+        if record.get("required", True) is True
+    }
+    present_pins = {
+        (item.get("kind"), item.get("id"))
+        for item in evidence
+    }
+    missing_pins = sorted(required_pins - present_pins)
+    if missing_pins:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "Evidence Pack omits required pinned evidence",
+            stage="pack_validation",
+            details={"required_pins": [list(identity) for identity in missing_pins]},
+        )
+    for item in evidence:
+        evidence_id = item.get("id")
+        kind = item.get("kind")
+        if not isinstance(evidence_id, str) or not evidence_id:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "evidence id is missing",
+                stage="pack_validation",
+            )
+        if v2:
+            if not isinstance(item.get("model_selection_reasons"), list) or not all(
+                isinstance(reason, str) and reason for reason in item["model_selection_reasons"]
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 evidence must carry model_selection_reasons separately",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if not isinstance(item.get("pinned_required"), bool):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 evidence must carry pinned_required as a boolean",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+        if kind not in {"adr", "constitution", "decision", "markdown", "session"}:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "evidence kind is unsupported",
+                stage="pack_validation",
+                details={"id": evidence_id, "kind": kind},
+            )
+        if v2:
+            pin = pinned_by_identity.get((kind, evidence_id))
+            pinned = "selectors.pinned" in item.get("selected_by", [])
+            if pinned != (pin is not None):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 pinned selector attribution does not match the effective specification",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if pin is not None and (
+                item["model_selection_reasons"] != [pin["reason"]]
+                or item["pinned_required"] is not pin.get("required", True)
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "v2 model selection reason does not match the effective specification",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
         source = item.get("source")
         if not isinstance(source, str):
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 "evidence source is missing",
                 stage="pack_validation",
             )
         path = _runtime_scoped_path(root, source)
         if not path.is_file():
             raise RetrievalSpecResolutionError(
-                "unfetchable_ref",
+                "unfetchable_evidence",
                 f"canonical Markdown source is absent: {source}",
                 stage="pack_validation",
-                details={"ref": item.get("ref")},
+                details={"id": evidence_id},
             )
+        source_text = _source_slice(path, item.get("line_range", ()))
+        decisions_dir = (resolve_runtime(cwd).memory_dir / "decisions").resolve()
+        try:
+            path.relative_to(decisions_dir)
+        except ValueError:
+            if kind == "adr":
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "ADR evidence source is outside the canonical decisions directory",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+        else:
+            from .adr import parse_adr
+
+            try:
+                adr = parse_adr(path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                raise RetrievalSpecResolutionError(
+                    "invalid_adr",
+                    "ADR evidence source is not a valid Memory Seed ADR",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                ) from exc
+            if kind != "adr" or evidence_id != adr.adr_id:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "ADR evidence kind and id must match the source frontmatter",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "adr_id": adr.adr_id},
+                )
+            if v2 and "selectors.pinned" in item.get("selected_by", []):
+                expected = _adr_current_view_candidate(
+                    root=root,
+                    record=adr,
+                    selected_by=set(),
+                    reason="validation",
+                    required=bool(item.get("pinned_required")),
+                )
+                if tuple(item.get("line_range", ())) != expected.line_range:
+                    raise RetrievalSpecResolutionError(
+                        "invalid_pack",
+                        "pinned ADR evidence must be its canonical Current view slice",
+                        stage="pack_validation",
+                        details={"id": evidence_id},
+                    )
         chunk_id = item.get("chunk_id")
+        if kind in {"constitution", "markdown"} and evidence_id != source:
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "non-semantic Markdown evidence id must match its canonical source",
+                stage="pack_validation",
+                details={"id": evidence_id, "source": source},
+            )
+        if kind == "decision":
+            if chunk_id is not None:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "decision evidence must use its exact source slice",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+            if session_chunks is None:
+                _assert_runtime_tree_confined(
+                    root,
+                    runtime.memory_dir / "sessions",
+                    stage="pack_validation",
+                )
+                session_chunks = load_corpus(root, granularity="entry")
+            line_range = tuple(item.get("line_range", ()))
+            from .core import entry_body_decisions
+
+            expected_ids: set[str] = set()
+            for chunk in session_chunks:
+                if (
+                    chunk.source_path != source
+                    or chunk.start_line > line_range[0]
+                    or chunk.end_line < line_range[1]
+                ):
+                    continue
+                candidates_for_chunk = _decision_candidates(
+                    chunk,
+                    root=root,
+                    source_lines=source_lines,
+                    selected_by=set(),
+                    reasons=set(),
+                    graph_distance=0,
+                )
+                ordinals = entry_body_decisions(chunk.text)
+                for candidate in candidates_for_chunk:
+                    if candidate.line_range != line_range:
+                        continue
+                    if not v2:
+                        expected_ids.add(candidate.evidence_id)
+                    elif ":" in candidate.evidence_id:
+                        expected_ids.add(candidate.evidence_id)
+                    elif len(ordinals) == 1:
+                        expected_ids.add(f"{chunk.entry_id}:{ordinals[0].ordinal}")
+            if evidence_id not in expected_ids:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "decision evidence id must match its canonical source slice",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "source": source},
+                )
         if chunk_id:
             try:
-                get_chunk(str(chunk_id), root)
+                chunk = get_chunk(str(chunk_id), root)
             except ValueError as exc:
                 raise RetrievalSpecResolutionError(
-                    "unfetchable_ref",
+                    "unfetchable_evidence",
                     f"chunk is absent: {chunk_id}",
                     stage="pack_validation",
-                    details={"ref": item.get("ref")},
+                    details={"id": evidence_id},
                 ) from exc
+            source_text = str(chunk.get("text", ""))
+            if kind == "session" and evidence_id != str(
+                chunk.get("entry_id") or chunk_id
+            ):
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "session evidence id must match its canonical chunk",
+                    stage="pack_validation",
+                    details={"id": evidence_id, "chunk_id": chunk_id},
+                )
+        elif kind == "session":
+            raise RetrievalSpecResolutionError(
+                "invalid_pack",
+                "session evidence must include its canonical chunk id",
+                stage="pack_validation",
+                details={"id": evidence_id},
+            )
+        expected_digest = "sha256:" + hashlib.sha256(
+            source_text.encode("utf-8")
+        ).hexdigest()
+        if item.get("content_digest") != expected_digest:
+            raise RetrievalSpecResolutionError(
+                "content_digest_mismatch",
+                "evidence content does not match its digest",
+                stage="pack_validation",
+                details={"id": evidence_id},
+            )
     return {
         "valid": True,
         "corpus_revision": current_revision,
         "fingerprint": pack["fingerprint"],
-        "ref_count": len(pack.get("evidence", [])),
+        "evidence_count": len(evidence),
     }
 
 
@@ -2238,7 +2885,10 @@ TITLE_OVERLAP_BOOST = 2.0
 # [0,1] while an idf sum is not; the two are on different scales, not
 # different importances.
 SEMANTIC_OVERLAP_BOOST = 160.0
-# How many purely-semantic candidates may join a gap that the lexical gate could
+# How many purely-semantic candidates may join a gap by default when the caller
+# has not supplied a calibrated semantic threshold. An explicit threshold
+# admits every semantic-only pair at or above it and records that run parameter.
+# The lexical gate could
 # never have surfaced. A SEPARATE cap, applied after the gated `top_k` slice, so
 # an ungated candidate widens recall but can never displace evidence a human can
 # check. Two, because the gate misses rarely and an unfiltered suggestion costs a
@@ -2346,6 +2996,16 @@ class LinkGapCandidate:
     # here on shared-file evidence they can check or on an opaque cosine, nor
     # whether the ranking silently degraded to lexical.
     semantic_score: float | None = None
+    # Inspectable score components.  Only ``file_score`` + ``keyword_score``
+    # + ``semantic_contribution`` currently participate in ``file_overlap_score``;
+    # topic and temporal proximity are diagnostic features retained so verdict
+    # outcomes can calibrate a later ranking change from evidence.
+    file_score: float = 0.0
+    keyword_score: float = 0.0
+    topic_score: float = 0.0
+    semantic_contribution: float = 0.0
+    temporal_distance_days: int = 0
+    temporal_score: float = 1.0
     # True when the lexical gate could NOT have surfaced this pair - it shares no
     # file and no distinctive title term, and any topic it shares was suppressed
     # because the pair is already `related`. It arrived on semantic rank alone.
@@ -2403,26 +3063,20 @@ def audit_link_gaps(
     *,
     entry_id: str | None = None,
     session_date: str | None = None,
-    top_k: int = 5,
+    top_k: int | None = 5,
     semantic_enabled: bool = True,
+    semantic_candidate_threshold: float | None = None,
     semantic_status: dict[str, Any] | None = None,
     snapshot: "CorpusSnapshot | None" = None,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
-    Candidate MEMBERSHIP is decided lexically and never by an all-pairs semantic
-    scan: for each target entry the candidate set is the OLDER entries that share
-    >=1 ``F:`` file OR >=1 topic with it. (Semantic similarity does participate,
-    as a RANKING term over that set - see ``SEMANTIC_OVERLAP_BOOST`` - and an
-    all-pairs cosine matrix IS computed for it; what the lexical gate rules out
-    is cosine deciding *whether* a pair is a candidate. Cosine is dense, so that
-    would make every earlier entry a candidate for every later one.)
-
-    SINCE 2026-08-09 a bounded second source runs after that gated set: up to
-    ``UNGATED_CANDIDATE_CAP`` further candidates on semantic rank ALONE, flagged
-    ``ungated=True``. The paragraph above rules out an unbounded cosine
-    THRESHOLD, which is still ruled out; a bounded top-N is a different thing
-    and does not make every earlier entry a candidate. It exists because the
+    Candidate membership starts with older entries sharing an ``F:`` file,
+    topic, or distinctive title term. Semantic similarity ranks that set. A
+    second, explicitly labelled source adds semantic-only candidates: by default
+    the top ``UNGATED_CANDIDATE_CAP``; when ``semantic_candidate_threshold`` is
+    supplied, every older pair meeting that raw-cosine floor. The threshold is
+    a run parameter for calibration, not a hidden constant. This exists because the
     gate's blind spot is structural rather than unlikely - a genuinely related
     entry sharing no file, title term or unsuppressed topic can never appear,
     however related it is, so the gate silently caps what any downstream
@@ -2449,6 +3103,11 @@ def audit_link_gaps(
     """
     import math
 
+    if top_k is not None and top_k < 1:
+        raise ValueError("top_k must be greater than zero or None")
+    if semantic_candidate_threshold is not None and not 0 <= semantic_candidate_threshold <= 1:
+        raise ValueError("semantic_candidate_threshold must be between zero and one")
+
     from .core import entry_body_decisions
     from .semantic_cache import (
         FILE_OVERLAP_BOOST,
@@ -2461,7 +3120,14 @@ def audit_link_gaps(
     # Seeded BEFORE the empty-corpus early return: left unset there, a caller
     # reading `requested` would be told semantic ranking was never asked for.
     if semantic_status is not None:
-        semantic_status.update(requested=semantic_enabled, active=False, provider=None, fallback_reason=None)
+        semantic_status.update(
+            requested=semantic_enabled,
+            active=False,
+            provider=None,
+            fallback_reason=None,
+            candidate_threshold=semantic_candidate_threshold,
+            candidate_mode="threshold" if semantic_candidate_threshold is not None else "top_n",
+        )
 
     raw_chunks = (
         snapshot.chunks("entry", "raw") if snapshot is not None
@@ -2570,6 +3236,21 @@ def audit_link_gaps(
         occurrences = title_frequency.get(term, 0)
         return max(math.log(total / occurrences), 0.0) if occurrences > 0 else 0.0
 
+    topic_frequency: dict[str, int] = {}
+    for topics in topics_of.values():
+        for topic in topics:
+            topic_frequency[topic] = topic_frequency.get(topic, 0) + 1
+
+    def topic_idf(topic: str) -> float:
+        occurrences = topic_frequency.get(topic, 0)
+        return max(math.log(total / occurrences), 0.0) if occurrences > 0 else 0.0
+
+    def temporal_metrics(newer: Any, older: Any) -> tuple[int, float]:
+        distance = max((newer.session_date - older.session_date).days, 0)
+        # A transparent diagnostic transform: 1.0 on the same day, 0.5 after
+        # 30 days, then declining smoothly. It does not affect membership or rank.
+        return distance, round(1.0 / (1.0 + distance / 30.0), 6)
+
     def related_of(chunk: MemoryChunk) -> set[str]:
         sidecar = sidecars.get(chunk.entry_id or "", {})
         return (
@@ -2607,11 +3288,9 @@ def audit_link_gaps(
             }
         )
 
-    # Semantic similarity, when the embedding provider is available. Purely a
-    # RANKING term: cosine is dense - every pair scores non-zero - so using it
-    # to decide whether a pair is a candidate at all would make every earlier
-    # entry a candidate for every later one. The lexical gate below still
-    # decides membership; this only reorders what got through.
+    # Semantic similarity, when the embedding provider is available. It always
+    # ranks the lexical set. It also supplies a separate labelled recall source:
+    # legacy top-N by default, or all pairs above an explicit run threshold.
     #
     # Fails open exactly like search_memory: no provider means lexical-only
     # scoring, which is the documented lightweight install, not an error.
@@ -2626,6 +3305,8 @@ def audit_link_gaps(
             active=bool(vectors),
             provider=provider_name,
             fallback_reason=fallback_reason,
+            candidate_threshold=semantic_candidate_threshold,
+            candidate_mode="threshold" if semantic_candidate_threshold is not None else "top_n",
         )
 
     def semantic_similarity(source_id: str, candidate_id: str) -> float:
@@ -2672,11 +3353,14 @@ def audit_link_gaps(
                 pass
             else:
                 continue
-            lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files) + TITLE_OVERLAP_BOOST * sum(
-                title_idf(term) for term in shared_title
-            )
+            file_score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files)
+            keyword_score = TITLE_OVERLAP_BOOST * sum(title_idf(term) for term in shared_title)
+            topic_score = sum(topic_idf(topic) for topic in shared_topics)
+            lexical = file_score + keyword_score
             similarity = semantic_similarity(tid, cid)
-            score = lexical + SEMANTIC_OVERLAP_BOOST * similarity
+            semantic_contribution = SEMANTIC_OVERLAP_BOOST * similarity
+            score = lexical + semantic_contribution
+            temporal_distance, temporal_score = temporal_metrics(target, chunk)
             candidates.append(
                 LinkGapCandidate(
                     entry_id=cid,
@@ -2690,10 +3374,18 @@ def audit_link_gaps(
                     decisions=decisions_of.get(cid, ()),
                     lexical_score=round(lexical, 6),
                     semantic_score=round(similarity, 6) if vectors else None,
+                    file_score=round(file_score, 6),
+                    keyword_score=round(keyword_score, 6),
+                    topic_score=round(topic_score, 6),
+                    semantic_contribution=round(semantic_contribution, 6),
+                    temporal_distance_days=temporal_distance,
+                    temporal_score=temporal_score,
                 )
             )
-        candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
-        selected = candidates[:top_k]
+        candidates.sort(
+            key=lambda c: (c.file_overlap_score, len(c.shared_topics), c.entry_id), reverse=True
+        )
+        selected = candidates if top_k is None else candidates[:top_k]
 
         # THE UNGATED PASS. Everything above is bounded by the lexical gate, so a
         # genuinely related entry sharing no file, title term or unsuppressed
@@ -2703,12 +3395,8 @@ def audit_link_gaps(
         # above (which has no stable tie-break beyond score and topic count) nor
         # displaces a gated candidate.
         #
-        # The docstring's objection to semantic membership - "cosine is dense, so
-        # that would make every earlier entry a candidate for every later one" -
-        # is an argument against an unbounded cosine THRESHOLD, which this is
-        # not. Cost is already sunk: the all-pairs matrix is computed for
-        # ranking regardless.
-        #
+        # An explicit threshold replaces the default top-N cap. Cost is already
+        # sunk: the all-pairs matrix is computed for ranking regardless.
         # Skipped outright when `vectors` is empty (--no-semantic, or a provider
         # that failed to load), because `semantic_similarity` returns 0.0 for
         # every pair there and a top-N over all-zeros is an arbitrary set wearing
@@ -2737,7 +3425,15 @@ def audit_link_gaps(
                 pool.append((similarity, cid, chunk))
             # entry_id breaks a cosine tie, so the set is reproducible run to run.
             pool.sort(key=lambda item: (item[0], item[1]), reverse=True)
-            for similarity, cid, chunk in pool[:UNGATED_CANDIDATE_CAP]:
+            if semantic_candidate_threshold is None:
+                semantic_selected = pool[:UNGATED_CANDIDATE_CAP]
+            else:
+                semantic_selected = [
+                    item for item in pool if item[0] >= semantic_candidate_threshold
+                ]
+            for similarity, cid, chunk in semantic_selected:
+                shared_topics = tuple(sorted(target_topics & topics_of.get(cid, set())))
+                temporal_distance, temporal_score = temporal_metrics(target, chunk)
                 selected.append(
                     LinkGapCandidate(
                         entry_id=cid,
@@ -2747,13 +3443,17 @@ def audit_link_gaps(
                         # for being already-`related` can still share topics, and
                         # the reader should see them.
                         shared_files=tuple(sorted(target_files & file_refs.get(cid, set()))),
-                        shared_topics=tuple(sorted(target_topics & topics_of.get(cid, set()))),
+                        shared_topics=shared_topics,
                         shared_title_terms=tuple(sorted(target_title_terms & title_terms.get(cid, set()))),
                         file_overlap_score=round(SEMANTIC_OVERLAP_BOOST * similarity, 6),
                         already_related=cid in target_related,
                         decisions=decisions_of.get(cid, ()),
                         lexical_score=0.0,
                         semantic_score=round(similarity, 6),
+                        topic_score=round(sum(topic_idf(topic) for topic in shared_topics), 6),
+                        semantic_contribution=round(SEMANTIC_OVERLAP_BOOST * similarity, 6),
+                        temporal_distance_days=temporal_distance,
+                        temporal_score=temporal_score,
                         ungated=True,
                     )
                 )
@@ -2784,7 +3484,11 @@ def audit_link_gaps(
                     rep_lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in rep_files) + TITLE_OVERLAP_BOOST * sum(
                         title_idf(term) for term in rep_title
                     )
+                    rep_file_score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in rep_files)
+                    rep_keyword_score = TITLE_OVERLAP_BOOST * sum(title_idf(term) for term in rep_title)
+                    rep_topic_score = sum(topic_idf(topic) for topic in rep_topics)
                     rep_similarity = semantic_similarity(tid, rep)
+                    rep_temporal_distance, rep_temporal_score = temporal_metrics(target, rep_chunk)
                     final.append(
                         _annotate_chain_position(
                             LinkGapCandidate(
@@ -2799,6 +3503,12 @@ def audit_link_gaps(
                                 decisions=decisions_of.get(rep, ()),
                                 lexical_score=round(rep_lexical, 6),
                                 semantic_score=round(rep_similarity, 6) if vectors else None,
+                                file_score=round(rep_file_score, 6),
+                                keyword_score=round(rep_keyword_score, 6),
+                                topic_score=round(rep_topic_score, 6),
+                                semantic_contribution=round(SEMANTIC_OVERLAP_BOOST * rep_similarity, 6),
+                                temporal_distance_days=rep_temporal_distance,
+                                temporal_score=rep_temporal_score,
                                 substitute_for=candidate.entry_id,
                             )
                         )
@@ -2867,6 +3577,15 @@ def link_audit_payload(
                         "score": candidate.file_overlap_score,
                         "lexical_score": candidate.lexical_score,
                         "semantic_score": candidate.semantic_score,
+                        "score_components": {
+                            "file": candidate.file_score,
+                            "keyword": candidate.keyword_score,
+                            "topic": candidate.topic_score,
+                            "semantic_raw": candidate.semantic_score,
+                            "semantic_weighted": candidate.semantic_contribution,
+                            "temporal": candidate.temporal_score,
+                            "temporal_distance_days": candidate.temporal_distance_days,
+                        },
                         "already_related": candidate.already_related,
                         "ungated": candidate.ungated,
                         "chain_position": candidate.chain_position,
@@ -2882,6 +3601,863 @@ def link_audit_payload(
             }
             for gap in gaps
         ],
+    }
+
+
+def _render_link_swarm_worker_batch(
+    *,
+    run_id: str,
+    batch_number: int,
+    measurement: Mapping[str, Any],
+    semantic: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+    pairs: Sequence[Mapping[str, Any]],
+    worker_skill_text: str,
+    worker_skill_source: str,
+) -> str:
+    finding_path = f"findings/batch-{batch_number:04d}.toon"
+    skill_digest = hashlib.sha256(worker_skill_text.encode("utf-8")).hexdigest()
+    assignment = {
+        "schema": "memory-seed.link-swarm-worker-batch.v2",
+        "run_id": run_id,
+        "batch": batch_number,
+        "measurement": dict(measurement),
+        "semantic": dict(semantic),
+        "criteria": dict(criteria),
+        "pair_count": len(pairs),
+        "pairs": list(pairs),
+        "finding_path": finding_path,
+    }
+    return (
+        f"# Lifecycle-Link Worker Batch {batch_number}\n\n"
+        f"skill_source: {worker_skill_source}\n"
+        f"skill_sha256: {skill_digest}\n\n"
+        "<required_skill>\n"
+        f"{worker_skill_text.rstrip()}\n"
+        "</required_skill>\n\n"
+        "## Mechanical assignment\n\n"
+        "Read the required skill above, judge every complete pair below, and write only the strict "
+        f"TOON report to `{finding_path}`.\n\n"
+        "```json\n"
+        f"{canonical_retrieval_json(assignment)}\n"
+        "```\n"
+    )
+
+
+def _link_swarm_worker_batch_size(
+    *,
+    run_id: str,
+    batch_number: int,
+    measurement: Mapping[str, Any],
+    semantic: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+    pair_count: int,
+    serialized_pairs_utf8_bytes: int,
+    worker_skill_text: str,
+    worker_skill_source: str,
+) -> tuple[int, int]:
+    """Measure a rendered batch without repeatedly serializing its growing pair list."""
+    empty = _render_link_swarm_worker_batch(
+        run_id=run_id,
+        batch_number=batch_number,
+        measurement=measurement,
+        semantic=semantic,
+        criteria=criteria,
+        pairs=[],
+        worker_skill_text=worker_skill_text,
+        worker_skill_source=worker_skill_source,
+    )
+    byte_count = len(empty.encode("utf-8"))
+    if pair_count:
+        # The canonical assignment changes only `pair_count:0` and `pairs:[]`.
+        # Pair JSON bytes plus commas replace the empty array, while the count
+        # contributes only its additional digits.
+        byte_count += len(str(pair_count)) - 1
+        byte_count += serialized_pairs_utf8_bytes + pair_count - 1
+    return byte_count, (byte_count + 3) // 4
+
+
+def plan_link_audit_batches(
+    payload: Mapping[str, Any],
+    *,
+    context_window_tokens: int,
+    evidence_fraction: float = 0.16,
+    minimum_score: float = 0.0,
+    output_tokens_per_pair: int = 160,
+    worker_skill_text: str = "",
+    worker_skill_source: str = ".memory-seed/skills/link_swarm.md",
+) -> dict[str, Any]:
+    """Pack complete link-audit pairs into deterministic evidence batches.
+
+    Tokenizers vary by provider, so this uses the fixed local UTF-8 proxy used
+    by retrieval: one estimated token per four bytes. Exact bytes are retained
+    so an executor can substitute a provider tokenizer without repacking.
+    """
+    if context_window_tokens <= 0:
+        raise ValueError("context_window_tokens must be greater than zero")
+    if not 0 < evidence_fraction < 1:
+        raise ValueError("evidence_fraction must be greater than zero and less than one")
+    if minimum_score < 0:
+        raise ValueError("minimum_score must be zero or greater")
+    if output_tokens_per_pair < 1:
+        raise ValueError("output_tokens_per_pair must be greater than zero")
+    budget_tokens = int(context_window_tokens * evidence_fraction)
+    if budget_tokens < 1:
+        raise ValueError("context window and evidence fraction produce a zero-token budget")
+
+    pairs: list[dict[str, Any]] = []
+    excluded_pairs: list[dict[str, Any]] = []
+    candidate_ledger: list[dict[str, Any]] = []
+    for gap in payload.get("gaps", []):
+        source = {
+            "entry_id": gap["entry_id"], "title": gap["title"],
+            "session_date": gap["session_date"], "decisions": gap["decisions"],
+        }
+        for candidate in gap["candidates"]:
+            pair_id = hashlib.sha256(
+                f"{source['entry_id']}\0{candidate['entry_id']}".encode("utf-8")
+            ).hexdigest()[:20]
+            ledger_row = {
+                "pair_id": pair_id,
+                "source_entry_id": source["entry_id"],
+                "candidate_entry_id": candidate["entry_id"],
+                "candidate_source": "semantic" if candidate.get("ungated") else "lexical",
+                "score": candidate.get("score", 0.0),
+                "score_components": dict(candidate.get("score_components", {})),
+                "shared_files": list(candidate.get("shared_files", [])),
+                "shared_topics": list(candidate.get("shared_topics", [])),
+                "shared_title_terms": list(candidate.get("shared_title_terms", [])),
+                "thresholds": {
+                    "minimum_score": minimum_score,
+                    "semantic_candidate_threshold": payload.get("semantic", {}).get("candidate_threshold"),
+                },
+                "batch": None,
+                "status": "pending",
+                "verdict": None,
+                "source_decision": None,
+                "candidate_decision": None,
+                "confidence": None,
+                "validation": None,
+            }
+            if candidate.get("already_related"):
+                ledger_row.update(status="excluded", validation="already_related")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "already_related"})
+                continue
+            if not source["decisions"] or not candidate["decisions"]:
+                ledger_row.update(status="excluded", validation="missing_decision")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "missing_decision"})
+                continue
+            if float(candidate.get("score", 0.0)) < minimum_score:
+                ledger_row.update(status="excluded", validation="below_score_threshold")
+                candidate_ledger.append(ledger_row)
+                excluded_pairs.append({**ledger_row, "reason": "below_score_threshold"})
+                continue
+            pair = {"pair_id": pair_id, "source": source, "candidate": candidate}
+            byte_count = len(canonical_retrieval_json(pair).encode("utf-8"))
+            packed_pair = {
+                **pair,
+                "evidence_utf8_bytes": byte_count,
+                "estimated_tokens": max(1, (byte_count + 3) // 4),
+            }
+            pairs.append(packed_pair)
+            candidate_ledger.append(ledger_row)
+
+    worker_skill_utf8_bytes = len(worker_skill_text.encode("utf-8"))
+    measurement = {
+        "context_window_tokens": context_window_tokens,
+        "evidence_fraction": evidence_fraction,
+        "batch_budget_tokens": budget_tokens,
+        "evidence_budget_tokens": budget_tokens,
+        "output_tokens_per_pair": output_tokens_per_pair,
+        "minimum_score": minimum_score,
+        "worker_skill_source": worker_skill_source,
+        "worker_skill_sha256": hashlib.sha256(worker_skill_text.encode("utf-8")).hexdigest(),
+        "worker_skill_utf8_bytes": worker_skill_utf8_bytes,
+        "worker_skill_estimated_tokens": (worker_skill_utf8_bytes + 3) // 4,
+        "token_estimate": "ceil(utf8_bytes / 4); fixed provider-independent proxy",
+        "pair_policy": "complete pairs only; no truncation or splitting",
+        "score_policy": "file + keyword + weighted semantic rank; topic and temporal are diagnostic-only",
+    }
+    semantic = dict(payload.get("semantic", {}))
+    criteria = dict(payload.get("criteria", {}))
+
+    pair_payload_bytes = {
+        pair["pair_id"]: len(canonical_retrieval_json(pair).encode("utf-8"))
+        for pair in pairs
+    }
+
+    def rendered_size(
+        batch_number: int, pair_count: int, serialized_pairs_utf8_bytes: int,
+    ) -> tuple[int, int]:
+        return _link_swarm_worker_batch_size(
+            run_id="pending-run-id-00000",
+            batch_number=batch_number,
+            measurement=measurement,
+            semantic=semantic,
+            criteria=criteria,
+            pair_count=pair_count,
+            serialized_pairs_utf8_bytes=serialized_pairs_utf8_bytes,
+            worker_skill_text=worker_skill_text,
+            worker_skill_source=worker_skill_source,
+        )
+
+    batches: list[dict[str, Any]] = []
+    oversize_pairs: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+    current_pair_tokens = current_pair_bytes = 0
+    current_payload_bytes = 0
+    for pair in pairs:
+        pair_payload_bytes_count = pair_payload_bytes[pair["pair_id"]]
+        next_count = len(current) + 1
+        next_payload_bytes = current_payload_bytes + pair_payload_bytes_count
+        next_bytes, next_tokens = rendered_size(
+            len(batches) + 1, next_count, next_payload_bytes,
+        )
+        if not current and next_tokens > budget_tokens:
+            oversize_pairs.append(pair)
+            continue
+        if current and next_tokens > budget_tokens:
+            batch_number = len(batches) + 1
+            batch_bytes, batch_tokens = rendered_size(
+                batch_number, len(current), current_payload_bytes,
+            )
+            batches.append({
+                "batch": batch_number, "evidence_utf8_bytes": batch_bytes,
+                "worker_batch_utf8_bytes": batch_bytes,
+                "pair_evidence_utf8_bytes": current_pair_bytes,
+                "estimated_tokens": batch_tokens,
+                "pair_estimated_tokens": current_pair_tokens,
+                "estimated_output_tokens": len(current) * output_tokens_per_pair,
+                "remaining_budget_tokens": budget_tokens - batch_tokens, "pairs": current,
+            })
+            current_ids = {item["pair_id"] for item in current}
+            for row in candidate_ledger:
+                if row["pair_id"] in current_ids:
+                    row.update(batch=batch_number, status="assigned")
+            current, current_pair_tokens, current_pair_bytes = [], 0, 0
+            current_payload_bytes = 0
+        current.append(pair)
+        current_pair_tokens += pair["estimated_tokens"]
+        current_pair_bytes += pair["evidence_utf8_bytes"]
+        current_payload_bytes += pair_payload_bytes_count
+    if current:
+        batch_number = len(batches) + 1
+        batch_bytes, batch_tokens = rendered_size(
+            batch_number, len(current), current_payload_bytes,
+        )
+        batches.append({
+            "batch": batch_number, "evidence_utf8_bytes": batch_bytes,
+            "worker_batch_utf8_bytes": batch_bytes,
+            "pair_evidence_utf8_bytes": current_pair_bytes,
+            "estimated_tokens": batch_tokens,
+            "pair_estimated_tokens": current_pair_tokens,
+            "estimated_output_tokens": len(current) * output_tokens_per_pair,
+            "remaining_budget_tokens": budget_tokens - batch_tokens, "pairs": current,
+        })
+        current_ids = {item["pair_id"] for item in current}
+        for row in candidate_ledger:
+            if row["pair_id"] in current_ids:
+                row.update(batch=batch_number, status="assigned")
+
+    oversize_ids = {item["pair_id"] for item in oversize_pairs}
+    for row in candidate_ledger:
+        if row["pair_id"] in oversize_ids:
+            row.update(status="oversize", validation="pair_exceeds_evidence_budget")
+
+    return {
+        "schema": "memory-seed.link-batch-plan.v2",
+        "measurement": measurement,
+        "semantic": semantic,
+        "criteria": criteria,
+        "worker_skill_text": worker_skill_text,
+        "pair_count": len(pairs), "batch_count": len(batches),
+        "oversize_pair_count": len(oversize_pairs), "batches": batches,
+        "oversize_pairs": oversize_pairs,
+        "excluded_pair_count": len(excluded_pairs),
+        "excluded_pairs": excluded_pairs,
+        "candidate_ledger": candidate_ledger,
+    }
+
+
+LINK_SWARM_VERDICT_COLUMNS = (
+    "source_entry_id", "source_decision", "candidate_entry_id", "candidate_decision",
+    "verdict", "quote", "quote_entry_id", "why", "confidence", "exclusion_reason",
+)
+
+
+def parse_link_swarm_toon(
+    text: str,
+    *,
+    expected_batch: int | None = None,
+    expected_pair_count: int | None = None,
+) -> dict[str, Any]:
+    """Parse the deliberately small rectangular TOON subset used by link workers."""
+    schema_match = re.search(r"(?m)^schema:\s*(\S+)\s*$", text)
+    if not schema_match or schema_match.group(1) != "memory-seed.link-swarm-verdicts.v1":
+        raise ValueError("report schema must be memory-seed.link-swarm-verdicts.v1")
+    batch_matches = re.findall(r"(?m)^\s*batch:\s*(\d+)\s*$", text)
+    if not batch_matches:
+        raise ValueError("report must declare a numeric batch")
+    batch_number = int(batch_matches[-1])
+    if expected_batch is not None and batch_number != expected_batch:
+        raise ValueError(f"report batch {batch_number} does not match expected batch {expected_batch}")
+
+    header = re.search(r"(?m)^verdicts\[(\d+)\]\{([^}]+)\}:\s*$", text)
+    if not header:
+        raise ValueError("report must declare verdicts[N]{columns}:")
+    declared_count = int(header.group(1))
+    columns = tuple(item.strip() for item in header.group(2).split(","))
+    if columns != LINK_SWARM_VERDICT_COLUMNS:
+        raise ValueError("report verdict columns do not match the required schema")
+    row_text = text[header.end():].strip()
+    try:
+        parsed_rows = list(csv.reader(io.StringIO(row_text), strict=True)) if row_text else []
+    except csv.Error as exc:
+        raise ValueError(f"report rows are not valid rectangular CSV-style TOON: {exc}") from exc
+    if len(parsed_rows) != declared_count:
+        raise ValueError(f"report declares {declared_count} rows but contains {len(parsed_rows)}")
+    if expected_pair_count is not None and declared_count != expected_pair_count:
+        raise ValueError(
+            f"report contains {declared_count} rows but batch contains {expected_pair_count} pairs"
+        )
+
+    verdicts: list[dict[str, Any]] = []
+    for row_number, values in enumerate(parsed_rows, 1):
+        if len(values) != len(columns):
+            raise ValueError(
+                f"report row {row_number} has {len(values)} cells; expected {len(columns)}"
+            )
+        item: dict[str, Any] = {}
+        for column, raw in zip(columns, values):
+            value = raw.strip()
+            item[column] = None if value.lower() == "null" else value
+        if item["verdict"] not in {"replaces", "evolves", "related", "none"}:
+            raise ValueError(f"report row {row_number} has invalid verdict {item['verdict']!r}")
+        if item["confidence"] is not None:
+            try:
+                item["confidence"] = float(item["confidence"])
+            except ValueError as exc:
+                raise ValueError(f"report row {row_number} confidence must be numeric or null") from exc
+            if not 0 <= item["confidence"] <= 1:
+                raise ValueError(f"report row {row_number} confidence must be between zero and one")
+        verdicts.append(item)
+    return {"schema": schema_match.group(1), "batch": batch_number, "verdicts": verdicts}
+
+
+def materialize_link_swarm_run(
+    plan: Mapping[str, Any], output_dir: str | Path, *, cwd: str | Path | None = None,
+) -> dict[str, Any]:
+    """Write replayable worker inputs and a pending candidate analytics ledger."""
+    from .text_files import write_text_file
+
+    directory = Path(output_dir)
+    if directory.exists() and any(directory.iterdir()):
+        raise FileExistsError(f"link swarm run directory is not empty: {directory}")
+    (directory / "batches").mkdir(parents=True, exist_ok=True)
+    (directory / "findings").mkdir(parents=True, exist_ok=True)
+    normalized = dict(plan)
+    run_id = hashlib.sha256(canonical_retrieval_json(normalized).encode("utf-8")).hexdigest()[:20]
+    normalized["run_id"] = run_id
+    write_text_file(directory / "plan.json", json.dumps(normalized, indent=2, ensure_ascii=False) + "\n")
+    if cwd is not None:
+        write_text_file(
+            directory / "graph-before.json",
+            json.dumps(effective_graph_snapshot(cwd), indent=2, ensure_ascii=False) + "\n",
+        )
+    worker_skill_text = str(normalized.get("worker_skill_text", ""))
+    measurement = dict(normalized.get("measurement", {}))
+    worker_skill_source = str(
+        measurement.get("worker_skill_source", ".memory-seed/skills/link_swarm.md")
+    )
+    for batch in normalized.get("batches", []):
+        number = int(batch["batch"])
+        worker_batch = _render_link_swarm_worker_batch(
+            run_id=run_id,
+            batch_number=number,
+            measurement=measurement,
+            semantic=dict(normalized.get("semantic", {})),
+            criteria=dict(normalized.get("criteria", {})),
+            pairs=list(batch.get("pairs", [])),
+            worker_skill_text=worker_skill_text,
+            worker_skill_source=worker_skill_source,
+        )
+        actual_bytes = len(worker_batch.encode("utf-8"))
+        planned_bytes = int(batch.get("worker_batch_utf8_bytes", batch["evidence_utf8_bytes"]))
+        if actual_bytes != planned_bytes:
+            raise ValueError(
+                f"batch {number} rendered to {actual_bytes} bytes; plan measured {planned_bytes}"
+            )
+        write_text_file(
+            directory / "batches" / f"batch-{number:04d}.md",
+            worker_batch,
+        )
+    write_text_file(
+        directory / "analytics.jsonl",
+        "".join(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n" for row in normalized.get("candidate_ledger", [])),
+    )
+    write_text_file(directory / "validation.json", json.dumps({
+        "schema": "memory-seed.link-swarm-validation.v1", "run_id": run_id,
+        "status": "pending", "batch_count": normalized.get("batch_count", 0),
+        "valid_batches": 0, "invalid_batches": 0, "missing_batches": normalized.get("batch_count", 0),
+        "errors": [],
+    }, indent=2) + "\n")
+    return {"run_id": run_id, "path": str(directory), "batch_count": normalized.get("batch_count", 0)}
+
+
+def collect_link_swarm_run(run_dir: str | Path) -> dict[str, Any]:
+    """Validate written worker reports and merge every outcome into analytics.jsonl."""
+    from .text_files import write_text_file
+
+    directory = Path(run_dir)
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    ledger = {row["pair_id"]: dict(row) for row in plan.get("candidate_ledger", [])}
+    errors: list[dict[str, Any]] = []
+    valid_batches = invalid_batches = missing_batches = 0
+
+    def normalized(value: str) -> str:
+        return " ".join(value.split())
+
+    for batch in plan.get("batches", []):
+        number = int(batch["batch"])
+        report_path = directory / "findings" / f"batch-{number:04d}.toon"
+        pair_by_key = {
+            (pair["source"]["entry_id"], pair["candidate"]["entry_id"]): pair
+            for pair in batch.get("pairs", [])
+        }
+        if not report_path.is_file():
+            missing_batches += 1
+            errors.append({"batch": number, "error": "missing_report", "path": str(report_path)})
+            continue
+        try:
+            report = parse_link_swarm_toon(
+                report_path.read_text(encoding="utf-8"),
+                expected_batch=number,
+                expected_pair_count=len(pair_by_key),
+            )
+            seen: set[tuple[str, str]] = set()
+            for result in report["verdicts"]:
+                key = (result["source_entry_id"], result["candidate_entry_id"])
+                pair = pair_by_key.get(key)
+                if pair is None:
+                    errors.append({"batch": number, "error": "unexpected_pair", "pair": list(key)})
+                    continue
+                if key in seen:
+                    errors.append({"batch": number, "error": "duplicate_pair", "pair": list(key)})
+                    ledger[pair["pair_id"]].update(status="rejected", validation="duplicate_pair")
+                    continue
+                seen.add(key)
+                problems: list[str] = []
+                source_ordinals = {item["ordinal"] for item in pair["source"]["decisions"]}
+                candidate_ordinals = {item["ordinal"] for item in pair["candidate"]["decisions"]}
+                if result["source_decision"] not in source_ordinals:
+                    problems.append("invalid_source_ordinal")
+                if result["candidate_decision"] not in candidate_ordinals:
+                    problems.append("invalid_candidate_ordinal")
+                if pair["candidate"].get("chain_position") == "interior" and result["verdict"] not in {"related", "none"}:
+                    problems.append("invalid_interior_verdict")
+                if not result["why"]:
+                    problems.append("missing_why")
+                if result["verdict"] == "none":
+                    if result["quote"] is not None or result["quote_entry_id"] is not None:
+                        problems.append("none_with_quote")
+                    if not result["exclusion_reason"]:
+                        problems.append("none_without_exclusion_reason")
+                else:
+                    quote = result["quote"] or ""
+                    quote_entry = result["quote_entry_id"]
+                    entries = {pair["source"]["entry_id"]: pair["source"], pair["candidate"]["entry_id"]: pair["candidate"]}
+                    if quote_entry not in entries or len(normalized(quote)) < 12:
+                        problems.append("invalid_quote_reference")
+                    else:
+                        quote_ordinal = (
+                            result["source_decision"] if quote_entry == pair["source"]["entry_id"]
+                            else result["candidate_decision"]
+                        )
+                        quoted_decision = next(
+                            (decision for decision in entries[quote_entry]["decisions"] if decision["ordinal"] == quote_ordinal),
+                            None,
+                        )
+                        if quoted_decision is None or normalized(quote) not in normalized(quoted_decision["text"]):
+                            problems.append("quote_not_found_in_named_decision")
+                    if result["exclusion_reason"] is not None:
+                        problems.append("non_none_with_exclusion_reason")
+                row = ledger[pair["pair_id"]]
+                row.update(
+                    verdict=result["verdict"], source_decision=result["source_decision"],
+                    candidate_decision=result["candidate_decision"], confidence=result["confidence"],
+                    quote=result["quote"], quote_entry_id=result["quote_entry_id"], why=result["why"],
+                    exclusion_reason=result["exclusion_reason"],
+                )
+                if problems:
+                    row.update(status="rejected", validation=",".join(problems))
+                    errors.append({"batch": number, "error": "invalid_row", "pair": list(key), "problems": problems})
+                else:
+                    row.update(status="validated", validation="passed")
+            missing_keys = set(pair_by_key) - seen
+            for key in sorted(missing_keys):
+                pair = pair_by_key[key]
+                ledger[pair["pair_id"]].update(status="rejected", validation="missing_pair")
+                errors.append({"batch": number, "error": "missing_pair", "pair": list(key)})
+            valid_batches += 1
+        except (OSError, ValueError) as exc:
+            invalid_batches += 1
+            errors.append({"batch": number, "error": "invalid_report", "detail": str(exc), "path": str(report_path)})
+            for pair in batch.get("pairs", []):
+                ledger[pair["pair_id"]].update(status="rejected", validation="invalid_batch")
+
+    ordered = [ledger[row["pair_id"]] for row in plan.get("candidate_ledger", [])]
+    survivors = [row for row in ordered if row.get("status") == "validated" and row.get("verdict") != "none"]
+    feature_names = (
+        "file", "keyword", "topic", "semantic_raw", "semantic_weighted",
+        "temporal", "temporal_distance_days",
+    )
+    by_verdict: dict[str, Any] = {}
+    for verdict in ("replaces", "evolves", "related", "none"):
+        rows = [row for row in ordered if row.get("status") == "validated" and row.get("verdict") == verdict]
+        features: dict[str, Any] = {}
+        for name in feature_names:
+            values = [
+                row.get("score_components", {}).get(name) for row in rows
+                if isinstance(row.get("score_components", {}).get(name), (int, float))
+            ]
+            features[name] = {
+                "count": len(values),
+                "mean": round(sum(values) / len(values), 6) if values else None,
+                "min": min(values) if values else None,
+                "max": max(values) if values else None,
+            }
+        by_verdict[verdict] = {"count": len(rows), "features": features}
+    status_counts = {
+        status: sum(1 for row in ordered if row.get("status") == status)
+        for status in sorted({str(row.get("status")) for row in ordered})
+    }
+    write_text_file(directory / "analytics.jsonl", "".join(
+        json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n" for row in ordered
+    ))
+    write_text_file(directory / "survivors.json", json.dumps({
+        "schema": "memory-seed.link-swarm-survivors.v1", "run_id": plan.get("run_id"),
+        "count": len(survivors), "verdicts": survivors,
+    }, indent=2, ensure_ascii=False) + "\n")
+    write_text_file(directory / "analytics-summary.json", json.dumps({
+        "schema": "memory-seed.link-swarm-analytics-summary.v1",
+        "run_id": plan.get("run_id"),
+        "thresholds": plan.get("measurement", {}),
+        "status_counts": status_counts,
+        "by_verdict": by_verdict,
+    }, indent=2, ensure_ascii=False) + "\n")
+    validation = {
+        "schema": "memory-seed.link-swarm-validation.v1", "run_id": plan.get("run_id"),
+        "status": "complete" if not errors else "incomplete", "batch_count": len(plan.get("batches", [])),
+        "valid_batches": valid_batches, "invalid_batches": invalid_batches,
+        "missing_batches": missing_batches, "survivor_count": len(survivors), "errors": errors,
+    }
+    write_text_file(directory / "validation.json", json.dumps(validation, indent=2, ensure_ascii=False) + "\n")
+    return validation
+
+
+LINK_SWARM_APPROVAL_SCHEMA = "memory-seed.link-swarm-approval.v1"
+LINK_SWARM_RECEIPT_SCHEMA = "memory-seed.link-swarm-receipt.v1"
+LINK_SWARM_GC_SCHEMA = "memory-seed.link-swarm-gc.v1"
+
+
+def _link_swarm_file_record(path: Path, root: Path) -> dict[str, Any]:
+    relative = path.relative_to(root).as_posix()
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+            size += len(block)
+    return {"path": relative, "utf8_bytes": size, "sha256": digest.hexdigest()}
+
+
+def _link_swarm_now(value: datetime | None = None) -> datetime:
+    current = value or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc)
+
+
+def finalize_link_swarm_run(
+    run_dir: str | Path,
+    approval: Mapping[str, Any],
+    *,
+    cwd: str | Path = ".",
+    retention_days: int = 30,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Seal a reviewed run and record enough evidence for safe later compaction."""
+    from .core import _git_text, check_session_links, resolve_runtime
+    from .text_files import write_text_file
+
+    if retention_days < 0:
+        raise ValueError("retention_days must be zero or greater")
+    directory = Path(run_dir).resolve()
+    receipt_path = directory / "receipt.json"
+    if receipt_path.exists():
+        raise FileExistsError(f"link swarm run is already finalized: {receipt_path}")
+    plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
+    validation = json.loads((directory / "validation.json").read_text(encoding="utf-8"))
+    survivors = json.loads((directory / "survivors.json").read_text(encoding="utf-8"))
+    analytics_summary = json.loads(
+        (directory / "analytics-summary.json").read_text(encoding="utf-8")
+    )
+    run_id = str(plan.get("run_id") or "")
+    if not run_id:
+        raise ValueError("plan.json has no run_id")
+    for label, document in (
+        ("validation.json", validation),
+        ("survivors.json", survivors),
+        ("analytics-summary.json", analytics_summary),
+    ):
+        if document.get("run_id") != run_id:
+            raise ValueError(f"{label} run_id does not match plan.json")
+    if approval.get("schema") != LINK_SWARM_APPROVAL_SCHEMA:
+        raise ValueError(f"approval schema must be {LINK_SWARM_APPROVAL_SCHEMA}")
+    if approval.get("run_id") != run_id:
+        raise ValueError("approval run_id does not match plan.json")
+    disposition = approval.get("disposition")
+    if disposition not in {"approved", "rejected"}:
+        raise ValueError("approval disposition must be approved or rejected")
+    reviewer = str(approval.get("reviewer") or "").strip()
+    if not reviewer:
+        raise ValueError("approval reviewer must be recorded")
+    approved_pair_value = approval.get("approved_pair_ids")
+    if not isinstance(approved_pair_value, list) or not all(
+        isinstance(value, str) and value for value in approved_pair_value
+    ):
+        raise ValueError("approved_pair_ids must be a JSON list of non-empty strings")
+    approved_pair_ids = list(approved_pair_value)
+    if len(approved_pair_ids) != len(set(approved_pair_ids)):
+        raise ValueError("approved_pair_ids must not contain duplicates")
+    survivor_ids = {row["pair_id"] for row in survivors.get("verdicts", [])}
+    unknown = sorted(set(approved_pair_ids) - survivor_ids)
+    if unknown:
+        raise ValueError("approval names non-surviving pair ids: " + ", ".join(unknown))
+    if disposition == "approved" and not approved_pair_ids:
+        raise ValueError("approved disposition requires at least one approved_pair_id")
+    if disposition == "rejected" and approved_pair_ids:
+        raise ValueError("rejected disposition cannot carry approved_pair_ids")
+    if validation.get("status") not in {"complete", "incomplete"}:
+        raise ValueError("run must be collected before finalization")
+    if disposition == "approved" and validation.get("status") != "complete":
+        raise ValueError("an approved run requires complete validation")
+
+    preserved_names = (
+        "analytics.jsonl", "analytics-summary.json", "survivors.json", "validation.json",
+    )
+    preserved_paths = [directory / name for name in preserved_names]
+    missing_preserved = [path.name for path in preserved_paths if not path.is_file()]
+    if missing_preserved:
+        raise ValueError("run is missing retained analytics: " + ", ".join(missing_preserved))
+
+    checks: dict[str, Any] = {
+        "validation_status": validation.get("status"),
+        "validation_error_count": len(validation.get("errors", [])),
+    }
+    commit_record: dict[str, Any] | None = None
+    if disposition == "approved":
+        if approval.get("graph_delta_reviewed") is not True:
+            raise ValueError("approved finalization requires graph_delta_reviewed: true")
+        baseline_path = directory / "graph-before.json"
+        if not baseline_path.is_file():
+            raise ValueError("approved finalization requires graph-before.json")
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        graph_diff = diff_graph_snapshots(baseline, effective_graph_snapshot(cwd))
+        if graph_diff.get("verdict") == "error":
+            raise ValueError(f"graph snapshot comparison failed: {graph_diff.get('error')}")
+        checks["graph_diff"] = graph_diff
+        link_check = check_session_links(cwd=cwd)
+        checks["links"] = {
+            "ok": link_check.ok,
+            "files_checked": link_check.files_checked,
+            "issues": [
+                {
+                    "file": issue.file, "kind": issue.kind,
+                    "detail": issue.detail, "severity": issue.severity,
+                }
+                for issue in link_check.issues
+            ],
+        }
+        if not link_check.ok:
+            raise ValueError("link integrity check failed; approved run cannot be finalized")
+        write_commit = str(approval.get("write_commit") or "").strip()
+        memory_entry = str(approval.get("memory_entry") or "").strip()
+        if not re.fullmatch(r"mse_[a-z0-9]{16}", memory_entry):
+            raise ValueError("approved finalization requires a valid memory_entry")
+        root = resolve_runtime(cwd).workspace_root
+        code, commit_sha = _git_text(root, ("rev-parse", f"{write_commit}^{{commit}}"))
+        if code != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+            raise ValueError("write_commit does not resolve to a commit")
+        code, commit_message = _git_text(root, ("show", "-s", "--format=%B", commit_sha))
+        if code != 0 or not re.search(
+            rf"(?m)^Memory-Entry:\s*{re.escape(memory_entry)}\s*$", commit_message
+        ):
+            raise ValueError("write_commit does not carry the required Memory-Entry trailer")
+        commit_record = {"sha": commit_sha, "memory_entry": memory_entry}
+        source_commit = baseline.get("corpus_revision")
+        if source_commit:
+            ancestry_code, _ = _git_text(
+                root, ("merge-base", "--is-ancestor", str(source_commit), commit_sha)
+            )
+            if ancestry_code != 0:
+                raise ValueError("write_commit does not descend from the run source commit")
+
+    raw_paths = [directory / "plan.json"]
+    for raw_directory, suffix in ((directory / "batches", ".md"), (directory / "findings", ".toon")):
+        if raw_directory.is_dir():
+            raw_paths.extend(sorted(path for path in raw_directory.iterdir() if path.suffix == suffix))
+    if any(path.is_symlink() for path in raw_paths):
+        raise ValueError("raw artifacts must not be symbolic links")
+    raw_records = [_link_swarm_file_record(path, directory) for path in raw_paths if path.is_file()]
+    preserved_records = [_link_swarm_file_record(path, directory) for path in preserved_paths]
+    baseline_path = directory / "graph-before.json"
+    if baseline_path.is_file():
+        preserved_records.append(_link_swarm_file_record(baseline_path, directory))
+
+    finalized_at = _link_swarm_now(now)
+    receipt = {
+        "schema": LINK_SWARM_RECEIPT_SCHEMA,
+        "run_id": run_id,
+        "status": "finalized",
+        "disposition": disposition,
+        "finalized_at": finalized_at.isoformat(),
+        "retention": {
+            "raw_days": retention_days,
+            "raw_expires_at": (finalized_at + timedelta(days=retention_days)).isoformat(),
+        },
+        "skill": {
+            "source": plan.get("measurement", {}).get("worker_skill_source"),
+            "sha256": plan.get("measurement", {}).get("worker_skill_sha256"),
+        },
+        "source_commit": (
+            json.loads(baseline_path.read_text(encoding="utf-8")).get("corpus_revision")
+            if baseline_path.is_file() else None
+        ),
+        "approval": dict(approval),
+        "commit": commit_record,
+        "checks": checks,
+        "analytics": {
+            "candidate_status_counts": analytics_summary.get("status_counts", {}),
+            "verdict_counts": {
+                key: value.get("count", 0)
+                for key, value in analytics_summary.get("by_verdict", {}).items()
+            },
+        },
+        "raw_artifacts": raw_records,
+        "preserved_artifacts": preserved_records,
+    }
+    write_text_file(receipt_path, json.dumps(receipt, indent=2, ensure_ascii=False) + "\n")
+    return receipt
+
+
+def gc_link_swarm_runs(
+    runs_dir: str | Path,
+    *,
+    apply: bool = False,
+    purge_now: bool = False,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Dry-run or compact only hash-matching raw artifacts from finalized runs."""
+    from .text_files import write_text_file
+
+    root = Path(runs_dir).resolve()
+    current = _link_swarm_now(now)
+    if (root / "receipt.json").is_file():
+        run_directories = [root]
+    elif root.is_dir():
+        run_directories = sorted(path for path in root.iterdir() if path.is_dir())
+    else:
+        raise FileNotFoundError(f"link swarm runs directory does not exist: {root}")
+    results: list[dict[str, Any]] = []
+    for directory in run_directories:
+        receipt_path = directory / "receipt.json"
+        if not receipt_path.is_file():
+            results.append({"run": directory.name, "status": "skipped", "reason": "not_finalized"})
+            continue
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if receipt.get("schema") != LINK_SWARM_RECEIPT_SCHEMA or receipt.get("status") != "finalized":
+                raise ValueError("invalid finalized receipt")
+            expires_at = datetime.fromisoformat(receipt["retention"]["raw_expires_at"])
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if not purge_now and current < expires_at.astimezone(timezone.utc):
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "retained", "expires_at": expires_at.isoformat(),
+                })
+                continue
+            pending: list[tuple[Path, Mapping[str, Any]]] = []
+            problems: list[str] = []
+            for record in receipt.get("raw_artifacts", []):
+                relative = Path(str(record.get("path") or ""))
+                if relative.is_absolute() or ".." in relative.parts:
+                    problems.append(f"unsafe raw path: {relative}")
+                    continue
+                path = (directory / relative).resolve()
+                try:
+                    path.relative_to(directory)
+                except ValueError:
+                    problems.append(f"raw path escapes run: {relative}")
+                    continue
+                if not path.exists():
+                    continue
+                if path.is_symlink() or not path.is_file():
+                    problems.append(f"raw artifact is not a regular file: {relative.as_posix()}")
+                    continue
+                actual = _link_swarm_file_record(path, directory)
+                if actual["sha256"] != record.get("sha256") or actual["utf8_bytes"] != record.get("utf8_bytes"):
+                    problems.append(f"raw artifact changed after finalization: {relative.as_posix()}")
+                    continue
+                pending.append((path, record))
+            if problems:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "blocked", "problems": problems,
+                })
+                continue
+            if not pending:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "already_compacted",
+                })
+                continue
+            removed = [record["path"] for _, record in pending]
+            if not apply:
+                results.append({
+                    "run": directory.name, "run_id": receipt.get("run_id"),
+                    "status": "eligible", "would_remove": removed,
+                })
+                continue
+            for path, _record in pending:
+                path.unlink()
+            for raw_directory in (directory / "batches", directory / "findings"):
+                if raw_directory.is_dir() and not any(raw_directory.iterdir()):
+                    raw_directory.rmdir()
+            gc_record = {
+                "schema": LINK_SWARM_GC_SCHEMA,
+                "run_id": receipt.get("run_id"),
+                "compacted_at": current.isoformat(),
+                "receipt_sha256": _link_swarm_file_record(receipt_path, directory)["sha256"],
+                "removed": removed,
+            }
+            write_text_file(
+                directory / "gc.json", json.dumps(gc_record, indent=2, ensure_ascii=False) + "\n"
+            )
+            results.append({
+                "run": directory.name, "run_id": receipt.get("run_id"),
+                "status": "compacted", "removed": removed,
+            })
+        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+            results.append({"run": directory.name, "status": "blocked", "problems": [str(exc)]})
+    return {
+        "schema": "memory-seed.link-swarm-gc-report.v1",
+        "mode": "apply" if apply else "dry-run",
+        "purge_now": purge_now,
+        "runs": results,
     }
 
 

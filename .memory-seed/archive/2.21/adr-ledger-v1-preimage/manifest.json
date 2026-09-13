@@ -1,0 +1,302 @@
+{
+  "corpus_sha256": "240e1b65ee3629e1580815aa18d703089363bf13d074cd828db97bb7aeb9438f",
+  "files": [
+    {
+      "bytes": 3625,
+      "path": ".memory-seed/decisions/adr_agent_config_merge.md",
+      "sha256": "4bedcb84507c124f0877df3f27b2303842a9ca4ac12ec45d80b13714a2bc4138"
+    },
+    {
+      "bytes": 3704,
+      "path": ".memory-seed/decisions/adr_agent_selective_install.md",
+      "sha256": "9730960405f2bb68a7643cee76eb86c9d11da1bb83d549cba8672fabb1048121"
+    },
+    {
+      "bytes": 5928,
+      "path": ".memory-seed/decisions/adr_append_rule_is_an_invariant.md",
+      "sha256": "586d8475d27141d0b2af48ae18aafb4a750548e7b2ef71a6e0b9ad65a73a4403"
+    },
+    {
+      "bytes": 5934,
+      "path": ".memory-seed/decisions/adr_archive_before_replace.md",
+      "sha256": "8aed22a5e311a12a15d9e96c78fdda5cc7aef21b1dfeff321613e017c63efd58"
+    },
+    {
+      "bytes": 3921,
+      "path": ".memory-seed/decisions/adr_bootstrap_durable_authority.md",
+      "sha256": "d2479b1559a237c3f7801ac29a67c9c8b58f6aced0d9d6dbf04a5d7d678274bf"
+    },
+    {
+      "bytes": 4220,
+      "path": ".memory-seed/decisions/adr_branch_session_fuse.md",
+      "sha256": "172499513ad8116ac04829c5ae2a9e445dc4fb0e3ea0c91780dc59c3e3695727"
+    },
+    {
+      "bytes": 7309,
+      "path": ".memory-seed/decisions/adr_business_separation.md",
+      "sha256": "158ba25f17039a8cef09867ad233216b554adcdc4bafc092253d6632403fd951"
+    },
+    {
+      "bytes": 2768,
+      "path": ".memory-seed/decisions/adr_community_detection_rejected.md",
+      "sha256": "57eae98b10c45d955d7a1fa0e62f144a52f877e4cb3c3e6743c9303b0933e1f7"
+    },
+    {
+      "bytes": 4571,
+      "path": ".memory-seed/decisions/adr_control_file_authority.md",
+      "sha256": "5377eafe63132295608f2f12a08587544ebdbba2cc754dc6a898356d459447f6"
+    },
+    {
+      "bytes": 3384,
+      "path": ".memory-seed/decisions/adr_decision_identity.md",
+      "sha256": "4196fd7ade71b4bc655c675a066a2de364b8a9460d00a4414ee6df7fd98c49d1"
+    },
+    {
+      "bytes": 8570,
+      "path": ".memory-seed/decisions/adr_derived_precedence.md",
+      "sha256": "b6add04c8b99c6abb024dc2ee6cfb9008f774cdfba28d83f6a00216e4e06907a"
+    },
+    {
+      "bytes": 6297,
+      "path": ".memory-seed/decisions/adr_diagram_sidecar_structure.md",
+      "sha256": "90c94cac1e2748cd15434c7009b2726368b8f5b46b38183a045d5379095484ef"
+    },
+    {
+      "bytes": 8509,
+      "path": ".memory-seed/decisions/adr_docs_lifecycle_folders.md",
+      "sha256": "cc49eac83f40f5cd2648ef3b744293b68738bc5c75b08e8dccb445ad4247ef23"
+    },
+    {
+      "bytes": 5910,
+      "path": ".memory-seed/decisions/adr_documentation_lane_structure.md",
+      "sha256": "1655b39df79c036de4222b3bc58d101445c117c3f4dd31c71a0424dd3b1509ca"
+    },
+    {
+      "bytes": 3936,
+      "path": ".memory-seed/decisions/adr_draft_format.md",
+      "sha256": "5aec726a88b8ad4b61d0575d5b5af2e9b5d450ed18938c716a8e9330d097aaf1"
+    },
+    {
+      "bytes": 8304,
+      "path": ".memory-seed/decisions/adr_edge_confidence.md",
+      "sha256": "18e4ea3f9f7a1358eee38231c5d6e8ae6bc9adeb1e2d1f1a752410298e11efc1"
+    },
+    {
+      "bytes": 6415,
+      "path": ".memory-seed/decisions/adr_edge_kinds.md",
+      "sha256": "f6284b97b27f9611414ca0de78872c242df51e762e7dd8bf16ac65cc5c1b07ba"
+    },
+    {
+      "bytes": 7110,
+      "path": ".memory-seed/decisions/adr_encoding_policy.md",
+      "sha256": "9dd2c92c51b0560ddd3eb5da255c5b12074db6c5fc9030445b41ceaedd171159"
+    },
+    {
+      "bytes": 3386,
+      "path": ".memory-seed/decisions/adr_entry_id_scheme.md",
+      "sha256": "a6e249feabe6a3c434d84336571d12cec1e61dc536b653fd94456a4f634e10cc"
+    },
+    {
+      "bytes": 7549,
+      "path": ".memory-seed/decisions/adr_experiment_isolation.md",
+      "sha256": "2577408dfaefacc2179985a9457bcfd50aecb18ebcd74a4d3e0402fa7eb9c972"
+    },
+    {
+      "bytes": 7897,
+      "path": ".memory-seed/decisions/adr_foreign_file_routing.md",
+      "sha256": "8dcd1954e65e0ebe63f9ab4081db86aa20f5fa798cf6cb066cf30ae07193c913"
+    },
+    {
+      "bytes": 7367,
+      "path": ".memory-seed/decisions/adr_forward_only_edges.md",
+      "sha256": "c286f0783185ee02c6f00666f2e898b3d1cd7d992d4ed58f77c2d86aba71c0f1"
+    },
+    {
+      "bytes": 3199,
+      "path": ".memory-seed/decisions/adr_hook_merge_framework.md",
+      "sha256": "094d5d940b27bcf943fecdd38f6e0185b43a067f59b26e4b86b40a7a4d3ce286"
+    },
+    {
+      "bytes": 3297,
+      "path": ".memory-seed/decisions/adr_inbox_promotion_workflow.md",
+      "sha256": "ed3f14e0d13d3257231bb4483dbb6fde37c82088487f1481226d1c3099e2cd38"
+    },
+    {
+      "bytes": 6086,
+      "path": ".memory-seed/decisions/adr_integration_mode.md",
+      "sha256": "ff3f93f5e602dea7bfb9f5d3ecac8333b78bfea4c6703a8dacf2a1d6041fdda7"
+    },
+    {
+      "bytes": 3132,
+      "path": ".memory-seed/decisions/adr_legacy_agents_compat.md",
+      "sha256": "6c6c4d926353a87db45d4dbdafd42e6833ad4036f209e1fe0499517170a84ab2"
+    },
+    {
+      "bytes": 2555,
+      "path": ".memory-seed/decisions/adr_lifecycle_edges_live_in_sidecars.md",
+      "sha256": "2217f98d243b3cdac663cee4dc375c948819064c7f94b936383096cb8f52fca8"
+    },
+    {
+      "bytes": 5592,
+      "path": ".memory-seed/decisions/adr_lifecycle_link_audit_workflow.md",
+      "sha256": "f8ccd07c2a700a1f89f00daf4ac66b429f21b2f9fe48528dfd4e10148b4a8f9b"
+    },
+    {
+      "bytes": 8385,
+      "path": ".memory-seed/decisions/adr_link_retraction.md",
+      "sha256": "d80cb384cd3ed572db716fadb31dd821b519ed594675e04fb03d21c87920c7c8"
+    },
+    {
+      "bytes": 7421,
+      "path": ".memory-seed/decisions/adr_markdown_substrate.md",
+      "sha256": "e87bc7ba743ec50c04214ff1e3b249f48f16e51e5477e7f37e41657292a5a331"
+    },
+    {
+      "bytes": 4237,
+      "path": ".memory-seed/decisions/adr_mcp_decision_envelope_review.md",
+      "sha256": "379afee5512c1dda1a227b2879a9ec5b39118f2bcfe8ca86974e2b83da49db42"
+    },
+    {
+      "bytes": 4121,
+      "path": ".memory-seed/decisions/adr_mcp_integration_surface.md",
+      "sha256": "c4518842f2897f25804dc41766b4abe4946528556bfa3fcbd2bfbcb2f0747796"
+    },
+    {
+      "bytes": 5346,
+      "path": ".memory-seed/decisions/adr_mcp_metadata_and_filters.md",
+      "sha256": "44d0eafe1f63103fbcd40b5407a491bad2541beb61c93cc923c3c916eaea36bd"
+    },
+    {
+      "bytes": 7865,
+      "path": ".memory-seed/decisions/adr_merge_branch_primitive.md",
+      "sha256": "3a543b1652cd7a2c3b8939f8b181e796f567d2f4bcbd20728f9b787e8dee5eb1"
+    },
+    {
+      "bytes": 2493,
+      "path": ".memory-seed/decisions/adr_optional_skill_profiles.md",
+      "sha256": "11a9c5927d41afe9f89eaf9b43fc013e534bed295cb4ccc2d0de66ab3a0a612c"
+    },
+    {
+      "bytes": 3181,
+      "path": ".memory-seed/decisions/adr_parent_first_sidecar_transaction.md",
+      "sha256": "5de5097a6fa5a52b24dc34bbd327d16c08127d091bacce31342992d58d286f0b"
+    },
+    {
+      "bytes": 5962,
+      "path": ".memory-seed/decisions/adr_proposal_completion_moves_lane.md",
+      "sha256": "8e717fadfb8906bf3a758bedc656ff856545eb527cd7dae5de48ab71a8ea1a13"
+    },
+    {
+      "bytes": 2471,
+      "path": ".memory-seed/decisions/adr_release_topology.md",
+      "sha256": "f438aa37d0edef542788478b77ab8e3076c0efc450e1cd276de24ff7d530784d"
+    },
+    {
+      "bytes": 6312,
+      "path": ".memory-seed/decisions/adr_retrieval_entry_granularity.md",
+      "sha256": "a8cc46e41b114f16751cb153dd3ca1e75cf4dbf61dc032c1609ae67fef53bb42"
+    },
+    {
+      "bytes": 2088,
+      "path": ".memory-seed/decisions/adr_runtime_discovery.md",
+      "sha256": "3c73e770ab3018ac31c7dfc76ef808cef299c667312208257010233074b9c919"
+    },
+    {
+      "bytes": 6135,
+      "path": ".memory-seed/decisions/adr_safe_process_and_upgrade_workflow.md",
+      "sha256": "f59d3ef65353f939083ffdc7b3a31496dbb7723388059109249ca82721af2744"
+    },
+    {
+      "bytes": 3857,
+      "path": ".memory-seed/decisions/adr_semantic_provider.md",
+      "sha256": "7d941c47987fd3fa4f007b87cffcc897c3a57d3e42e3392fc243495b298a6699"
+    },
+    {
+      "bytes": 3890,
+      "path": ".memory-seed/decisions/adr_session_decision_authority.md",
+      "sha256": "89471a997584c31388965353bd5dc6fd068926c2fcaf38f1821c7dfc8499cb42"
+    },
+    {
+      "bytes": 7534,
+      "path": ".memory-seed/decisions/adr_session_layout.md",
+      "sha256": "825e4d1f41628efad3fe15cba0a0644e922b35e2cfbe574371674d2da7d131cb"
+    },
+    {
+      "bytes": 5520,
+      "path": ".memory-seed/decisions/adr_session_layout_participant_gating.md",
+      "sha256": "31d795ea91ff9bd6f82be46c415a7253cc0eb1c4ed2281c5bdeb792274850ab6"
+    },
+    {
+      "bytes": 3102,
+      "path": ".memory-seed/decisions/adr_session_log_trigger_enforcement.md",
+      "sha256": "c590698552a18b95a01436aebcdfa62577a3fa8be5290277932bc9cfb7b4624d"
+    },
+    {
+      "bytes": 6329,
+      "path": ".memory-seed/decisions/adr_skill_registry_and_generic_skills.md",
+      "sha256": "7d52c88cbfb3412e5ce1b594dd283e28834e9872ef9faa80608b5cec4a0eba3b"
+    },
+    {
+      "bytes": 7709,
+      "path": ".memory-seed/decisions/adr_subproject_scoping.md",
+      "sha256": "fc11659b3f5618025c3a0077eb7fa757a6773a5e0fa7b2b0469799440cfacca0"
+    },
+    {
+      "bytes": 7889,
+      "path": ".memory-seed/decisions/adr_topic_authority.md",
+      "sha256": "5212e42f94fcf1783e1bcd4175baa726307c43c36cf07b78181c3c2344d8e079"
+    },
+    {
+      "bytes": 4966,
+      "path": ".memory-seed/decisions/adr_topic_backfill_rejected.md",
+      "sha256": "5b517712a08febc4c173b636094737b45057987be7ce5737e4ee110ec4f4d0db"
+    },
+    {
+      "bytes": 5576,
+      "path": ".memory-seed/decisions/adr_topic_vocabulary.md",
+      "sha256": "93b6c20280734b3e7a945a3b74d853e288a48768ea64c19e58c8a30a93d6099b"
+    },
+    {
+      "bytes": 6572,
+      "path": ".memory-seed/decisions/adr_topic_vocabulary_controlled.md",
+      "sha256": "a22eb184d23721199816e61e0c947b90527e0e8745aefaf8f84520c04d32ee9b"
+    },
+    {
+      "bytes": 7829,
+      "path": ".memory-seed/decisions/adr_trace_boundary.md",
+      "sha256": "3a7927df91e4a8fc1e14a55a3fdeddc2f5aae2539c55d906e808abd32e74e853"
+    },
+    {
+      "bytes": 6950,
+      "path": ".memory-seed/decisions/adr_trace_incremental_startup.md",
+      "sha256": "2db722f477cb925d2b06d55983ff2c1c4565769473fb9fe845588e64d9825a65"
+    },
+    {
+      "bytes": 4333,
+      "path": ".memory-seed/decisions/adr_trace_trail_first_ui.md",
+      "sha256": "b020e5b6dfe8c6117ad638729114cca8dcedd28ac5e3a86b08dc1440a8c318b5"
+    },
+    {
+      "bytes": 6036,
+      "path": ".memory-seed/decisions/adr_trail_derived_lanes.md",
+      "sha256": "b82c6099d5f0b70d6bf5f9c8b31b16523f1b417ebb89d525cd2760f1a3e85bca"
+    },
+    {
+      "bytes": 3928,
+      "path": ".memory-seed/decisions/adr_trail_lifecycle_visualization.md",
+      "sha256": "72f09283b8323e10e651339d508ff6137573882aedcb53fbc4b9378ffa99e1a8"
+    },
+    {
+      "bytes": 3742,
+      "path": ".memory-seed/decisions/adr_windows_encoding_policy.md",
+      "sha256": "f09737934de72567be05ee11abc2d9e8b10c2f06dd1efa9652da4d6f9db7d8bb"
+    },
+    {
+      "bytes": 2788,
+      "path": ".memory-seed/decisions/adr_worktree_convention.md",
+      "sha256": "f98ec66f2ecd6f8d41e8b71e188d73a28176248515eeb69597909c8e3e2e3a4b"
+    }
+  ],
+  "kind": "memory-seed-adr-ledger-v2-preimage",
+  "version": 1
+}

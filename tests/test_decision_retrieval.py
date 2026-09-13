@@ -153,6 +153,25 @@ class DecisionRetrievalTests(unittest.TestCase):
         self.assertTrue(any(e[0] == "replaces" for e in first.decision_edges))
         self.assertFalse([e for e in second.decision_edges if e[1] == "d1"])
 
+    def test_planning_consumes_decision_topics_without_changing_reader_or_lifecycle(self):
+        from memory_seed.planning import PlanningCandidate, assess_candidate
+        from memory_seed.topics import TopicIndex, TopicRecord
+
+        root = self.make_store()
+        chunks = self.chunks(root)
+        index = TopicIndex("topics.yaml", True, "3", (
+            TopicRecord("retrieval"), TopicRecord("ranking", parent="retrieval"),
+            TopicRecord("hooks"), TopicRecord("shared-topic"),
+        ))
+        first, second = chunks["mse_multidecision1:d1"], chunks["mse_multidecision1:d2"]
+        for chunk, expected in ((first, True), (second, False)):
+            candidate = PlanningCandidate(chunk.chunk_id, chunk.text, "session_evidence", topics=chunk.topics)
+            assessment = assess_candidate(candidate, ("ranking",), index)
+            self.assertEqual(assessment.binding, expected)
+            self.assertIn("not exhaustive", assessment.coverage)
+        # The same readers still return the same identities, DRAFT bodies and edges.
+        self.assertEqual(self.chunks(root), chunks)
+
     def test_search_serves_whole_draft_block_not_a_preview(self):
         root = self.make_store()
         payload = search_memory("widget cache registry lookup", root, semantic_enabled=False)

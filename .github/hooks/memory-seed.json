@@ -4,7 +4,7 @@
     "sessionStart": [
       {
         "type": "prompt",
-        "prompt": "memory-seed: Before any work, locate the nearest applicable AGENTS.md by walking upward from the current directory, read it first, and follow every instruction and routing path it defines. Then read the five newest applicable entries directly from the latest .memory-seed/sessions/ files to establish current project context. Do NOT use memory_search/semantic search to find the most recent work - use it only for topical 'why was X decided / what do we know about Y' questions."
+        "prompt": "memory-seed: Before any work, locate the nearest applicable AGENTS.md by walking upward from the current directory, read it first, and follow every instruction and routing path it defines. Load .memory-seed/skills/orientation.md, run memory-seed situate, and apply its measured latest-session context_route: read the whole file when direct, or use the skill's read-only economy-worker compression contract when summarize. Do NOT use memory_search to find the most recent work - use it only for topical 'why was X decided / what do we know about Y' questions."
       }
     ]
   }

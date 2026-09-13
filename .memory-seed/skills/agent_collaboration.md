@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.21
 governing_adr: adr_worktree_convention
 tags:
   - memory-seed
@@ -47,6 +47,23 @@ Load this skill when the task involves any of:
 - Each code-writing worker gets a separate worktree unless the task is strictly sequential.
 - Validators review from the integration branch or final diff, not from a worker's unmerged assumptions.
 
+#### Continuous monitoring contract
+
+Every dispatched planner, implementer, researcher, validator, and plan reviewer remains an active orchestration
+gate until it reaches a terminal result. The orchestrator owns that gate and must:
+
+1. record the dispatched agent and the outcome or verdict that will close the gate;
+2. wait or poll through the collaboration surface at reasonable intervals instead of relying on the human to
+   notice completion;
+3. surface a meaningful blocker or requested decision promptly;
+4. read and act on the terminal report before sequencing dependent work; and
+5. close or supersede the gate explicitly in the plan ledger or handoff record.
+
+A status update to the human does not close a running gate. Planning and plan-review agents follow the same
+rule as implementation agents: once launched, they are monitored through `APPROVE`, `REVISE`, `BLOCKED`, or
+another declared terminal contract. Prefer bounded waits and event cursors where the collaboration surface
+supports them; avoid busy polling, but never leave completion discovery to the human.
+
 ### Multi-Developer Agent Work
 
 - Use per-developer branches and per-user session targets where configured.
@@ -55,14 +72,16 @@ Load this skill when the task involves any of:
 
 ## Worker Context Contract
 
-A worker loads its **Task Packet + at most one domain persona + objective-triggered skills**. Nothing
-else.
+A worker starts as a **clean session** and loads its **Task Packet + at most one domain persona +
+objective-triggered skills**. Nothing else. It does not inherit the primary agent's conversation or broad
+primary-agent orientation.
 
 `agent-rules.md` "Operating Mode Start" is written for the **primary** agent, which has to establish
 current project state for itself. A worker does not: the orchestrator already holds that state and
-distilled it into the packet. So a worker **skips** the full index read (step 4), the newest-session
-recency read (step 7), the whole skill registry as a read-everything pass (step 8), and
-load-all-active-personas (step 10).
+distilled it into the packet. So a worker **skips** primary orientation and latest-session loading
+(steps 4–5), the whole skill registry (step 6), project-wide index/policy/Constitution/ADR loading
+(steps 7–9), and load-all-active-personas (step 10). Its packet names the one persona, triggered skills,
+and any policy, Constitution, or ADR context its objective actually requires.
 
 It **still runs** `base_sha` verification, the packet's `preflight`, and the worktree guard. The
 exemption is about *context volume*, never about safety rails — a worker that skips the guard is not
@@ -87,6 +106,69 @@ Two packet fields carry it:
 
 Set `context_load: full` deliberately, not defensively. If a worker truly needs whole-project state,
 the packet is probably under-specified.
+
+## Capability allocation during planning
+
+For every delegated task in a plan, the orchestrator records a proportionate capability allocation
+before dispatch. For direct work, make the same choice briefly; do not create workers or a multi-task
+plan merely to fill an allocation table.
+
+The allocation identifies:
+- worker capability tier and desired reasoning effort, with a short reason based on ambiguity,
+  consequence of error, and verifiability;
+- reviewer capability and required independence, preserving the existing strong planning/review gates;
+- bounded context allowance, execution budget, and retry/stop limits;
+- evidence that warrants escalation, and who decides a scope or budget change;
+- dependencies, editable ownership, and which assignments may run concurrently.
+
+Assess parallelisation opportunities as part of allocation, rather than only recording concurrency
+after tasks have been chosen. For each useful split, identify data/output dependencies, unresolved
+design decisions, shared mutable resources, edit ownership, and validation prerequisites. Disjoint files
+alone do not prove independence. Record the proposed parallel groups, the evidence needed before each
+group starts, the join conditions before dependent work starts, and why serial tasks must wait.
+
+Compare expected elapsed-time savings with extra context/model cost, coordination, integration, and
+resource contention. State estimates as estimates; a qualitative reason is sufficient when timings
+are unknown. Choose a concurrency limit within actual worker slots and the agreed budget. Prefer
+independent read-only exploration or isolated labelled-data batches; parallel code-writing still
+requires separate owned worktrees and sequential integration. Do not split tightly coupled work merely
+to occupy slots. Record "no beneficial parallelism" when that is the justified outcome.
+
+Before each parallel launch, recheck readiness, resource availability, ownership and evidence freshness.
+A failed prerequisite blocks its dependants, not unrelated ready work. Reassess affected groups when
+new dependencies appear; never weaken stage gates or review independence to preserve concurrency.
+This remains an orchestrator judgement and launch check, not an automatic scheduler.
+
+Use durable capability tiers in plans, not vendor/model names. At dispatch, map the requirement to an
+available model and supported reasoning effort explicitly. Use the tier vocabulary accepted by the
+actual dispatch surface: the semantic dispatch uses economy|balanced|frontier; legacy packet examples
+use standard for the middle tier. Do not pass an unsupported value between contracts.
+
+Keep this allocation in the existing human-readable plan and dispatch/handoff record. This is a
+workflow requirement, not a new compiler-enforced field. Do not add unsupported keys to the strict
+implementation_plan or Task Packet schemas. Use existing capability_tier and budget fields where they
+apply; record additional rationale, reviewer selection, effort, and limits in the plan/dispatch record.
+
+Immediately before spawning, the orchestrator:
+1. Checks that dependencies passed and the task's evidence, scope, and allocation remain current.
+2. Resolves the requested tier and effort against models actually available on that execution surface.
+3. Records the requested model/effort and, when observable, the actual model/effort used. If the runtime
+   does not expose the actual selection, mark it unavailable rather than claiming verification.
+4. Names and justifies any substitution. An equivalent or stronger substitute may proceed within the
+   existing budget and authority; weaker capability, reduced review independence, or budget expansion
+   returns to the orchestrator for an explicit decision and any required user approval.
+5. Supplies a bounded Worker Context Contract packet and checks that model selection did not cause
+   accidental inheritance of the full parent conversation.
+
+Start with the least costly capability likely to satisfy the contract. Use a small representative
+assignment to check unfamiliar economy workers; upgrade on evidence such as missed constraints,
+unresolved ambiguity, or repeated failed verification. Escalation preserves the task's accumulated
+attempt count and evidence; it never silently resets a retry limit. A stronger model is not a substitute
+for deterministic checks, grounded labels, or independent review.
+
+The return receipt records verification, unresolved issues, budget consumption when available,
+substitutions/escalations and their reasons. Keep estimates distinct from measured usage. The
+orchestrator owns acceptance and stage transitions; model choice never grants additional authority.
 
 ## Task Packet
 
@@ -151,6 +233,215 @@ review_loop:
 
 Keep packets narrow. Do not hand a worker the whole repository history when a path list, current plan, and a few relevant files are enough. Use capability tiers, never vendor or model names — providers change; roles and capability requirements are durable.
 
+### Clean-session, high-signal packet convention
+
+The frontier-authored artifact is the **semantic dispatch**: a minimal
+`memory-seed/task-dispatch` v1 object that states the objective, grounded project frame, execution
+contract, exact Retrieval Profile identity plus bounded overrides, budget, and memory-update policy.
+Frontier judgment chooses meaning and scope; it does not hand-author the expanded packet. Deterministic
+tooling combines that dispatch with the immutable profile version, measured runtime binding, and
+pinned corpus revision to reconstruct the complete `memory-seed/task-packet` v1 artifact.
+
+This compiler boundary is local and non-expansive. It adds no packet registry, worker dispatch,
+worktree creation, authority, provider lookup, pricing lookup, or network access. Profiles and Markdown
+remain readable project-local inputs; Evidence Packs and compiled Task Packets are derived and ephemeral.
+
+```yaml
+schema: memory-seed/task-dispatch
+version: 1
+objective: "<one concrete outcome>"
+project_context:
+  project_type_and_purpose: "<what this project is for>"
+  relevant_subsystem: "<the surface this task touches>"
+  task_fit: "<why this objective belongs in that surface>"
+  downstream_use: "<who or what consumes the result>"
+  non_goals:
+    - "<explicitly excluded work>"
+execution:
+  role: worker
+  persona: none
+  capability_tier: "economy|balanced|frontier"
+  write_intent: "read-only|writing"
+  allowed_files: []
+  forbidden_files: []
+  validation: []
+  output_contract: []
+retrieval:
+  profile: "<exact project-local profile ID>"
+  profile_version: "<positive integer>"
+  overrides: "<bounded v2 selector/filter overrides>"
+budget:
+  supplemental_input_tokens: "<reserved task-scoped reads>"
+  output_tokens: "<output/reasoning reserve>"
+  over_soft_cap: fail
+  over_soft_cap_reason: null
+memory_update_policy: orchestrator
+```
+
+The compiled packet is the worker's `context_load: packet` context. Give it a source-grounded
+**100–250-token project frame** rather than a broad startup dump. Every worker-visible document counts
+toward input: the serialized packet itself, fixed instructions, tool/schema descriptions, materialized
+evidence, and any later supplemental fetch. Tool availability never grants additional write, merge,
+integration, network, or memory authority.
+
+Task Dispatch `allowed_files` and `forbidden_files` are execution/edit boundaries. They do not filter
+Retrieval Specification memory reads, and a path in `forbidden_files` may still be materialized as
+task-scoped evidence. Reading evidence never grants permission to edit its source.
+
+#### Orchestrator evidence flow
+
+Before dispatch, the orchestrator:
+
+1. Authors the smallest semantic dispatch that preserves the ability to decide.
+2. Measures the existing runtime binding; the compiler validates it and never creates a worktree.
+3. Compiles through the exact immutable profile version and Retrieval Specification v2 resolver.
+4. Verifies the Evidence Pack before materializing exact ADR current views, decision slices,
+   Constitution clauses, sessions, or Markdown ranges.
+5. Passes the complete compiled packet to the worker. Evidence Pack v2 keeps one semantic `id`, canonical
+   `source`, inclusive range, digest, selection reason, corpus revision, and fingerprints.
+
+Materialized sources are worker input already and **must not be fetched again**. A canonical `source` is
+provenance and a supplemental-gap route, not permission to duplicate included content. The handoff reports
+repeated fetches as a packet-procedure failure. Excerpts stay disabled in compiled manifests so each
+evidence slice appears exactly once, under `materialized_evidence`.
+
+#### Scoped planning evidence
+
+When discovery or a conflict assessment informs the task, include optional `planning_evidence`
+in the semantic dispatch. Keep the existing v1 dispatch/packet and Evidence Pack identities.
+Use `memory_seed.task_packet.prepare_planning_evidence(dispatch, assessments, cwd)` to bind
+explicitly assessed drafts after reviewing the sources. This read-only compiler helper resolves the
+same exact profile; it does not choose alternatives, accept a departure, or create a planning ledger.
+
+Each draft contains `id`, `selected_alternative`, `sources` (selected Evidence Pack IDs),
+`candidate` (the existing PlanningCandidate fields), `assessed_scope` (`topics` and exact `paths`),
+`compatibility_constraints`, `proposed_action`, `conflict_reason` (null when compatible),
+`agent_recommendation`, `user_acceptance`, and `departure_reference`. The latter three may be null.
+`assessed_scope` describes the task's topics and exact editable paths. Optional
+`supporting_evidence_scope` separately declares `topics` and retrieval `paths` needed only for
+supporting reads; it defaults to empty lists. The expanded profile's topic/path filters, including
+inherited clauses and overrides, must be explicitly covered by these two scopes. Supporting read
+scope never contributes to edit coverage. A narrow task assessment cannot silently admit broader
+profile-derived retrieval; declare and assess that supporting scope or narrow the profile.
+Acceptance has its own `reference`, `scope`, and `reason`; acceptance and departure references must
+be selected sources. A recommendation never supplies acceptance. References remain unverified
+claims of human acceptance; compilation never proves authenticity or grants authority, resolves a
+stop, changes lifecycle, weakens shared policy, or substitutes for the governing workflow.
+
+The helper adds assessed applicability, disposition, required follow-up, effective delivery-quality
+policy, and freshness. SHA-256 of canonical JSON binds each assessment to source identities/digests,
+current authority head/lifecycle for every listed source (including supporting ADRs and session
+decisions, not just the primary candidate), the relevant topic nodes and ancestors, tracked/effective policy,
+exact profile version and expansion, objective, and assessed scope. A tightening-only effective policy
+may be supplied explicitly. Read each conflict as a concrete proposed action/prior decision pair;
+retain compatible narrower constraints and complete the required follow-up before proceeding.
+
+Carry the returned records unchanged in `dispatch.planning_evidence`. They appear there once, with
+source content only in the existing materialization. The CLI and MCP compile/preview surfaces accept
+this additive dispatch field directly. Invalid input fails explicitly. On a source, authority, scope,
+topic-tree, policy, or profile change, compilation reports affected assessment IDs and invalidation
+reasons. Reassess those records and keep unaffected records for the same plan scope. Do not rebind
+stale evidence merely to clear a check. Plan-scoped reuse never bypasses Evidence Pack corpus pinning,
+exact-source verification, measured runtime binding, or the existing context ledgers.
+
+Before a supplemental gap read, `validate_task_packet_supplemental_fetch(packet, source, line_range,
+token_estimate=..., prior_debits=...)` rejects overlap with already materialized evidence/governance
+and checks the remaining reserved input envelope. It performs no fetch and does not mutate the packet;
+record its debit alongside the missing question and tool call in the worker handoff. These are estimated
+input tokens, never observed provider usage. All workers, including external Superpowers workers, keep
+the existing authority, worktree, integration, durable-memory, and return-receipt boundaries.
+
+#### Optional implementation planning
+
+After approved design discovery, use the existing Plan Gate for a multi-task or dependency-bearing
+implementation when the breakdown helps. Routine assessed direct work may omit the plan. Do not make
+planning a universal ceremony, add another plan store/controller, or replay discovery for ordinary
+in-scope edits. Approval, authority, branch ownership, integration, and cleanup keep their current owners.
+
+An assessed draft may carry one optional `implementation_plan` mapping. Existing prose fields cannot
+express task ordering, exact ranges, or a reviewable test strategy, so this additive field travels inside
+the same `planning_evidence` record and its existing fingerprint, freshness, and input ledger:
+
+- `approval_reference`: selected evidence containing the supplied approval of discovery/plan.
+- `tasks`: an ordered nonempty list. Each task has a unique `id`, nonempty
+  `acceptance_observables`, `edit_ownership`, `evidence_references`, `verification`, and
+  `replan_conditions`, plus explicit `dependencies` (empty for an independent task).
+- Each edit ownership entry names an exact assessed `path` and inclusive `line_range: [start, end]`.
+  Use positive line numbers against the declared base, including a single-line insertion anchor;
+  a new file uses `[1, 1]` and still requires the packet's `expected_absent`/allowed-file authority.
+  Overlapping ranges require an explicit earlier dependency, direct or transitive. These ranges
+  narrow task ownership; they never enlarge the packet's allowed files or override forbidden files.
+- Dependencies name earlier task IDs. Sources in `evidence_references`, the approval reference, and
+  exception authority references must belong to the assessment's selected sources.
+- `test_strategy`: `tests`, `alternative_checks`, `exceptions`, `behavior_changes`, and
+  `tests_before_behavior_change: true`, as specified by `local_compilation.md`. Each exception
+  carries reason, affected scope, compensating checks, risk, and supplied authority.
+
+The compiler validates structure; the planner verifies the approval's authenticity/scope and whether
+the checks and exceptions satisfy governing constraints. An exception never changes the assessment's
+authority order or conflict disposition and is never a passing result. The worker receives the plan
+unchanged in the packet, respects its exact ranges and dependency order, and returns actual verification
+evidence. The compiler does not dispatch tasks, enforce an editor's ranges, or run tests.
+
+Replan the affected tasks for a new consequential decision, material scope expansion, invalidated
+authority/evidence, or a new topic branch outside the approved plan. The existing compiler detects bound
+source/objective/scope changes; semantic new choices also require planner judgment even when paths are
+unchanged. Do not rebind merely to clear stale evidence. In-scope edits retain the assessed plan.
+
+The strict external Superpowers boundary still applies: verified independent read-only dispatch only;
+SDD only for approved same-session multi-task work under the existing safety envelope. No external
+worktree/finish controller is adopted. Preserve the configured `reflection_board: dormant` state;
+implementation planning neither activates nor mutates Reflection artifacts.
+
+#### Budget and supplemental retrieval
+
+The resolver's `token_estimate` is **evidence-only**; it is not total model input and never replaces the
+compiler ledger. Keep three ledgers distinct:
+
+- `input_ledger`: serialized packet input, fixed instructions, tool/schema input, supplemental-input
+  reserve, total input, output/reasoning reserve, and the total context envelope;
+- output/reasoning reserve: a capacity plan, not consumed input and not provider-reported output; and
+- `cost_ledger`: caller-supplied price arithmetic only, explicitly unavailable when prices were not
+  supplied.
+
+Do not collapse input, output, and cost into one token or money figure. The input ledger is the
+**compiler-accounted caller-supplied envelope**, not actual provider input; hidden platform/system/tool
+overhead is unavailable unless the runtime exposes it. Actual provider input/usage, latency, and cost are
+**post-run evidence**, recorded only when the provider or execution surface exposes them;
+otherwise report each as unavailable with the reason. Never infer actual usage from the resolver estimate,
+budget reserve, or price ceiling.
+
+Workers may use the same read tools for a task-scoped gap. They record the missing question, sources
+consulted, tool call, and token estimate in their handoff. For every supplemental fetch, debit its estimated
+token cost — including fetched evidence content — from the compiler-accounted caller envelope and confirm it was not
+already materialized. The resolver `token_estimate` remains only the evidence-content component.
+Return `NEEDS_CONTEXT` only when the gap exceeds the budget, objective, or authority — not merely because
+additional context might be useful.
+
+#### Memory update policy
+
+Every compiled worker packet materializes the complete active `.memory-seed/agent-rules.md` as baseline
+governance. It remains distinct from task-scoped retrieval evidence: it establishes the non-deferrable
+worker safety and authority contract without eagerly loading orientation, the skill registry, policy,
+unrelated skills, or unrelated authority. The compiler fingerprints and token-accounts this baseline, so
+a source change is visible in both the packet identity and context ledger.
+
+`memory_update_policy: orchestrator` is the default: the orchestrator owns durable session logging and
+integrates worker evidence. `worker_checkpoint` is allowed only for consequential work with multiple
+checkpoints where delaying a first-hand rationale risks losing it. A checkpoint worker — and any worker
+whose exact session-log path is writable — also receives the complete active
+`.memory-seed/skills/session_logging.md` plus guarded branch-local append mechanics. It must use
+`memory_session_append` or the checkout-local `python -X utf8 -m memory_seed.cli session append` path;
+the sanctioned writer owns the clock, so direct Markdown session edits and explicit timestamps are
+forbidden unless the dispatch grants a narrowly scoped repair/backfill exception. Duration alone never
+changes context, authority, or memory ownership; `context_load: full` is reserved for project-wide
+reconciliation or deliberate promotion to an orchestrator role.
+
+Under `worker_checkpoint`, the worker may write only its first-hand decisions, evidence, tests, risks, and
+explicitly delegated files. Prior entries, policy, index, ADRs, and other shared control-plane files remain
+forbidden unless separately assigned. The orchestrator reviews and integrates branch-local memory through
+the normal guarded process.
+
 ## Optional Superpowers Delegation
 
 Superpowers is an **optional orchestration capability**, never a Memory Seed core dependency. Use the
@@ -191,11 +482,39 @@ Gates, in order:
 4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies `memory-seed worktree guard --agent <agent_type> --write-intent` passes, then verifies the intended worktree and `base_sha` before the worker proceeds.
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
-7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step, then attempts to remove only the clean registered worktree for that source branch. Cleanup is Git-only, preserves the branch, and reports rather than force-deletes a dirty, locked, or partially removed checkout. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges. Do not fall back to a plain `git merge` for session paths: `.memory-seed/sessions/**` carries a `-merge` attribute, so concurrent session edits conflict wholesale by design (see **Session Files Do Not Line-Merge** below).
+7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step, then removes only the clean registered worktree for that source branch. Cleanup preserves the branch. It first uses Git; if Git deregisters the exact proven checkout but leaves directory residue, it may remove only that verified path. Dirty, locked, still-registered, reparse-point, identity-changed, or otherwise unproven paths are retained. A `cleanup-pending` result means the merge landed but the task is not fully closed until the named residue is resolved. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges. Do not fall back to a plain `git merge` for session paths: `.memory-seed/sessions/**` carries a `-merge` attribute, so concurrent session edits conflict wholesale by design (see **Session Files Do Not Line-Merge** below).
 8. **Bounded Review-to-Rework Loop.** For Memory Seed Fan-Out, an independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically. Superpowers SDD uses its own finite, scoped review circuit breaker; at its cap, it returns a recorded adjudication to this orchestrator rather than silently continuing.
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
 Capability tier guidance: exploration economy/standard; planning **frontier**; implementation standard; integration frontier or a senior orchestrator; review **frontier**. Planning and review both warrant the top tier — a weak plan is more expensive to catch later than a weak review.
+
+### Evidence-aware review request and disposition
+
+Extend this existing review ownership; do not create a second review controller. Before a reviewer acts
+on findings, the request records an exact immutable base/head (or an exact changed range), task
+acceptance criteria, applicable authority and local rationale, changed-file scope, and fresh validation evidence.
+Resolve the current range before review: a stale or moving range is rejected or refreshed before
+any finding is acted upon. A reviewer receives the exact range and criteria, not a presumed whole branch.
+
+The recipient evaluates every finding against current code, acceptance criteria, local rationale, and
+applicable authority. Feedback is advice until its recorded disposition is exactly `accept`, `reject`, or `defer`;
+every disposition records its reason and evidence. A rejection or deferral cannot silently dismiss
+an authority conflict or load-bearing finding (important, critical, specification, or authority): name the
+governing resolution/escalation and retain it for the orchestrator. A deferred minor finding remains visible
+to the final whole-branch review. Open important/critical or specification findings block task completion
+after the bounded fix loop.
+
+Apply only accepted findings. Each accepted fix declares its exact fix range and receives a scoped re-review
+over that range; a prior review cannot stand in for it. Run fresh final verification after the
+last accepted fix — verification that predates the fix is stale and cannot close review. Record the review
+range, findings, dispositions, fix/re-review outcome, deferred items, and final verification through the
+existing append-only session evidence owner in `session_logging.md`.
+
+For Fan-Out, this is the existing bounded review-to-rework loop and Final Handoff Gate. For Superpowers
+SDD, Superpowers may own only its internal per-task review loop inside the supplied safety envelope; it
+does not own Task Packets, worktrees, integration, durable memory, or cleanup. Memory Seed retains those
+owners and validates the SDD return receipt before its handoff. Preserve `reflection_board: dormant`:
+review neither activates nor mutates Reflection artifacts.
 
 ## Branch And Worktree Defaults
 
@@ -300,6 +619,75 @@ bug.
 same `entry_id`, changed content - is refused before any merge starts, exactly like editing a published
 session entry. That is the append-only invariant, not a merge-tool gap. Do stub -> live classification
 (`memory-seed link audit` and its sidecar writes) on the trunk, not on a task branch, for that reason.
+
+## Reflection Board v1 collaboration
+
+A declared Reflection Board is temporary coordination for one workstream. The only supported authored
+format is `memory-seed/reflection-workstream-ledger` v1 at
+`.memory-seed/reflections/active/<workstream_id>/ledger.md`. Planner, implementer, reviewer, and
+orchestrator append sequentially; separate workstreams have separate ledgers. There is no participant
+fragment writer, reflection fuse, or prototype compatibility reader.
+
+Follow these gates in order:
+
+1. Verify the worktree, task scope, clean committed state, and integration/merge policy. Before creating
+   the ledger's base, the maintainer previews `memory-seed reflection trust init` on the resolved
+   integration/default branch and explicitly applies it with `--apply`. Only the public anchor is
+   committed; the matching private Ed25519 key stays in the Git common directory. Later trust cannot
+   retrofit an older ledger base. No key rotation/replacement or recovery command exists.
+2. On the owned workstream branch, preview `reflection ledger init`, then apply it. Use the returned
+   `workstream_id`; initialization mints its own identity. Seven-day retention is the usable public
+   default. Although the schema accepts 14/30, public retention-extension authoring is planned and
+   those requests fail without the unavailable admitted host preflight.
+3. Use `reflection ledger append <workstream_id>` for conclusion, reasoning, source, and role.
+   A planner opens a root with `--relationship no_related_thread --no-related-thread`. Later records
+   name `--chain-id` and `--parent`; the current phase owner records its transition. Planner advances
+   plan to implement; implementer advances to review; reviewer explicitly selects
+   `--to-phase implement` or `--to-phase orchestrate`; orchestrator synthesizes before close.
+   Independent validation, where required, cannot be replaced by a role label.
+4. Inspect `reflection ledger view <workstream_id>`, `reflection ledger check <workstream_id>`,
+   and `reflection board view`. They read trusted committed history and expose malformed candidates.
+   Every mutation defaults to preview; inspect its result before `--apply`. For init/append/close,
+   echo `head` as `--expected-head` and, for append/close, `pre_ledger_digest` as
+   `--expected-ledger-digest`. Apply remeasures authority; stale state requires a fresh judgment.
+5. Integrate through the project's existing guarded workflow, preserving the live source ref and exact
+   two-parent target/source merge. A later ordinary descendant branch may carry an existing Reflection
+   family only when the target is its ancestor and the complete reserved family is byte-identical at
+   target, source, and merge base; this inherited identity carrier is still a guarded no-FF session
+   merge, not a fast-forward or a rebind. For a workstream ledger entering through its source branch,
+   run `reflection ledger rebind <workstream_id>
+   --source <source-branch> --reason <reason>` on the integration branch, preview then apply.
+   For PR mode, finish all source preparation against the current target, run
+   `reflection ledger prepare <workstream_id>` on the source (preview then apply), and only then
+   perform the separately authorized PR integration. On the target, preview/apply
+   `reflection ledger finalize <workstream_id> --source <source-branch> --reason <reason>`.
+   Prepare is CLI-only; rebind/finalize have MCP parity. Reflection performs no network action, push,
+   PR creation, or source-ref deletion. Rebind adds exact integration evidence without rewriting records.
+6. On the effective integration owner, prepare and commit ordinary session receipts, preview/apply
+   `reflection ledger close <workstream_id> --chain-id <chain_id> --receipts <JSON-array>`,
+   then finalize the new close-record and closure-outcome receipts in a new ordinary entry. Follow
+   `session_logging.md`; `closed_receipts_pending` is unfinished closeout, not expiry eligibility.
+7. Follow `end_of_turn.md` for elapsed `reflection ledger expire` preview/apply and verification.
+   Defer branch/worktree cleanup until required rebind evidence and receipt closeout are complete.
+
+The live/Seed prepare-commit-msg hooks call the shared admission facade before Memory-Entry stamping.
+Manual staged reserved paths and aliases are refused. Invented Reflection trailers cannot grant admission
+or bypass reserved-family checks; ordinary commits without reserved paths may not read the message.
+Seeded hooks require
+a current package whose interpreter can import the facade; repair the installation if it cannot load.
+Do not bypass the hook. Only sanctioned kernel commits, one-time trust bootstrap, and exact integration
+carriers are admitted.
+
+Recovery is evidence-led: inspect status and diagnostics, preserve concurrent content, reload view/check,
+and preview again. PR finalize claims its single-use handoff after preview validation and before CAS;
+a failure after that claim consumes it. Re-preparation requires an eligible final source state; the same
+tip cannot be prepared twice, and prepare refuses an already-integrated ledger. No automatic post-merge
+recovery exists: escalate that state without deleting the claim or fabricating merge evidence.
+
+Trust assumes an uncompromised host account, clock, and private key. The pure-Python Ed25519 signer is
+not constant-time or hardware-backed. A legacy pre-proof close remains readable but non-expirable;
+missing immutable-base trust blocks new close. Expiry is not cryptographic erasure: historical and
+unreachable Git objects may remain until Git garbage collection.
 
 ## MCP Control Surface
 

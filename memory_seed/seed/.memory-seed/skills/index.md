@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.21
 tags:
   - memory-seed
   - skill-registry
@@ -51,8 +51,9 @@ skills:
       - using worktrees for parallel code-writing agents
       - preparing worker, validator, or merge-conflict handoffs
       - using memory_branch_status, memory_worktree_guard, or memory_session_fuse_preview MCP tools
+      - initializing, appending, inspecting, rebinding, or preparing/finalizing a Reflection Board v1 ledger or its trust
     do_not_load_when:
-      - direct single-agent edits with no branch, worktree, merge, or handoff implications
+      - direct single-agent edits with no branch, worktree, merge, handoff, or Reflection Board implications
 
   - skill: superpowers_integration.md
     required: true
@@ -84,6 +85,7 @@ skills:
       - writing, validating, or repairing session entries
       - deciding DRAFT labels, entry shapes, topics, related_entries, or append-only chronology
       - changing session log schema or examples
+      - preparing or finalizing ordinary session receipts for Reflection Board v1 close
     do_not_load_when:
       - only reading recent session state without writing or repairing logs
 
@@ -119,8 +121,21 @@ skills:
     load_when:
       - running End Of Turn, ESR, or /esr
       - performing closeout, consolidation review, orphan sweep, persona evolution, skill evolution, or baseline-promotion review
+      - closing or expiring a Reflection Board v1 chain, or resolving its pending close receipts
     do_not_load_when:
-      - ordinary mid-task work before closeout
+      - ordinary mid-task work with no closeout or Reflection Board expiry/receipt work
+
+  - skill: adr_sweep.md
+    required: true
+    load_when:
+      - running an ADR sweep, audit, or corpus-wide ADR review
+      - reviewing ADR attachment candidates, ADR review queue items, or ADR sweep candidates from ESR
+      - finding decision chains or pairs that do not yet have an ADR
+      - reviewing grown decision chains for ADR membership or concern splitting
+      - preparing batch ADR promotion, revision, reviewed-no-change, or deferral recommendations
+    do_not_load_when:
+      - reading or showing one known ADR with no corpus-wide review
+      - recording the current turn's decision and its content-bound ADR review (use session_logging.md)
 
   - skill: memory_hygiene.md
     required: true
@@ -143,6 +158,16 @@ skills:
     do_not_load_when:
       - ordinary documentation edit with no proposal, roadmap, inbox, todo, reference, or completed status change
       - code-only implementation work where proposal files are not being moved or resolved
+
+  - skill: design_discovery.md
+    required: true
+    load_when:
+      - making a consequential new product, architectural, data, safety, or workflow choice
+      - choosing a new capability, component, policy, workflow, or data approach before implementation
+      - deciding whether uncertainty warrants a bounded trial before committing to an approach
+    do_not_load_when:
+      - routine work directly follows an already assessed decision whose scope and evidence remain current
+      - a task only executes an approved detailed plan and introduces no consequential new choice
 
   - skill: subproject_runtime.md
     required: true
@@ -171,6 +196,16 @@ skills:
       - reproducing a local failure
     do_not_load_when:
       - analysis-only task with no local validation needed
+
+  - skill: systematic_debugging.md
+    required: true
+    load_when:
+      - diagnosing an unexpected failure, regression, or unexplained behaviour
+      - reproducing a defect or tracing its causal path before a fix
+      - repeated hypothesis-led debugging attempts require architectural reconsideration
+    do_not_load_when:
+      - the cause is established and a narrow routine change has proportionate verification
+      - no unexpected behaviour is being diagnosed
 
   - skill: memory_consolidation.md
     required: true

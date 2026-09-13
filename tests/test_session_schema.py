@@ -30,6 +30,14 @@ def _seed_files_skill_names():
 
 
 class SessionSchemaTests(unittest.TestCase):
+    def test_session_logging_opening_example_uses_current_numbered_decision_shape(self):
+        content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
+        opening_example = content.split("````markdown", 1)[1].split("````", 1)[0]
+
+        self.assertIn("### Decisions", opening_example)
+        self.assertIn("#### D1 - State the decision", opening_example)
+        self.assertNotIn("### Decision\n", opening_example)
+
     def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
         content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
 
@@ -142,10 +150,40 @@ class SessionSchemaTests(unittest.TestCase):
             "skill trigger registry expectations",
             ".memory-seed/skills/index.md`: deterministic trigger registry",
             "Always include `skills/index.md` as the deterministic trigger registry",
-            "Generated `index.md` should reference it in `Always Read` and `Lazy Skills`",
+            "Generated `index.md` should reference it in `Startup And On-Demand Read` and `Lazy Skills`",
             ".memory-seed/skills/index.md` contains the deterministic skill trigger registry",
         ):
             self.assertIn(phrase, bootstrap)
+
+    def test_bootstrap_requires_tree_first_runtime_indexes(self):
+        bootstrap = Path(".memory-seed/project-bootstrap.md").read_text(encoding="utf-8")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "`Repository Structure` and `Memory Runtime Structure` are mandatory",
+            "They are the primary navigation surface",
+            "fenced `text` tree",
+            "short inline `# purpose` comments",
+            "It supplements the trees and must never replace them",
+            "Tailor both trees to evidence found in the target",
+            "its file trees match paths that actually exist",
+        ):
+            self.assertIn(phrase, bootstrap)
+
+        self.assertLess(
+            bootstrap.index("## Repository Structure"),
+            bootstrap.index("## Fast Orientation"),
+        )
+        self.assertLess(
+            runtime_index.index("## Repository Structure"),
+            runtime_index.index("## Runtime Boundary"),
+        )
+        self.assertLess(
+            runtime_index.index("## Memory Runtime Structure"),
+            runtime_index.index("### Key Entry Points"),
+        )
+        self.assertIn("```text\nmemory-seed/", runtime_index)
+        self.assertIn("```text\n.memory-seed/", runtime_index)
 
     def test_public_docs_cover_current_v2_routing_and_mcp_contract(self):
         readme = Path("README.md").read_text(encoding="utf-8")
@@ -212,6 +250,8 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: memory_hygiene.md",
             "skill: risk_signaling.md",
             "skill: proposal_lifecycle.md",
+            "skill: design_discovery.md",
+            "skill: systematic_debugging.md",
             "skill: subproject_runtime.md",
         ):
             self.assertIn(phrase, content)
@@ -278,6 +318,24 @@ class SessionSchemaTests(unittest.TestCase):
                 "Trigger Registry Discipline",
                 "Seed / Live Parity",
             ),
+            "systematic_debugging.md": (
+                "Systematic Debugging",
+                "Observation or reproduction",
+                "Relevant recent changes and scope",
+                "Falsifiable causal hypothesis",
+                "Smallest discriminating change",
+                "Actual verification",
+                "At the effective threshold",
+            ),
+            "adr_sweep.md": (
+                "ADR Sweep Skill",
+                "Recommendation Contract",
+                "Level 1 — single orchestrator",
+                "Level 2 — bounded read-only fan-out",
+                "review-for-adr-promotion",
+                "architectural-review-before-promotion",
+                "review-membership-or-split",
+            ),
             # Anchored on the claims that carry the skill rather than on the
             # measured corpus counts, which the skill itself tells the reader to
             # re-measure before every campaign. What must not silently vanish:
@@ -313,6 +371,83 @@ class SessionSchemaTests(unittest.TestCase):
             for registry in (live_registry, seed_registry):
                 self.assertIn(f"skill: {skill}", registry)
             self.assertIn(f".memory-seed/skills/{skill}", runtime_index)
+
+    def test_design_discovery_preserves_a_routine_work_bypass(self):
+        live = Path(".memory-seed/skills/design_discovery.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/design_discovery.md")
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "consequential new product, architectural, data, safety, or workflow",
+            "Capability and reuse inventory",
+            "Relevant authority and evidence",
+            "Realistic alternatives",
+            "Selected option",
+            "Trial decision",
+            "existing plan and Task Packet path",
+            "Routine, already assessed work follows a decision whose scope and evidence remain current.",
+        ):
+            self.assertIn(phrase, content)
+        for registry in (live_registry, seed_registry):
+            self.assertIn("skill: design_discovery.md", registry)
+            self.assertIn(
+                "routine work directly follows an already assessed decision whose scope and evidence remain current",
+                registry,
+            )
+
+    def test_systematic_debugging_is_registered_and_seeded(self):
+        live = Path(".memory-seed/skills/systematic_debugging.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/systematic_debugging.md")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live.exists())
+        self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            "Observation or reproduction",
+            "Relevant recent changes and scope",
+            "Falsifiable causal hypothesis",
+            "Smallest discriminating change",
+            "Actual verification",
+            "tracked project default is **three**",
+            "At the effective threshold",
+        ):
+            self.assertIn(phrase, content)
+        for registry_path in (
+            Path(".memory-seed/skills/index.md"),
+            Path("memory_seed/seed/.memory-seed/skills/index.md"),
+        ):
+            self.assertIn("skill: systematic_debugging.md", registry_path.read_text(encoding="utf-8"))
+        self.assertIn(".memory-seed/skills/systematic_debugging.md", runtime_index)
+
+    def test_fresh_completion_evidence_contract_is_seeded_across_existing_owners(self):
+        owners = (
+            "local_compilation.md",
+            "end_of_turn.md",
+            "session_logging.md",
+        )
+
+        for name in owners:
+            live = Path(".memory-seed/skills") / name
+            seed = Path("memory_seed/seed/.memory-seed/skills") / name
+            self.assertEqual(live.read_bytes(), seed.read_bytes(), f"seed twin drifted for {name}")
+
+            content = live.read_text(encoding="utf-8")
+            for phrase in (
+                "changed scope",
+                "freshness marker",
+                "`passed`",
+                "`failed`",
+                "`blocked`",
+                "`unavailable`",
+                "`waived`",
+                "stale",
+            ):
+                self.assertIn(phrase, content, f"{name} is missing {phrase!r}")
 
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
@@ -519,6 +654,56 @@ class SessionSchemaTests(unittest.TestCase):
         self.assertIn(".memory-seed/skills/agent_collaboration.md", runtime_index)
         self.assertIn("agent_collaboration.md", agent_rules)
         self.assertNotIn("merge queue is required", agent_rules)
+
+    def test_agent_collaboration_documents_clean_session_task_packet_convention(self):
+        """Keep the high-signal worker packet anchors explicit and seed-compatible."""
+        live_skill = Path(".memory-seed/skills/agent_collaboration.md")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/agent_collaboration.md")
+        content = live_skill.read_text(encoding="utf-8")
+
+        self.assertEqual(content, seed_skill.read_text(encoding="utf-8"))
+        for phrase in (
+            "Clean-session, high-signal packet convention",
+            "frontier-authored artifact is the **semantic dispatch**",
+            "immutable profile version",
+            "pinned corpus revision",
+            "context_load: packet",
+            "project_context:",
+            "retrieval:",
+            "memory-seed/task-packet",
+            "Evidence Pack",
+            "`materialized_evidence`",
+            "budget:",
+            "memory_update_policy:",
+            "100–250-token project",
+            "task_fit",
+            "downstream_use",
+            "ADR current views, decision slices",
+            "corpus revision",
+            "token_estimate` is **evidence-only**",
+            "input_ledger",
+            "cost_ledger",
+            "must not be fetched again",
+            "post-run evidence",
+            "adds no packet registry",
+            "For every supplemental fetch",
+            "including fetched evidence content",
+            "Return `NEEDS_CONTEXT` only",
+            "memory_update_policy: orchestrator",
+            "worker_checkpoint",
+            "complete active `.memory-seed/agent-rules.md` as baseline",
+            "fingerprints and token-accounts this baseline",
+            "exact session-log path is writable",
+            "complete active\n`.memory-seed/skills/session_logging.md`",
+            "memory_session_append",
+            "checkout-local `python -X utf8 -m memory_seed.cli session append`",
+            "direct Markdown session edits and explicit timestamps are\nforbidden",
+            "narrowly scoped repair/backfill exception",
+            "guarded branch-local append mechanics",
+            "Duration alone never\nchanges context, authority, or memory ownership",
+            "context_load: full` is reserved",
+        ):
+            self.assertIn(phrase, content)
 
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
         path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")

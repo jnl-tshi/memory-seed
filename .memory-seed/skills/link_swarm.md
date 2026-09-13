@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.21
 governing_adr: adr_edge_confidence
 tags:
   - memory-seed
@@ -23,19 +23,25 @@ and confirm again before writing any edge. The core stays network-free (Constitu
 model calls live entirely in this optional layer, and every stored edge is human-gated and authored as
 an ordinary `:dN` edge with no dependency on the model that suggested it (Invariant #5).
 
+**Model selection.** Use the smallest available model that can reliably apply this fixed rubric, with
+high reasoning enabled. This is an economy-tier capability requirement, not a provider or model-family
+requirement. Escalate only a specific ambiguous gap, and record why a larger model was needed.
+
 ## The pipeline
 
 ```
-memory-seed link audit --json --date <today>     (core, mechanical, network-free)
-    -> judgment-ready tasks: each gap carries both ends' decision bodies + criteria
+memory-seed link batch-plan --date <today> --context-window <tokens> --output-dir <run>
+    -> materialized judgment-ready batches + pending analytics.jsonl
 Workflow fan-out                                 (optional layer, network)
-    -> one haiku agent per candidate gap; each returns a verdict per the criteria below
+    -> each worker reads one self-contained batch file, then writes its assigned findings/*.toon file
 orchestrator validation                          (mechanical-first, no new model calls)
-    -> drop verdicts that fail a quote-match, a dangling ordinal, or the consistency check
+    -> memory-seed link batch-collect validates reports and writes survivors.json + validation.json
 batch approval                                   (the human gate)
     -> surface the surviving verdicts as one batch; the user approves, edits, or rejects
 write + check
     -> approved edges written to the day's link sidecar; memory-seed links check validates
+finalize + retain
+    -> batch-finalize seals a receipt; batch-gc later compacts only expired, hash-matching raw files
 ```
 
 ### 1. Mechanical recall
@@ -43,6 +49,19 @@ write + check
 Run `memory-seed link audit --json --date <today>` (or `--for <entry_id>` to scope to one entry). The
 JSON emits each gap as a judgment-ready task: both ends' `decisions` (ordinal + name + body), the
 overlap evidence (files/topics/title), and a `criteria` block.
+
+For a swarm, use `link batch-plan` with `--output-dir`. Its default `--top-k 0` enumerates every
+lexically admitted candidate instead of retaining only a fixed number per source. `--minimum-score`
+sets the combined-score admission floor. `--semantic-cutoff` changes semantic-only recall from the
+legacy top-two widening to every older pair whose raw cosine meets the supplied value. Thresholds are
+run parameters, never hidden constants; keep them in `plan.json` so later outcome data can calibrate
+them rather than guessing.
+
+Every candidate row records the combined score plus separate file, keyword/title, topic, raw semantic,
+weighted semantic, temporal-proximity, and day-distance values. File + keyword + weighted semantic are
+the current rank; topic and temporal values are diagnostic only. `analytics.jsonl` retains these
+features, the threshold disposition, batch assignment, validation status, final verdict, confidence,
+and exclusion reason for every candidate, including `none` and below-threshold rows.
 
 **Candidates arrive from TWO sources, and the payload must keep them apart.** Most come through the
 lexical gate — a shared file, a distinctive title term, or an unsuppressed topic — and carry that
@@ -57,12 +76,62 @@ stronger signal: it offers nothing to verify, so it must be judged on the decisi
 should draw a `none` verdict more readily than a gated one. Say so in the brief rather than hoping
 the flag speaks for itself. Pre-filter before fan-out: skip a gap
 whose pair already carries a recorded edge, and skip a milestone/no-decision pair the criteria exclude
-(see rules 5-6). One surviving gap = one agent.
+(see rules 5-6).
+
+**Batch by measured context, never a fixed pair count.** A worker receives as many complete candidate
+pairs as fit within **16% of its declared context window for the complete worker document**. This
+includes the exact embedded skill text, fixed assignment fields, both decision bodies, candidate
+evidence, chain state, and per-pair rubric fields. Pack whole pairs until the next pair would exceed
+that budget. The plan also estimates an explicit output reserve per pair and reports it separately. Do not
+truncate, summarize, or split a pair to fill a batch. This preserves enough room for careful per-pair
+judgment while letting short pairs share one economy-tier worker efficiently. Every pair still receives its own independent
+`{verdict, source_dN, target_dN, why, quote, confidence}` result; batching changes transport and cost,
+not the evidence standard or the validator.
+
+**Workers use one self-contained file as their contract.** Each `batches/batch-NNNN.md` embeds the
+exact active `link_swarm.md` text at its top, records that source path and its SHA-256 digest, and then
+contains the mechanical assignment. The packer counts this fixed instruction block inside the declared
+16% budget. A worker reads only that batch document; the orchestrator does not need to repeat the rubric
+in its prompt or ask the worker to load a second file. The batch names its only authorized output as
+`finding_path`; write the complete TOON document there. Do not return the report only in chat, and do
+not edit `plan.json`, `analytics.jsonl`, another batch, or a link sidecar. Raw findings are disposable
+run evidence; the orchestrator may reject or delete them after collection without changing memory
+authority.
 
 ### 2. The judging criteria (what the swarm decides)
 
 Each agent reads the two decision bodies and returns, per gap:
 `{verdict: replaces|evolves|related|none, source_dN, target_dN, why, quote, confidence}`.
+
+**Batch return contract.** Return exactly one strict **TOON** (Token-Oriented Object Notation) document
+with schema `memory-seed.link-swarm-verdicts.v1`: its `batch` and `measurement` identify the packed
+input; its `counts` totals verdict kinds; and its homogeneous tabular `verdicts` array is sorted by
+source then candidate. Emit one row for **every input pair**, including `none`, with
+`source_entry_id`, `source_decision`, `candidate_entry_id`, `candidate_decision`, `verdict`, `quote`,
+`quote_entry_id`, `why`, `confidence`, and `exclusion_reason`. Use TOON's null form for an absent
+ordinal or quote. No prose, Markdown tables, compressed ranges, or omitted negative results. This
+makes a batch mechanically auditable and keeps reviewer reporting independent of model style while
+avoiding repeated JSON field names.
+
+`confidence` is either TOON `null` or a numeric value from `0` through `1` inclusive; never use
+word labels. This keeps result rows sortable without model-specific normalization.
+
+The first three lines of every report are mechanically fixed:
+
+```text
+schema: memory-seed.link-swarm-verdicts.v1
+batch: <integer batch number>
+verdicts[N]{source_entry_id,source_decision,candidate_entry_id,candidate_decision,verdict,quote,quote_entry_id,why,confidence,exclusion_reason}:
+```
+
+Follow them with exactly `N` CSV-style TOON rows and no prose before or after the table. Quote any cell
+containing a comma or quote; double an embedded quote. The collector rejects the entire batch when the
+schema, batch id, row count, column order, or row width differs.
+
+**Rectangular-table rule.** Every `verdicts` row must contain **exactly one value for every declared
+column, in that order**. Never omit a trailing field: emit TOON `null` for an absent `source_decision`,
+`candidate_decision`, `quote`, `quote_entry_id`, `confidence`, or `exclusion_reason`. The orchestrator
+rejects a batch whose row count or per-row cell count does not match its declared table schema.
 
 The verdict rules, measured against 68 validated corrections:
 
@@ -107,7 +176,8 @@ This is the closed-list rule applied to verdicts: the invalid option is removed 
 than left for the judge to remember to avoid.
 
 The `quote` field must be a verbatim phrase from the entry that grounds the verdict — if the agent
-cannot quote something specific, the verdict is `none`.
+cannot quote something specific, the verdict is `none`. For a non-`none` verdict it must contain at
+least 12 meaningful characters and cannot be only a heading, ordinal, label, or punctuation.
 
 ### 3. Orchestrator validation (mechanical-first — no new model calls)
 
@@ -124,6 +194,12 @@ Before surfacing anything, the orchestrator drops verdicts mechanically:
   case (rules 5-6) — the two the swarm most often over-calls.
 
 Surviving verdicts are candidates; everything dropped is logged so the human sees what was filtered.
+Run `memory-seed link batch-collect --run-dir <run>` after workers finish. It reads their files,
+checks rectangular TOON, pair coverage, duplicate/unexpected rows, ordinals, chain-position legality,
+confidence range, and exact quote grounding. It updates `analytics.jsonl` and produces
+`validation.json`, `survivors.json`, and `analytics-summary.json`. The summary groups counts and each
+component's mean/min/max by final verdict so patterns such as high semantic + short temporal distance
+among `evolves` results are visible without collapsing the raw rows. Review `survivors.json`, not chat callbacks.
 
 ### 4. Batch approval (the human gate)
 
@@ -163,6 +239,35 @@ and must be explained before merging.
   timestamps.
 - The swarm only *suggests*. The mechanical recall, the validation, the approval, and the write are all
   outside the model's authority — a stronger `link suggest`, not a new source of truth.
+
+## Retention and cleanup
+
+Collection never deletes evidence. After the human disposition is known, create a
+`memory-seed.link-swarm-approval.v1` JSON record and run `memory-seed link batch-finalize --run-dir
+<run> --approval-file <approval.json>`. The finalizer refuses a pending run; an approved disposition
+also requires complete validation, at least one surviving approved pair, `graph_delta_reviewed: true`,
+a passing live link-integrity check, and a resolvable write commit carrying the declared
+`Memory-Entry` trailer. Rejected runs may finalize after an incomplete collection so malformed work can
+age out without being mistaken for approved evidence.
+
+```json
+{"schema":"memory-seed.link-swarm-approval.v1","run_id":"<run id>","disposition":"approved","approved_pair_ids":["<pair id>"],"reviewer":"<human or delegated orchestrator>","graph_delta_reviewed":true,"write_commit":"<commit>","memory_entry":"<mse id>"}
+```
+
+For a rejected run, use `"disposition":"rejected"`, an empty `approved_pair_ids` list, and omit the
+graph and commit fields.
+
+The immutable `receipt.json` records the approval, source and skill digests, validation result, graph
+delta, commit linkage, expiry, and hashes of every raw artifact. Preserve `analytics.jsonl`,
+`analytics-summary.json`, `survivors.json`, `validation.json`, `graph-before.json`, and the receipt
+indefinitely. They retain every candidate's component scores and disposition without duplicating full
+decision evidence.
+
+Run `memory-seed link batch-gc` to inspect expired runs. It is dry-run by default. `--apply` removes
+only the finalized receipt's exact, hash-matching `plan.json`, `batches/*.md`, and `findings/*.toon`
+after the configured retention period (30 days by default), then writes `gc.json`. Active, pending,
+unfinalized, modified, path-escaping, or otherwise unverifiable artifacts fail closed. `--purge-now`
+may bypass time retention but never receipt or hash verification.
 
 See `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md` for the design rationale and the
 open orchestration questions this skill resolves.

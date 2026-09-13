@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -34,10 +35,13 @@ from .retrieval import (
     get_chunk,
     audit_link_gaps,
     link_audit_payload,
-    preview_retrieval_spec,
     ranked_to_dict,
-    resolve_retrieval_spec,
     search_memory,
+)
+from .retrieval_adapters import (
+    RetrievalInputValidationError,
+    preview_retrieval_input,
+    resolve_retrieval_input_pack,
 )
 from .semantic_cache import (
     build_related_entry_graph,
@@ -61,6 +65,13 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_session_integrate",
         "memory_adr_reviewed",
         "memory_link_retract",
+        "memory_decision_provenance_bind",
+        "memory_reflection_ledger_init",
+        "memory_reflection_ledger_append",
+        "memory_reflection_ledger_close",
+        "memory_reflection_ledger_rebind",
+        "memory_reflection_ledger_finalize",
+        "memory_reflection_ledger_expire",
     }
 )
 
@@ -189,35 +200,92 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
 
 TOOLS: list[dict[str, Any]] = [
     {
+        "name": "memory_decision_provenance",
+        "description": "Show a decision's validated Git-reference bindings and temporary before/after code projections. Read-only; code is unavailable rather than inferred when Git evidence cannot be resolved.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision_ref": {"type": "string", "description": "Exact <entry_id>:dN decision reference."},
+                "cwd": {"type": "string", "default": "."},
+                "context_lines": {"type": "integer", "default": 3, "minimum": 0, "maximum": 20},
+                "runtime": {"type": "object", "description": "Explicit runtime ownership record when inspecting an active descendant or retired metadata."},
+            },
+            "required": ["decision_ref"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_decision_provenance_bind",
+        "description": "Validate and append one reference-only provenance binding to its owning runtime sidecar. Default is a dry run; set apply true to write. Uses the same validation and output shape as CLI provenance bind.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "binding": {"type": "object"}, "cwd": {"type": "string", "default": "."},
+                "runtime": {"type": "object", "description": "The current runtime's owned sidecar; retired and detached owners are read-only."},
+                "apply": {"type": "boolean", "default": False},
+            },
+            "required": ["binding"], "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_retrieval_spec_preview",
         "description": (
-            "Validate and plan one inline Retrieval Specification against canonical local Markdown. "
-            "Read-only; creates no Evidence Pack and supports no profile or named-spec lookup."
+            "Validate and plan one inline Retrieval Specification or exact local profile against canonical "
+            "Markdown. Read-only; creates no Evidence Pack."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "spec": {"type": "object"},
+                "profile": {"type": "string"},
+                "profile_version": {"type": "integer"},
+                "overrides": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
             },
-            "required": ["spec"],
             "additionalProperties": False,
         },
     },
     {
         "name": "memory_retrieval_spec_resolve",
         "description": (
-            "Resolve one inline Retrieval Specification into an ephemeral Evidence Pack returned inline. "
-            "Read-only; no cache, registry, provider, profile, or Trace dependency."
+            "Resolve one inline Retrieval Specification or exact local profile into an ephemeral Evidence "
+            "Pack returned inline. Read-only; no cache, registry, provider, or Trace dependency."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "spec": {"type": "object"},
+                "profile": {"type": "string"},
+                "profile_version": {"type": "integer"},
+                "overrides": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
             },
-            "required": ["spec"],
             "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_preview",
+        "description": "Validate, measure, resolve, and return one complete deterministic Task Packet inline. Read-only; it does not export, dispatch workers, or create worktrees.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dispatch": {"type": "object"}, "binding": {"type": "object"},
+                "environment": {"type": "object"}, "pricing": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["dispatch", "binding"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_compile",
+        "description": "Compile and return one complete deterministic Task Packet inline. Read-only; MCP never exports a file or dispatches workers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dispatch": {"type": "object"}, "binding": {"type": "object"},
+                "environment": {"type": "object"}, "pricing": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["dispatch", "binding"], "additionalProperties": False,
         },
     },
     {
@@ -342,12 +410,24 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "memory_esr",
-        "description": "Return the complete structured End-of-Session Report, including read-only corpus-cache inspection. Equivalent to `esr --json`; it never repairs or publishes cache state.",
+        "description": "Return the complete structured End-of-Session Report. Equivalent to `esr --json`; it never repairs authoritative memory, but may incrementally refresh the rebuildable ignored temporal-lineage cache and other derived cache state.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "cwd": {"type": "string", "default": "."},
                 "session_date": {"type": "string", "description": "Session date in YYYY-MM-DD; defaults to today."},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_decision_provenance_check",
+        "description": "Audit one runtime-owned provenance sidecar and its Git reference evidence. Read-only; unavailable Git is reported as unverifiable rather than raised.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "runtime": {"type": "object", "description": "Explicit measured runtime record for descendant or retired inspection."},
             },
             "additionalProperties": False,
         },
@@ -545,7 +625,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
                 "body": {
                     "type": "string",
-                    "description": "The entry body, verbatim. DRAFT shape: '### Decision' (or '### Decisions' with '#### Dn - name' subsections) then '- D:' and a mandatory '- R:', optionally '- A:', '- F:', '- T:'.",
+                    "description": "The entry body, verbatim. Current DRAFT shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', and '- T:'. Legacy singular '### Decision' remains readable but is refused for new appends.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
@@ -608,9 +688,10 @@ TOOLS: list[dict[str, Any]] = [
                                         "adr_id": {"type": "string"},
                                         "outcome": {"type": "string", "enum": ["revise", "no-change"]},
                                         "decision": {"type": "string"},
-                                        "why": {"type": "string"},
-                                        "evolution": {"type": "string"},
                                         "reason": {"type": "string"},
+                                        "impact": {"type": "string"},
+                                        "why": {"type": "string", "description": "deprecated alias for reason"},
+                                        "evolution": {"type": "string", "description": "deprecated alias for impact"},
                                         "assertions": {"type": "object"},
                                     },
                                     "required": ["adr_id", "outcome"],
@@ -719,7 +800,76 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["branch"],
         },
     },
+    {
+        "name": "memory_reflection_board_view",
+        "description": "Read every active Reflection Board v1 candidate from the current branch's trusted Git history. Read-only; malformed and unsupported reserved candidates remain visible.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_view",
+        "description": "Read one committed, history-classified Reflection Board v1 ledger. Read-only; this never reads an uncommitted ledger suffix.",
+        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id"], "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_init",
+        "description": "Preview or apply initialization of the current branch's only Reflection Board v1 ledger through the kernel-owned transaction writer. The server never accepts a caller-supplied ID, ledger bytes, Git commit, or ref.",
+        "inputSchema": {"type": "object", "properties": {"retention_days": {"type": "integer", "enum": [7, 14, 30], "default": 7}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_append",
+        "description": "Preview or apply one Reflection Board v1 record through the same kernel-owned transaction writer as the CLI. It never accepts raw ledger bytes, Git identities, receipts, or a history override.",
+        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "role": {"type": "string", "enum": ["planner", "implementer", "reviewer", "orchestrator"]}, "chain_id": {"type": "string"}, "relationship": {"type": "string", "default": "refines"}, "parents": {"type": "array", "items": {"type": "string"}, "default": []}, "no_related_thread": {"type": "boolean", "default": False}, "conclusion": {"type": "string"}, "reasoning": {"type": "string"}, "source": {"type": "string"}, "confidence": {"type": "string", "default": "high"}, "to_phase": {"type": "string"}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id", "role", "conclusion", "reasoning", "source"], "additionalProperties": False},
+    },
 ]
+
+
+TOOLS.extend([
+    {
+        "name": "memory_reflection_ledger_expire",
+        "description": "Preview or apply normal elapsed-retention expiry of one closed, durably receipted chain. The host owns time and signing. Cleanup and its compaction receipt are published by one ref CAS. Working-tree disappearance is not cryptographic erasure; unreachable Git objects may remain until Git garbage collection. Early expiry is unavailable.",
+        "inputSchema": {"type": "object", "properties": {
+            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
+            "chain_id": {"type": "string"}, "apply": {"type": "boolean", "default": False}},
+            "required": ["workstream_id", "chain_id"], "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_check",
+        "description": "Check one committed Reflection Board v1 ledger and report pending close receipts.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."},
+            "workstream_id": {"type": "string"}}, "required": ["workstream_id"], "additionalProperties": False},
+    },
+    {
+        "name": "memory_reflection_ledger_close",
+        "description": "Preview exact ordinary session receipt mappings or close a resolved, integrated chain. Apply revalidates Git history and receipt coverage through the guarded kernel transaction. A successful close remains closed_receipts_pending until its new member and outcome receipts are committed by the ordinary session writer.",
+        "inputSchema": {"type": "object", "properties": {
+            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
+            "chain_id": {"type": "string"}, "apply": {"type": "boolean", "default": False},
+            "receipts": {"type": "array", "default": [], "items": {"type": "object", "properties": {
+                "session_path": {"type": "string"}, "entry_id": {"type": "string"},
+                "decision_id": {"type": "string"}, "disposition": {"type": "string"},
+                "record_id": {"type": "string"}}, "required": ["session_path", "entry_id", "decision_id", "disposition"],
+                "additionalProperties": False}},
+        }, "required": ["workstream_id", "chain_id"], "additionalProperties": False},
+    },
+])
+for _rebind_operation in ("rebind", "finalize"):
+    TOOLS.append({
+        "name": "memory_reflection_ledger_" + _rebind_operation,
+        "description": "Preview or apply an exact local integration rebind." if _rebind_operation == "rebind" else
+            "Preview or finalize an exact same-repository PR merge using the single-use handoff created by CLI prepare.",
+        "inputSchema": {"type": "object", "properties": {
+            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
+            "source": {"type": "string"}, "reason": {"type": "string"},
+            "apply": {"type": "boolean", "default": False}},
+            "required": ["workstream_id", "source", "reason"], "additionalProperties": False},
+    })
+for _reflection_tool in TOOLS:
+    if _reflection_tool["name"] in {"memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close"}:
+        _reflection_tool["inputSchema"]["properties"]["expected_head"] = {
+            "type": "string", "description": "Refuse a changed branch head after a reviewed preview."}
+        if _reflection_tool["name"] != "memory_reflection_ledger_init":
+            _reflection_tool["inputSchema"]["properties"]["expected_ledger_digest"] = {
+                "type": "string", "description": "Refuse changed ledger bytes after a reviewed preview."}
 
 
 def call_tool(
@@ -733,6 +883,7 @@ def call_tool(
         "memory_retrieval_spec_preview",
         "memory_retrieval_spec_resolve",
     }:
+        from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
         if not isinstance(args, dict):
@@ -746,7 +897,9 @@ def call_tool(
                     "details": {},
                 },
             }
-        unsupported = sorted(set(args) - {"spec", "cwd"})
+        unsupported = sorted(
+            set(args) - {"spec", "profile", "profile_version", "overrides", "cwd"}
+        )
         if unsupported:
             return {
                 "ok": False,
@@ -758,29 +911,25 @@ def call_tool(
                     "details": {"unsupported_arguments": unsupported},
                 },
             }
-        spec = args.get("spec")
-        if not isinstance(spec, dict):
-            return {
-                "ok": False,
-                "error": {
-                    "code": "invalid_spec",
-                    "message": "spec must be an inline JSON object",
-                    "stage": "validation",
-                    "completed_stages": [],
-                    "details": {},
-                },
-            }
         try:
             if name == "memory_retrieval_spec_preview":
                 return {
                     "ok": True,
-                    "preview": preview_retrieval_spec(spec, args.get("cwd", ".")),
+                    "preview": preview_retrieval_input(
+                        spec=args.get("spec"), profile=args.get("profile"),
+                        profile_version=args.get("profile_version"),
+                        overrides=args.get("overrides"), cwd=args.get("cwd", "."),
+                    ),
                 }
             return {
                 "ok": True,
-                "pack": resolve_retrieval_spec(spec, args.get("cwd", ".")),
+                "pack": resolve_retrieval_input_pack(
+                    spec=args.get("spec"), profile=args.get("profile"),
+                    profile_version=args.get("profile_version"),
+                    overrides=args.get("overrides"), cwd=args.get("cwd", "."),
+                ),
             }
-        except RetrievalSpecValidationError as exc:
+        except (RetrievalInputValidationError, RetrievalSpecValidationError) as exc:
             return {
                 "ok": False,
                 "error": {
@@ -791,8 +940,53 @@ def call_tool(
                     "details": {},
                 },
             }
+        except RetrievalProfileValidationError as exc:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_profile",
+                    "message": str(exc),
+                    "stage": "profile_expansion",
+                    "completed_stages": [],
+                    "details": {},
+                },
+            }
         except RetrievalSpecResolutionError as exc:
             return {"ok": False, "error": exc.to_dict()}
+
+    if name in {"memory_task_packet_preview", "memory_task_packet_compile"}:
+        from .task_packet import TaskPacketValidationError, compile_task_packet
+        from .retrieval_profiles import RetrievalProfileValidationError
+        from .retrieval_spec import RetrievalSpecValidationError
+
+        if not isinstance(args, dict):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "tool arguments must be a JSON object", "stage": "validation", "completed_stages": [], "details": {}}}
+        unsupported = sorted(set(args) - {"dispatch", "binding", "environment", "pricing", "cwd"})
+        if unsupported:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported task packet tool argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
+        dispatch, binding = args.get("dispatch"), args.get("binding")
+        if not isinstance(dispatch, dict) or not isinstance(binding, dict):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "dispatch and binding must be JSON objects", "stage": "validation", "completed_stages": [], "details": {}}}
+        try:
+            packet = compile_task_packet(dispatch, binding, args.get("cwd", "."), environment=args.get("environment"), pricing=args.get("pricing"))
+            return {"ok": True, "preview" if name.endswith("_preview") else "packet": packet}
+        except TaskPacketValidationError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except RetrievalSpecValidationError as exc:
+            return {"ok": False, "error": {
+                "code": "invalid_spec", "message": str(exc),
+                "stage": "validation", "completed_stages": [], "details": {},
+            }}
+        except RetrievalSpecResolutionError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except RetrievalProfileValidationError as exc:
+            return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
+
+    if name in {"memory_reflection_board_view", "memory_reflection_ledger_view", "memory_reflection_ledger_check",
+                "memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close",
+                "memory_reflection_ledger_rebind", "memory_reflection_ledger_finalize", "memory_reflection_ledger_expire"}:
+        from .reflection_operations import run_reflection_operation
+        return run_reflection_operation(name.removeprefix("memory_reflection_"), arguments)
 
     if name == "memory_search":
         query = _required_str(args, "query")
@@ -909,6 +1103,39 @@ def call_tool(
             cwd=_cwd(args),
             session_date=session_date.isoformat() if session_date else None,
         ).to_dict()
+
+    if name == "memory_decision_provenance":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"decision_ref", "cwd", "context_lines", "runtime"})
+        return provenance_surface(
+            "show", cwd=_cwd(args), decision_ref=_required_str(args, "decision_ref"),
+            context_lines=args.get("context_lines", 3), owner=args.get("runtime"),
+        )
+
+    if name == "memory_decision_provenance_bind":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"binding", "cwd", "runtime", "apply"})
+        binding = args.get("binding")
+        if not isinstance(binding, Mapping):
+            raise ValueError("binding must be an object")
+        runtime = args.get("runtime")
+        if runtime is not None and not isinstance(runtime, Mapping):
+            raise ValueError("runtime must be an object")
+        return provenance_surface(
+            "bind", cwd=_cwd(args), binding=binding, owner=runtime,
+            apply=_optional_bool(args, "apply", default=False),
+        )
+
+    if name == "memory_decision_provenance_check":
+        from .cli import provenance_surface
+
+        _reject_unsupported_arguments(args, {"cwd", "runtime"})
+        runtime = args.get("runtime")
+        if runtime is not None and not isinstance(runtime, Mapping):
+            raise ValueError("runtime must be an object")
+        return provenance_surface("check", cwd=_cwd(args), owner=runtime)
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
@@ -1147,8 +1374,9 @@ def call_tool(
             if abort_code != 0:
                 result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
 
+        cleanup_complete = result.source_worktree is None or result.worktree_cleanup_status == "removed"
         return {
-            "ok": result.committed or (dry_run and not result.issues),
+            "ok": (result.committed and cleanup_complete) or (dry_run and not result.issues),
             "committed": result.committed,
             "integration_mode": mode,
             "dry_run": dry_run,
@@ -1163,6 +1391,7 @@ def call_tool(
             "worktree_cleanup_status": result.worktree_cleanup_status,
             "worktree_cleanup_detail": result.worktree_cleanup_detail,
             "worktree_cleanup_attempts": result.worktree_cleanup_attempts,
+            "cleanup_complete": cleanup_complete,
             "conflicts": result.conflicts,
             "merge_aborted": aborted,
             "merge_in_progress": result.merge_in_progress and not aborted,
@@ -1483,6 +1712,8 @@ def handle_jsonrpc_message(
                 in {
                     "memory_retrieval_spec_preview",
                     "memory_retrieval_spec_resolve",
+                    "memory_task_packet_preview",
+                    "memory_task_packet_compile",
                 }
                 else json.dumps(
                     tool_result,

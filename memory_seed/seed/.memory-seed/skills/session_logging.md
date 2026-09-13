@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.21
 governing_adr: adr_draft_format
 tags:
   - memory-seed
@@ -39,7 +39,9 @@ related_entries:
 
 - Required for every newly appended entry: state the context, change, or check.
 
-### Decision
+### Decisions
+
+#### D1 - State the decision
 
 - D: State the decision that was made or implemented. (mandatory)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)
@@ -73,9 +75,9 @@ continuity:
 
 `topics` is an optional list of 1-3 controlled-vocabulary slugs from `.memory-seed/topics.yaml` marking which durable project themes this entry belongs to — deterministic neighbourhood membership, distinct from `related_entries` (relationship) and from hashtag `tags`/heading `contexts` (derived display fallbacks for old entries). **Read the topic index before writing; prefer an existing canonical slug (aliases also resolve) over inventing a new one** — invented slugs are exactly the sprawl `memory-seed topics check` exists to catch (unknown slugs are errors; more than 3 topics is a warning). A slug matches `^[a-z0-9][a-z0-9_-]{0,63}$`. When a genuinely new durable theme emerges, add it to `topics.yaml` (project-local, never overwritten by `update`) in the same turn. `memory_search` accepts a `topics` filter that resolves aliases both ways.
 
-**Two axes, one of each.** From `schema_version: 2` every slug declares `axis:` — **`area`** (WHAT you are working on) or **`activity`** (what KIND of work it was). Answer both questions: name where the work was *and* what the work was. Two slugs is the target and three the ceiling, so two activities and no area spends your budget recording that you were busy without recording what you were busy on. Neither word assumes software — a newsletter, a legal matter and a code repository all have areas and activities — and the axis is deliberately **not** called a "subsystem", which does not travel outside a codebase. The field stays `topics:` on every axis.
+**Two axes, one of each.** In `schema_version: 3`, `topics:` branches first into **`area`** (WHAT you are working on) and **`activity`** (what KIND of work it was); each slug is a mapping key under one of those branches. Answer both questions: name where the work was *and* what the work was. Two slugs is the target and three the ceiling, so two activities and no area spends your budget recording that you were busy without recording what you were busy on. Neither word assumes software — a newsletter, a legal matter and a code repository all have areas and activities — and the axis is deliberately **not** called a "subsystem", which does not travel outside a codebase. The field stays `topics:` on every axis. Schema v1/v2 vocabularies remain readable for existing projects.
 
-**Prefer the most specific slug that fits.** A slug may declare a `parent:`, forming a hierarchy within its own axis (a child leaves `axis:` blank and inherits it). Store only the child: the parent is derived at read time, so it costs none of your 1-3 budget, filters on the parent still match you, and the specificity you recorded survives. This is the opposite of an `alias:`, which is a spelling variant and is discarded on resolution. Depth is earned — a slug takes children once it is carrying too much of its scope to distinguish anything, not because a tree looks tidy.
+**Prefer the most specific slug that fits.** A slug may contain a `children:` mapping, forming a hierarchy within its axis; each child is another slug mapping and may have children of its own. Store only the child: its parent and axis are derived from tree position at read time, so the parent costs none of your 1-3 budget, filters on it still match you, and the specificity you recorded survives. This is the opposite of an `alias:`, which is a spelling variant and is discarded on resolution. Depth is earned — a slug takes children once it is carrying too much of its scope to distinguish anything, not because a tree looks tidy.
 
 `branch` is an optional single scalar naming the git branch this entry's work happened on, captured at record time: read the current branch (`git rev-parse --abbrev-ref HEAD`) when writing a solo entry; for orchestrated multi-agent work the orchestrator backfills it from the Task Packet's `working_branch` when writing the Final Handoff Gate entry. It is a durable historical label like a commit SHA — forward-only, never backfilled onto older entries, and omitted entirely when unavailable (detached HEAD, no repository, or an agent that chooses not to record it). `links check` never checks that the branch still exists: feature branches are routinely deleted after merge, so a vanished branch is expected history, not an integrity error. There is deliberately **no `worktree:` field** — a worktree is an ephemeral, machine-specific local path with no evolution semantics; when that operational detail matters it belongs in the multi-agent handoff record, not the durable entry schema.
 
@@ -99,6 +101,48 @@ The tool owns structure — target resolution, the heading timestamp (now, refus
 When a lifecycle link touches any current or historical ADR member, both CLI `session append` and MCP `memory_session_append` run the same content-bound review preflight: the first call returns the full matched ADR contexts plus a receipt and writes zero bytes. Put one `adrs` outcome (`revise` or `no-change`) per matched ADR into the owning decision object, then retry MCP with `adr_review_receipt` or CLI with `--adr-review-receipt`. When a review confirms the current ADR without warranting a new session decision, use `memory-seed adr reviewed --adr-id <id> --entry <existing-entry-id> --reason <text>` or its parity twin `memory_adr_reviewed`; both require real entry provenance and move no head.
 
 `entry_id` is a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. The normal path is `memory_session_append` (or `memory-seed session append`), which mints the id and writes the entry through the guards. If you must assemble the entry text yourself, **never invent the id by hand** — take the canonical id (and the `rendered` block to copy verbatim) from a `memory_session_append` `dry_run`, or the id alone from `memory-seed session entry-id`. Hand-rolled ids are unique-but-arbitrary: not reproducible from the entry's metadata, and they drift outside the canonical Crockford alphabet (the corpus carries both shapes for exactly this reason; integrity checks tolerate them, but new entries must not add more). Compute the id AFTER fixing the title — title and timestamp are hash inputs — and **never author the timestamp yourself**: omit `timestamp` so the tool stamps from the machine clock and returns the value; write the returned timestamp into the heading verbatim. Estimated/authored times drifted hours from reality in practice (caught 2026-07-18); an explicit timestamp is for sanctioned backfill only and earns a `clock_drift_warning` when far from the server clock. Legacy `ms-` IDs and existing hand-rolled ids remain valid and must not be rewritten.
+
+## Reflection Board receipts
+
+Reflection append records temporary reasoning, not an ordinary session entry. The orchestrator owns
+durable synthesis and receipts unless the worker packet explicitly delegates an exact session target.
+Load `agent_collaboration.md` for initialization, phase ownership, integration/rebind, and trust gates.
+
+Close records lifecycle completion; it does not remove the chain. On the effective integration branch,
+after required independent validation, orchestrator synthesis, and rebind:
+
+1. Preview `memory-seed reflection ledger close <workstream_id> --chain-id <chain_id> --json`.
+   Its `required_receipts` / `missing_receipts` identify every member needing durable coverage.
+2. Prepare an ordinary DRAFT entry with `memory_session_append` dry-run or `session append --dry-run`.
+   Use its canonical destination path and entry identity, plus the exact uppercase decision locator
+   such as `D1`. Follow the ordinary writer's preview/replay contract; never invent identities or times.
+   If the destination identity changes, re-draft the mappings before committing them.
+3. Re-preview close with `--receipts`: a JSON array whose objects contain `session_path`, `entry_id`,
+   `decision_id`, and `disposition`, optionally `record_id` to select one member. A locator without
+   `record_id` covers all members. Choose `promoted-to-decision` or `already-covered-by-decision`
+   for decision-backed coverage, or `expired-unpromoted` for an unpromoted disposition.
+   Early expiry is unavailable; a disposition string is never permission to remove a chain.
+4. Copy each returned exact mapping as its own fenced YAML block inside the named DRAFT decision.
+   Preserve every field and digest. Append through the ordinary guarded writer and commit that entry;
+   raw mapping objects passed to close and uncommitted session text do not establish receipt coverage.
+   Keep session bytes canonical UTF-8, NFC, and LF through the normal text writer.
+5. Re-preview until `ready_to_close` with no missing receipts. Review the anchors, then apply close
+   with the same locators and `--expected-head` / `--expected-ledger-digest`.
+   Close additionally requires the immutable-base public anchor and its matching local private key.
+6. A successful close returns `closed_receipts_pending`: the newly created close member and its
+   closure outcome need two more mappings. The immediate response may draft them against the old
+   destination; **do not edit that already-committed entry**. Preview a new ordinary entry, then call
+   close again without apply, using its new destination locator, to regenerate both exact mappings.
+   Append/commit the new entry through the ordinary writer. Run
+   `memory-seed reflection ledger check <workstream_id> --json` to inspect `closed_receipts_pending`
+   and `missing_receipts`; non-JSON ledger view/check prints raw ledger text. Recheck until the chain
+   is `closed` with empty `missing_receipts`; board view and ESR expose the same receipt state.
+
+CLI close and `memory_reflection_ledger_close` use the same receipt preparation/finalization projection.
+There is no separate public receipt-finalize command. A complete receipt is durable evidence, not a
+caller-authored signature or approval. A closed chain remains in the ledger until elapsed expiry passes
+the additional checks in `end_of_turn.md`; expiry's compaction receipt uses the existing ordinary author
+inside the guarded transaction, including per-user session layout.
 
 ## Decision Diagram Sidecars
 
@@ -169,6 +213,12 @@ The session file is strictly append-only and must stay in ascending time order.
 
 DRAFT is the baseline decision-record format for session entries. A DRAFT decision record is the default whenever a turn produced a decision or durable change.
 
+Write DRAFT records with **simple technical precision**: be concise but precise, use plain language by
+default, and define a necessary technical term when its meaning may not be shared. Preserve the constraints,
+reasoning, uncertainty, and distinctions needed to understand or challenge the decision; brevity must never
+erase meaning. Remove repetition, ornamental jargon, and implementation detail that does not explain the
+decision or its validation.
+
 - D = Decision
 - R = Reason
 - A = Alternatives considered or rejected
@@ -182,8 +232,36 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 - If reason is unknown, write `Reason not recorded`.
 - Alternatives are optional unless they affected the decision or tradeoff.
 - If an approach was **attempted and failed** or proved incompatible during the session, log it under `A` even when not explicitly asked to — this is empirical evidence for future sessions, not an optional nicety. State what was tried and why it failed in one line; that's enough for a future agent to skip it without re-deriving the failure.
+- Do not borrow a prior entry's stated non-action ("left untouched," "not this session's work") as your own `R:` — accurate for that prior entry, it says nothing about whether logging is warranted for what changed this turn.
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
+
+## Fresh completion evidence
+
+When an entry records a completion claim, its `### Validation` section must cite verification
+executed after the relevant changed scope. Record the command or check, changed scope, execution
+point or freshness marker, outcome, and one status: `passed`, `failed`, `blocked`, `unavailable`,
+or `waived`. Only `passed` is passing validation. A pre-change result is stale and cannot support
+completion; `blocked` and `unavailable` include the omission reason, while `waived` includes both
+the reason and granting authority and remains non-passing. Start with the smallest relevant check
+and broaden for shared behavior without weakening any stricter project policy requiring tests
+before behavior changes.
+
+## Review evidence record
+
+When a task uses the collaboration review flow, the orchestrator's durable append-only session evidence
+records the exact review range, review request acceptance criteria, authority/local rationale, fresh
+validation evidence, changed-file scope, findings, and dispositions. For each finding, retain the exact
+`accept`, `reject`, or `defer` disposition with its reason and evidence; a rejected or deferred
+load-bearing/authority finding also names the governing resolution or escalation. Do not rewrite an
+earlier review record to make later code look as though it was already reviewed.
+
+If an accepted finding changes code, record the exact fix range and scoped fix/re-review outcome. Keep
+deferred items visible to the final whole-branch review. The completion record separately identifies final verification
+executed after the last accepted fix, including the changed scope, freshness marker, command
+or check, outcome, and status. Earlier verification is stale and cannot close the review. These are
+evidence fields in the existing session entry and handoff; they do not create a second review controller
+or transfer Task Packet, worktree, integration, or cleanup ownership.
 
 ## When To Append
 
@@ -316,6 +394,8 @@ which lifecycle edges, ADR sidecars and decision-level topics already assume.
 ### Small work entry
 
 Use for routine edits, small fixes, or verification-only work with no real decision. Do not invent reason.
+This applies even when the fact is now fully expressed in the changed file itself — a README line or a
+RELEASE.md note is what's true now, not why or when it became true, and is not a substitute for this entry.
 
 ```markdown
 ### Summary

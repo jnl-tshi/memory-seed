@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_agent_selective_install
 title: Agent-selective install driven by project.yaml; remove strips only our entries
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: `founding:.memory-seed/index.md#L199`
 
 `init` installs only the chosen agents' files; the selected set persists in `.memory-seed/project.yaml` under `agents:` and is respected by `doctor` and `update`. A central `KNOWN_AGENTS` registry maps each slug to its routing file, merge operations and uninstall operations. Removal uses generic strippers that remove only Memory Seed's own entries, delete a config file only when nothing of value remains, and back up first.
 
-### Why
+### Reason
 
 Agents share configuration files, so a blanket install or a blanket removal would write or destroy config the project owns. Stripping ours-only means uninstalling one agent never disturbs a foreign server entry or another agent's block. One registry as the single source of truth for slug to operations keeps init, update, doctor and uninstall from drifting into different ideas of what an agent installs.
 
-### How it evolved
+### Impact
 
 Founded from the control file: the central registry landed with per-agent tagging of routing files, and `agents add/remove` followed with strip-in-place uninstall.
 
@@ -59,6 +59,7 @@ Founded from the control file: the central registry landed with per-agent taggin
   "event_id": "adre_03f47419360cbc37d3a8",
   "founding_quote": "`init` installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml`",
   "founding_source": ".memory-seed/index.md#L199",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "ms-1bcfcc91:d1",
@@ -71,11 +72,11 @@ Founded from the control file: the central registry landed with per-agent taggin
 
 `init` installs only the chosen agents' files; the selected set persists in `.memory-seed/project.yaml` under `agents:` and is respected by `doctor` and `update`. A central `KNOWN_AGENTS` registry maps each slug to its routing file, merge operations and uninstall operations. Removal uses generic strippers that remove only Memory Seed's own entries, delete a config file only when nothing of value remains, and back up first.
 
-#### Why
+#### Reason
 
 Agents share configuration files, so a blanket install or a blanket removal would write or destroy config the project owns. Stripping ours-only means uninstalling one agent never disturbs a foreign server entry or another agent's block. One registry as the single source of truth for slug to operations keeps init, update, doctor and uninstall from drifting into different ideas of what an agent installs.
 
-#### Evolution
+#### Impact
 
 Founded from the control file: the central registry landed with per-agent tagging of routing files, and `agents add/remove` followed with strip-in-place uninstall.
 
@@ -85,10 +86,19 @@ Founded from the control file: the central registry landed with per-agent taggin
 {
   "event_id": "adre_fecf27c2124be1e2c1d8",
   "founding_source": ".memory-seed/index.md#L199",
+  "impact_provenance": "preserved",
   "source": "derived"
 }
 ```
 
+#### Decision
+
+Accept founding:.memory-seed/index.md#L199.
+
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+#### Impact
+
+founding:.memory-seed/index.md#L199 becomes the authoritative decision; later contrary evidence requires a successor revision.

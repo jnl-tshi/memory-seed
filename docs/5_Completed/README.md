@@ -40,6 +40,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | complete |
 | [agent-worktree-namespace-guard-plan.md](agent-worktree-namespace-guard-plan.md) | — | — | — |
 | [baseline-seed-promotions.md](baseline-seed-promotions.md) | — | — | — |
+| [branch-field-provenance.md](branch-field-provenance.md) | P3 | [] | None. Decided (JNL, 2026-07-26): A now, D as the standing convention; both are documented. The … |
 | [chain-position-aware-link-candidates-proposal.md](chain-position-aware-link-candidates-proposal.md) | — | — | — |
 | [chains-as-artifacts-proposal.md](chains-as-artifacts-proposal.md) | — | — | — |
 | [cheap-tooling-hardening-proposals.md](cheap-tooling-hardening-proposals.md) | — | — | — |
@@ -50,6 +51,8 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [dev-tools-reel-10of10-websites.md](dev-tools-reel-10of10-websites.md) | — | — | — |
 | [docx-render-windows-seed-lessons.md](docx-render-windows-seed-lessons.md) | — | — | — |
 | [evolution-edges-plan.md](evolution-edges-plan.md) | — | — | — |
+| [evolution-type-refines-builds-on-proposal.md](evolution-type-refines-builds-on-proposal.md) | — | — | None. The four-step delivery order shipped on 2026-08-09. |
+| [excerpt-fallback-defect.md](excerpt-fallback-defect.md) | P1 | — | None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the f… |
 | [exclude-superseded-filter-plan.md](exclude-superseded-filter-plan.md) | — | — | — |
 | [failed-approaches-logging-plan.md](failed-approaches-logging-plan.md) | — | — | — |
 | [fontjoy-typography-pairing.md](fontjoy-typography-pairing.md) | — | — | — |
@@ -79,6 +82,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [multi-user-deep-research-report.md](multi-user-deep-research-report.md) | — | — | — |
 | [multi-user-session-memory-proposal.md](multi-user-session-memory-proposal.md) | — | — | — |
 | [operating-mode-variables-proposal.md](operating-mode-variables-proposal.md) | P2 | — | completed |
+| [outcome-level-composition-constitutional-amendment.md](outcome-level-composition-constitutional-amendment.md) | — | — | — |
 | [persona-usage-deactivation-esr-proposal.md](persona-usage-deactivation-esr-proposal.md) | — | — | — |
 | [ponytail-implementation.md](ponytail-implementation.md) | — | — | — |
 | [proactive-history-retrieval-discipline-proposal.md](proactive-history-retrieval-discipline-proposal.md) | — | — | — |
@@ -86,16 +90,24 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [readme-front-door-refresh-plan.md](readme-front-door-refresh-plan.md) | — | — | — |
 | [real-corpus-ranking-validation-gate-proposal.md](real-corpus-ranking-validation-gate-proposal.md) | — | — | — |
 | [related-entries-generation-plan.md](related-entries-generation-plan.md) | — | — | — |
+| [related-entries-p2-mutation-plan.md](related-entries-p2-mutation-plan.md) | — | — | None. link add shipped; historical backfill remains a deliberately manual, per-edge procedure r… |
 | [residual-fuse-non-utf8-silent-skip.md](residual-fuse-non-utf8-silent-skip.md) | — | — | — |
 | [residual-processes-cp1252-decode.md](residual-processes-cp1252-decode.md) | — | — | — |
+| [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | None. M0-M1 landed on main; M2-M5 remain owned by the active declarative retrieval specificatio… |
 | [risk-signaling-and-stop-triggers-plan.md](risk-signaling-and-stop-triggers-plan.md) | — | — | — |
 | [stop-trigger-taxonomy-proposal.md](stop-trigger-taxonomy-proposal.md) | — | — | — |
+| [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |
 | [structured-mermaid-d2-diagrams-skill-evaluation.md](structured-mermaid-d2-diagrams-skill-evaluation.md) | — | — | — |
+| [superpowers-delivery-quality-uplift-plan.md](superpowers-delivery-quality-uplift-plan.md) | P1 | — | Use the behavioral evaluation corpus and real-work trials to measure future uplift without trea… |
 | [supersession-edges-plan.md](supersession-edges-plan.md) | — | — | — |
 | [supersession-successor-surfacing-proposal.md](supersession-successor-surfacing-proposal.md) | — | — | — |
+| [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
+| [transitive-session-fusion-refinement-plan.md](transitive-session-fusion-refinement-plan.md) | P0 | [] | None. The reviewed transitive fuse evidence contract shipped on 2026-09-06. |
 | [user-interface-deep-research-report.md](user-interface-deep-research-report.md) | — | — | — |
 | [utf8-encoding-doctor-and-static-check-plan.md](utf8-encoding-doctor-and-static-check-plan.md) | — | — | — |
+| [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) | P3 | — | SHIPPED 2026-07-27 (day after JNL raised it) - not a JNL gate any more. scripts/propose_topic_c… |
 | [worker-context-minimisation-proposal.md](worker-context-minimisation-proposal.md) | — | — | — |
 | [worktree-dependency-control-plane-source.md](worktree-dependency-control-plane-source.md) | — | — | refined-into-active-plan |
 | [worktree-dependency-strategy-plan.md](worktree-dependency-strategy-plan.md) | — | — | — |
+| [write-time-topic-envelope-closure-proposal.md](write-time-topic-envelope-closure-proposal.md) | P1 | — | none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step |
 <!-- docs-index:end -->

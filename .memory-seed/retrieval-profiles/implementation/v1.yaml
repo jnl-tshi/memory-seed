@@ -1,0 +1,15 @@
+schema: memory-seed/retrieval-profile
+schema_version: 1
+id: implementation
+profile_version: 1
+extends: []
+spec:
+  required:
+    related_decisions:
+      depth: 2
+  optional:
+    sessions:
+      neighbouring_entries: 8
+  limits:
+    max_entries: 30
+    max_tokens: 12000

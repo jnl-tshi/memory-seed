@@ -16,7 +16,7 @@ from .core import SessionDocument, _parse_continuity_items, iter_session_documen
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 TAG_RE = re.compile(r"(?<![\w/.-])#([A-Za-z][A-Za-z0-9_-]*)")
 IDENTIFIER_RE = re.compile(
-    r"(?<![\w/])(?:`?)([A-Za-z0-9_.-]*[A-Za-z_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_.-]+)*)(?:`?)"
+    r"(?<![\w/])(?:`?)([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)(?:`?)"
 )
 STRUCTURAL_QUERY_TERMS = (
     "architecture",
@@ -2087,6 +2087,13 @@ def _extract_lexical_terms(text: str) -> tuple[str, ...]:
     for match in IDENTIFIER_RE.finditer(text):
         value = match.group(1).strip("`,:;()[]{}").rstrip(".,")
         if not value or value.startswith("#"):
+            continue
+        # IDENTIFIER_RE only matches runs of [A-Za-z0-9_.-]; requiring a letter or
+        # underscore here (rather than as a mandatory middle character inside the
+        # regex itself) is what previously kept pure digit/punctuation runs like
+        # dates or dash sequences from counting as identifiers, without the
+        # ambiguous back-to-back `*` quantifiers CodeQL flagged as ReDoS-prone.
+        if not any(ch.isalpha() or ch == "_" for ch in value):
             continue
         if _is_notable_identifier(value):
             terms.add(value)

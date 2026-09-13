@@ -74,17 +74,17 @@ export function AdrWorkspace({ scopeKey, onOpenDecision }: Props) {
           <div className={`adr-authority ${selected.current_status === "superseded" ? "adr-retired" : ""}`}><CheckCircle2 size={17} aria-hidden="true" /><span>{authority?.label}</span>{authority?.decisionRef ? <DecisionLink decisionRef={authority.decisionRef} excerpts={excerpts} onOpen={onOpenDecision} /> : <b>Not yet accepted</b>}</div>
           {authority?.replacementAdr && <div className="adr-superseded"><span>Superseded by</span><strong>{authority.replacementAdr}</strong></div>}
           <h3>Decision</h3><p>{selected.current.decision || "Not recorded."}</p>
-          <h3>Why</h3><p>{selected.current.why || "Not recorded."}</p>
-          <h3>How it evolved</h3><p>{selected.current.evolution || "No evolution recorded."}</p>
+          <h3>Reason</h3><p>{selected.current.reason || "Not recorded."}</p>
+          <h3>Impact</h3><p>{selected.current.impact || "No impact recorded."}</p>
           {!!selected.topics?.length && <div className="adr-topics">{selected.topics.map((topic) => <span key={topic}>{topic}</span>)}</div>}
         </header>
         {!!selected.pending_decisions?.length && <section className="adr-pending"><h3>Pending proposals</h3>{selected.pending_decisions.map((ref) => <DecisionLink key={ref} decisionRef={ref} excerpts={excerpts} onOpen={onOpenDecision} />)}</section>}
         {!!rejected.length && <section className="adr-rejected"><h3>Rejected proposals</h3>{rejected.map((ref) => <DecisionLink key={ref} decisionRef={ref} excerpts={excerpts} onOpen={onOpenDecision} />)}</section>}
-        <section className="adr-ledger"><h3><GitMerge size={16} aria-hidden="true" /> Evolution ledger</h3>{events.map((event) => event.kind === "reviewed-no-change" ? <details className="adr-event adr-event-muted" key={event.event_id}><summary>{eventLabel(event)} {"\u00b7"} {event.timestamp}</summary><p>{event.reason}</p></details> : <article className={`adr-event ${selected.current_status !== "superseded" && event.decision_ref === selected.authoritative_decision && event.kind === "revision-proposed" ? "authoritative" : ""}`} key={event.event_id}>
+        <section className="adr-ledger"><h3><GitMerge size={16} aria-hidden="true" /> Evolution ledger</h3>{events.map((event) => event.kind === "reviewed-no-change" ? <details className="adr-event adr-event-muted" key={event.event_id}><summary>{eventLabel(event)} {"\u00b7"} {event.timestamp}</summary><p>{event.reason}</p><p>{event.impact}</p></details> : <article className={`adr-event ${selected.current_status !== "superseded" && event.decision_ref === selected.authoritative_decision && event.kind === "revision-proposed" ? "authoritative" : ""}`} key={event.event_id}>
           <div className="adr-event-head"><span>{eventLabel(event)}</span><time>{event.timestamp}</time></div>
           {event.decision_ref && <DecisionLink decisionRef={event.decision_ref} excerpts={excerpts} onOpen={onOpenDecision} />}
           {!!event.predecessors?.length && <div className="adr-predecessors"><span>From</span>{event.predecessors.map((item) => <DecisionLink key={item.decision} decisionRef={item.decision} excerpts={excerpts} onOpen={onOpenDecision} />)}</div>}
-          {event.decision && <p>{event.decision}</p>}{event.reason && <p>{event.reason}</p>}
+          {event.decision && <p>{event.decision}</p>}{event.reason && <p>{event.reason}</p>}{event.impact && <p>{event.impact}</p>}
         </article>)}</section>
       </>}
     </section>

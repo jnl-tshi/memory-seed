@@ -1,0 +1,88 @@
+{
+  "note": "Answer key for the memory-index dry-run's INDEPENDENT REPLICATION corpus (memory-index-dry-run-plan.md, open decision #13, 2026-08-26). Second, unrelated toy project (durstr, not strutil) and a distinct narrative/roster/facts, so no fixture-specific quirk from the first corpus can leak into this one. Same shape as the original: 10 seeding briefs over a simulated 5-week arc, 31 questions across the same 6 categories with matching counts (6/6/3/4/4/8). Seeding briefs are work-diary prose; facts are embedded, never labeled. Quiz sessions and judges receive questions only; the judge receives expected answers per question. Traps (category false_memory) have expected=ABSTAIN.",
+  "seeding_briefs": [
+    {
+      "id": "S1",
+      "week": 1,
+      "brief": "Kickoff session for the durstr push toward 1.0. Getting organised: Renata is taking the lead maintainer role, with Oskar and Wanjiru as the other two maintainers. We settled the release rhythm - quarterly releases, cut on the 15th of the quarter's first month. CI gets a hard wall-clock budget of 60 minutes per run; anything slower has to be split or dropped. The whole 1.0 effort is going under the codename 'Compass' so it's easy to track in discussions. Nothing to code yet today - just make sure the project is in a sane state: run the checks in run_checks.py and confirm they pass, and fix nothing unless something is actually broken."
+    },
+    {
+      "id": "S2",
+      "week": 1,
+      "brief": "Wanjiru filed a bug this morning: format_duration drops sub-minute remainders - her example was format_duration(125) coming out as '2m' instead of '2m5s'. After looking at options we agreed the right fix is to append the leftover seconds when nonzero, and we're scheduling that fix for the 0.4.0 release rather than rushing it. Today: reproduce her example by adding a check to run_checks.py that documents the CURRENT (wrong) behaviour with a TODO comment naming the planned remainder-append fix - do not implement the fix itself yet."
+    },
+    {
+      "id": "S3",
+      "week": 2,
+      "brief": "Two things from this week's sync. First, config: people keep asking for numeric-looking setting values to auto-convert to int; we decided settings stay read exactly as JSON gives them for now - coercion was rejected as unnecessary. Second, Oskar ran the first benchmark pass: parse_duration sits at 0.8 microseconds per operation on the reference box, which we're recording as the baseline nothing may regress past. Today: add a one-line note to the README's development section stating the perf baseline (0.8 microseconds/op for parse_duration) so contributors see it."
+    },
+    {
+      "id": "S4",
+      "week": 2,
+      "brief": "Started assembling the 0.3.0 release checklist. So far it has two items: fold the changelog, and sign the git tag. Also settled after some back and forth: minimum supported Python moves to 3.12 - the pattern-matching and tomllib features we want make anything older painful. Today: create a RELEASE.md at the repo root containing the checklist as it currently stands (just those two items, as a markdown checklist), and note the new Python floor in it."
+    },
+    {
+      "id": "S5",
+      "week": 3,
+      "brief": "CI got slow, so the budget decision from kickoff is revised: the wall-clock budget is now 35 minutes, down from the original 60. Separately it's now official that Oskar owns the benchmark suite going forward - route perf questions to him. Today: nothing code-side except hygiene - make sure run_checks.py still passes, and tighten any obviously slow check if one exists (do not add dependencies)."
+    },
+    {
+      "id": "S6",
+      "week": 3,
+      "brief": "Release checklist grew during review practice: add 'wheel audit' and 'README badge check' to the 0.3.0 checklist, after changelog fold and tag signing. Also we argued about format_duration's zero-duration case again and CONFIRMED the existing semantics: format_duration(0) returns '0s', and that behaviour is now locked as the documented contract. Today: update RELEASE.md with the two new checklist items, and expand format_duration's docstring one line to state the locked zero-case contract explicitly."
+    },
+    {
+      "id": "S7",
+      "week": 4,
+      "brief": "Cadence change: quarterly releases were too slow for the bugfix flow, so releases now go out monthly, cut on the last Friday of the month. The quarterly-15th rhythm from kickoff is dead. Also the docs question got settled: the documentation site will be hosted on GitHub Pages. Today: record the new cadence in RELEASE.md (replace any mention of the old rhythm), and add a 'Docs' line to README pointing at GitHub Pages as the future docs home."
+    },
+    {
+      "id": "S8",
+      "week": 4,
+      "brief": "Two release moves. The remainder-append fix originally scheduled for 0.4.0 got pulled forward - it ships in 0.3.0 after all, Wanjiru pushed for it and nobody objected. And the checklist is now final at five items: changelog fold, tag signing, wheel audit, README badge check, and a Wanjiru sign-off as the last gate. Today: implement the remainder-append fix in format_duration (append the leftover seconds when nonzero, on top of the existing hours/minutes breakdown), update run_checks.py's TODO'd check to the corrected expectation (125 seconds -> '2m5s'), and bring RELEASE.md to the final five-item list."
+    },
+    {
+      "id": "S9",
+      "week": 5,
+      "brief": "The no-coercion decision from week 2 is reversed: settings will auto-coerce numeric-looking string values to int after all, via a small coercion helper in load_settings - non-numeric strings must keep passing through unchanged. Also welcoming Youssef, who joins specifically to own Linux-ARM CI. Today: implement the numeric-string coercion in config.py (try int() on each string value from the file, keep the original value unchanged on failure), and add a check covering a numeric-string setting."
+    },
+    {
+      "id": "S10",
+      "week": 5,
+      "brief": "Wrap-up session before the quiet week. We defined the 1.0 gate: 1.0 ships only when there are zero open correctness bugs AND every Compass checklist item is complete - performance regressions explicitly do not block it. Today: give RELEASE.md a short '1.0 gate' section stating exactly that rule, and run the full checks one last time to confirm green."
+    }
+  ],
+  "questions": [
+    {"id": "Q1", "category": "direct_recall", "question": "Who is the lead maintainer of this project, and who are the other maintainers?", "expected": "Renata leads; Oskar and Wanjiru are the other maintainers."},
+    {"id": "Q2", "category": "direct_recall", "question": "Who owns the benchmark suite?", "expected": "Oskar."},
+    {"id": "Q3", "category": "direct_recall", "question": "What is the recorded performance baseline for parse_duration?", "expected": "0.8 microseconds per operation (reference box), recorded as the no-regression baseline."},
+    {"id": "Q4", "category": "direct_recall", "question": "What is the locked contract for format_duration(0)?", "expected": "It returns '0s' - now the documented contract."},
+    {"id": "Q5", "category": "direct_recall", "question": "Who joined the project most recently, and what do they own?", "expected": "Youssef, owning Linux-ARM CI."},
+    {"id": "Q6", "category": "direct_recall", "question": "What is the minimum supported Python version, and roughly why?", "expected": "Python 3.12, for pattern-matching/tomllib features."},
+    {"id": "Q7", "category": "updated_facts", "question": "What is the CURRENT release cadence?", "expected": "Monthly, cut on the last Friday of the month (changed from the original quarterly, 15th-of-the-quarter rhythm)."},
+    {"id": "Q8", "category": "updated_facts", "question": "What is the CURRENT CI wall-clock budget per run?", "expected": "35 minutes (revised down from the original 60)."},
+    {"id": "Q9", "category": "updated_facts", "question": "What is the current decision on numeric-looking string values in settings?", "expected": "Auto-coerced to int via a coercion helper in load_settings (reverses the earlier no-coercion decision); non-numeric strings still pass through unchanged."},
+    {"id": "Q10", "category": "updated_facts", "question": "Which release ships the format_duration remainder-append fix?", "expected": "0.3.0 - it was pulled forward from its original 0.4.0 scheduling."},
+    {"id": "Q11", "category": "updated_facts", "question": "What was the ORIGINAL release cadence decided at kickoff, before any change?", "expected": "Quarterly, cut on the 15th of the quarter's first month."},
+    {"id": "Q12", "category": "updated_facts", "question": "What was the settings-coercion decision BEFORE the current one, and what changed?", "expected": "Originally settings values were read exactly as JSON gives them with no coercion; later reversed to auto-coerce numeric-looking strings to int."},
+    {"id": "Q13", "category": "thread_growth", "question": "List the complete, final 0.3.0 release checklist.", "expected": "Changelog fold, tag signing, wheel audit, README badge check, Wanjiru sign-off (five items)."},
+    {"id": "Q14", "category": "thread_growth", "question": "Did 'wheel audit' join the release checklist before or after 'tag signing'?", "expected": "After - tag signing was in the initial two-item list, wheel audit was added later."},
+    {"id": "Q15", "category": "thread_growth", "question": "Who provides the final sign-off gate on the 0.3.0 release?", "expected": "Wanjiru."},
+    {"id": "Q16", "category": "synthesis", "question": "Who reported the format_duration bug, and what example input exposed it?", "expected": "Wanjiru; format_duration(125) producing '2m' instead of '2m5s'."},
+    {"id": "Q17", "category": "synthesis", "question": "What conditions must ALL hold before 1.0 ships?", "expected": "Zero open correctness bugs and every Compass checklist item complete; performance regressions do not block."},
+    {"id": "Q18", "category": "synthesis", "question": "Which maintainer both reported the format_duration bug and gates the 0.3.0 release?", "expected": "Wanjiru."},
+    {"id": "Q19", "category": "synthesis", "question": "How does 'Compass' relate to the 1.0 gate?", "expected": "Compass is the codename for the 1.0 effort; the gate requires every Compass checklist item complete (plus zero open correctness bugs)."},
+    {"id": "Q20", "category": "long_term_retention", "question": "What codename was chosen at kickoff for the 1.0 effort?", "expected": "Compass."},
+    {"id": "Q21", "category": "long_term_retention", "question": "Where will the documentation site be hosted?", "expected": "GitHub Pages."},
+    {"id": "Q22", "category": "long_term_retention", "question": "What was the maintainer roster at kickoff?", "expected": "Renata (lead), Oskar, Wanjiru."},
+    {"id": "Q23", "category": "long_term_retention", "question": "What CI wall-clock budget was set at kickoff (the original one)?", "expected": "60 minutes."},
+    {"id": "Q24", "category": "false_memory", "question": "What did we decide about a Rust rewrite of durstr?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q25", "category": "false_memory", "question": "Who is the project's on-call or incident lead?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q26", "category": "false_memory", "question": "Which package registry mirror do we publish to besides PyPI?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q27", "category": "false_memory", "question": "What telemetry or usage-analytics collection was discussed?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q28", "category": "false_memory", "question": "What changelog format convention was adopted?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q29", "category": "false_memory", "question": "What did Renata decide about a pre-1.0 breaking-changes policy?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q30", "category": "false_memory", "question": "Which CI provider hosts the runners?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q31", "category": "false_memory", "question": "What logging library does durstr depend on?", "expected": "ABSTAIN - never discussed or recorded."}
+  ]
+}

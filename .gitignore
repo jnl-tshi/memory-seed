@@ -13,8 +13,10 @@ build/
 .memory-seed/.identity-offer-stamp
 .memory-seed/.session-log-check-state
 .memory-seed/.file-touch-stamp
+.memory-seed/.project-process-health-state.json
 .memory-seed/.retrieval-log.jsonl
 .memory-seed/.retrieval-attention.json
+.memory-seed/.temporal-lineage.json
 .memory-seed/backups/
 
 # Demo sub-project build artifacts
@@ -41,6 +43,7 @@ memory-trace/tests/capture/*.webm
 memory-trace/tests/capture/*.gif
 .memory-seed/local.yaml
 .memory-seed/transactions/
+.memory-seed/link-swarm-runs/
 
 # Local editor config
 .vscode/
@@ -65,6 +68,12 @@ experiments/agent-capture/runs-*/
 # workspaces, answers, and verdicts are disposable readouts.
 experiments/memory-index-dryrun/runs/
 
+# Memory-index dry-run, independent-replication corpus (open decision #13): same convention -
+# tracked definition is dryrun.py + facts.json, runs/ (and dated archive copies like
+# runs-before-fix/, kept for before/after comparison across Run 6/7) are disposable.
+experiments/memory-index-dryrun-corpus2/runs/
+experiments/memory-index-dryrun-corpus2/runs-*/
+
 # ADR context-derivation experiment: all generated fixtures and scored output.
 experiments/context-derivation/fixtures/
 experiments/context-derivation/generated/
@@ -72,6 +81,12 @@ experiments/context-derivation/runs/
 experiments/context-derivation/shards/
 experiments/context-derivation/packs/
 experiments/context-derivation/judgements/
+# Decision-replay pilot: sealed arm receipts and disposable historical repos.
+experiments/decision-replay/claude-quality-report-v0/runs/
+experiments/decision-replay/claude-quality-report-v1/runs/
+experiments/decision-replay/claude-decision-edge-v2/runs/
+experiments/decision-replay/codex-decision-edge-v2/runs/
+f/
 experiments/stack-benchmark/solar-filaments-001/generated/
 experiments/stack-benchmark/solar-filaments-001/runs/
 experiments/stack-benchmark/solar-filaments-001/data/

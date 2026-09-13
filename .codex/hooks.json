@@ -5,6 +5,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 .memory-seed/hooks/project-process-health.py --agent codex"
+          },
+          {
+            "type": "command",
             "command": "python3 .memory-seed/hooks/session-log-check.py --codex"
           }
         ]
@@ -15,6 +19,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 .memory-seed/hooks/project-process-health.py --agent codex"
+          },
+          {
+            "type": "command",
             "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --codex"
           }
         ]
@@ -23,6 +31,10 @@
     "SessionStart": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .memory-seed/hooks/project-process-health.py --agent codex"
+          },
           {
             "type": "command",
             "command": "python3 .memory-seed/hooks/session-start-context.py --codex"

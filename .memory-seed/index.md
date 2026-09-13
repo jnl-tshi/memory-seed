@@ -12,6 +12,74 @@ tags:
 
 Memory Seed is a portable local memory system for AI coding agents. This runtime is the active control plane for developing the reusable seed, CLI, MCP memory retrieval, and compatibility behavior.
 
+## Repository Structure
+
+The file tree is the primary map of the repository. Inline comments describe ownership without
+turning this index into an exhaustive file inventory.
+
+```text
+memory-seed/
+├── .memory-seed/       # Active agent memory and control plane; expanded below
+├── .agents/            # Project personas and their registry
+├── .claude/            # Claude command and hook configuration
+├── .codex/             # Codex configuration and agent-owned worktrees
+├── .cursor/            # Cursor hook and MCP configuration
+├── .gemini/            # Gemini commands, hooks, and MCP configuration
+├── .github/            # GitHub workflows plus Copilot configuration
+├── .vscode/            # VS Code Copilot MCP configuration
+├── memory_seed/        # Python package, CLI/MCP implementation, and reusable seed
+├── memory-trace/       # Companion memory-review application
+├── docs/               # Product, implementation, reference, and lifecycle documents
+├── business/           # Commercial strategy and research
+├── experiments/        # Isolated research and evaluation work
+├── demo/               # Nested HyperFrames demonstration project and runtime
+├── landing-page/       # Product-interest landing page
+├── scripts/            # Repository maintenance and validation scripts
+├── tests/              # Automated verification suite
+├── AGENTS.md            # Cross-agent entry point into the nearest runtime
+├── README.md            # Public project and usage guide
+├── CHANGELOG.md         # Release history and unreleased changes
+└── pyproject.toml       # Package metadata, dependencies, and build configuration
+```
+
+## Memory Runtime Structure
+
+```text
+.memory-seed/
+├── agent-rules.md       # Operating contract, authority rules, and safety gates
+├── project-bootstrap.md # Bootstrap and repair procedure
+├── index.md             # This project map, active state, and durable orientation
+├── policy.md            # Project-specific behavioural constraints
+├── project.yaml         # Participants, integration mode, and merge trigger
+├── topics.yaml          # Controlled area/activity vocabulary
+├── decisions/           # Living ADR records and accepted heads
+├── retrieval-profiles/  # Immutable versioned local retrieval contracts
+├── skills/
+│   ├── index.md         # Deterministic task-to-runbook trigger registry
+│   └── *.md             # Lazy-loaded execution runbooks
+├── sessions/
+│   ├── YYYY-MM/         # Month-grouped dated session logs
+│   ├── links/           # Decision lifecycle and related-entry sidecars
+│   ├── topics/          # Decision-level area/activity sidecars
+│   └── diagrams/        # Decision and ADR diagram sidecars
+├── hooks/               # Session-start, prompt, turn-end, and Git hooks
+└── archive/             # Historical control-plane snapshots
+```
+
+### Key Entry Points
+
+The trees above remain the canonical visual map. This table only clarifies when the few non-obvious
+entry points matter.
+
+| Path | Purpose | Read when |
+|---|---|---|
+| `AGENTS.md` | Routes every supported agent into the nearest runtime | At session start |
+| `.memory-seed/skills/orientation.md` | Applies measured checkout and latest-session context routing | At session start or re-entry |
+| `.memory-seed/skills/index.md` | Selects task-specific runbooks deterministically | After the task intent is known |
+| `.memory-seed/index.md` | Provides topology, authority, active state, and durable orientation | When those project facts matter |
+| `.memory-seed/policy.md` | Defines local behavioural constraints | Before writes or constrained actions |
+| `docs/CONSTITUTION.md` | Sets the ratified normative ceiling | Before consequential design or governance work |
+
 ## Runtime Boundary
 
 - Active runtime: nearest ancestor directory containing `.memory-seed/`.
@@ -31,7 +99,7 @@ Memory Seed is a portable local memory system for AI coding agents. This runtime
 Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
 head → session evidence → derived projection.
 
-- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.8 ratified 2026-08-11**.
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.10 ratified 2026-08-31**.
 - Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
 - Markdown source-of-truth boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md).
 - Append-only history: [`adr_append_rule_is_an_invariant`](decisions/adr_append_rule_is_an_invariant.md).
@@ -41,16 +109,17 @@ head → session evidence → derived projection.
   and [`adr_archive_before_replace`](decisions/adr_archive_before_replace.md).
 - Proposed concerns are non-governing until accepted; inspect them with `memory-seed adr list --json`.
 
-## Always Read
+## Startup And On-Demand Read
 
-1. `AGENTS.md`
-2. `.memory-seed/agent-rules.md`
-3. `.memory-seed/index.md`
-4. `.memory-seed/policy.md`
-5. `.memory-seed/skills/index.md`
-6. `docs/CONSTITUTION.md` — this project's ratified constitution (currently **v1.8**, ratified
-   2026-08-11). It is the highest authority for what may change and what may not; weigh any
-   non-trivial design or control-plane change against its invariants and its five-question test.
+Always read `AGENTS.md`, `.memory-seed/agent-rules.md`, and `.memory-seed/skills/orientation.md`.
+The SessionStart hook and `situate` share one deterministic latest-session report and route the whole
+file to direct reading at or below 12,000 characters or economy-worker compression above it.
+
+Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
+relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.10**, ratified
+2026-08-31) before consequential design, governance, or control-plane changes. It remains the highest
+declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
 
@@ -63,12 +132,15 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/session_logging.md`
 - `.memory-seed/skills/compact_mermaid_diagrams.md`
 - `.memory-seed/skills/end_of_turn.md`
+- `.memory-seed/skills/adr_sweep.md`
 - `.memory-seed/skills/link_swarm.md`
 - `.memory-seed/skills/topic_swarm.md`
 - `.memory-seed/skills/memory_hygiene.md`
 - `.memory-seed/skills/risk_signaling.md`
 - `.memory-seed/skills/skill_architecture.md`
 - `.memory-seed/skills/proposal_lifecycle.md`
+- `.memory-seed/skills/design_discovery.md`
+- `.memory-seed/skills/systematic_debugging.md`
 - `.memory-seed/skills/subproject_runtime.md`
 - `.memory-seed/skills/data_architecture.md`
 - `.memory-seed/skills/local_compilation.md`
@@ -83,11 +155,12 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 
 - Project type: reusable local AI memory-system seed and Python CLI/MCP tooling.
 - Current priority: use this repository as a meta-test for the all-in-one `.memory-seed/` v2 layout with nearest-runtime sub-project discovery.
+- Retrieval Specification M0-M3 and the reconstructable Task Packet compiler are delivered as of 2026-09-01. Six immutable core v1 profiles live under `.memory-seed/retrieval-profiles/`; semantic Task Dispatch plus measured binding and a pinned corpus revision reconstructs a complete ephemeral packet through shared CLI/MCP/core code. Trace/Evidence Envelope and advanced selectors remain planned; this adds no registry, dispatch engine, authority, provider lookup, or network dependency.
 - Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed; v2.17.0 released; Memory Trace packaging now ships through the root `memory-seed[trace]` extra with the `memory-trace` command.
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `replacing_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
 - Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b packages the React/TypeScript shell with the accepted graph, search, selection, Trail, reader, diagram, and workspace interaction rules. Accessibility and scale closeout landed 2026-07-29; JNL approved the frontend cutover on 2026-08-11, so React owns `/` and the vanilla frontend and parity-only harnesses are retired. **Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)** — an ADR records the corpus-density measurement that ruled it out; it does not gate B0b acceptance. **Navigation and layout gained ground 2026-07-28/29**: the flat topic-chip list became a recursive Areas/Activities ontology tree; long lifecycle chains now wind into a spiral (oldest innermost, gated by a concordance check so a chain only spirals when its topology actually tracks chronology); the layout leans away from crossing edges via a soft force; and Trace can now open any correctly-initialised folder from inside the app, not only switch between this repo's own git worktrees. **Memory Seed 2.20.0 released 2026-08-12** with the React-only frontend and durable bootstrap-to-ADR authority chain.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v1.8** as of 2026-08-11 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v1.10** as of 2026-08-31 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
   `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
   living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
@@ -102,17 +175,20 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
 - Control-plane version: `2.20`.
-- Package version: `2.20.0` (prepared locally; not published).
+- Package version: `2.20.0` (published 2026-08-12).
 
-## Topology
+## Topology Notes
+
+The trees above show where things live. These notes capture relationships, compatibility boundaries,
+and configured surfaces that a folder tree cannot explain by itself.
 
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` (Copilot thin router).
-- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
-- Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects the newest session entries so agents establish current state by recency, not semantic search), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
+- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), deploy-once `.memory-seed/retrieval-profiles/<id>/vN.yaml`, `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
+- Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects measured checkout/session facts and a whole-file direct-or-compress route without injecting session bodies), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
 - Agent hook configs (auto-merged by `init`/`update`): `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, plus Copilot CLI `.github/hooks/memory-seed.json` (sessionStart prompt hook).
 - Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only), `.github/mcp.json` (Copilot CLI, `mcpServers` key), `.vscode/mcp.json` (VS Code Copilot, `servers` key).
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
-- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py` (the public retrieval service the UI consumes).
+- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py` (the public retrieval service the UI consumes), `memory_seed/retrieval_spec.py` (v1/v2 contracts), `memory_seed/retrieval_profiles.py` plus `memory_seed/retrieval_adapters.py` (exact local profile composition and shared inputs), and `memory_seed/task_packet.py` (semantic dispatch and deterministic complete-packet compiler).
 - Companion review UI (Trace source / optional extra target): `memory-trace/` is the `memory_trace` UI source package and owns the `memory-trace` command (formerly the in-package Memory Lense). It consumes `memory_seed/retrieval.py` and owns the web stack (`fastapi`/`uvicorn`) + static assets (`memory-trace/memory_trace/static/`). The release strategy now folds Trace into the root `memory-seed[trace]` install path rather than a separate PyPI project; plain `memory-seed` must still ship no web framework, and `memory-seed lense` remains a deprecated shim/alias path. (ADR [`adr_trace_boundary`](decisions/adr_trace_boundary.md))
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.
@@ -150,6 +226,9 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   sidecars. Under the live ADR contract, session decisions own detailed rationale/evidence while one living
   concern ADR owns its curated Decision/Why/Evolution synopsis, lineage membership, and accepted head;
   current status, registries, indexes, databases, API responses, and Trace views are derived.
+- ADR inverse coverage is a standing ESR check: same-area decision-lineage chains with no ADR, weak
+  unclaimed pairs, and claimed chains that have grown are exposed with advisory recommendations. The
+  `adr_sweep` skill owns adjudication; discovery never creates an ADR or moves a head.
 - `memory-seed update` archives replaced reusable control-plane files under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` before refreshing them.
 - MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.
 - Claude Code reads project-scope MCP servers from a project-root `.mcp.json`, NOT from `.claude/settings.json > mcpServers` (silently ignored). Versions 2.2.0–2.3.0 mis-wrote it to settings.json; `update` now writes `.mcp.json` and strips the dead block (ours-only).
@@ -164,6 +243,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Entry-ID widening + MCP metadata filters (shipped 2.12.0): new generated session `entry_id` values use deterministic 80-bit `mse_` IDs while legacy `ms-` IDs remain valid and are never rewritten. `memory_search`/`memory_get_chunk` expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search` filters by `user`, `date_from`, and `date_to` before ranking. (ADR [`adr_entry_id_scheme`](decisions/adr_entry_id_scheme.md))
 - Participant registry parsing (registry shipped 2.12.0; participant-count gating 2.14.0): `.memory-seed/project.yaml` supports a `participants:` list alongside existing `agents:` selection. `read_project_participants()` parses valid `slug`/`initials`/`display_name` entries fail-open, and `write_project_agents()` preserves the participants block. `session_target()` gates per-user layout on participant count: a configured local user alone is not enough — per-user files (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`) only activate once 2+ participants are registered; an explicit `--user` override bypasses the gate. `doctor` warns when the active local user isn't among the registered participants.
 - Identity-offer nudge (shipped 2.14.0): `session-start-context.py` offers one-time setup guidance when no identity is configured at all (no `MEMORY_SEED_USER`, no `local.yaml`); tracked via a gitignored `.memory-seed/.identity-offer-stamp` so it asks once per project, never repeats per session.
+- Orientation-chain completion gate (governed by ADR [`adr_orientation_completion_gate`](decisions/adr_orientation_completion_gate.md)): `session-start-context.py`'s injected `STARTUP ORIENTATION` block and `AGENTS.md`'s Operating Mode section both state the routing chain (`AGENTS.md` → `agent-rules.md`) is mandatory to complete before any task action, not a numbered checklist a model can truncate for a task it judges simple. Diagnosed from a targeted diagnostic replay with full transcripts: one session never opened `AGENTS.md`; another opened it in full but never followed its own next-step instruction into `agent-rules.md`, where the actual session-logging rule lives.
 - Session-layout migration (sessions-layout shipped 2.12.0; sessions-month-layout current unreleased worktree): `memory-seed migrate sessions-layout` splits legacy flat `sessions/YYYY-MM-DD.md` files into per-user `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` files by mapping entry `user_initials` through `.memory-seed/project.yaml` participants. It supports `--dry-run`, preserves entry IDs, creates one per-user file `hash_id`, backs up migrated flat files, removes migrated sources to avoid dual-read duplicate IDs, and blocks ambiguous or unsafe merges. `memory-seed migrate sessions-month-layout` separately moves old flat/day files and diagram sidecars into month folders with dry-run/backups; it is explicit and never runs during init/update/hooks/MCP/Trace startup.
 - Branch-session fuse (current unreleased worktree): `memory-seed session fuse --branch <branch>` dry-runs branch-local session entries and diagram sidecars before promotion, and `--apply` writes only during an in-progress `git merge --no-ff --no-commit <branch>`. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>`. Diagram sidecars require a parent entry already on the base/main tree or accepted for promotion in the same fuse. Branch-side validation is scoped to files the branch changed (three-dot `git diff <base>...<branch>`) so unchanged base-tree legacy entries without `entry_id` do not block; base-side enumeration stays full for already-present and sidecar-parent lookups. All git-subprocess helpers decode strict UTF-8 (with `UnicodeDecodeError` caught) rather than the Windows cp1252 locale default. (ADR [`adr_branch_session_fuse`](decisions/adr_branch_session_fuse.md))
 - Indexed topics (completed 2026-07-15; **redesigned into a two-axis hierarchy 2026-07-26/27**): `topics:` is
@@ -187,7 +267,25 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - One-step branch integration (current unreleased worktree): `memory-seed session merge-branch --branch <branch> [--dry-run]` wraps fuse dry-run, `git merge --no-ff --no-commit`, session-path reset to base content, fuse apply, staging, and the merge commit into one command, added after two incidents where the manual fuse steps were skipped and raw git line-merges landed session entries out of chronological order. Fails closed: fuse issues abort before any merge state exists; a refusal after that point now auto-runs `git merge --abort` on its own and reports it; only a genuine non-session content conflict is left in progress for the named conflict owner, and a post-fuse commit failure also leaves it in progress; requires a clean working tree and names the dirty paths when refusing. `agent_collaboration.md` (live + seed) now points integration at `session merge-branch` first, with `session fuse` kept as the lower-level primitive for manually inspected merges. Fuse stays an explicit command, not a git merge driver, per the recorded design decision. (ADR [`adr_merge_branch_primitive`](decisions/adr_merge_branch_primitive.md))
 - Configurable integration mode (completed 2026-07-15): `integration_mode: local-merge|pr` is a project-local default read fail-open as `local-merge`, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware `session integrate` plus `session open-pr`. Bootstrap may suggest a mode but requires human confirmation. Plan: `docs/5_Completed/configurable-integration-mode-plan.md`. (ADR [`adr_integration_mode`](decisions/adr_integration_mode.md))
 - Related-entries generation P1 (shipped 2.13.0): `build_related_entry_graph()` in `semantic_cache.py` builds the bidirectional related-entry graph (stored outbound edges + inbound backlinks computed only from resolvable refs; accepts a pre-extracted `chunks=` corpus to avoid re-parsing). Exposed read-only via `memory-seed link suggest` (ranks **older** candidate entries to link, reuses `rank_memory_chunks`, prints a paste-ready snippet) and `memory-seed link show <entry_id>` (outbound + inbound backlinks). Forward-only authoring + read-time bidirectional traversal preserves append-only; backfill between pre-existing entries and an optional `link add` writer are deferred (P2). Scope/decisions in `docs/2_Todo/completed/related-entries-generation-plan.md`. (ADR [`adr_forward_only_edges`](decisions/adr_forward_only_edges.md))
-- Session-log-check escalation (current unreleased worktree): `session-log-check.py` (live + seed) now writes a gitignored `.memory-seed/.session-log-check-state` (JSON, fail-open on corruption/unreadable) tracking the last-seen entry timestamp and a `consecutive_misses` counter. The underlying 15-minute staleness check is anchored to the last logged entry's own timestamp and was already immune to turn frequency; what it could not detect was whether a fired reminder went unaddressed. A stale check that repeats with no new entry appearing in between now escalates from the base reminder to explicit "repeated" wording naming the count and citing the discipline-failure framing already in `agent-rules.md`; a new entry appearing resets the counter. Reminder language was also tightened: leads with the imperative, enumerates concrete triggers (file changes, `git push`/`merge`/`rebase`/delete, any decision), and states D/R as required on every entry rather than framing DRAFT labels as decision-only.
+- Session-log-check escalation and git-diff trigger (governed by (ADR
+  [`adr_session_log_trigger_enforcement`](decisions/adr_session_log_trigger_enforcement.md))):
+  `session-log-check.py` (live + seed) writes a gitignored `.memory-seed/.session-log-check-state`
+  (JSON, fail-open on corruption/unreadable) tracking the last-seen entry timestamp, a
+  `consecutive_misses` counter, and (2026-08-29) a `baseline_diff_fingerprint`. The 15-minute
+  staleness check is anchored to the last logged entry's own timestamp and is immune to turn
+  frequency, but cannot fire within a session shorter than 15 minutes regardless of how much
+  unlogged work happened — measured directly by the 2026-08-27 independent memory-index dry-run
+  replication (a 13-minute, 10-session run, 6 sessions edited files without logging). A second,
+  content-based trigger closes this: a SHA-256 fingerprint of everything `git status` considers
+  dirty, excluding `.memory-seed/sessions/**` and the hook's own state files, compared against a
+  baseline captured right after the last logged entry (not session start) — an already-logged
+  uncommitted diff never re-fires, but a new file or further edits to an already-dirty one does. A
+  stale-or-dirty check that repeats with no new entry appearing in between escalates from the base
+  reminder to explicit "repeated" wording naming the count and citing the discipline-failure
+  framing already in `agent-rules.md`; a new entry appearing resets both the counter and the
+  fingerprint baseline. Reminder language was also tightened: leads with the imperative, enumerates
+  concrete triggers (file changes, `git push`/`merge`/`rebase`/delete, any decision), and states
+  D/R as required on every entry rather than framing DRAFT labels as decision-only.
 - Authoring-loop MCP tools (current unreleased worktree): `mcp_server.py` gives the LLM authoring loop tools matching the retrieval loop — `memory_link_suggest` and `memory_link_show` wrap `suggest_related_entries`/`build_related_entry_graph` (read-only paste-ready `related_entries` candidates and graph-node traversal), while `memory_session_append` writes a session entry through every structural guard (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT body; server-stamped timestamp; a `dry_run` pre-flights the `entry_id`, the target and `rendered` — the byte-exact block a real write would append — without writing, and its returned `timestamp` should be echoed into the real call) and `memory_session_integrate` merges+fuses a task branch autonomously (aborts on non-session conflict, declines `pr` mode). Read-only suggest/show plus `memory_session_append` are documented under `history_retrieval.md`'s authoring-support section, with `memory_session_integrate` and branch/fuse coordination in `agent_collaboration.md`. The removed `memory_session_target`/`memory_entry_id` read-only tools are subsumed by `memory_session_append`'s `dry_run`. The CLI `session` group help was relabeled to cover the write-capable `fuse` subcommand, and the two `migrate` subcommands now cross-reference each other.
 - Risk signaling skill (shipped 2.16.0): `.memory-seed/skills/risk_signaling.md` adds qualitative Proceed / Proceed-and-flag / Propose-and-wait / Stop tiers and STOP categories for destructive, irreversible, security/trust-boundary, shared/control-plane, external-communication, and financial actions. Registered in the live and seeded trigger registries; cross-referenced from collaboration and security triage.
 - Optional Superpowers integration (started 2026-07-29): `.memory-seed/skills/superpowers_integration.md`
@@ -209,10 +307,10 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   (95% carrying both axes). What changed was the confound, not the judge: the old tags predate the
   two-axis vocabulary, so agreeing with them was never evidence of a right answer — see the topic-authority bullet
   above for what that unblocked. Specs: `docs/3_Spec/draft/decision-level-topic-sidecars.md`,
-  `docs/2_Todo/decision-level-topics-proposal.md`.
+  `docs/8_Deferred/decision-level-topics-proposal.md`.
 - Append-only link retraction (current unreleased worktree, 2026-07-25): a published lifecycle edge is downgraded or removed via a NEW `retracts: <kind> <ref> [(date)]` block (the fuse refuses in-place edits to published blocks), the reader subtracts it, and `links check` validates malformed/dangling/forward-only. A downgrade is a retract of the old kind plus a fresh edge of the new kind — the sanctioned append-only correction path for link edges, realizing Invariant #2. Spec: `docs/3_Spec/draft/link-retraction.md`.
 - ESR generalization (2.11.0): the "End Of Turn" routine in `agent-rules.md` (+ seed twin) now runs a consolidation review (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`) and a baseline-promotion check (flag generic adaptations, record in `.memory-seed/plans/`, create-if-needed). Shipped as a seeded `/esr` command via two `SeedFile`s: `.claude/commands/esr.md` (agent=claude, version-tracked frontmatter, refreshes on update) and `.gemini/commands/esr.toml` (agent=gemini, deploy-once via `_is_runtime_local_file` since TOML carries no version marker). Codex/Cursor run the routine from `agent-rules.md`. No blocking `Stop` hook (deliberate — evolution needs reasoning + approval).
-- User-aware session targets (2.10.0, month-grouped after current work): user identity is opt-in and local-first. Resolution order is explicit CLI/function argument, `MEMORY_SEED_USER`, gitignored `.memory-seed/local.yaml`, then shared flat behavior. `session_target()` returns `sessions/YYYY-MM/YYYY-MM-DD.md` when no user is configured or fewer than 2 participants are registered, and `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` when a valid slug is active and the per-user gate is met; `--create` initializes per-user file frontmatter with `schema_version: 2`, `session_date`, immutable `msm_` file `hash_id`, `user`, and `created_at`. Hooks are user-aware and grouped-path-aware: `session-log-check.py` checks only the active user's target, while `session-start-context.py` injects the active user's latest entry and lists same-day co-contributor files by count.
+- User-aware session targets (2.10.0, month-grouped after current work): user identity is opt-in and local-first. Resolution order is explicit CLI/function argument, `MEMORY_SEED_USER`, gitignored `.memory-seed/local.yaml`, then shared flat behavior. `session_target()` returns `sessions/YYYY-MM/YYYY-MM-DD.md` when no user is configured or fewer than 2 participants are registered, and `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` when a valid slug is active and the per-user gate is met; `--create` initializes per-user file frontmatter with `schema_version: 2`, `session_date`, immutable `msm_` file `hash_id`, `user`, and `created_at`. Hooks are user-aware and grouped-path-aware: `session-log-check.py` checks only the active user's target, while `session-start-context.py` routes the active user's latest whole session file and lists same-day co-contributor files by count without injecting their content.
 - Agent-selective install (2.6.0 plus current unreleased UX refinement): `init` installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml` (`agents:` list) and respected by `doctor`/`update`. Interactive init now presents agent integrations as an opt-out step with all agents selected by default; `--agents none` writes the explicit zero-agent state and `--no-agent-prompt` skips the prompt. Driven by the `KNOWN_AGENTS`/`_AGENT_MERGES`/`_AGENT_UNINSTALLS` registries in `core.py` and a per-`SeedFile` `agent` tag. Absent `project.yaml` means all agents for legacy projects; present-but-empty `agents:` means zero agents. `agents list` reports selected and ignored agents. `agents add/remove` reconfigure; `remove` strips only our entries (foreign config preserved), never deletes shared dirs, backs up first. `codex`/`cursor` have no routing file (read `AGENTS.md` natively). (ADR [`adr_agent_selective_install`](decisions/adr_agent_selective_install.md))
 
 ## Session Memory

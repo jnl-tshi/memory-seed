@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.21
 governing_adr: adr_runtime_discovery
 tags:
   - memory-seed
@@ -21,6 +21,11 @@ Use this skill when validating a Memory Seed runtime, migration, bootstrap repai
 - `.memory-seed/skills/` contains task runbooks.
 - `.memory-seed/sessions/` contains dated append-only logs.
 - `.memory-seed/archive/` contains archived prior control-plane snapshots when versions were replaced.
+- The six managed Retrieval Profile v1 files are present at exact
+  `.memory-seed/retrieval-profiles/<id>/v1.yaml` identities and pass the same strict loader used by the
+  Task Packet compiler. `init`/`update` install missing versions but never overwrite an existing version;
+  custom profile IDs remain project-owned. A managed profile that cannot parse, compose, or normalize makes
+  the control plane unhealthy; it is not a warning-only condition.
 - Every `.memory-seed/skills/*.md` runbook is registered in `skills/index.md`; an unregistered file is an orphan skill (warned, non-fatal).
 - When a `.memory-seed/` runtime exists, each present entry-point file (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`) routes into it — either ours (has `memory-system-version` frontmatter) or a foreign file carrying our `<!-- BEGIN memory-seed -->` block. A foreign file with no block is an orphaned runtime (warned, non-fatal); run `memory-seed update` to inject the block.
 - No stale `.AGENTS/` paths are presented as the v2 target shape.

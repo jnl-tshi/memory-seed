@@ -5,6 +5,8 @@ import os
 import re
 import hashlib
 import secrets
+import shutil
+import stat
 import subprocess
 import sys
 import tomllib
@@ -13,7 +15,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, Literal, Mapping, Sequence
 
+from .reflection_ledger import reflection_verification_operation
 from .text_files import (
+    normalize_text,
     read_json_file,
     read_text_file,
     scan_implicit_text_io,
@@ -24,7 +28,7 @@ from .text_files import (
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.20"
+VERSION = "2.21"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -91,6 +95,29 @@ class SeedFile:
     agent: str | None = None
 
 
+CORE_RETRIEVAL_PROFILES = (
+    ("implementation", 1),
+    ("bug-investigation", 1),
+    ("research", 1),
+    ("adr-review", 1),
+    ("refactoring", 1),
+    ("architecture", 1),
+)
+
+
+def _core_retrieval_profile_destination(profile_id: str, profile_version: int) -> str:
+    return (
+        f"{MEMORY_DIR_NAME}/retrieval-profiles/{profile_id}/"
+        f"v{profile_version}.yaml"
+    )
+
+
+CORE_RETRIEVAL_PROFILE_DESTINATIONS = frozenset(
+    _core_retrieval_profile_destination(profile_id, profile_version)
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+)
+
+
 @dataclass(frozen=True)
 class BranchStatus:
     is_git_repo: bool
@@ -123,6 +150,50 @@ class BranchStatus:
 
 
 @dataclass(frozen=True)
+class CommitCadence:
+    """Measured checkpoint pressure for the current task branch.
+
+    The signal is deliberately multi-dimensional: a branch can be healthy with
+    a broad code change, or with several small memory decisions, but not with
+    accumulating evidence across several dimensions.  It is a warning surface,
+    never an automatic integration gate.
+    """
+
+    available: bool
+    base_ref: str | None
+    target_ref: str | None
+    entries: int = 0
+    decisions: int = 0
+    files: int = 0
+    churn: int = 0
+    moderate_signals: tuple[str, ...] = ()
+    high_signals: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    recommendation: str = "Cadence measurements are unavailable."
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "available": self.available,
+            "base_ref": self.base_ref,
+            "target_ref": self.target_ref,
+            "metrics": {
+                "entries": self.entries,
+                "decisions": self.decisions,
+                "files": self.files,
+                "churn": self.churn,
+            },
+            "thresholds": {
+                "moderate": dict(_COMMIT_CADENCE_MODERATE),
+                "high": dict(_COMMIT_CADENCE_HIGH),
+            },
+            "moderate_signals": list(self.moderate_signals),
+            "high_signals": list(self.high_signals),
+            "warnings": list(self.warnings),
+            "recommendation": self.recommendation,
+        }
+
+
+@dataclass(frozen=True)
 class WorktreeGuardConfig:
     root_write_policy: str
     unmanaged_write_policy: str
@@ -148,6 +219,7 @@ class WorktreeGuardStatus:
     unmanaged_write_policy: str
     recommended_next_action: str
     warnings: tuple[str, ...] = ()
+    cadence: CommitCadence | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -168,6 +240,7 @@ class WorktreeGuardStatus:
             "unmanaged_write_policy": self.unmanaged_write_policy,
             "recommended_next_action": self.recommended_next_action,
             "warnings": list(self.warnings),
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
         }
 
 
@@ -408,6 +481,7 @@ class SessionFuseResult:
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
+    reflection_admission: Any = field(default=None, repr=False)
 
 
 @dataclass
@@ -431,7 +505,21 @@ class SessionMergeBranchResult:
     worktree_cleanup_status: str | None = None
     worktree_cleanup_detail: str | None = None
     worktree_cleanup_attempts: int = 0
+    cadence: CommitCadence | None = None
+    cadence_warnings: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
+
+    def integration_preview_contract(self) -> dict[str, Any]:
+        """Stable core payload adapters must surface for a dry-run handoff."""
+        return {
+            "planned_entries": list(self.planned_entries),
+            "planned_sidecars": list(self.planned_sidecars),
+            "planned_link_sidecars": list(self.planned_link_sidecars),
+            "planned_topic_sidecars": list(self.planned_topic_sidecars),
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
+            "cadence_warnings": list(self.cadence_warnings),
+            "issues": list(self.issues),
+        }
 
 
 @dataclass(frozen=True)
@@ -450,6 +538,7 @@ class _SessionFusePlan:
     planned_link_sidecars: tuple[str, ...]
     planned_topic_sidecars: tuple[str, ...]
     removed_sources: tuple[str, ...]
+    reflection_admission: Any = None
 
 
 @dataclass
@@ -1302,6 +1391,366 @@ def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
     return proc.returncode, proc.stdout.strip()
 
 
+_COMMIT_CADENCE_MODERATE = {
+    "entries": 3,
+    "decisions": 5,
+    "files": 8,
+    "churn": 300,
+}
+_COMMIT_CADENCE_HIGH = {
+    "entries": 6,
+    "decisions": 10,
+    "files": 16,
+    "churn": 750,
+}
+_TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
+_TASK_PACKET_ACTIVATION_VERSION = 1
+_TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
+_TASK_PACKET_ACTIVATION_RECEIPT_VERSION = 1
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
+_CADENCE_ENTRY_ADD_RE = re.compile(r"^\+##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.+$")
+_CADENCE_NUMBERED_DECISION_ADD_RE = re.compile(r"^\+####\s+D[1-9][0-9]*\s*[-–]\s*.+$")
+_CADENCE_SINGULAR_DECISION_ADD_RE = re.compile(r"^\+###\s+Decision\s*$", re.IGNORECASE)
+
+
+def _task_packet_activation_paths(root: Path, branch: str) -> tuple[Path, Path] | None:
+    """Worktree-local packet artifact and append-only receipt paths.
+
+    The Git directory is deliberately worktree-local, not the user's global
+    config and not the repository's common configuration.  The deterministic
+    branch digest keeps another branch from selecting this branch's packet.
+    """
+    code, git_dir_raw = _git_text(root, ("rev-parse", "--git-dir"))
+    if code != 0 or not git_dir_raw:
+        return None
+    git_dir = Path(git_dir_raw)
+    if not git_dir.is_absolute():
+        git_dir = root / git_dir
+    token = hashlib.sha256(branch.encode("utf-8")).hexdigest()
+    directory = git_dir.resolve() / "memory-seed" / "task-packets"
+    return directory / f"{token}.json", directory / f"{token}.jsonl"
+
+
+def _packet_fingerprint_is_valid(packet: Mapping[str, Any]) -> bool:
+    fingerprint = packet.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint.startswith("sha256:"):
+        return False
+    identity = dict(packet)
+    identity.pop("fingerprint", None)
+    try:
+        rendered = json.dumps(
+            identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        )
+    except (TypeError, ValueError):
+        return False
+    expected = "sha256:" + hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(fingerprint, expected)
+
+
+def _activation_receipt_matches(packet: Mapping[str, Any], receipt: object) -> bool:
+    """Check the deterministic activation receipt before trusting packet state.
+
+    This is intentionally not a security signature: a malicious repository
+    writer can alter local Git metadata. It ensures ordinary callers cannot
+    turn arbitrary config or skeletal JSON into provenance trailers/cadence
+    authority without the complete compiler-shaped packet activation record.
+    """
+    if not isinstance(receipt, Mapping):
+        return False
+    dispatch = packet.get("dispatch")
+    binding = packet.get("runtime_binding")
+    evidence_pack = packet.get("evidence_pack")
+    execution = dispatch.get("execution") if isinstance(dispatch, Mapping) else None
+    if not isinstance(binding, Mapping) or not isinstance(evidence_pack, Mapping) or not isinstance(execution, Mapping):
+        return False
+    expected = {
+        "schema": _TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA,
+        "version": _TASK_PACKET_ACTIVATION_RECEIPT_VERSION,
+        "compiler": "memory_seed.task_packet.compile_task_packet",
+        "activation": "memory_seed.task_packet.activate_task_packet",
+        "packet_fingerprint": packet.get("fingerprint"),
+        "dispatch_fingerprint": packet.get("dispatch_fingerprint"),
+        "evidence_pack_fingerprint": evidence_pack.get("fingerprint"),
+        "runtime_binding": dict(binding),
+        "objective": dispatch.get("objective"),
+        "implements": list(execution.get("implements", ())) if isinstance(execution.get("implements"), list) else None,
+    }
+    return dict(receipt) == expected
+
+
+def _activated_packet_base_sha(root: Path) -> str | None:
+    """Verified packet base for this exact worktree/branch, if activated."""
+    code, branch = _git_text(root, ("branch", "--show-current"))
+    if code != 0 or not branch:
+        return None
+    paths = _task_packet_activation_paths(root, branch)
+    if paths is None:
+        return None
+    artifact, _ = paths
+    try:
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != _TASK_PACKET_ACTIVATION_SCHEMA:
+        return None
+    if payload.get("version") != _TASK_PACKET_ACTIVATION_VERSION:
+        return None
+    packet = payload.get("packet")
+    if (
+        not isinstance(packet, dict)
+        or packet.get("packet_schema") != "memory-seed/task-packet"
+        or packet.get("packet_version") != 1
+        or not _packet_fingerprint_is_valid(packet)
+    ):
+        return None
+    if not _activation_receipt_matches(packet, payload.get("receipt")):
+        return None
+    dispatch = packet.get("dispatch")
+    execution = dispatch.get("execution") if isinstance(dispatch, dict) else None
+    if not isinstance(execution, dict) or execution.get("write_intent") != "writing":
+        return None
+    binding = packet.get("runtime_binding")
+    if not isinstance(binding, dict):
+        return None
+    base_sha = binding.get("base_sha")
+    worktree = binding.get("worktree")
+    if not isinstance(base_sha, str) or _FULL_SHA_RE.fullmatch(base_sha.lower()) is None:
+        return None
+    if binding.get("working_branch") != branch or not isinstance(worktree, str):
+        return None
+    try:
+        same_worktree = os.path.normcase(os.path.realpath(worktree)) == os.path.normcase(os.path.realpath(root))
+    except OSError:
+        return None
+    if not same_worktree:
+        return None
+    # The measured SHA, not the mutable branch name, is the packet's cadence
+    # baseline.  Reject a stale or fabricated artifact rather than quietly
+    # falling back to main/master and measuring the wrong stack.
+    if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
+        return None
+    from .reflection_ledger import ReflectionValidationError, measure_reflection_capability, validate_reflection_capability
+    try:
+        capability = validate_reflection_capability(execution)
+        if capability is not None and not isinstance(binding.get("reflection"), dict):
+            return None
+        measure_reflection_capability(root, execution, working_branch=branch, expected=binding.get("reflection"))
+    except (ReflectionValidationError, OSError, ValueError, TypeError):
+        return None
+    return base_sha.lower()
+
+
+def _cadence_base_ref(root: Path) -> str | None:
+    """Return the local integration ref without consulting remotes or history."""
+    for candidate in ("main", "master"):
+        code, _ = _git_text(root, ("show-ref", "--verify", "--quiet", f"refs/heads/{candidate}"))
+        if code == 0:
+            return candidate
+    return None
+
+
+def _is_cadence_product_path(relative_path: str) -> bool:
+    """Whether a changed path represents product work rather than control state."""
+    normalized = relative_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = normalized.casefold()
+    control_prefixes = (
+        ".memory-seed/",
+        ".agents/",
+        ".superpowers/",
+        ".codex/",
+        ".claude/",
+        ".gemini/",
+        ".cursor/",
+    )
+    control_files = {"agents.md", "claude.md", "gemini.md"}
+    return not normalized.startswith(control_prefixes) and normalized not in control_files
+
+
+def commit_cadence(
+    cwd: str | Path = ".",
+    *,
+    base_ref: str | None = None,
+    target_ref: str = "HEAD",
+) -> CommitCadence:
+    """Measure branch-local checkpoint pressure without searching commit history.
+
+    The comparison is a direct Git tree diff.  For normal work it includes the
+    working tree relative to ``main``/``master``; an integration preview passes
+    its source branch explicitly.  A high signal in any one dimension or two
+    moderate signals recommends a checkpoint.
+    """
+    root = Path(cwd).resolve()
+    code, top = _git_text(root, ("rev-parse", "--show-toplevel"))
+    if code != 0 or not top:
+        return CommitCadence(
+            available=False,
+            base_ref=base_ref,
+            target_ref=target_ref,
+            recommendation="Cadence measurements require a Git worktree.",
+        )
+    root = Path(top)
+    # A verified active Task Packet is the authority for a packet-bound
+    # worktree.  Falling back to main/master retains useful diagnostics for
+    # ordinary repositories with no activated packet.
+    base = base_ref or _activated_packet_base_sha(root) or _cadence_base_ref(root)
+    if base is None:
+        return CommitCadence(
+            available=False,
+            base_ref=None,
+            target_ref=target_ref,
+            recommendation="Cadence measurements need a local main or master branch.",
+        )
+    if _git_text(root, ("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"))[0] != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence base does not resolve to a commit.",
+        )
+    if _git_text(root, ("rev-parse", "--verify", "--quiet", f"{target_ref}^{{commit}}"))[0] != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence target does not resolve to a commit.",
+        )
+
+    code, comparison_base = _git_text(root, ("merge-base", base, target_ref))
+    if code != 0 or not comparison_base:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence merge base could not be measured.",
+        )
+
+    # A one-tree diff deliberately includes both committed branch work and the
+    # current index/worktree.  An integration preview supplies an explicit
+    # source branch, which keeps the measurement read-only and branch-exact.
+    range_args = (comparison_base,) if target_ref == "HEAD" else (comparison_base, target_ref)
+    diff_args = ("diff", "--no-ext-diff", "--unified=0", *range_args)
+    code, patch = _git_text(root, diff_args)
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence diff could not be measured.",
+        )
+    code, changed = _git_text(root, ("diff", "--no-ext-diff", "--name-only", *range_args))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence file count could not be measured.",
+        )
+    code, numstat = _git_text(root, ("diff", "--no-ext-diff", "--numstat", *range_args))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence churn could not be measured.",
+        )
+
+    code, untracked = _git_text(root, ("ls-files", "--others", "--exclude-standard"))
+    if code != 0:
+        return CommitCadence(
+            available=False,
+            base_ref=base,
+            target_ref=target_ref,
+            recommendation="Cadence untracked-file count could not be measured.",
+        )
+
+    # ``git diff <base>`` cannot see untracked files.  They are real unchecked
+    # work, so count their file/churn/text metrics directly rather than asking a
+    # caller to stage them merely to obtain a warning.
+    patch_lines = patch.splitlines()
+    changed_paths = {
+        line for line in changed.splitlines()
+        if line.strip() and _is_cadence_product_path(line)
+    }
+    for relative in (line for line in untracked.splitlines() if line.strip()):
+        candidate = root / relative
+        if not candidate.is_file():
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        # Authored session entries and decisions are memory evidence even
+        # though the session file itself is not product-file/churn pressure.
+        patch_lines.extend("+" + line for line in text.splitlines())
+        if _is_cadence_product_path(relative):
+            changed_paths.add(relative)
+
+    entries = sum(1 for line in patch_lines if _CADENCE_ENTRY_ADD_RE.match(line))
+    decisions = sum(
+        1
+        for line in patch_lines
+        if _CADENCE_NUMBERED_DECISION_ADD_RE.match(line)
+        or _CADENCE_SINGULAR_DECISION_ADD_RE.match(line)
+    )
+    files = len(changed_paths)
+    churn = 0
+    for line in numstat.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) < 3 or not _is_cadence_product_path(parts[2]):
+            continue
+        if parts[0].isdigit():
+            churn += int(parts[0])
+        if parts[1].isdigit():
+            churn += int(parts[1])
+    for relative in untracked.splitlines():
+        candidate = root / relative
+        if not candidate.is_file() or not _is_cadence_product_path(relative):
+            continue
+        try:
+            churn += len(candidate.read_text(encoding="utf-8").splitlines())
+        except (OSError, UnicodeDecodeError):
+            # A binary/unreadable untracked file still contributes its file
+            # signal; churn remains a conservative text-only measurement.
+            continue
+
+    metrics = {"entries": entries, "decisions": decisions, "files": files, "churn": churn}
+    moderate = tuple(
+        f"{name}={metrics[name]} (moderate threshold {_COMMIT_CADENCE_MODERATE[name]})"
+        for name in _COMMIT_CADENCE_MODERATE
+        if metrics[name] >= _COMMIT_CADENCE_MODERATE[name]
+    )
+    high = tuple(
+        f"{name}={metrics[name]} (high threshold {_COMMIT_CADENCE_HIGH[name]})"
+        for name in _COMMIT_CADENCE_HIGH
+        if metrics[name] >= _COMMIT_CADENCE_HIGH[name]
+    )
+    if high or len(moderate) >= 2:
+        detail = "; ".join(high or moderate)
+        warnings = (f"Checkpoint cadence warning: {detail}. Commit or split this work before it grows further.",)
+        recommendation = "Create a tested checkpoint before continuing broad work."
+    elif moderate:
+        warnings = (f"Checkpoint cadence watch: {moderate[0]}.",)
+        recommendation = "Plan a checkpoint soon; another moderate dimension triggers a warning."
+    else:
+        warnings = ()
+        recommendation = "Cadence is within the ordinary checkpoint range."
+    return CommitCadence(
+        available=True,
+        base_ref=base,
+        target_ref=target_ref,
+        entries=entries,
+        decisions=decisions,
+        files=files,
+        churn=churn,
+        moderate_signals=moderate,
+        high_signals=high,
+        warnings=warnings,
+        recommendation=recommendation,
+    )
+
+
 def branch_status(cwd: str | Path = ".") -> BranchStatus:
     """Read-only Git branch posture check for feature-branch guardrails."""
     root = Path(cwd).resolve()
@@ -1625,6 +2074,7 @@ def worktree_guard(
     _, head = _git_text(worktree_path, ("rev-parse", "HEAD"))
     _, status_out = _git_text(worktree_path, ("status", "--short"))
     dirty = bool(status_out.strip())
+    cadence = commit_cadence(worktree_path)
 
     actual_owner = _namespace_owner(repo_root, worktree_path, config.namespaces)
     if _casefold_parts(worktree_path) == _casefold_parts(repo_root):
@@ -1678,6 +2128,7 @@ def worktree_guard(
         severity = "block"
         recommendation = "Move into a configured worktree before editing."
 
+    warnings.extend(cadence.warnings)
     ok = safe_to_write if write_intent else severity != "block"
     return WorktreeGuardStatus(
         ok=ok,
@@ -1697,6 +2148,7 @@ def worktree_guard(
         unmanaged_write_policy=config.unmanaged_write_policy,
         recommended_next_action=recommendation,
         warnings=tuple(warnings),
+        cadence=cadence,
     )
 
 
@@ -1740,7 +2192,12 @@ _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
 
 
-def entry_body_format_issues(body: str, *, require_summary: bool = False) -> list[str]:
+def entry_body_format_issues(
+    body: str,
+    *,
+    require_summary: bool = False,
+    require_numbered_decisions: bool = False,
+) -> list[str]:
     """Return DRAFT-format problems in one entry BODY (text after the ```yaml
     block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
     ``- `` list items; DRAFT prose with no ``### Decision``/``### Summary``
@@ -1750,9 +2207,10 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
     labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
     only rejects malformed DRAFT usage, it does not force DRAFT on every entry.
 
-    ``require_summary`` is the write-time policy for new entries. Integrity
-    checks leave it false so historic records remain readable rather than being
-    retroactively labelled malformed or rewritten."""
+    ``require_summary`` and ``require_numbered_decisions`` are write-time
+    policies for new entries. Integrity checks leave both false so historic
+    records remain readable rather than being retroactively labelled malformed
+    or rewritten."""
     lines = body.splitlines()
     issues: list[str] = []
     bare = [ln for ln in lines if _BARE_DRAFT_RE.match(ln)]
@@ -1761,6 +2219,8 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
     has_section = any(_ENTRY_SECTION_RE.match(ln) for ln in lines)
     has_summary = any(_SUMMARY_HEADING_RE.match(ln) for ln in lines)
     singular_decision = any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines)
+    plural_decision = any(re.match(r"^###\s+Decisions\s*$", ln, re.I) for ln in lines)
+    numbered_decision = any(_NUMBERED_DECISION_HEADING_RE.match(ln) for ln in lines)
     if bare:
         labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
         issues.append(f"DRAFT labels ({labels}) are not list items - prefix each with '- ' under a section heading")
@@ -1777,6 +2237,21 @@ def entry_body_format_issues(body: str, *, require_summary: bool = False) -> lis
         issues.append("a decision (D:) has no reason (R:) - R is mandatory")
     if require_summary and not has_summary:
         issues.append("entry has no '### Summary' section - every newly recorded entry needs context")
+    if require_numbered_decisions and singular_decision:
+        issues.append(
+            "legacy '### Decision' is read-only - newly recorded decisions require "
+            "'### Decisions' + '#### D1 - name'"
+        )
+    if (
+        require_numbered_decisions
+        and any(_ANY_D_LABEL_RE.match(ln) for ln in lines)
+        and (not plural_decision or not numbered_decision)
+        and not singular_decision
+    ):
+        issues.append(
+            "new decision records require '### Decisions' + at least one "
+            "'#### D1 - name' subsection"
+        )
     return issues
 
 
@@ -1994,6 +2469,60 @@ def check_entry_format(text: str) -> list[tuple[str, str]]:
     return _walk_entry_bodies(text, entry_body_format_issues)
 
 
+_LEGACY_OR_MODERN_ENTRY_HEADING_RE = re.compile(
+    r"^##\s+\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?\s+-\s*.*$", re.MULTILINE
+)
+
+
+def _declared_entry_ids(text: str) -> list[str]:
+    """The ``entry_id`` each entry in ``text`` declares in its own metadata
+    fence - one per entry heading, not one per ``entry_id:`` line in the file.
+
+    A workstream receipt block (Reflection Board) cites the session entry it
+    attaches to with its own ``entry_id:`` line, once per record - a chain
+    with five records under one entry legitimately repeats it five times.
+    Scanning the whole file for that key, as a plain ``_ENTRY_ID_RE.findall``
+    does, counts every citation as a second declaration and reports the
+    entry as duplicated within its own file, alongside any real cross-file
+    duplicate `links check` exists to catch. Anchoring to the first metadata
+    fence after each heading - the same anchor `check_entry_metadata_fences`
+    uses - keeps a citation from being mistaken for a declaration.
+
+    Splits on ``_LEGACY_OR_MODERN_ENTRY_HEADING_RE``, not the canonical
+    ``_ENTRY_HEADING_RE`` that append/fuse/reorder use: those need to refuse a
+    body line that merely looks like a heading, but this function only reads
+    id/fence structure, so treating a rare untimed pre-convention heading (the
+    corpus predates ``## <date> <time> - <title>``) as a boundary too is safe,
+    while treating it as body content is not - it swallows that legacy
+    entry's own fence into whichever entry precedes it and drops its
+    declared id from ``known_entries``, orphaning every topic/link sidecar
+    that legitimately cites it (caught via the 2026-05-25 corpus fixture).
+    """
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _LEGACY_OR_MODERN_ENTRY_HEADING_RE.match(ln)]
+    declared: list[str] = []
+    for k, start in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        block = lines[start:end]
+        opener = next(
+            (i for i, ln in enumerate(block[1:], 1) if _METADATA_FENCE_OPEN_RE.match(ln)),
+            None,
+        )
+        if opener is None:
+            continue
+        closer = next(
+            (i for i, ln in enumerate(block[opener + 1:], opener + 1) if _FENCE_CLOSE_RE.match(ln)),
+            len(block),
+        )
+        entry_id = next(
+            (m.group(1) for ln in block[opener + 1:closer] if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
+            None,
+        )
+        if entry_id:
+            declared.append(entry_id)
+    return declared
+
+
 def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
     """Return ``(entry_id, issue)`` pairs for entries whose ``​```yaml`` metadata
     block is opened but never closed.
@@ -2203,7 +2732,7 @@ def check_session_links(
             issues.append(LinkIssue(rel, "unreadable", str(exc)))
             continue
 
-        for entry_id in _ENTRY_ID_RE.findall(text):
+        for entry_id in _declared_entry_ids(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
 
         # Structural integrity first: an unclosed metadata fence means the entry
@@ -3425,12 +3954,51 @@ def _utc_timestamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
+@dataclass(frozen=True)
+class _SessionFileMutation:
+    """Internal author receipt; never part of a public session result payload.
+
+    ``None`` is an absent preimage, distinct from an existing empty file. The
+    postimage is computed by the writer, not read back from a path another
+    actor may have changed after the write. Creation and append each emit a
+    receipt, so a transaction can verify the complete ownership chain.
+    """
+
+    path: Path
+    preimage: bytes | None
+    postimage: bytes
+    created: bool
+
+
+def _write_session_file(
+    path: Path,
+    content: str,
+    *,
+    preimage: bytes | None,
+    observer: Callable[[_SessionFileMutation], None] | None = None,
+) -> bool:
+    postimage = normalize_text(content).encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Exclusive creation cannot overwrite or claim a raced-in file.
+        with (path.open("xb") if preimage is None else path.open("wb")) as stream:
+            stream.write(postimage)
+    except FileExistsError:
+        return False
+    if observer is not None:
+        observer(_SessionFileMutation(path, preimage, postimage, preimage is None))
+    return True
+
+
+def _ensure_per_user_session_file(
+    path: Path, date_str: str, user: str,
+    *, _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
+) -> None:
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     hash_id = "msm_" + secrets.token_hex(16)
-    write_text_file(
+    _write_session_file(
         path,
         "\n".join(
             [
@@ -3444,6 +4012,8 @@ def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
                 "",
             ]
         ),
+        preimage=None,
+        observer=_mutation_observer,
     )
 
 
@@ -3452,6 +4022,8 @@ def session_target(
     date_str: str | None = None,
     explicit_user: str | None = None,
     create: bool = False,
+    *,
+    _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
 ) -> SessionTarget:
     runtime = resolve_runtime(cwd)
     if runtime.legacy:
@@ -3474,13 +4046,12 @@ def session_target(
     if user is None:
         path = _session_flat_path(sessions_dir, date_value)
         if create:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch(exist_ok=True)
+            _write_session_file(path, "", preimage=None, observer=_mutation_observer)
         return SessionTarget(path=path, session_date=date_value, user=None, layout="month-flat")
 
     path = session_path(sessions_dir, date_value, user)
     if create:
-        _ensure_per_user_session_file(path, date_value, user)
+        _ensure_per_user_session_file(path, date_value, user, _mutation_observer=_mutation_observer)
     return SessionTarget(path=path, session_date=date_value, user=user, layout="month-user")
 
 
@@ -3528,6 +4099,208 @@ class SessionAppendResult:
     sidecar_paths: tuple[Path, ...] = ()
     rendered_sidecars: dict[str, str] | None = None
     journal_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class TopicAmendResult:
+    """Receipt for an append-only decision-topic correction."""
+
+    ok: bool
+    path: Path | None = None
+    entry_id: str | None = None
+    decision: str | None = None
+    timestamp: str | None = None
+    issues: tuple[str, ...] = ()
+    written: bool = False
+    rendered: str | None = None
+
+
+def amend_topic_sidecar(
+    *,
+    entry_id: str,
+    decision: str,
+    area: str,
+    activities: Sequence[str],
+    reason: str,
+    cwd: str | Path = ".",
+    timestamp: str | None = None,
+    dry_run: bool = False,
+) -> TopicAmendResult:
+    """Append a corrected topic snapshot for one existing decision.
+
+    Topic sidecars are state snapshots, so an amendment must restate every
+    existing sibling attribution as well as the changed decision.  The entry's
+    authored YAML is deliberately not consulted as amendment input: it is a
+    separate provenance channel and remains historical evidence.
+    """
+    runtime = resolve_runtime(cwd)
+    sessions_dir = runtime.memory_dir / "sessions"
+    issues: list[str] = []
+    entry_date = ""
+    ordinals: set[str] = set()
+    entry_timestamp = ""
+    for doc in iter_session_documents(sessions_dir):
+        try:
+            text = doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+        for index, block in enumerate(blocks):
+            found = _ENTRY_ID_RE.search(block.group(2))
+            if not found or found.group(1) != entry_id:
+                continue
+            entry_date = doc.session_date
+            entry_timestamp = block.group(1)
+            body_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            ordinals = set(_entry_decision_ordinals(text[block.end():body_end]))
+            break
+        if entry_date:
+            break
+    if not entry_date:
+        issues.append(f"entry_id {entry_id!r} does not exist in a session log")
+    if decision not in ordinals:
+        available = ", ".join(sorted(ordinals, key=lambda item: int(item[1:]))) or "none"
+        issues.append(f"decision {decision!r} is not recorded by {entry_id} (available: {available})")
+
+    try:
+        from .topics import load_topic_index
+
+        topic_index = load_topic_index(runtime.workspace_root)
+        resolution = topic_index.resolution()
+    except Exception as exc:  # noqa: BLE001 - report the vocabulary failure with the amendment
+        topic_index = None
+        resolution = {}
+        issues.append(f"cannot load topics.yaml: {exc}")
+    if topic_index is not None and not topic_index.exists:
+        issues.append("topics.yaml is required to amend decision topics")
+
+    requested = [area, *activities]
+    canonical: list[str] = []
+    for slug in requested:
+        resolved = resolution.get(slug)
+        if resolved is None:
+            issues.append(f"topic {slug!r} is not a canonical slug in topics.yaml")
+        elif resolved != slug:
+            issues.append(f"topic {slug!r} is an alias; use canonical slug {resolved!r}")
+        elif resolved not in canonical:
+            canonical.append(resolved)
+    if not area:
+        issues.append("area is required")
+    if not activities:
+        issues.append("at least one activity is required")
+    if len(canonical) > MAX_TOPICS_PER_DECISION:
+        issues.append(f"{decision} carries {len(canonical)} topics; at most {MAX_TOPICS_PER_DECISION}")
+    if topic_index is not None and resolution:
+        if area in resolution and topic_index.axis_of(area) != "area":
+            issues.append(f"topic {area!r} is not an area topic")
+        for activity in activities:
+            if activity in resolution and topic_index.axis_of(activity) != "activity":
+                issues.append(f"topic {activity!r} is not an activity topic")
+
+    # Reuse the authoritative reader for precedence, then re-render its complete
+    # current state.  This is what prevents a partial correction from silently
+    # deleting unrelated decisions in the newest snapshot.
+    from .retrieval import entry_topic_sidecars
+
+    current = entry_topic_sidecars(runtime.workspace_root).get(entry_id, {})
+    current_pairs = current.get("decision_topics", ())
+    snapshot: dict[str, list[str]] = {}
+    for ordinal, slug in current_pairs:
+        snapshot.setdefault(ordinal, []).append(slug)
+    snapshot[decision] = canonical
+    if not any(snapshot.values()):
+        issues.append("an amendment must leave at least one topic attribution")
+    if topic_index is not None:
+        for ordinal, slugs in snapshot.items():
+            for slug in slugs:
+                if resolution.get(slug) != slug:
+                    issues.append(f"existing sidecar topic {slug!r} is not canonical; repair it before amending")
+            if ordinal and len(slugs) > MAX_TOPICS_PER_DECISION:
+                issues.append(f"existing {ordinal} snapshot exceeds {MAX_TOPICS_PER_DECISION} topics")
+
+    latest_timestamp = entry_timestamp
+    topics_dir = sessions_dir / "topics"
+    if topics_dir.is_dir():
+        for doc in iter_topic_sidecar_documents(sessions_dir):
+            try:
+                text = doc.path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for block in _ENTRY_TS_YAML_RE.finditer(text):
+                found = _ENTRY_ID_RE.search(block.group(2))
+                if found and found.group(1) == entry_id:
+                    latest_timestamp = max(latest_timestamp, block.group(1))
+    if timestamp is None:
+        try:
+            candidate = datetime.strptime(latest_timestamp, "%Y-%m-%d %H:%M") + timedelta(minutes=1)
+            timestamp = candidate.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            issues.append(f"cannot derive a later timestamp from {latest_timestamp!r}")
+            timestamp = ""
+    if timestamp:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", timestamp):
+            issues.append("timestamp must be YYYY-MM-DD HH:MM")
+        elif timestamp[:10] != entry_date:
+            issues.append(f"timestamp date must remain the entry date {entry_date}")
+        elif timestamp <= latest_timestamp:
+            issues.append(f"timestamp must be later than the current sidecar snapshot ({latest_timestamp})")
+    if timestamp and timestamp[:10] == entry_date and timestamp[11:] == "00:00" and latest_timestamp.endswith("23:59"):
+        issues.append("no later minute remains on the entry date for this amendment")
+    if not reason.strip():
+        issues.append("reason is required so the correction remains auditable")
+    if issues:
+        return TopicAmendResult(ok=False, entry_id=entry_id, decision=decision, issues=tuple(issues))
+
+    buckets: dict[str, list[str]] = {"area": [], "activity": []}
+    for ordinal, slugs in snapshot.items():
+        for slug in slugs:
+            axis = topic_index.axis_of(slug) if topic_index is not None else ""
+            token = f"{slug}:{ordinal}" if ordinal else slug
+            if axis in buckets:
+                buckets[axis].append(token)
+            else:
+                issues.append(f"topic {slug!r} has no declared area/activity axis")
+    if issues:
+        return TopicAmendResult(ok=False, entry_id=entry_id, decision=decision, issues=tuple(issues))
+    title_reason = " ".join(reason.split())
+    rendered_lines = [
+        f"## {timestamp} - Amend decision topics: {title_reason}",
+        "",
+        "```yaml",
+        f"entry_id: {entry_id}",
+        # This is a human-reviewed correction made after the original entry,
+        # not a claim that the original author knew the replacement at write
+        # time.  Readers preserve it as a distinct, declared provenance value.
+        "source: human-amendment",
+        "topics:",
+    ]
+    for axis in ("area", "activity"):
+        if buckets[axis]:
+            rendered_lines.append(f"  {axis}:")
+            rendered_lines.extend(f"    - {token}" for token in buckets[axis])
+    rendered_lines.extend(["```", ""])
+    rendered = "\n".join(rendered_lines)
+    path = runtime.workspace_root / _topic_target_relative_path(entry_date)
+    if dry_run:
+        return TopicAmendResult(
+            ok=True, path=path, entry_id=entry_id, decision=decision, timestamp=timestamp, rendered=rendered
+        )
+    existing = read_text_file(path) if path.exists() else ""
+    records = _split_topic_sidecar_records(
+        existing, source_path=_topic_target_relative_path(entry_date), topic_date=entry_date
+    )
+    records.append(
+        _TopicSidecarRecord(
+            text=rendered,
+            entry_id=entry_id,
+            timestamp=timestamp,
+            topic_date=entry_date,
+            source_path=_topic_target_relative_path(entry_date),
+            target_path=_topic_target_relative_path(entry_date),
+        )
+    )
+    _write_chronological_topic_sidecar_file(path, entry_date, records)
+    return TopicAmendResult(ok=True, path=path, entry_id=entry_id, decision=decision, timestamp=timestamp, written=True)
 
 
 @dataclass(frozen=True)
@@ -3916,6 +4689,7 @@ def session_append_entry(
     explicit_user: str | None = None,
     dry_run: bool = False,
     snapshot: "CorpusSnapshot | None" = None,
+    _mutation_observer: Callable[[_SessionFileMutation], None] | None = None,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -3971,6 +4745,11 @@ def session_append_entry(
 
     if target.path.exists():
         text = read_text_file(target.path)
+        if target.layout == "month-flat" and text.strip() and not text.startswith("---\n"):
+            issues.append(
+                "existing flat session file has no canonical file frontmatter; "
+                "refusing to grandfather a headerless file through session append"
+            )
         heading_times = [
             match.group(1)
             for match in (_REORDER_HEADING_RE.match(m.group(0)) for m in _ENTRY_HEADING_RE.finditer(text))
@@ -4262,7 +5041,11 @@ def session_append_entry(
     # Write-time DRAFT-format gate: the tool owns structure, so it refuses to
     # write a malformed decision record (bare labels, missing R:, wrong
     # multi-decision shape). The message names the fix; see session_logging.md.
-    for issue in entry_body_format_issues(body, require_summary=True):
+    for issue in entry_body_format_issues(
+        body,
+        require_summary=True,
+        require_numbered_decisions=True,
+    ):
         issues.append(f"body format: {issue}")
 
     yaml_lines = [
@@ -4547,14 +5330,21 @@ def session_append_entry(
         if not journal_path.exists():
             write_json_file(journal_path, journal)
 
-    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
-    existing = read_text_file(target.path) if target.path.exists() else ""
+    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True,
+                            _mutation_observer=_mutation_observer)
+    # Render from the same byte snapshot reported as the mutation preimage.
+    # Match read_text_file's universal-newline decoding without a second read.
+    preimage = target.path.read_bytes() if target.path.exists() else None
+    existing = preimage.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") if preimage is not None else ""
     if block.rstrip() not in existing:
         if existing.strip():
             new_text = existing.rstrip("\n") + "\n\n" + block
         else:
-            new_text = existing + block
-        write_text_file(target.path, new_text)
+            new_text = _session_file_prefix(
+                existing, date_part, user=target.user
+            ) + block
+        if not _write_session_file(target.path, new_text, preimage=preimage, observer=_mutation_observer):
+            raise FileExistsError(f"Session target was concurrently created: {target.path}")
 
     if "topics" in rendered_sidecars:
         topic_path = sidecar_paths["topics"]
@@ -6360,13 +7150,207 @@ def _resolve_commit(root: Path, ref: str) -> str | None:
     return commit if code == 0 and commit else None
 
 
+def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    """Whether ``ancestor`` is provably reachable from ``descendant``."""
+    code, _output = _git_text(root, ("merge-base", "--is-ancestor", ancestor, descendant))
+    return code == 0
+
+
+def _entry_records_with_id(root: Path, ref: str, entry_id: str) -> list[_SessionEntryRecord]:
+    """Read every occurrence of one entry identity at a Git ref.
+
+    The normal fuse parser reports duplicate identities in the source diff.  The
+    transitive proof is deliberately stricter: a durable merge receipt can only
+    vouch for one exact record, not a choice among same-id copies in a parent.
+    """
+    return [record for record in _entry_records_from_ref(root, ref) if record.entry_id == entry_id]
+
+
+def _resolve_local_branch(root: Path, branch: str) -> str | None:
+    """Resolve only a current local branch, never a generic Git revision."""
+    if not branch or branch != branch.strip() or branch.startswith("refs/") or branch in {"HEAD", "@"}:
+        return None
+    code, _output = _git_text(root, ("check-ref-format", "--branch", branch))
+    if code != 0:
+        return None
+    code, commit = _git_text(root, ("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}"))
+    return commit if code == 0 and _FULL_COMMIT_SHA_RE.fullmatch(commit) else None
+
+
+def _exact_entry_records(root: Path, ref: str, entry: _SessionEntryRecord) -> list[_SessionEntryRecord]:
+    """Return exact-text instances of an entry, after enforcing ID cardinality."""
+    assert entry.entry_id is not None
+    records = _entry_records_with_id(root, ref, entry.entry_id)
+    return records if len(records) == 1 and records[0].text == entry.text else []
+
+
+def _has_exact_final_receipt(root: Path, commit: str, entry_id: str) -> bool:
+    """Require one valid receipt in Git's final trailer block, with no raw duplicate."""
+    trailers = _commit_memory_entry_trailers(root, commit)
+    if trailers is None or trailers.count(entry_id) != 1:
+        return False
+    code, message = _git_text(root, ("show", "-s", "--format=%B", commit))
+    if code != 0:
+        return False
+    raw_values: list[str] = []
+    for line in message.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("Memory-Entry:"):
+            continue
+        value = stripped[len("Memory-Entry:"):].strip()
+        if _TRAILER_ENTRY_ID_RE.fullmatch(value) is None:
+            return False
+        raw_values.append(value)
+    return raw_values.count(entry_id) == 1
+
+
+def _first_parent_history_has_entry(
+    root: Path,
+    *,
+    start: str,
+    stop_before: str,
+    entry_id: str,
+) -> bool:
+    """Detect deletion/re-add laundering before a later carrier merge."""
+    current = start
+    while current and current != stop_before:
+        if _entry_records_with_id(root, current, entry_id):
+            return True
+        code, parents = _git_text(root, ("show", "-s", "--format=%P", current))
+        if code != 0:
+            return True
+        parent_ids = parents.split()
+        current = parent_ids[0] if parent_ids else ""
+    # A first-parent segment that never reaches the bounded merge base is not
+    # evidence for this integration.  Treat it like an unreadable history
+    # rather than allowing a receipt from some unrelated ancestry to leak in.
+    return current != stop_before
+
+
+def _carrier_merge_for_segment(
+    root: Path,
+    *,
+    segment_tip: str,
+    window_start: str,
+    allowed_commits: set[str],
+    entry: _SessionEntryRecord,
+) -> tuple[str, str] | None:
+    """Find the one first-parent carrier that introduced an exact record.
+
+    The walk stops at the first parent without the identity.  That is the only
+    place a carrier merge may introduce it on this aggregate workstream; later
+    disappearance and byte-identical re-addition cannot masquerade as the
+    original receipt because the older first-parent segment is checked too.
+    """
+    assert entry.entry_id is not None
+    current = segment_tip
+    while current and current != window_start:
+        if current not in allowed_commits or not _exact_entry_records(root, current, entry):
+            return None
+        code, parents_text = _git_text(root, ("show", "-s", "--format=%P", current))
+        parents = parents_text.split() if code == 0 else []
+        if not parents:
+            return None
+        first_parent = parents[0]
+        first_records = _entry_records_with_id(root, first_parent, entry.entry_id)
+        if first_records:
+            if not _exact_entry_records(root, first_parent, entry):
+                return None
+            current = first_parent
+            continue
+        # A missing first-parent record is a first introduction only when this
+        # is an ordinary, uniquely attributable two-parent carrier merge.
+        if len(parents) != 2 or not _exact_entry_records(root, parents[1], entry):
+            return None
+        if not _git_is_ancestor(root, window_start, first_parent):
+            return None
+        if _first_parent_history_has_entry(
+            root, start=first_parent, stop_before=window_start, entry_id=entry.entry_id
+        ):
+            return None
+        if not _has_exact_final_receipt(root, current, entry.entry_id):
+            return None
+        return current, parents[1]
+    return None
+
+
+def _transitive_entry_proof_issue(
+    root: Path,
+    *,
+    source_commit: str,
+    base_commit: str,
+    entry: _SessionEntryRecord,
+) -> str | None:
+    """Prove recursively that aggregate carriers preserved an exact child entry.
+
+    ``branch:`` is the entry's authorship, not a label to rewrite at every
+    integration boundary.  We therefore permit a foreign-attributed record only
+    when Git's durable topology and every prior merge's ``Memory-Entry``
+    receipt jointly show its exact path.  Each aggregate workstream owns one
+    continuous first-parent segment and one two-parent carrier merge; the
+    carrier's non-first parent is either the declared child branch or the next
+    recursively proven aggregate.  Any missing, copied, altered, reintroduced,
+    octopus, unreceipted, or multiply-explained path remains a refusal.
+
+    Branch refs are intentionally part of the proof.  They bind the immutable
+    authored ``branch:`` value to a real child history instead of trusting a
+    copied YAML scalar, and a deleted/unresolvable ref fails closed.
+    """
+    if not entry.entry_id or not entry.branch:
+        return "the entry has no declared child branch"
+    child_tip = _resolve_local_branch(root, entry.branch)
+    if child_tip is None:
+        return (
+            f"declared child branch {entry.branch!r} is not a current local branch; "
+            "restore the exact local child branch ref (rather than editing branch:) and retry"
+        )
+    if not _git_is_ancestor(root, child_tip, source_commit):
+        return f"declared child branch {entry.branch!r} is not an ancestor of the aggregate source"
+    if not _exact_entry_records(root, child_tip, entry):
+        return "the declared child branch does not contain one byte-identical entry"
+    if not _exact_entry_records(root, source_commit, entry):
+        return "the aggregate source does not contain one byte-identical entry"
+    code, window_start = _git_text(root, ("merge-base", base_commit, source_commit))
+    if code != 0 or _FULL_COMMIT_SHA_RE.fullmatch(window_start) is None:
+        return "could not determine the bounded base-to-source evidence window"
+    code, commits = _git_lines(root, ("rev-list", f"{window_start}..{source_commit}"))
+    if code != 0:
+        return "could not inspect the bounded base-to-source evidence window"
+    allowed_commits = set(commits)
+    if not allowed_commits:
+        return "the bounded base-to-source evidence window is empty"
+
+    current = source_commit
+    visited: set[str] = set()
+    while current != child_tip:
+        if current in visited:
+            return "the carrier path is cyclic or otherwise ambiguous"
+        visited.add(current)
+        carrier = _carrier_merge_for_segment(
+            root,
+            segment_tip=current,
+            window_start=window_start,
+            allowed_commits=allowed_commits,
+            entry=entry,
+        )
+        if carrier is None:
+            return (
+                "no unique two-parent, byte-continuous carrier merge with one final "
+                "Memory-Entry receipt proves the inherited entry"
+            )
+        _merge_commit, carrying_parent = carrier
+        current = carrying_parent
+    return None if _exact_entry_records(root, child_tip, entry) else "the child entry changed during proof"
+
+
 def _current_branch_name(root: Path) -> str | None:
     code, branch = _git_text(root, ("branch", "--show-current"))
     return branch if code == 0 and branch else None
 
 
 def _git_dirty_paths(root: Path) -> list[str] | None:
-    code, status_out = _git_text(root, ("status", "--short"))
+    # Admission preflight must not refresh even the index's stat cache.
+    code, status_out = _git_text(root, ("--no-optional-locks", "status", "--short"))
     if code != 0:
         return None
     return [line.strip() for line in status_out.splitlines() if line.strip()]
@@ -6466,6 +7450,12 @@ def _plan_session_fuse(
     changed_paths = _changed_session_paths(root, base_commit, source_commit)
     if changed_paths is None:
         return None, [f"could not compute changed session files for source {source_label} against base {base_ref}"]
+
+    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=source_ref, base_ref=base_ref)
+    if reflection_issues:
+        return None, reflection_issues
+    if (reflection_admission.source_commit != source_commit or reflection_admission.base_commit != base_commit):
+        return None, ["reflection-binding-stale: integration refs changed while planning"]
 
     issues: list[str] = []
     base_paths = set(_git_ref_paths(root, base_commit))
@@ -6658,9 +7648,20 @@ def _plan_session_fuse(
                 f"does not match session date {source_entry.session_date}"
             )
             continue
-        if source_entry.branch != source_label:
+        proof_issue = (
+            _transitive_entry_proof_issue(
+                root,
+                source_commit=source_commit,
+                base_commit=base_commit,
+                entry=source_entry,
+            )
+            if source_entry.branch != source_label
+            else None
+        )
+        if proof_issue:
             issues.append(
-                f"{source_entry.source_path}: entry_id {entry_id} has branch {source_entry.branch or '(missing)'}; expected {source_label}"
+                f"{source_entry.source_path}: entry_id {entry_id} has branch {source_entry.branch or '(missing)'}; "
+                f"expected {source_label} or one unique receipted ancestor merge; {proof_issue}"
             )
             continue
         if source_entry.branch in {"main", "master"}:
@@ -6939,6 +7940,7 @@ def _plan_session_fuse(
         planned_link_sidecars=tuple(planned_link_sidecars),
         planned_topic_sidecars=tuple(planned_topic_sidecars),
         removed_sources=tuple(removed_sources),
+        reflection_admission=reflection_admission,
     ), []
 
 
@@ -6951,6 +7953,10 @@ def _apply_session_fuse_plan(
     branch-touched, base-existing session path to base content. It does not change
     any decision - it only lets a refusal name which side's copy it just read.
     """
+
+    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission, merged=True)
+    if reflection_issues:
+        return SessionFuseResult(changed=False, issues=reflection_issues)
 
     def existing_note(target_rel: str) -> str:
         return _fuse_existing_note(root, plan, target_rel, working_tree_is_base=working_tree_is_base)
@@ -7031,18 +8037,40 @@ def _apply_session_fuse_plan(
                 changed=False,
                 issues=[f"{target_rel}: existing diagram blocks are not chronological{existing_note(target_rel)}"],
             )
-        by_id = {record.entry_id: record for record in existing if record.entry_id}
+        # Block identity is (authority identity, heading timestamp) - see the
+        # comment on the planning side (base_sidecars/source_sidecars above).
+        # Keying this dedup check by entry_id alone silently excluded every
+        # adr_id-authored block (entry_id is None for those), so an ADR diagram
+        # could never be recognised as already present: a brand-new diagram-
+        # sidecar file that git's own merge already placed in the working tree
+        # got the identical block appended a second time here, unconditionally,
+        # every fuse. Entry-authored blocks were never affected - entry_id is
+        # never None for those - which is why this only ever showed up on ADR
+        # reviews.
+        def _sidecar_identity(record: _DiagramSidecarRecord) -> tuple[str, str] | None:
+            authority = f"entry:{record.entry_id}" if record.entry_id else (
+                f"adr:{record.adr_id}" if record.adr_id else None
+            )
+            return (authority, record.timestamp or "") if authority else None
+
+        by_identity = {
+            key: record
+            for record in existing
+            if (key := _sidecar_identity(record)) is not None
+        }
         writable_records = list(existing)
         for record in incoming:
-            current = by_id.get(record.entry_id)
+            identity = _sidecar_identity(record)
+            current = by_identity.get(identity) if identity is not None else None
             if current is not None:
                 if current.text == record.text:
-                    already_present.append(record.entry_id or "")
+                    already_present.append(record.entry_id or record.adr_id or "")
                     continue
+                label = f"entry_id {record.entry_id}" if record.entry_id else f"adr_id {record.adr_id}"
                 return SessionFuseResult(
                     changed=False,
                     issues=[
-                        f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"
+                        f"{target_rel}: diagram for {label} already exists with different text"
                         f"{immutable_note(target_rel)}"
                     ],
                 )
@@ -7177,6 +8205,27 @@ def _apply_session_fuse_plan(
     )
 
 
+def _preview_session_reflections(root: Path, *, source_ref: str, base_ref: str) -> tuple[Any, list[str]]:
+    """Reflection-only admission; session provenance must use the refreshed base."""
+    from .reflection_ledger import ReflectionValidationError, preview_reflection_integration
+    try:
+        return preview_reflection_integration(root, source_ref=source_ref, base_ref=base_ref), []
+    except (OSError, ValueError) as exc:
+        return None, [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
+
+
+def _recheck_session_reflections(root: Path, admission: Any, *, merged: bool = False) -> list[str]:
+    from .reflection_ledger import ReflectionValidationError, recheck_reflection_integration
+    try:
+        if admission is None:
+            return ["reflection-binding-stale: missing integration preflight"]
+        recheck_reflection_integration(root, admission, merged=merged)
+    except (OSError, ValueError) as exc:
+        return [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
+    return []
+
+
+@reflection_verification_operation
 def session_fuse(
     cwd: str | Path = ".",
     *,
@@ -7185,6 +8234,7 @@ def session_fuse(
     apply: bool = False,
     user_approved: bool = False,
     working_tree_is_base: bool = False,
+    reflection_admission: Any = None,
 ) -> SessionFuseResult:
     """Fuse branch-local session entries into the current working tree.
 
@@ -7197,6 +8247,9 @@ def session_fuse(
     ``working_tree_is_base`` is internal: ``session_merge_branch`` sets it after
     resetting branch-touched session paths to base content, so a refusal can say
     which side's copy it validated. It changes no decision, only wording.
+
+    Reflection-bearing apply requires the original preview's immutable
+    ``reflection_admission``. A fresh internal plan cannot replace that binding.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
@@ -7238,6 +8291,20 @@ def session_fuse(
     if issues:
         return SessionFuseResult(changed=False, issues=issues)
     assert plan is not None
+    if apply and reflection_admission is None and any(
+        getattr(plan.reflection_admission, key) for key in ("source", "base", "ancestor", "proposed")
+    ):
+        return SessionFuseResult(changed=False, issues=[
+            "reflection-binding-required: reflection-bearing apply requires the original immutable preview admission"
+        ])
+    if reflection_admission is not None:
+        reflection_issues = _recheck_session_reflections(root, reflection_admission, merged=apply)
+        if reflection_issues or any(getattr(plan.reflection_admission, key) != getattr(reflection_admission, key)
+                                    for key in ("source_commit", "base_commit", "merge_base", "proposed")):
+            return SessionFuseResult(changed=False, issues=reflection_issues or ["reflection-binding-stale: integration changed after preview"])
+    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission, merged=apply)
+    if reflection_issues:
+        return SessionFuseResult(changed=False, issues=reflection_issues)
     if not apply:
         return SessionFuseResult(
             changed=False,
@@ -7246,6 +8313,7 @@ def session_fuse(
             planned_link_sidecars=list(plan.planned_link_sidecars),
             planned_topic_sidecars=list(plan.planned_topic_sidecars),
             removed_sources=list(plan.removed_sources),
+            reflection_admission=plan.reflection_admission,
         )
     return _apply_session_fuse_plan(root, plan, working_tree_is_base=working_tree_is_base)
 
@@ -7299,15 +8367,164 @@ def _source_branch_worktree(root: Path, branch: str) -> tuple[Path | None, str |
     return None, None
 
 
+def _worktree_admin_identity(
+    root: Path, path: Path, branch: str
+) -> tuple[Path | None, tuple[int, int] | None, str | None]:
+    """Prove that ``path`` is this repository's registered secondary checkout.
+
+    The returned Git administrative path is captured before removal.  It lets a
+    post-failure residue pass distinguish the exact checkout Git started
+    removing from an arbitrary directory at the same filesystem location.
+    """
+    root = root.resolve()
+    path = path.resolve()
+    if _casefold_parts(path) == _casefold_parts(root):
+        return None, None, "source worktree resolves to the primary checkout"
+    if _is_relative_to_casefold(root, path):
+        return None, None, "source worktree is an ancestor of the primary checkout"
+    try:
+        path_stat = path.lstat()
+        attributes = getattr(path_stat, "st_file_attributes", 0)
+    except OSError:
+        return None, None, "source worktree path could not be inspected"
+    directory_identity = (path_stat.st_dev, path_stat.st_ino)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if path.is_symlink() or (reparse_flag and attributes & reparse_flag):
+        return None, None, "source worktree path is a symlink or reparse point"
+
+    marker = path / ".git"
+    try:
+        marker_text = marker.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return None, None, "source worktree .git pointer could not be read"
+    if not marker.is_file() or not marker_text.lower().startswith("gitdir:"):
+        return None, None, "source worktree does not have a valid .git pointer"
+    raw_admin = marker_text.split(":", 1)[1].strip()
+    admin = Path(raw_admin)
+    if not admin.is_absolute():
+        admin = marker.parent / admin
+    try:
+        admin = admin.resolve()
+    except (OSError, ValueError):
+        return None, None, "source worktree Git administration path could not be resolved"
+
+    code, common_text = _git_text(root, ("rev-parse", "--git-common-dir"))
+    if code != 0 or not common_text:
+        return None, None, "repository Git administration directory could not be resolved"
+    common = Path(common_text)
+    if not common.is_absolute():
+        common = root / common
+    registered_admin_root = common.resolve() / "worktrees"
+    if (
+        not _is_relative_to_casefold(admin, registered_admin_root)
+        or _casefold_parts(admin.parent) != _casefold_parts(registered_admin_root)
+    ):
+        return None, None, "source worktree .git pointer is outside this repository's worktree registry"
+
+    code, current_branch = _git_text(path, ("branch", "--show-current"))
+    if code != 0 or current_branch != branch:
+        return None, None, "source worktree branch identity changed before cleanup"
+    return admin, directory_identity, None
+
+
+def _remove_deregistered_worktree_residue(
+    root: Path,
+    path: Path,
+    branch: str,
+    expected_admin: Path,
+    expected_directory_identity: tuple[int, int],
+    *,
+    remover: Callable[[Path], None] | None = None,
+) -> tuple[bool, str]:
+    """Remove one exact directory left by a partial ``git worktree remove``.
+
+    This is intentionally narrower than worktree GC.  It may act only on the
+    source checkout whose Git identity was proven immediately before this merge
+    attempted removal; it never discovers or sweeps other residue.
+    """
+    code, porcelain = _git_text(root, ("worktree", "list", "--porcelain"))
+    if code != 0:
+        return False, "could not re-read registered worktrees after removal failure"
+    target_parts = _casefold_parts(path.resolve())
+    for item in _parse_worktree_list(porcelain):
+        raw = item.get("path")
+        if not raw:
+            continue
+        try:
+            registered = Path(raw).resolve()
+        except (OSError, ValueError):
+            return False, "a registered worktree path could not be resolved"
+        if _casefold_parts(registered) == target_parts:
+            return False, "source worktree remains registered after removal failure"
+
+    if not path.exists():
+        return True, "Git removed the directory despite reporting failure"
+    try:
+        resolved = path.resolve()
+        path_stat = path.lstat()
+        attributes = getattr(path_stat, "st_file_attributes", 0)
+    except OSError:
+        return False, "residual source worktree path could not be inspected"
+    if _casefold_parts(resolved) != target_parts:
+        return False, "residual source worktree path identity changed"
+    if (path_stat.st_dev, path_stat.st_ino) != expected_directory_identity:
+        return False, "residual source worktree directory was replaced after Git removal began"
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if path.is_symlink() or (reparse_flag and attributes & reparse_flag):
+        return False, "residual source worktree became a symlink or reparse point"
+
+    marker = path / ".git"
+    if marker.exists():
+        try:
+            marker_text = marker.read_text(encoding="utf-8").strip()
+            raw_admin = marker_text.split(":", 1)[1].strip()
+            actual_admin = Path(raw_admin)
+            if not actual_admin.is_absolute():
+                actual_admin = marker.parent / actual_admin
+            actual_admin = actual_admin.resolve()
+        except (OSError, UnicodeError, ValueError, IndexError):
+            return False, "residual source worktree .git pointer could not be verified"
+        if _casefold_parts(actual_admin) != _casefold_parts(expected_admin):
+            return False, "residual source worktree .git identity changed"
+
+    merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
+    if merged_code != 0:
+        return False, "source branch is no longer confirmed merged into HEAD"
+
+    def _remove(target: Path) -> None:
+        removal_target = target
+        if os.name == "nt":
+            raw = str(target)
+            if raw.startswith("\\\\"):
+                removal_target = Path("\\\\?\\UNC\\" + raw[2:])
+            elif not raw.startswith("\\\\?\\"):
+                removal_target = Path("\\\\?\\" + raw)
+
+        def _clear_readonly(function: Callable[[str], None], name: str, _exc_info: object) -> None:
+            os.chmod(name, stat.S_IWRITE)
+            function(name)
+
+        shutil.rmtree(removal_target, onerror=_clear_readonly)
+
+    try:
+        (remover or _remove)(path)
+    except OSError as exc:
+        return False, f"verified residue removal failed: {exc}"
+    if path.exists():
+        return False, "verified residue removal returned without deleting the directory"
+    return True, "removed verified directory residue after Git deregistration"
+
+
 def _cleanup_merged_source_worktree(
     root: Path, branch: str
 ) -> tuple[str | None, str | None, str | None, int]:
     """Attempt the narrow, post-commit cleanup for one integrated branch.
 
-    The existing worktree-GC remover owns bounded retry and its no-raw-delete
-    guarantee. A failed cleanup is reporting-only: the merge is already a
-    durable fact, while a locked OneDrive checkout remains recoverable for a
-    later explicit cleanup pass.
+    The existing worktree-GC remover owns bounded Git retries.  If Git partly
+    succeeds by deregistering the checkout but leaves its directory behind, an
+    exact-target fallback removes only the checkout whose Git identity was
+    proven immediately before removal.  Any failed proof remains visible as a
+    cleanup-pending result; the successful merge is never rolled back.
     """
     path, discovery_issue = _source_branch_worktree(root, branch)
     if path is None:
@@ -7321,12 +8538,16 @@ def _cleanup_merged_source_worktree(
     if status.strip():
         return str(path), "retained", "source worktree has uncommitted or untracked changes", 0
 
+    admin, directory_identity, identity_issue = _worktree_admin_identity(root, path, branch)
+    if admin is None or directory_identity is None:
+        return str(path), "retained", identity_issue or "source worktree identity could not be proven", 0
+
     merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
     if merged_code != 0:
         return str(path), "retained", "source branch is not confirmed merged into HEAD", 0
 
-    # Keep the lock-aware, Git-only remover in one place. It has no raw
-    # filesystem fallback, even when Git reports a Windows/OneDrive denial.
+    # Keep the ordinary lock-aware Git remover in one place.  The fallback below
+    # is available only after this exact checkout has been deregistered.
     from .worktree_gc import _remove_one_worktree
 
     removed, attempts, detail = _remove_one_worktree(root, str(path), max_attempts=3)
@@ -7338,7 +8559,12 @@ def _cleanup_merged_source_worktree(
     # from an active checkout that was retained for later attention.
     remaining, _ = _source_branch_worktree(root, branch)
     if remaining is None:
-        return str(path), "deregistered-with-residue", detail, attempts
+        residue_removed, residue_detail = _remove_deregistered_worktree_residue(
+            root, path, branch, admin, directory_identity
+        )
+        if residue_removed:
+            return str(path), "removed", residue_detail, attempts + 1
+        return str(path), "cleanup-pending", f"{detail}; {residue_detail}", attempts + 1
     return str(path), "retained", detail, attempts
 
 
@@ -7378,6 +8604,7 @@ def _abort_refused_merge(
     result.issues.append("merge aborted automatically; nothing was committed")
 
 
+@reflection_verification_operation
 def session_merge_branch(
     cwd: str | Path = ".",
     *,
@@ -7421,10 +8648,9 @@ def session_merge_branch(
             merge_in_progress=True,
             issues=["a git merge is already in progress; finish or abort it before session merge-branch"],
         )
-    code, status_out = _git_text(root, ("status", "--short"))
-    if code != 0:
+    dirty_paths = _git_dirty_paths(root)
+    if dirty_paths is None:
         return SessionMergeBranchResult(committed=False, issues=["could not read git status"])
-    dirty_paths = [line.strip() for line in status_out.splitlines() if line.strip()]
     if dirty_paths:
         listing = "; ".join(dirty_paths[:10])
         if len(dirty_paths) > 10:
@@ -7448,8 +8674,12 @@ def session_merge_branch(
     preview = session_fuse(root, branch=branch, base="HEAD", apply=False)
     if preview.issues:
         return SessionMergeBranchResult(committed=False, issues=list(preview.issues))
+    if (preview.reflection_admission.source_commit != branch_commit
+            or preview.reflection_admission.base_commit != base_commit):
+        return SessionMergeBranchResult(committed=False, issues=["reflection-binding-stale: integration refs changed before preview"])
 
     source_worktree, source_worktree_issue = _source_branch_worktree(root, branch)
+    cadence = commit_cadence(root, base_ref="HEAD", target_ref=branch)
     result = SessionMergeBranchResult(
         committed=False,
         planned_entries=list(preview.planned_entries),
@@ -7461,10 +8691,15 @@ def session_merge_branch(
         source_worktree=str(source_worktree) if source_worktree is not None else None,
         worktree_cleanup_status="planned" if source_worktree is not None else None,
         worktree_cleanup_detail=source_worktree_issue,
+        cadence=cadence,
+        cadence_warnings=list(cadence.warnings),
     )
     if dry_run:
         return result
 
+    result.issues.extend(_recheck_session_reflections(root, preview.reflection_admission))
+    if result.issues:
+        return result
     merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", branch))
     # Exit code 1 is ambiguous (conflict vs. real failure); the presence of
     # MERGE_HEAD is the reliable signal that a merge actually started.
@@ -7479,6 +8714,10 @@ def session_merge_branch(
         # rc 0 with no MERGE_HEAD: branch is already merged into HEAD.
         return result
 
+    result.issues.extend(_recheck_session_reflections(root, preview.reflection_admission, merged=True))
+    if result.issues:
+        _abort_refused_merge(root, result)
+        return result
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
         result.issues.append("could not enumerate conflicted paths")
@@ -7525,6 +8764,7 @@ def session_merge_branch(
         apply=True,
         user_approved=True,
         working_tree_is_base=True,
+        reflection_admission=preview.reflection_admission,
     )
     if applied.issues:
         result.issues.extend(applied.issues)
@@ -7675,6 +8915,9 @@ def session_prepare_pr_branch(
         )
     assert plan is not None
 
+    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission)
+    if reflection_issues:
+        return SessionPreparePrBranchResult(ready=False, issues=reflection_issues)
     result = SessionPreparePrBranchResult(
         ready=False,
         base_branch=resolved_base_branch,
@@ -7690,6 +8933,9 @@ def session_prepare_pr_branch(
         result.branch_head = plan.source_commit
         return result
 
+    result.issues.extend(_recheck_session_reflections(root, plan.reflection_admission))
+    if result.issues:
+        return result
     merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", base_ref))
     merge_heads = _merge_head_commits(root)
     if merge_heads is None:
@@ -7706,6 +8952,10 @@ def session_prepare_pr_branch(
         result.branch_head = _resolve_commit(root, "HEAD")
         return result
 
+    result.issues.extend(_recheck_session_reflections(root, plan.reflection_admission, merged=True))
+    if result.issues:
+        _abort_refused_merge(root, result)
+        return result
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
         result.issues.append("could not enumerate conflicted paths")
@@ -7911,6 +9161,24 @@ def session_open_pr(
             issues=[f"missing remote '{remote_name}'; use local-merge or add that remote first"],
         )
 
+    resolved_base_branch, _base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
+        root, base_branch, source_branch=branch,
+    )
+    if base_issue:
+        return SessionOpenPrResult(
+            opened=False, dry_run=dry_run, source_branch=branch, remote_name=remote_name,
+            remote_url=remote_url, issues=[base_issue],
+        )
+    assert resolved_base_branch is not None and _base_ref is not None
+    # Refuse local reserved state before network-capable gh/fetch operations.
+    # Do not classify ordinary inherited sessions against a stale tracking ref;
+    # the complete provenance/fuse plan runs in preparation after refresh.
+    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=branch, base_ref=_base_ref)
+    if not reflection_issues:
+        reflection_issues = _recheck_session_reflections(root, reflection_admission)
+    if reflection_issues:
+        return SessionOpenPrResult(opened=False, dry_run=dry_run, source_branch=branch, issues=reflection_issues)
+
     code, _out, _err = _gh_text(root, ("--version",))
     if code != 0:
         return SessionOpenPrResult(
@@ -7932,21 +9200,6 @@ def session_open_pr(
             issues=["gh is not authenticated; use local-merge or authenticate gh first"],
         )
 
-    resolved_base_branch, _base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
-        root,
-        base_branch,
-        source_branch=branch,
-    )
-    if base_issue:
-        return SessionOpenPrResult(
-            opened=False,
-            dry_run=dry_run,
-            source_branch=branch,
-            remote_name=remote_name,
-            remote_url=remote_url,
-            issues=[base_issue],
-        )
-    assert resolved_base_branch is not None
     if not dry_run:
         refresh_issue = _refresh_pr_base_branch(
             root,
@@ -8185,6 +9438,17 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "project-bootstrap.md",
         ".memory-seed/project-bootstrap.md",
     ),
+    *(
+        SeedFile(
+            SEED_ROOT
+            / MEMORY_DIR_NAME
+            / "retrieval-profiles"
+            / profile_id
+            / f"v{profile_version}.yaml",
+            _core_retrieval_profile_destination(profile_id, profile_version),
+        )
+        for profile_id, profile_version in CORE_RETRIEVAL_PROFILES
+    ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "security_triage.md",
         ".memory-seed/skills/security_triage.md",
@@ -8230,6 +9494,10 @@ SEED_FILES = [
         ".memory-seed/skills/end_of_turn.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "adr_sweep.md",
+        ".memory-seed/skills/adr_sweep.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_hygiene.md",
         ".memory-seed/skills/memory_hygiene.md",
     ),
@@ -8244,6 +9512,10 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "proposal_lifecycle.md",
         ".memory-seed/skills/proposal_lifecycle.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "design_discovery.md",
+        ".memory-seed/skills/design_discovery.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subproject_runtime.md",
@@ -8272,6 +9544,10 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "local_compilation.md",
         ".memory-seed/skills/local_compilation.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "systematic_debugging.md",
+        ".memory-seed/skills/systematic_debugging.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_consolidation.md",
@@ -8327,17 +9603,16 @@ SEED_FILES = [
 # Non-Windows installs use this portable shell delegator; Windows installs use
 # an absolute-Python wrapper from _git_prepare_commit_msg_shim().
 _GIT_PREPARE_COMMIT_MSG_SHIM = """#!/bin/sh
-# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
-# staged session entries. Delegates to the repo-tracked script; never blocks.
+# Installed by memory-seed (hooks install): stamps Memory-Entry and
+# Memory-Implements trailers. Delegates to the repo-tracked script.
 root="$(git rev-parse --show-toplevel)" || exit 0
 script="$root/.memory-seed/hooks/prepare-commit-msg.py"
 [ -f "$script" ] || exit 0
 if command -v python3 >/dev/null 2>&1; then
-  python3 "$script" "$@" || exit 0
+  python3 "$script" "$@"
 else
-  python "$script" "$@" || exit 0
+  python "$script" "$@"
 fi
-exit 0
 """
 
 
@@ -8348,8 +9623,8 @@ def _git_prepare_commit_msg_shim() -> str:
     # sessions fail before the shell script starts. An absolute-Python shebang
     # avoids sh/env and delegates to the repo-tracked standalone script.
     return f"""#!{sys.executable}
-# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
-# staged session entries. Delegates to the repo-tracked script; never blocks.
+# Installed by memory-seed (hooks install): stamps Memory-Entry and
+# Memory-Implements trailers. Delegates to the repo-tracked script.
 import runpy
 import subprocess
 import sys
@@ -8379,8 +9654,11 @@ def main():
     try:
         sys.argv = [str(script), *sys.argv[1:]]
         runpy.run_path(str(script), run_name="__main__")
-    except SystemExit:
-        return 0
+    except SystemExit as exc:
+        # The repo-tracked hook reserves a non-zero exit only for an explicit
+        # cadence refusal.  All operational failures are handled by that script
+        # as success, so propagate this one policy decision on Windows too.
+        return exc.code if isinstance(exc.code, int) else 0
     except Exception:
         return 0
     finally:
@@ -8532,6 +9810,7 @@ CORE_SKILL_NAMES = (
     "history_retrieval.md",
     "orientation.md",
     "end_of_turn.md",
+    "adr_sweep.md",
     "memory_hygiene.md",
     "risk_signaling.md",
     "memory_doctor.md",
@@ -8541,11 +9820,12 @@ CORE_SKILL_NAMES = (
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
-        "Source exploration, local validation, rendered-UI debugging, and durable data-structure work.",
+        "Source exploration, systematic debugging, local validation, rendered-UI debugging, and durable data-structure work.",
         (
             "code_search.md",
             "graphify_analysis.md",
             "local_compilation.md",
+            "systematic_debugging.md",
             "data_architecture.md",
             "developer-rendered-ui-debugging.md",
             "superpowers_integration.md",
@@ -8560,8 +9840,8 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         ("agent_collaboration.md",),
     ),
     "planning": SkillProfile(
-        "Proposal inbox, todo, completed, and reference lifecycle management.",
-        ("proposal_lifecycle.md",),
+        "Proposal lifecycle management and evidence-backed consequential design discovery.",
+        ("proposal_lifecycle.md", "design_discovery.md"),
     ),
     "release": SkillProfile(
         "Package publishing, tags, changelog, and release verification.",
@@ -8594,11 +9874,13 @@ OPTIONAL_SKILL_NAMES = tuple(
 )
 
 SKILL_DESCRIPTIONS = {
+    "adr_sweep.md": "Review ADR coverage and freshness with evidence-backed advisory recommendations.",
     "agent_collaboration.md": "Coordinate branch, worktree, and multi-agent handoff workflows.",
     "code_search.md": "Use precise repository search and symbol lookup before broad reads.",
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
     "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
     "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",
+    "design_discovery.md": "Assess consequential choices through reuse, evidence, alternatives, and proportionate trials.",
     "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
@@ -8611,6 +9893,7 @@ SKILL_DESCRIPTIONS = {
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
     "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
     "superpowers_integration.md": "Route optional Superpowers delegation while retaining Memory Seed safety and integration ownership.",
+    "systematic_debugging.md": "Diagnose unexpected behaviour with causal hypotheses, discriminating tests, and fresh verification.",
     "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
 }
 
@@ -8638,10 +9921,10 @@ _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.p
 # The hook filters tool_name itself, so no matcher is needed in the config.
 _CLAUDE_FILE_TOUCH_COMMAND = "python3 .memory-seed/hooks/file-touch-decisions.py"
 
-# SessionStart orientation hook: routes agents through AGENTS.md and injects the
-# five newest session entries directly so agents do not lean on semantic search
-# (which can bury the newest entry) to establish current state. Fires once per
-# session, unlike the per-prompt reminder.
+# SessionStart orientation hook: routes agents through AGENTS.md, consumes the
+# shared situate report, and injects the measured direct-or-summarize route for
+# the whole latest session file. It never injects entry bodies or invokes a
+# model. Fires once per session, unlike the per-prompt reminder.
 _CLAUDE_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py"
 _CODEX_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --codex"
 _CURSOR_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --cursor"
@@ -8684,11 +9967,12 @@ _COPILOT_STARTUP_MARKER = "memory-seed:"
 _COPILOT_STARTUP_PROMPT = (
     "memory-seed: Before any work, locate the nearest applicable AGENTS.md by "
     "walking upward from the current directory, read it first, and follow every "
-    "instruction and routing path it defines. Then read the five newest applicable "
-    "entries directly from the latest .memory-seed/sessions/ files to establish "
-    "current project context. Do NOT use memory_search/semantic search to find the "
-    "most recent work - use it only for topical 'why was X decided / what do we "
-    "know about Y' questions."
+    "instruction and routing path it defines. Load .memory-seed/skills/orientation.md, "
+    "run memory-seed situate, and apply its measured latest-session context_route: "
+    "read the whole file when direct, or use the skill's read-only economy-worker "
+    "compression contract when summarize. Do NOT use memory_search to find the most "
+    "recent work - use it only for topical 'why was X decided / what do we know "
+    "about Y' questions."
 )
 
 BOOTSTRAP_GENERATED_FILES = [
@@ -10298,6 +11582,7 @@ def init_project(
         seed_file.destination
         for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
+        and seed_file.destination not in CORE_RETRIEVAL_PROFILE_DESTINATIONS
         and not _is_foreign_routing_file(target_root, seed_file)
     ]
 
@@ -10315,6 +11600,17 @@ def init_project(
 
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
+
+        # Core Retrieval Profiles are immutable, version-addressed project
+        # inputs. Install a missing exact version, but never replace an
+        # existing one (including under init --force). A future profile change
+        # publishes a new vN file; custom profile IDs are absent from SEED_FILES
+        # and therefore remain wholly project-owned.
+        if (
+            seed_file.destination in CORE_RETRIEVAL_PROFILE_DESTINATIONS
+            and destination.exists()
+        ):
+            continue
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
         # (holds even under --force — the point is non-destruction).
@@ -10692,16 +11988,41 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 }
             )
 
+    # Managed profiles are deploy-once rather than byte/version refreshed, so
+    # validate their exact identities with the same strict loader used by the
+    # compiler. Existing custom IDs are deliberately outside this inventory.
+    from .retrieval_profiles import (
+        RetrievalProfileValidationError,
+        load_retrieval_profile,
+    )
+    from .retrieval_spec import RetrievalSpecValidationError
+
+    profile_warnings: list[str] = []
+    for profile_id, profile_version in CORE_RETRIEVAL_PROFILES:
+        profile_path = target_root / _core_retrieval_profile_destination(
+            profile_id, profile_version
+        )
+        if not profile_path.is_file():
+            continue  # already reported through DoctorResult.missing above
+        try:
+            load_retrieval_profile(profile_id, profile_version, target_root)
+        except (RetrievalProfileValidationError, RetrievalSpecValidationError) as exc:
+            profile_warnings.append(
+                f"Managed retrieval profile {profile_id}:v{profile_version} is invalid: "
+                f"{exc}. Existing profile versions are immutable; repair this file "
+                "explicitly or add a new version rather than relying on update to overwrite it."
+            )
+
     bootstrap_missing = [
         path
         for path in BOOTSTRAP_GENERATED_FILES
         if not (target_root / path).exists()
     ]
 
-    control_plane_ok = not missing and not version_mismatches
+    control_plane_ok = not missing and not version_mismatches and not profile_warnings
     bootstrap_complete = not bootstrap_missing
 
-    warnings: list[str] = []
+    warnings: list[str] = list(profile_warnings)
     codex_status = _codex_mcp_status(target_root) if "codex" in selected else "absent"
     if "codex" in selected and (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
         warnings.append(

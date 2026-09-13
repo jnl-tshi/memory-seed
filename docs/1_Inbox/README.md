@@ -1,6 +1,27 @@
 # Inbox
 
-Status: **EMPTY 2026-07-29 — no documents of any kind remain**.
+- [Memory search parameter tuning and consistency](memory-search-parameter-tuning-and-consistency-plan.md)
+  — refined 2026-09-10 through discovery: establish consistency, measure current performance,
+  then evaluate component exclusion floors; includes staged capability allocation and review.
+
+Status: **13 documents awaiting or exempt from triage (2026-09-09)**. The two harness-engineering
+comparison lines retired to `7_Replaced/` this same day — see
+[`INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md). Four new
+proposals dated 2026-08-20 were found sitting in the shared checkout on 2026-08-21, captured, and
+assessed — see [`INBOX-ASSESSMENT-2026-08-20-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md).
+None of the four is promoted; the assessment recommends against building any of them as submitted.
+
+Two further proposals were captured on 2026-09-08 and remain explicitly unassessed: the Reflection
+Board cumulative-handoff/decision-harvest evolution and the ADR ledger evolution/reasoning-semantics
+plan. Their session decisions require assessment or independent review before promotion; neither is
+accepted implementation work.
+
+Four previously noisy Todo proposals were moved here on 2026-09-09 because their latest decisions
+explicitly leave them proposed, deferred, not built, or awaiting a shape/user decision: decision-level
+ranking A/B unit-change gate (`mse_fvqs26sdqbvcem9r`), retrieval recall fixes (`mse_dka59wfne2be5fr0`),
+editable lens refinement (`mse_zq69mbr57qnppm36`), and SkillOpt fit analysis (`mse_eap4caz71kggmf7h`).
+Decision-level topics is preserved in `8_Deferred/` under its explicit deferred disposition. These
+proposals remain preserved and discoverable, but are not presented as accepted roadmap work.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -10,9 +31,37 @@ untriaged captures.
 
 ## Current contents
 
-Nothing but this README. The Superpowers collaboration proposal was approved for implementation and promoted
-to [`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md)
-on 2026-07-29.
+- [`agent-interaction-storylines-review.md`](agent-interaction-storylines-review.md) — a **living** review of
+  every agent interaction storyline, kept synchronised with shipped behaviour. JNL explicitly recorded that it
+  stays in this lane rather than moving to `4_Reference/`, so it is an exemption from the triage rule above,
+  not an untriaged capture.
+- [`memory-seed-harness-gap-opportunity-report.md`](memory-seed-harness-gap-opportunity-report.md) — the
+  2026-08-13 synthesis of the (now-retired) Claude and Codex comparison lines into one ten-item
+  opportunity register (O1–O10). Its own status line still says no opportunity is accepted work; the
+  2026-08-21 assessment re-verified its claims against current HEAD and found no material drift, but its
+  §7 recommended decision sequence has not been confirmed as JNL's actual sequence. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md).
+- [`memory-seed-evidence-first-governed-retrieval-plan.md`](memory-seed-evidence-first-governed-retrieval-plan.md)
+  — promotion-ready synthesis of the four 2026-08-20 proposals and the Claude/Codex reviews. It proposes
+  one evidence programme: instrument governed retrieval, test the zero-generation D/R compression
+  baseline, then admit only execution-assurance gaps reproduced by negative controls. JNL explicitly
+  asked that it remain in the Inbox pending review; it is not approved work yet.
+- **Four proposals dated 2026-08-20** — `active-truth-execution-control-proposal.md`,
+  `memory-seed-first-principles-proposal.md`, `memory-seed-governed-interactive-retrieval-proposal.md`,
+  `semantic-compression-benchmark-proposal.md`. Found untracked in the shared root checkout on
+  2026-08-21, captured verbatim, and assessed the same day. None cited this repository's actual code or
+  prior triage decisions; the assessment found substantial overlap with already-shipped capability in
+  the two largest documents. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md)
+  for the full crosswalk and per-document recommendation. Not triaged (moved or retired) — assessed only.
+
+The warranty-claims ML project's file index that arrived here by mistake was assessed and moved to
+[`../4_Reference/warranty-file-structure-index.md`](../4_Reference/warranty-file-structure-index.md) on
+2026-08-13. It remains available as the source that informed Memory Seed's tree-first index format.
+
+The Inbox stood empty from 2026-07-29, when the Superpowers collaboration proposal was approved for
+implementation and promoted to
+[`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md).
 
 The two assessment artifacts and the design-reference folder that sat here after the 2026-07-20 triage
 were themselves reference material, not undecided captures — moved the same day to
@@ -28,6 +77,19 @@ were themselves reference material, not undecided captures — moved the same da
   — dashboard mockups for a warmer, more editorial Memory Trace design language. Its themes are already
   extracted and it is actively cited by a `2_Todo/` proposal, so it was triaged reference material sitting
   in the wrong lane, not a document still awaiting a decision.
+
+## Triaged out on 2026-08-21
+
+- **Both harness-engineering comparison lines → [`../7_Replaced/`](../7_Replaced/)**, pointing back at the
+  synthesis report ([`memory-seed-harness-gap-opportunity-report.md`](memory-seed-harness-gap-opportunity-report.md),
+  which stays in this lane — its own opportunities remain undispositioned). Retired rather than promoted:
+  the synthesis already folds each line's unique contributions (Claude's bottleneck/product reading and
+  Amdahl framing; Codex's owner-aware disposition and recorded-vs-measured evolution-loop framing) into
+  one opportunity register, so the README's earlier framing — "picking one or folding them together is
+  the outstanding decision" — was itself stale: the fold had already happened, just never recorded as the
+  resolution. See
+  [`../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md`](../4_Reference/INBOX-ASSESSMENT-2026-08-13-DROP.md)
+  for the full re-verification against current HEAD.
 
 ## Triaged out on 2026-07-20
 
@@ -49,5 +111,18 @@ were themselves reference material, not undecided captures — moved the same da
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
+| [active-truth-execution-control-proposal.md](active-truth-execution-control-proposal.md) | — | — | — |
+| [adr-ledger-evolution-and-reasoning-semantics-plan.md](adr-ledger-evolution-and-reasoning-semantics-plan.md) | P1 | — | Independently review the semantic model and decide whether to promote a revised plan to docs/2_… |
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
+| [memory-search-parameter-tuning-and-consistency-plan.md](memory-search-parameter-tuning-and-consistency-plan.md) | proposed | — | Review the experiment scope and adoption gates before promoting to Todo. |
+| [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo. |
+| [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |
+| [memory-seed-governed-interactive-retrieval-proposal.md](memory-seed-governed-interactive-retrieval-proposal.md) | — | — | — |
+| [memory-seed-harness-gap-opportunity-report.md](memory-seed-harness-gap-opportunity-report.md) | — | — | — |
+| [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
+| [reflection-board-cumulative-handoff-and-decision-harvest-proposal.md](reflection-board-cumulative-handoff-and-decision-harvest-proposal.md) | — | — | Assess the proposal against the current Reflection Board transaction contract before promotion … |
+| [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
+| [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
+| [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
+| [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
 <!-- docs-index:end -->

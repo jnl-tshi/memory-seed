@@ -60,8 +60,10 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "that already exists in a link sidecar may not be detected as a duplicate.",
     ),
     "cli.py": (
-        1,
-        "Identity lookup: finds one chunk by entry_id to read its text. No graph, no ranking.",
+        2,
+        "Two identity lookups, neither touching the graph or ranking: one finds a chunk by "
+        "entry_id to read its text, the other (_provenance_decision) finds a chunk by decision "
+        "chunk_id to project its first-hand D/R text.",
     ),
     "retrieval.py": (
         2,
@@ -73,13 +75,16 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "redundant, not corrective.",
     ),
     "esr.py": (
-        2,
+        3,
         "The topic-attribution reminder measures the DIFFERENCE between the two topic channels - "
         "decision-keyed `<slug>:dN` against entry-level - to count decisions where keying would add "
         "information. An augmenter merges those channels into one list, which is precisely the "
         "distinction being measured, so load_corpus would report zero gaps forever. The two calls "
         "are entry granularity (for entry-level topics) and decision granularity (for the decision "
-        "list); the sidecar channel is read separately via entry_topic_sidecars.",
+        "list); the sidecar channel is read separately via entry_topic_sidecars. The third call "
+        "feeds temporal-lineage tamper detection: it needs each decision's chunk_id, raw text "
+        "digest, source path, and claimed timestamp to catch history rewrites, none of which the "
+        "lifecycle/topic augmenters would add - an identity/digest read, not a graph traversal.",
     ),
 }
 

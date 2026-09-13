@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memory-seed"
-version = "2.20.0"
+version = "2.21.0"
 description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,6 +34,11 @@ memory-trace = "memory_trace.cli:main"
 # web-framework-free; `pip install "memory-seed[trace]"` enables the local
 # Memory Trace browser UI and the `memory-trace` command.
 trace = ["fastapi>=0.110", "uvicorn>=0.27"]
+# Test-only. `pytest -n auto` parallelizes the suite across worker processes -
+# measured 10:15 -> 4:07 wall-clock on 16 cores (1412 tests, mostly independent
+# git-subprocess/tempdir integration tests, no single pathological test
+# dominates runtime so distributing them beats optimizing any one of them).
+dev = ["pytest", "pytest-xdist"]
 
 [tool.setuptools]
 packages = ["memory_seed", "memory_trace"]
@@ -52,6 +57,10 @@ addopts = ["-p", "no:cacheprovider"]
 # sat on main from 2026-07-28 until the next push surfaced them. One line here means
 # `pytest` from the root runs what CI runs.
 pythonpath = ["memory-trace"]
+# Product verification is deliberately bounded. Frozen research instruments and
+# captured subject artifacts are runnable by explicit path, but must not make a
+# bare `pytest` collect duplicate test-module names from archival copies.
+testpaths = ["tests", "memory-trace/tests"]
 markers = [
   "integration: spawns real git subprocesses across a multi-step workflow (>=0.5s measured); run the fast loop with `pytest -m \"not integration\"`, full suite (default `pytest`) still runs everything.",
 ]
@@ -77,7 +86,14 @@ memory_seed = [
   "seed/.memory-seed/archive/.gitkeep",
   "seed/.memory-seed/project-bootstrap.md",
   "seed/.memory-seed/topics.yaml",
+  "seed/.memory-seed/retrieval-profiles/implementation/v1.yaml",
+  "seed/.memory-seed/retrieval-profiles/bug-investigation/v1.yaml",
+  "seed/.memory-seed/retrieval-profiles/research/v1.yaml",
+  "seed/.memory-seed/retrieval-profiles/adr-review/v1.yaml",
+  "seed/.memory-seed/retrieval-profiles/refactoring/v1.yaml",
+  "seed/.memory-seed/retrieval-profiles/architecture/v1.yaml",
   "seed/.memory-seed/skills/agent_collaboration.md",
+  "seed/.memory-seed/skills/adr_sweep.md",
   "seed/.memory-seed/skills/superpowers_integration.md",
   "seed/.memory-seed/skills/security_triage.md",
   "seed/.memory-seed/skills/copywriter-conversion.md",
@@ -94,11 +110,13 @@ memory_seed = [
   "seed/.memory-seed/skills/history_retrieval.md",
   "seed/.memory-seed/skills/link_swarm.md",
   "seed/.memory-seed/skills/local_compilation.md",
+  "seed/.memory-seed/skills/systematic_debugging.md",
   "seed/.memory-seed/skills/memory_consolidation.md",
   "seed/.memory-seed/skills/memory_doctor.md",
   "seed/.memory-seed/skills/memory_hygiene.md",
   "seed/.memory-seed/skills/office_document_editing.md",
   "seed/.memory-seed/skills/proposal_lifecycle.md",
+  "seed/.memory-seed/skills/design_discovery.md",
   "seed/.memory-seed/skills/release_publishing.md",
   "seed/.memory-seed/skills/risk_signaling.md",
   "seed/.memory-seed/skills/skill_architecture.md",

@@ -1,6 +1,6 @@
 ---
-format: memory-seed-adr/1
-schema_version: 1
+format: memory-seed-adr/2
+schema_version: 2
 adr_id: adr_windows_encoding_policy
 title: Encoding policy is owned by Memory Seed, with explicit check and repair tooling
 topics:
@@ -25,11 +25,11 @@ Authoritative decision: not yet accepted
 
 Encoding policy - UTF-8, LF, NFC normalisation - is owned by Memory Seed and never duplicated in Memory Trace. Explicit check and repair tooling validates files and reports normalisations safely; invalid UTF-8 and likely mojibake stay blocked for manual review rather than being repaired automatically.
 
-### Why
+### Reason
 
 Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NFC policy, exclusions and backup behaviour consistent rather than letting two copies drift. Automatic repair is rejected because the intended source characters cannot be inferred from corrupted bytes, so a repair would be a guess written as a correction.
 
-### How it evolved
+### Impact
 
 2026-07-07 implemented the encoding policy; 2026-07-08 added the encoding check slice, then confirmed Memory Seed as the single owner and added explicit check/repair tooling.
 
@@ -58,6 +58,7 @@ Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NF
   ],
   "decision_ref": "mse_74ddxsena9nj2afk:d1",
   "event_id": "adre_2a5a58f9b45b74563687",
+  "impact_provenance": "preserved",
   "source": "derived",
   "supporting_decisions": [
     "mse_76r59d5yxcqy0kb8:d2",
@@ -71,11 +72,11 @@ Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NF
 
 Encoding policy - UTF-8, LF, NFC normalisation - is owned by Memory Seed and never duplicated in Memory Trace. Explicit check and repair tooling validates files and reports normalisations safely; invalid UTF-8 and likely mojibake stay blocked for manual review rather than being repaired automatically.
 
-#### Why
+#### Reason
 
 Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NFC policy, exclusions and backup behaviour consistent rather than letting two copies drift. Automatic repair is rejected because the intended source characters cannot be inferred from corrupted bytes, so a repair would be a guess written as a correction.
 
-#### Evolution
+#### Impact
 
 2026-07-07 implemented the encoding policy; 2026-07-08 added the encoding check slice, then confirmed Memory Seed as the single owner and added explicit check/repair tooling.
 
@@ -85,11 +86,20 @@ Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NF
 {
   "decision_ref": "mse_74ddxsena9nj2afk:d1",
   "event_id": "adre_35ce1e497e0146dbc9b7",
+  "impact_provenance": "preserved",
   "source": "derived",
   "update_entry_id": "mse_cq88k8kb8k3wp1cb"
 }
 ```
 
+#### Decision
+
+Reject mse_74ddxsena9nj2afk:d1.
+
 #### Reason
 
 Duplicate concern. This record and adr_encoding_policy proposed the same head, mse_74ddxsena9nj2afk:d1, and state the same rule. adr_encoding_policy survives: it is referenced by two skills governing_adr, by index.md#L183 and by a diagram sidecar, and its id is the honest scope - UTF-8/LF/NFC is not Windows-specific. Rejected rather than superseded because a supersession retires an accepted head and this record never had one. Its supporting decisions were carried across; the manual-review-not-auto-repair clause and the prove-automation binding remain readable here until folded.
+
+#### Impact
+
+mse_74ddxsena9nj2afk:d1 is not adopted and the current authoritative decision remains unchanged.

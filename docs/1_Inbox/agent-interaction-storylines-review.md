@@ -1,6 +1,6 @@
 # Agent Interaction Storylines: process and tool review
 
-Status: Living document (updated 2026-08-10; kept true as storylines change)
+Status: Living document (updated 2026-08-13; kept true as storylines change)
 
 Every distinct way an agent interacts with Memory Seed, defined as a named **storyline**: what
 triggers it, the steps it walks, which tool surface carries each step (MCP / CLI / convention), a
@@ -22,8 +22,17 @@ parity pair. This refresh adds R13 from an observed integration false negative, 
 recorded commit-failure and safe-cleanup decisions. Recommendations in this document are trustworthy
 only once checked against recorded decisions, not on code reading alone.
 
-The [storyline gap tranche implementation plan](../2_Todo/storyline-gap-tranche-implementation-plan.md)
+The [storyline gap tranche implementation plan](../5_Completed/storyline-gap-tranche-implementation-plan.md)
 records the completed R5, R8, and R13 work and its validation evidence.
+
+**Key change context since the 2026-08-10 review.** Current files and tool registries remain the
+authority for what ships; the memory entries below supply the reasons and rejected alternatives
+behind the changed shape.
+
+| Storyline | Shipped change | Memory context |
+|---|---|---|
+| S0 BOOTSTRAP | Bootstrap now turns durable constraints into proposed founding ADRs, accepts only user-confirmed concerns after the first session records them, and keeps index/policy as thin projections over that authority. Bootstrap-generated indexes now lead with a purpose-annotated repository tree and a separately expanded `.memory-seed/` tree. | [`mse_p2dgz4af43dhxs4p:d1`](../../.memory-seed/sessions/2026-08/2026-08-11.md) records why bootstrap inference must not become policy; [`mse_vengxdppa52t2yhy:d1`](../../.memory-seed/sessions/2026-08/2026-08-13.md) records why visible hierarchy must precede tables and topology prose. |
+| S1 ORIENT | SessionStart now routes the whole latest session file by measured length: direct primary-context reading at or below 12,000 characters, otherwise a source-linked read-only economy-worker briefing of at most 800 tokens. | [`mse_fx1gm0x6p1sts4y2:d1`](../../.memory-seed/sessions/2026-08/2026-08-13.md) retires the five-entry, 1,500-character-cap behavior introduced in [`mse_m0xs623m4cs0kjag:d2`](../../.memory-seed/sessions/2026-07/2026-07-15.md): a fixed window could hide earlier work in the same session, while always reading long files or invoking a model inside the hook would make startup unnecessarily costly or less portable. |
 
 The nine storylines:
 
@@ -54,12 +63,36 @@ The nine storylines:
    the first session records it; an unconfirmed assumption remains proposed and non-governing.
 4. Detect an existing Constitution and declare its status; create one only when long-lived normative
    invariants justify it.
-5. Generate a thin authority map in the index and concise policy rules that link to accepted ADRs.
-6. Append the first session and validate doctor, topics, links, and ADRs.
+5. Generate the index with a purpose-annotated repository tree and a separately expanded
+   `.memory-seed/` tree immediately after `Purpose`. A small `Path | Purpose | Read when` table is
+   supplemental; topology prose follows only for relationships the trees cannot express.
+6. Keep the index's authority map and policy rules thin: link accepted ADRs for rationale, and show
+   proposed concerns as non-governing.
+7. Append the first session, accept only its user-confirmed founding ADRs, and validate doctor,
+   topics, links, and ADRs.
 
 **Tools:** bootstrap guide plus CLI `adr promote` (founding-source form), `adr transition`,
 `session append`, `doctor`, `topics check`, `links check`, and `adr check`. ADR head writes remain
 CLI-only by design.
+
+```mermaid
+flowchart TD
+    A["Inspect local evidence"] --> B["Classify durable<br/>future constraints"]
+    B --> C["Create proposed<br/>founding ADRs"]
+    C --> D["Generate tree-first index<br/>+ concise policy"]
+    D --> E["First session records<br/>confirmed choices"]
+    E -->|confirmed| F["Accept ADR head"]
+    E -->|unconfirmed| G["Keep ADR proposed"]
+    F --> H["Validate runtime"]
+    G --> H
+```
+
+**Evaluation.** Bootstrap now separates three jobs that dense onboarding prose used to blur:
+locating the project, establishing durable decision authority, and stating executable constraints.
+The two trees optimize first contact for humans and agents; the authority map, ADR heads, and policy
+then explain relationships and rules that a tree cannot. The recorded alternative â€” letting a
+table replace the hierarchy â€” was rejected because it makes individual paths scannable without
+making the project shape easy to grasp.
 
 ---
 
@@ -69,14 +102,19 @@ CLI-only by design.
 
 **Flow**
 
-1. SessionStart hook injects: nearest `AGENTS.md` routing and the five newest session entries (read
-   directly by date, never by search). The routed startup contract then directs the agent to the
-   skill registry; the hook does not inject the inventory itself.
-2. `situate` reports measured facts: which checkout this actually is (worktree identity is
-   measured, not declared), git branch + cleanliness, `integration_mode` / `merge_trigger`, newest
-   session entry, worktree roster, local version vs CHANGELOG state.
-3. Published version verified from PyPI (printed command; never assumed).
-4. If the session will write and this is the PRIMARY checkout: create an isolated worktree first.
+1. SessionStart directs the agent through the nearest `AGENTS.md` and `orientation.md`, then injects
+   the shared `situate` report's measured facts and latest applicable session-file route. It injects
+   no session bodies and never invokes a model.
+2. The route is mechanical: read the entire file directly at or below 12,000 characters; above the
+   boundary, ask one read-only economy worker to compress the entire file to an at-most-800-token,
+   source-linked briefing. If no suitable worker is available, read directly; split only at entry
+   boundaries when even the worker context cannot hold the source.
+3. `situate` reports which checkout this actually is (worktree identity is measured, not declared),
+   git branch + cleanliness, `integration_mode` / `merge_trigger`, latest-session size and route,
+   worktree roster, and local version vs CHANGELOG state.
+4. Published-version, roadmap, policy, Constitution, and ADR reads remain lazy until the task makes
+   them relevant. Before consequential reasoning from a compressed briefing, reopen its exact source.
+5. If the session will write and this is the PRIMARY checkout: create an isolated worktree first.
 
 **Tools**
 
@@ -90,13 +128,16 @@ CLI-only by design.
 
 ```mermaid
 flowchart TD
-    A["Session starts"] --> B["Hook: AGENTS.md route<br/>+ 5 newest entries"]
-    B --> C["CLI situate:<br/>checkout, git,<br/>mode, version"]
-    C --> D{"Primary checkout<br/>and will write?"}
-    D -- yes --> E["Create isolated<br/>worktree"]
-    D -- no --> F["Verify published<br/>version from PyPI"]
+    A["Session starts"] --> B["Hook: AGENTS.md route<br/>+ measured situate facts<br/>without session bodies"]
+    B --> C{"Whole latest file<br/>at most 12,000 chars?"}
+    C -- yes --> D["Primary reads<br/>the whole file"]
+    C -- no --> E["Read-only economy worker<br/>briefs the whole file<br/>in at most 800 tokens"]
+    D --> F["Brief user;<br/>exact source stays authoritative"]
     E --> F
-    F --> G["Oriented - read-only<br/>until work starts"]
+    F --> G{"Primary checkout<br/>and will write?"}
+    G -- yes --> H["Create isolated<br/>worktree"]
+    G -- no --> I["Begin task with<br/>lazy context reads"]
+    H --> I
 ```
 
 **Evaluation.** Solid: orientation is measured, not declared, and the hook makes recency-correct
@@ -106,6 +147,12 @@ the namespace-collision check `worktree`/`memory_worktree_guard` carry, and drop
 `WorktreeGuardStatus`'s and `branch_status`'s fields. There is no MCP twin for `situate`; an
 MCP-only agent still assembles orientation from the narrower posture reads. That broader orientation
 surface was outside R8's approved three read-only twins.
+
+The evolution is deliberate rather than cosmetic. The July five-entry window was a reasonable
+bounded-continuity improvement over a one-entry body, but it coupled context quality to entry count
+and could omit relevant earlier work from the same session. The measured whole-file route instead
+couples compression to actual source size, keeps the hook model-free and network-free, and requires
+any derived briefing to cite its coverage and yield to the exact entry when reasoning matters.
 
 ---
 
@@ -504,23 +551,62 @@ inside `session merge-branch`'s post-merge step; what remains is an honestly-sur
 
 ---
 
+## S9 REFLECT — govern a temporary Reflection Board v1 chain
+
+**Trigger:** a reviewed plan needs a temporary, branch-scoped implementation/review chain that must be
+inspectable, independently validated, and either promoted or closed before its governed retention expiry.
+
+The public workflow is **implemented in the current source tree**: one sequential v1 ledger, trusted
+Git-history reader, shared CLI/MCP facade, kernel transaction writer, ESR projection, hook admission,
+and live/Seed runbooks. The first real board and launch evaluation remain **planned**; a disposable fixture
+does not establish either. The [operator guide](../4_Reference/reflection-board-v1-operator-guide.md)
+is the current command and recovery reference.
+
+| Ordered step | Implemented surface and gate |
+| --- | --- |
+| Bootstrap trust before the ledger base | CLI-only `reflection trust init` preview/apply on the integration/default branch |
+| Initialize one branch-owned ledger | `reflection ledger init` / MCP parity; usable public retention is seven days |
+| Append planner, implementer, reviewer, and orchestrator records | `reflection ledger append` / MCP parity, sequential phase ownership and required independent review |
+| Inspect health and all active candidates | `reflection ledger check` / `view`, `reflection board view`, read-only ESR |
+| Integrate and transfer effective ownership | Existing guarded integration, then local `rebind`; PR mode uses CLI `prepare` before integration and CLI/MCP `finalize` afterward |
+| Prepare receipts and close | Close preview drafts exact ordinary-session mappings; commit coverage, then apply close |
+| Finalize close receipts | `closed_receipts_pending` clears only after a new ordinary entry receipts the close member and closure outcome |
+| Expire an eligible chain | CLI/MCP `expire` validates authenticated elapsed retention; one CAS publishes cleanup plus an ordinary compaction receipt |
+
+**Limits and evaluation.** Unsupported/malformed reserved candidates remain visible, and hooks refuse
+manual reserved mutations through the same admission facade. Local/PR rebind requires an exact
+two-parent same-repository merge and live source tip. A finalize failure after claiming the handoff
+consumes it; automatic post-merge recovery is unavailable. Trust anchors are immutable at the ledger
+base; legacy pre-proof close is readable but non-expirable. The local host account, clock, and key are
+trusted, and the pure-Python signer is not constant-time. Expiry is not cryptographic erasure.
+Retention-extension authoring is planned; early expiry and key rotation/recovery are unavailable.
+The first-board evaluation must still validate the real workflow before a launch claim.
+
+---
+
 ## Cross-cutting: tool inventory by storyline
 
-**MCP (23):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
+**MCP (37):** `memory_search`, `memory_get_chunk`, `memory_retrieval_spec_preview/_resolve`,
 `memory_links_chain` (S2);
 `memory_session_append`, `memory_link_suggest`, `memory_topics_list/_check`, `memory_topic_inspect`,
 `memory_adr_review` (S3); `memory_link_show`, `memory_link_retract` (S2/S4/S5); `memory_adr_show`,
 `memory_adrs_list`, `memory_adr_reviewed`, `memory_adrs_check` (S6); `memory_branch_status`,
 `memory_worktree_guard`,
 `memory_session_fuse_preview`, `memory_session_integrate` (S1/S8); `memory_link_audit` (S4);
-`memory_esr` (S7). (`memory_dir` is a `Runtime`
-dataclass field in `memory_seed/core.py`, not a tool — it was previously miscounted into this list;
-the true registry (`TOOLS` in `memory_seed/mcp_server.py`) holds these 23 and no more.)
+`memory_esr` (S7); `memory_reflection_board_view` and
+`memory_reflection_ledger_view/check/init/append/close/rebind/finalize/expire` (S9; slash groups
+abbreviate separate tools). Cross-cutting packet/provenance tools are
+`memory_task_packet_preview`, `memory_task_packet_compile`, `memory_decision_provenance`,
+`memory_decision_provenance_bind`, and `memory_decision_provenance_check`.
+`memory_dir` is a `Runtime` field, not a tool; the current source registry is
+`TOOLS` in `memory_seed/mcp_server.py`.
 
 **CLI (agent-facing subset):** `situate`, `compact`, `branch`, `worktree` (S1); `retrieval-spec`,
 `links chain` (S2); `session append`, `topics list/check/suggest` (S3); `link audit/suggest/add/
 retract/show/commits`, `links check/graph-diff` (S4/S5); `adr promote/revise/transition/show/list/
-reviewed/check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8).
+reviewed/check` (S6); `esr`, `docs check/index`, `quality`, `ranking-ab` (S7); `session merge-branch` (S8);
+`reflection trust init`, `reflection ledger init/append/view/check/close/rebind/prepare/finalize/expire`,
+`reflection board view` (S9).
 Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `migrate`, `encoding`,
 `doctor`, `version`, `help`, `processes`, `shutdown`) sit outside the storylines.
 
@@ -542,6 +628,10 @@ Setup/maintenance (`init`, `update`, `upgrade`, `agents`, `skills`, `hooks`, `mi
 | Standalone reviewed-no-change | ✓ | ✓ |
 | ESR report | ✓ | ✓ (`--json` now carries both ADR queues — see R7) |
 | Merge / integrate | ✓ | ✓ |
+| Reflection board / ledger view and check | ✓ | ✓ |
+| Reflection init / append / close / elapsed expiry | ✓ | ✓ |
+| Reflection local rebind / PR finalize | ✓ | ✓ |
+| Reflection trust bootstrap / PR prepare | — (CLI-only) | ✓ |
 
 ---
 

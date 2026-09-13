@@ -21,11 +21,9 @@ in-context snapshot:
 - version: the LOCAL ``pyproject`` version and whether ``CHANGELOG.md`` carries a
   non-empty ``## Unreleased`` section - reported as neutral facts, not a verdict
 
-The authoritative *published* version check (PyPI) deliberately lives in the
-orientation routine (``.memory-seed/skills/orientation.md``) and the per-agent
-command shims, NOT here: this keeps the CLI network-free (fast, offline-safe,
-trivially testable, like ``esr``). "Verify, don't assume" is satisfied by the
-routine reading ground truth; it does not require the CLI to fetch it.
+The authoritative *published* version check (PyPI) remains outside this command:
+release/version tasks invoke it from the orientation routine, while ordinary
+startup stays network-free, fast, and offline-safe.
 """
 
 from __future__ import annotations
@@ -36,10 +34,12 @@ from pathlib import Path
 from typing import Any
 
 from .core import (
+    CommitCadence,
     iter_session_documents,
     read_integration_mode,
     read_merge_trigger,
     resolve_runtime,
+    session_target,
     worktree_guard,
 )
 from .esr import WorktreePosture, _git_lines, _integration_ref, _worktree_posture
@@ -47,6 +47,17 @@ from .esr import WorktreePosture, _git_lines, _integration_ref, _worktree_postur
 _ENTRY_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.+?)\s*$", re.MULTILINE)
 _PYPROJECT_VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
 _PYPROJECT_NAME_RE = re.compile(r'^name\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
+
+# Deterministic, tokenizer-independent routing boundary for startup context.
+# The host agent applies the route; situate never invokes a model or network.
+SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS = 12_000
+
+
+@dataclass(frozen=True)
+class SessionContributor:
+    path: str
+    user: str
+    entries: int
 
 
 @dataclass
@@ -63,12 +74,21 @@ class SituateReport:
     merge_trigger: str = "automatic"
     newest_session_path: str | None = None
     newest_session_date: str | None = None
+    newest_session_user: str | None = None
     newest_entry: str | None = None
+    newest_session_characters: int | None = None
+    newest_session_bytes: int | None = None
+    newest_session_entries: int | None = None
+    newest_session_read_error: str | None = None
+    compression_threshold_characters: int = SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS
+    context_route: str | None = None
+    session_contributors: list[SessionContributor] = field(default_factory=list)
     worktrees_available: bool = False
     worktrees: list[WorktreePosture] = field(default_factory=list)
     local_version: str | None = None
     changelog_unreleased: bool | None = None
     is_memory_seed_repo: bool = False
+    cadence: CommitCadence | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,7 +110,18 @@ class SituateReport:
             "newest_session": {
                 "path": self.newest_session_path,
                 "date": self.newest_session_date,
+                "user": self.newest_session_user,
                 "entry": self.newest_entry,
+                "characters": self.newest_session_characters,
+                "bytes": self.newest_session_bytes,
+                "entries": self.newest_session_entries,
+                "read_error": self.newest_session_read_error,
+                "compression_threshold_characters": self.compression_threshold_characters,
+                "context_route": self.context_route,
+                "contributors": [
+                    {"path": item.path, "user": item.user, "entries": item.entries}
+                    for item in self.session_contributors
+                ],
             },
             "worktrees": {
                 "available": self.worktrees_available,
@@ -111,6 +142,7 @@ class SituateReport:
                 "changelog_unreleased": self.changelog_unreleased,
                 "is_memory_seed_repo": self.is_memory_seed_repo,
             },
+            "cadence": self.cadence.to_dict() if self.cadence is not None else None,
         }
 
 
@@ -137,27 +169,95 @@ def _git_state(root: Path) -> tuple[bool, str | None, int | None, int | None, st
     return True, branch, dirty, ahead, ahead_ref
 
 
-def _newest_session(memory_dir: Path) -> tuple[str | None, str | None, str | None]:
-    """(path, date, last-entry-heading) for the newest session document, or all None."""
-    docs = list(iter_session_documents(memory_dir / "sessions"))
+def _relative_session_path(path: Path, memory_dir: Path) -> str:
+    try:
+        return path.relative_to(memory_dir.parent).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _entry_count(path: Path) -> int:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return 0
+    return len(_ENTRY_HEADING_RE.findall(text))
+
+
+def _newest_session(
+    memory_dir: Path,
+    *,
+    active_user: str | None,
+) -> tuple[
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    int | None,
+    int | None,
+    int | None,
+    str | None,
+    str | None,
+    list[SessionContributor],
+]:
+    """Return latest applicable session measurements and co-contributor facts."""
+    all_docs = list(iter_session_documents(memory_dir / "sessions"))
+    docs = [doc for doc in all_docs if doc.user == active_user]
     if not docs:
-        return None, None, None
-    # Newest by session date, then by path so the pick is deterministic on ties.
+        return (None, None, active_user, None, None, None, None, None, None, [])
+
     newest = max(docs, key=lambda d: (d.session_date, str(d.path)))
     entry: str | None = None
+    characters: int | None = None
+    byte_count: int | None = None
+    entry_count: int | None = None
+    read_error: str | None = None
+    route: str | None = None
     try:
-        text = Path(newest.path).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        text = ""
-    matches = list(_ENTRY_HEADING_RE.finditer(text))
-    if matches:
-        ts, title = matches[-1].groups()
-        entry = f"{ts} - {title}"
-    try:
-        rel = Path(newest.path).relative_to(memory_dir.parent).as_posix()
-    except ValueError:
-        rel = str(newest.path)
-    return rel, newest.session_date, entry
+        raw = newest.path.read_bytes()
+        byte_count = len(raw)
+        text = raw.decode("utf-8")
+        characters = len(text)
+        matches = list(_ENTRY_HEADING_RE.finditer(text))
+        entry_count = len(matches)
+        if matches:
+            ts, title = matches[-1].groups()
+            entry = f"{ts} - {title}"
+        route = (
+            "direct"
+            if characters <= SESSION_CONTEXT_COMPRESSION_THRESHOLD_CHARS
+            else "summarize"
+        )
+    except UnicodeDecodeError:
+        read_error = "invalid UTF-8"
+    except OSError as exc:
+        read_error = f"unreadable: {exc.__class__.__name__}"
+
+    contributors: list[SessionContributor] = []
+    if active_user is not None:
+        for doc in all_docs:
+            if doc.session_date != newest.session_date or doc.user in (None, active_user):
+                continue
+            contributors.append(
+                SessionContributor(
+                    path=_relative_session_path(doc.path, memory_dir),
+                    user=doc.user,
+                    entries=_entry_count(doc.path),
+                )
+            )
+    contributors.sort(key=lambda item: (item.user, item.path))
+    return (
+        _relative_session_path(newest.path, memory_dir),
+        newest.session_date,
+        newest.user,
+        entry,
+        characters,
+        byte_count,
+        entry_count,
+        read_error,
+        route,
+        contributors,
+    )
 
 
 def _local_version(root: Path) -> tuple[str | None, bool]:
@@ -198,7 +298,7 @@ def _changelog_unreleased(root: Path) -> bool | None:
     return False
 
 
-def situate_report(cwd: str | Path = ".") -> SituateReport:
+def situate_report(cwd: str | Path = ".", *, explicit_user: str | None = None) -> SituateReport:
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
     report = SituateReport()
@@ -216,6 +316,7 @@ def situate_report(cwd: str | Path = ".") -> SituateReport:
     report.checkout_classification = guard.classification
     report.checkout_path = str(guard.worktree_path) if guard.worktree_path else None
     report.repo_root = str(guard.repo_root) if guard.repo_root else None
+    report.cadence = guard.cadence
     report.integration_mode = read_integration_mode(root)
     report.merge_trigger = read_merge_trigger(root)
     (
@@ -225,9 +326,19 @@ def situate_report(cwd: str | Path = ".") -> SituateReport:
         report.ahead,
         report.ahead_ref,
     ) = _git_state(root)
-    report.newest_session_path, report.newest_session_date, report.newest_entry = _newest_session(
-        runtime.memory_dir
-    )
+    active_user = session_target(cwd, explicit_user=explicit_user, create=False).user
+    (
+        report.newest_session_path,
+        report.newest_session_date,
+        report.newest_session_user,
+        report.newest_entry,
+        report.newest_session_characters,
+        report.newest_session_bytes,
+        report.newest_session_entries,
+        report.newest_session_read_error,
+        report.context_route,
+        report.session_contributors,
+    ) = _newest_session(runtime.memory_dir, active_user=active_user)
     report.worktrees_available, report.worktrees = _worktree_posture(root)
     report.local_version, report.is_memory_seed_repo = _local_version(root)
     report.changelog_unreleased = _changelog_unreleased(root)
@@ -271,6 +382,24 @@ def format_situate_report(report: SituateReport) -> str:
             lines.append(f"- {report.ahead} commit(s) ahead of {report.ahead_ref}")
     lines.append("")
 
+    lines.append("## Checkpoint cadence")
+    if report.cadence is None or not report.cadence.available:
+        lines.append(
+            "Cadence measurements are unavailable: "
+            f"{report.cadence.recommendation if report.cadence else 'no Git worktree.'}"
+        )
+    else:
+        metrics = report.cadence
+        lines.append(
+            "- branch delta: "
+            f"{metrics.entries} entries / {metrics.decisions} decisions / "
+            f"{metrics.files} files / {metrics.churn} lines of churn"
+        )
+        for warning in metrics.warnings:
+            lines.append(f"- {warning}")
+        lines.append(f"- {metrics.recommendation}")
+    lines.append("")
+
     lines.append("## Integration mode")
     if report.integration_mode == "pr":
         lines.append("pr — integrate via push + pull request (push authorized for that flow).")
@@ -288,7 +417,33 @@ def format_situate_report(report: SituateReport) -> str:
     else:
         lines.append(f"- {report.newest_session_path}")
         lines.append(f"  last entry: {report.newest_entry or '(no entries yet)'}")
-        lines.append("  Read this file directly for current state — do not rely on memory_search for 'latest'.")
+        if report.newest_session_read_error:
+            lines.append(f"  session context: unavailable ({report.newest_session_read_error})")
+        else:
+            lines.append(
+                "  size: "
+                f"{report.newest_session_characters} characters / "
+                f"{report.newest_session_bytes} bytes / "
+                f"{report.newest_session_entries} entries"
+            )
+            lines.append(
+                "  context route: "
+                f"{report.context_route} "
+                f"(summarize when > {report.compression_threshold_characters} characters)"
+            )
+            if report.context_route == "direct":
+                lines.append("  Read the entire file directly for current state.")
+            elif report.context_route == "summarize":
+                lines.append(
+                    "  Follow `orientation.md`: use one read-only economy worker "
+                    "to summarize the entire file."
+                )
+        lines.append("  Do not rely on memory_search for 'latest'; use it only for topical history.")
+        if report.session_contributors:
+            lines.append(f"  co-contributors on {report.newest_session_date}:")
+            for contributor in report.session_contributors:
+                noun = "entry" if contributor.entries == 1 else "entries"
+                lines.append(f"  - {contributor.path} ({contributor.entries} {noun})")
     lines.append("")
 
     lines.append("## Version")
