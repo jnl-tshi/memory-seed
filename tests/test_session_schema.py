@@ -449,6 +449,22 @@ class SessionSchemaTests(unittest.TestCase):
             ):
                 self.assertIn(phrase, content, f"{name} is missing {phrase!r}")
 
+    def test_decision_origin_guidance_is_seeded_in_parity(self):
+        live = Path(".memory-seed/skills/session_logging.md")
+        seed = Path("memory_seed/seed/.memory-seed/skills/session_logging.md")
+
+        self.assertEqual(live.read_bytes(), seed.read_bytes())
+        content = live.read_text(encoding="utf-8")
+        for phrase in (
+            '"origin": "agent"',
+            "origin` is required",
+            "direct user instruction, answer, or correction",
+            "implementation, investigation, testing, or review",
+            "decision_origins:",
+            "Older entries without that field remain valid",
+        ):
+            self.assertIn(phrase, content)
+
     def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
 

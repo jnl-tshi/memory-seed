@@ -2469,6 +2469,88 @@ def check_entry_format(text: str) -> list[tuple[str, str]]:
     return _walk_entry_bodies(text, entry_body_format_issues)
 
 
+def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
+    """Validate optional generated decision-origin metadata.
+
+    Older entries predate this field, so its absence is intentionally silent.
+    Once declared, it must cover exactly the entry's DRAFT decisions and use
+    the closed ``user|agent`` tag.
+    """
+    body_ordinals: dict[str, set[str]] = {}
+    for entry_id, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+        body_ordinals.setdefault(entry_id, set()).add(ordinal)
+
+    issues: list[tuple[str, str]] = []
+    for block in _ENTRY_TS_YAML_RE.finditer(text):
+        yaml_block = block.group(2)
+        id_match = _ENTRY_ID_RE.search(yaml_block)
+        if not id_match:
+            continue
+        entry_id = id_match.group(1)
+        lines = yaml_block.splitlines()
+        try:
+            start = next(
+                index
+                for index, line in enumerate(lines)
+                if re.match(r"^decision_origins\s*:", line)
+            )
+        except StopIteration:
+            continue
+
+        if lines[start].strip() != "decision_origins:":
+            issues.append(
+                (
+                    entry_id,
+                    "decision_origins must be a block mapping with indented 'dN: user|agent' entries",
+                )
+            )
+            continue
+
+        mapping_lines: list[str] = []
+        for line in lines[start + 1 :]:
+            if line and not line[0].isspace():
+                break
+            mapping_lines.append(line)
+
+        origins: dict[str, str] = {}
+        for line in mapping_lines:
+            if not line.strip():
+                continue
+            match = re.fullmatch(r"\s{2}(d[1-9][0-9]*):\s*(\S+)\s*", line)
+            if not match:
+                issues.append(
+                    (
+                        entry_id,
+                        "decision_origins must contain indented 'dN: user|agent' entries",
+                    )
+                )
+                continue
+            ordinal, origin = match.groups()
+            if ordinal in origins:
+                issues.append((entry_id, f"decision_origins repeats {ordinal}"))
+            origins[ordinal] = origin
+            if origin not in {"user", "agent"}:
+                issues.append(
+                    (entry_id, f"decision_origins.{ordinal} must be 'user' or 'agent'")
+                )
+
+        expected = body_ordinals.get(entry_id, set())
+        missing = sorted(expected - set(origins), key=lambda item: int(item[1:]))
+        unexpected = sorted(set(origins) - expected, key=lambda item: int(item[1:]))
+        if missing:
+            issues.append(
+                (entry_id, "decision_origins is missing " + ", ".join(missing))
+            )
+        if unexpected:
+            issues.append(
+                (
+                    entry_id,
+                    "decision_origins names no body decision: " + ", ".join(unexpected),
+                )
+            )
+    return issues
+
+
 def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
     """Return ``(entry_id, issue)`` pairs for entries whose ``​```yaml`` metadata
     block is opened but never closed.
@@ -2694,6 +2776,9 @@ def check_session_links(
         # runs links check. Structural only; see entry_body_format_issues.
         for entry_id, issue in check_entry_format(text):
             issues.append(LinkIssue(rel, "malformed-entry-format", f"{entry_id}: {issue}"))
+
+        for entry_id, issue in check_entry_decision_origins(text):
+            issues.append(LinkIssue(rel, "malformed-decision-origin", f"{entry_id}: {issue}"))
 
         # Advisory, never an error: a well-formed entry can still be worth
         # splitting. Batching milestones is a judgement call, so this prompts
@@ -4254,6 +4339,9 @@ class _DecisionSidecarWrite:
     """Validated, decision-scoped payload ready for sidecar rendering."""
 
     decision: str
+    # Attribution is stored with the entry rather than a sidecar: it answers
+    # who caused the decision, not how it is indexed or evidenced in Git.
+    origin: str | None
     topics: tuple[str, ...]
     related_entries: tuple[str, ...]
     replaces: tuple[str, ...]
@@ -4315,6 +4403,14 @@ def _normalise_decision_sidecars(
             issues.append(f"decisions[{index}].decision '{decision}' appears more than once")
             continue
         seen_decisions.add(decision)
+
+        origin = raw.get("origin")
+        if origin is not None and (
+            not isinstance(origin, str) or origin not in {"user", "agent"}
+        ):
+            issues.append(
+                f"decisions[{index}].origin must be 'user' or 'agent' when supplied"
+            )
 
         raw_topics = raw.get("topics", {})
         if raw_topics is None:
@@ -4566,6 +4662,11 @@ def _normalise_decision_sidecars(
         normalised.append(
             _DecisionSidecarWrite(
                 decision=decision,
+                origin=(
+                    origin
+                    if isinstance(origin, str) and origin in {"user", "agent"}
+                    else None
+                ),
                 topics=tuple(canonical_topics),
                 related_entries=rendered_links["related_entries"],
                 replaces=rendered_links["replaces"],
@@ -5003,6 +5104,19 @@ def session_append_entry(
     ]
     if resolved_branch:
         yaml_lines.append(f"branch: {resolved_branch}")
+    supplied_origins = [decision.origin for decision in decision_writes]
+    if any(origin is not None for origin in supplied_origins):
+        covered_ordinals = {decision.decision for decision in decision_writes}
+        if any(origin is None for origin in supplied_origins) or covered_ordinals != own_ordinals:
+            issues.append(
+                "decision origins must cover every body decision when any origin is supplied"
+            )
+        else:
+            yaml_lines.append("decision_origins:")
+            yaml_lines.extend(
+                f"  {decision.decision}: {decision.origin}"
+                for decision in decision_writes
+            )
     for key, values in (
         ("topics", canonical_topics),
         ("related_entries", list(related_entries)),

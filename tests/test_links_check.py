@@ -153,6 +153,27 @@ class LinksCheckTests(unittest.TestCase):
         self.assertTrue(fmt_issues)
         self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
 
+    def test_links_check_classifies_declared_decision_origin_failures(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        text = (
+            "## 2026-06-02 09:00 - Bad origin\n\n"
+            "```yaml\nentry_id: ms-bbbbbbbb\ndecision_origins:\n  d1: review\n```\n\n"
+            "### Decisions\n\n#### D1 - Keep provenance\n\n"
+            "- D: Keep provenance.\n- R: Attribution matters.\n"
+        )
+        (sessions / "2026-06-02.md").write_text(text, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        origin_issues = [
+            issue for issue in result.issues if issue.kind == "malformed-decision-origin"
+        ]
+        self.assertEqual(len(origin_issues), 1)
+        self.assertIn("decision_origins.d1", origin_issues[0].detail)
+
     def test_links_check_flags_an_unclosed_metadata_fence(self):
         # The exact shape a bad three-way merge left in the corpus: git anchored
         # on the line-identical `topics:`/`related_entries:` run every entry

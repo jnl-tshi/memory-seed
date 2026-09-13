@@ -65,6 +65,7 @@ topics:
             "decisions": [
                 {
                     "decision": "d1",
+                    "origin": "agent",
                     "topics": {"area": "schema", "activity": "feature-build"},
                 }
             ],
@@ -89,7 +90,26 @@ topics:
         self.assertIn("## 2026-06-13 09:00 - Gated append", written)
         self.assertIn(result["entry_id"], written)
         self.assertNotIn("agent_name:", written)
+        self.assertIn("decision_origins:\n  d1: agent", written)
         self.assertIn("- D: Ship the gated append path.", written)
+
+    def test_user_origin_is_written_as_generated_entry_metadata(self):
+        result = self._append(
+            decisions=[
+                {
+                    "decision": "d1",
+                    "origin": "user",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ],
+            _now="2026-06-13 09:00",
+        )
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertIn(
+            "decision_origins:\n  d1: user",
+            Path(result["path"]).read_text(encoding="utf-8"),
+        )
 
     def test_lifecycle_edges_arrive_as_arrays_not_csv(self):
         # The target (BODY) is single-decision, so the evolves ref stays BARE -
@@ -102,6 +122,7 @@ topics:
             decisions=[
                 {
                     "decision": "d1",
+                    "origin": "agent",
                     "topics": {"area": "schema", "activity": "feature-build"},
                     "links": {
                         "related_entries": [first["entry_id"]],
@@ -129,6 +150,7 @@ topics:
             "decisions": [
                 {
                     "decision": "d1",
+                    "origin": "agent",
                     "topics": {"area": "schema", "activity": "feature-build"},
                     "links": {"evolves": [{"ref": older["entry_id"], "type": "refines", "why": "test fixture edge"}]},
                 }
@@ -239,6 +261,7 @@ topics:
         decisions = [
             {
                 "decision": "d1",
+                "origin": "agent",
                 "topics": {"area": "schema", "activity": "feature-build"},
                 "links": {
                     "evolves": [
@@ -249,6 +272,7 @@ topics:
             },
             {
                 "decision": "d2",
+                "origin": "agent",
                 "topics": {"area": "schema", "activity": "feature-build"},
             },
         ]
@@ -290,6 +314,7 @@ topics:
                 _now="2026-06-13 09:00",
                 decisions=[{
                     "decision": "d1",
+                    "origin": "agent",
                     "topics": {"area": "schema", "activity": "feature-build"},
                     "links": {"related_entries": [earlier["entry_id"]]},
                 }],
@@ -362,9 +387,39 @@ topics:
         self.assertTrue(any("decisions is required" in issue for issue in result["issues"]))
         self.assertEqual(self._session_files(), [])
 
+    def test_missing_origin_is_refused_before_any_write(self):
+        result = self._append(
+            decisions=[
+                {"decision": "d1", "topics": {"area": "schema", "activity": "feature-build"}}
+            ]
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("origin is required" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
+    def test_invalid_origin_is_refused_before_any_write(self):
+        result = self._append(
+            decisions=[
+                {
+                    "decision": "d1",
+                    "origin": "review",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ]
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("origin is required" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
     def test_missing_area_is_refused_before_any_write(self):
         result = self._append(
-            decisions=[{"decision": "d1", "topics": {"activity": "feature-build"}}]
+            decisions=[
+                {"decision": "d1", "origin": "agent", "topics": {"activity": "feature-build"}}
+            ]
         )
 
         self.assertFalse(result["ok"])
@@ -374,7 +429,7 @@ topics:
 
     def test_missing_activity_is_refused_before_any_write(self):
         result = self._append(
-            decisions=[{"decision": "d1", "topics": {"area": "schema"}}]
+            decisions=[{"decision": "d1", "origin": "agent", "topics": {"area": "schema"}}]
         )
 
         self.assertFalse(result["ok"])
@@ -388,6 +443,7 @@ topics:
             decisions=[
                 {
                     "decision": "d1",
+                    "origin": "agent",
                     "topics": {"area": "schema", "activity": "feature-build"},
                 }
             ],
@@ -548,7 +604,10 @@ class McpWriteSurfaceTests(unittest.TestCase):
 
         self.assertIn("decisions", schema["required"])
         self.assertEqual(decision["minItems"], 1)
-        self.assertEqual(decision["items"]["required"], ["decision", "topics"])
+        self.assertEqual(decision["items"]["required"], ["decision", "origin", "topics"])
+        self.assertEqual(
+            decision["items"]["properties"]["origin"]["enum"], ["user", "agent"]
+        )
         self.assertEqual(topics["required"], ["area", "activity"])
         self.assertEqual(topics["properties"]["activity"]["oneOf"][1]["minItems"], 1)
         self.assertNotIn("agent_name", schema["properties"])
