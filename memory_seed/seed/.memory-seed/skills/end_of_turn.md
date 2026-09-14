@@ -31,7 +31,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
    `.memory-seed/index.md` under `## Active State` in the same turn, because an entry body
    has no home for a fact with no `R:`.
 3. Append the session entry to the active session target before doing other closeout work. Use
-   `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels,
+   `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFTS labels,
    `related_entries`, timestamp, and append-only rules.
 4. If the entry has a decision-diagram positive trigger from `session_logging.md` (branch or merge
    topology, migration, schema/layout compatibility flow, multi-agent concurrency, command lifecycle,

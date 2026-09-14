@@ -153,6 +153,27 @@ class LinksCheckTests(unittest.TestCase):
         self.assertTrue(fmt_issues)
         self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
 
+    def test_links_check_warns_for_missing_drafts_source(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        entry = (
+            "## 2026-06-01 09:00 - Source\n\n"
+            "```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decisions\n\n#### D1 - cite\n\n"
+            "- D: record the source\n- R: provenance matters\n"
+            "- S: Proposal `docs/missing.md`\n"
+        )
+        (sessions / "2026-06-01.md").write_text(entry, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        warnings = [issue for issue in result.issues if issue.kind == "missing-entry-source"]
+        self.assertTrue(result.ok)
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].severity, "warning")
+        self.assertIn("docs/missing.md", warnings[0].detail)
+
     def test_links_check_classifies_declared_decision_origin_failures(self):
         cwd = self.make_project()
         sessions = cwd / MEMORY_DIR_NAME / "sessions"

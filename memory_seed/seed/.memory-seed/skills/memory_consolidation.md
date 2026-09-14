@@ -26,7 +26,7 @@ Use this skill when compacting session history, reviewing recent work, or promot
 - sessions preserve reason and tradeoffs.
 - index.md receives only durable current conclusions.
 - policy.md receives only durable behavioral constraints.
-- Preserve DRAFT decision records in sessions.
+- Preserve DRAFTS decision records in sessions.
 - Do not copy full reason into index.md unless a short reason note is needed to prevent likely misuse.
 - Preserve alternatives, rejected paths, inferred reason, and unknown-reason markers in session history.
 

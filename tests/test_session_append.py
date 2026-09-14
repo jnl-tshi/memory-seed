@@ -76,6 +76,21 @@ class SessionAppendTests(unittest.TestCase):
         self.assertIn("- D: Something durable.", text)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
+    def test_append_validates_drafts_sources_before_writing(self):
+        proposal = self.cwd / "docs" / "proposal.md"
+        proposal.parent.mkdir()
+        proposal.write_text("# Proposal\n", encoding="utf-8")
+        valid = self._append(body=BODY + "\n- S: Proposal `docs/proposal.md`\n", dry_run=True)
+        missing = self._append(
+            body=BODY + "\n- S: Proposal `docs/missing.md`\n",
+            title="Missing source",
+            dry_run=True,
+        )
+
+        self.assertTrue(valid.ok, valid.issues)
+        self.assertFalse(missing.ok)
+        self.assertTrue(any("body sources" in issue and "missing file" in issue for issue in missing.issues))
+
     def test_internal_mutation_receipts_include_exact_new_per_user_frontmatter(self):
         receipts = []
         result = self._append(explicit_user="jean", _mutation_observer=receipts.append)
@@ -721,7 +736,7 @@ topics:
         self.assertNotIn("Late-clock entry", result.path.read_text(encoding="utf-8"))
 
     def test_malformed_body_is_refused(self):
-        # The tool owns structure: a DRAFT body with bare labels and no section
+        # The tool owns structure: a DRAFTS body with bare labels and no section
         # heading is rejected before anything is written, with a fix message.
         result = self._append(body="D: bare, unbulleted label\nR: no heading either")
 

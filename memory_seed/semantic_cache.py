@@ -4,6 +4,7 @@ import hashlib
 import math
 from collections import Counter
 import re
+import unicodedata
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
@@ -137,6 +138,16 @@ class ContinuityBlock:
 
 
 @dataclass(frozen=True)
+class SourceReference:
+    """One authored DRAFTS ``S:`` reference and its current read-time resolution."""
+
+    path: str
+    anchor: str | None = None
+    resolved_path: str | None = None
+    status: str = "unresolved"
+
+
+@dataclass(frozen=True)
 class MemoryChunk:
     chunk_id: str
     source_path: str
@@ -204,6 +215,7 @@ class MemoryChunk:
     entry_title: str | None = None
     entry_line_range: tuple[int, int] | None = None
     sections: tuple[str, ...] = ()
+    source_refs: tuple[SourceReference, ...] = ()
     granularity: str = "legacy"
 
 
@@ -218,6 +230,9 @@ class RankedMemoryChunk:
     age_days: int
     matched_terms: tuple[str, ...]
     matched_fields: tuple[str, ...]
+    preferred_keyword_score: float = 0.0
+    preference_bonus: float = 0.0
+    matched_preferred_keywords: tuple[str, ...] = ()
 
 
 class EmbeddingProvider(Protocol):
@@ -296,7 +311,7 @@ def extract_memory_chunks(
         except ValueError:
             continue
         chunks.extend(_extract_chunks_from_file(target_root, doc, session_date, granularity=granularity))
-    return _resolve_chunk_users(target_root, chunks)
+    return _resolve_chunk_source_refs(target_root, _resolve_chunk_users(target_root, chunks))
 
 
 def _resolve_chunk_users(target_root: Path, chunks: list[MemoryChunk]) -> list[MemoryChunk]:
@@ -333,6 +348,7 @@ def rank_session_memory(
     query: str,
     cwd: str | Path = ".",
     *,
+    preferred_keywords: Sequence[str] = (),
     top_k: int = 8,
     today: date | None = None,
     lambda_days: float = 0.01,
@@ -397,6 +413,7 @@ def rank_session_memory(
     return rank_memory_chunks(
         query,
         chunks,
+        preferred_keywords=preferred_keywords,
         top_k=top_k,
         today=today,
         lambda_days=lambda_days,
@@ -900,6 +917,31 @@ def _entry_file_refs(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(refs))
 
 
+def _extract_source_references(text: str) -> tuple[SourceReference, ...]:
+    """Extract validated-shape DRAFTS ``S:`` paths from one chunk's text."""
+    refs: list[SourceReference] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not re.match(r"^-\s+S\s*:", stripped):
+            continue
+        tokens = _BACKTICK_TOKEN_RE.findall(stripped.split(":", 1)[1])
+        if len(tokens) != 1:
+            continue
+        authored = tokens[0].strip().replace("\\", "/")
+        path, marker, anchor = authored.partition("#")
+        candidate = Path(path)
+        if (
+            not path
+            or (marker and not anchor)
+            or "://" in path
+            or candidate.is_absolute()
+            or ".." in candidate.parts
+        ):
+            continue
+        refs.append(SourceReference(path=path, anchor=anchor or None if marker else None))
+    return tuple(dict.fromkeys(refs))
+
+
 def _continuity_alias_map(chunks: Sequence[MemoryChunk]) -> dict[str, str]:
     """Old-name -> newest-name mapping derived from stored continuity blocks.
 
@@ -922,6 +964,24 @@ def _continuity_alias_map(chunks: Sequence[MemoryChunk]) -> dict[str, str]:
             current = mapping[current]
         resolved[start] = current
     return resolved
+
+
+def _resolve_chunk_source_refs(target_root: Path, chunks: list[MemoryChunk]) -> list[MemoryChunk]:
+    """Resolve authored source paths against current files and continuity aliases."""
+    aliases = _continuity_alias_map(chunks)
+    resolved_chunks: list[MemoryChunk] = []
+    for chunk in chunks:
+        refs: list[SourceReference] = []
+        authored_refs = chunk.source_refs or _extract_source_references(chunk.text)
+        for ref in authored_refs:
+            current = aliases.get(_normalize_file_ref(ref.path), _normalize_file_ref(ref.path))
+            exists = (target_root / current).is_file()
+            status = "moved" if exists and current != _normalize_file_ref(ref.path) else (
+                "resolved" if exists else "missing"
+            )
+            refs.append(replace(ref, resolved_path=current if exists else None, status=status))
+        resolved_chunks.append(replace(chunk, source_refs=tuple(refs)))
+    return resolved_chunks
 
 
 @dataclass(frozen=True)
@@ -1253,6 +1313,7 @@ def rank_memory_chunks(
     query: str,
     chunks: Sequence[MemoryChunk],
     *,
+    preferred_keywords: Sequence[str] = (),
     top_k: int = 8,
     today: date | None = None,
     lambda_days: float = 0.01,
@@ -1272,6 +1333,10 @@ def rank_memory_chunks(
     # evolves is never in this set (evolution is freshness, not retirement).
     current_date = today or date.today()
     query_terms = _query_terms(query)
+    normalised_preferences = normalize_preferred_keywords(preferred_keywords)
+    preferred_terms = tuple(
+        sorted({term for keyword in normalised_preferences for term in _query_terms(keyword)})
+    )
     semantic_scores = _semantic_scores(query, chunks, embedding_provider)
     effective_lambda = _effective_lambda(query, lambda_days)
     # Corpus statistics for BM25F, computed once per ranking call over exactly the chunks being
@@ -1287,8 +1352,25 @@ def rank_memory_chunks(
             )
         else:
             lexical_score, matched_terms, matched_fields = _lexical_score(query_terms, chunk)
+        if preferred_terms:
+            if corpus_stats is not None:
+                preferred_score, matched_preferred, _preferred_fields = _bm25f_score(
+                    preferred_terms, chunk, corpus_stats
+                )
+            else:
+                preferred_score, matched_preferred, _preferred_fields = _lexical_score(
+                    preferred_terms, chunk
+                )
+        else:
+            preferred_score, matched_preferred = 0.0, set()
         semantic_score = semantic_scores[index] if semantic_scores is not None else None
-        match_score = blend_match_score(lexical_score, semantic_score, len(query_terms))
+        base_match_score = blend_match_score(lexical_score, semantic_score, len(query_terms))
+        # Preferred keywords are a bounded positive nudge, not a filter or an
+        # alternate query. They can at most double relevance already earned by
+        # the natural-language query, and cannot create lexical-only relevance
+        # from zero.
+        preference_bonus = min(preferred_score, base_match_score) if base_match_score > 0 else 0.0
+        match_score = base_match_score + preference_bonus
         age_days = max((current_date - chunk.session_date).days, 0)
         recency_multiplier = _recency_multiplier(
             age_days,
@@ -1321,6 +1403,9 @@ def rank_memory_chunks(
                 age_days=age_days,
                 matched_terms=tuple(sorted(matched_terms)),
                 matched_fields=tuple(sorted(matched_fields)),
+                preferred_keyword_score=preferred_score,
+                preference_bonus=preference_bonus,
+                matched_preferred_keywords=tuple(sorted(matched_preferred)),
             )
         )
 
@@ -1402,7 +1487,7 @@ def _replacing_query_alignment(query: str, predecessor: RankedMemoryChunk) -> tu
     normalized_title = _normalize(stripped_title)
     title_terms = {
         word
-        for word in re.findall(r"[A-Za-z0-9]+", stripped_title.lower())
+        for word in re.findall(r"[^\W_]+", normalize_lexical_text(stripped_title), flags=re.UNICODE)
         if len(word) > 1
     }
     if not normalized_title and not title_terms:
@@ -1565,7 +1650,7 @@ def _extract_entry_chunks_from_file(
         # speak. Entries without decision headings fall through to the entry unit below - the
         # 2026-05-26 reasoning (a decision must never be separated from its rationale) still
         # governs those, and is *preserved* here because a `#### Dn` block carries its own
-        # D/R/A/F/T by construction.
+        # D/R/A/F/T/S by construction.
         if granularity == "decision":
             decision_ranges = _find_decision_ranges(entry_lines, start_line)
             if decision_ranges:
@@ -2113,16 +2198,34 @@ def _is_notable_identifier(value: str) -> bool:
 def _query_terms(query: str) -> tuple[str, ...]:
     terms: set[str] = set()
     for tag in TAG_RE.findall(query):
-        terms.add(tag.lower())
+        terms.add(normalize_lexical_text(tag))
     for identifier in _extract_lexical_terms(query):
-        terms.add(identifier.lower())
-    for word in re.findall(r"[A-Za-z0-9]+", query.lower()):
+        terms.add(normalize_lexical_text(identifier))
+    for word in re.findall(r"[^\W_]+", normalize_lexical_text(query), flags=re.UNICODE):
         if len(word) > 1:
             terms.add(word)
     normalized = _normalize(query)
     if normalized:
         terms.add(normalized)
     return tuple(sorted(terms))
+
+
+def normalize_preferred_keywords(values: Sequence[str]) -> tuple[str, ...]:
+    """Validate and case-normalize the optional positive keyword control."""
+    if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+        raise ValueError("preferred_keywords must be an array of strings")
+    if len(values) > 16:
+        raise ValueError("preferred_keywords accepts at most 16 items")
+    normalised: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("preferred_keywords items must be non-empty strings")
+        folded = normalize_lexical_text(value.strip())
+        if folded not in seen:
+            seen.add(folded)
+            normalised.append(folded)
+    return tuple(normalised)
 
 
 def _lexical_score(
@@ -2220,18 +2323,20 @@ def _chunk_field_tokens(chunk: MemoryChunk) -> dict[str, list[str]]:
     for slug in tuple(chunk.topics or ()) + tuple(chunk.inferred_topics or ()) + tuple(chunk.tags or ()):
         if not slug:
             continue
-        topics.append(slug.lower())
-        topics.extend(part for part in re.split(r"[-_]", slug.lower()) if part)
+        folded = normalize_lexical_text(slug)
+        topics.append(folded)
+        topics.extend(part for part in re.split(r"[-_]", folded) if part)
     for item in chunk.inferred_decision_topics or ():
         slug = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else ""
         if slug:
-            topics.append(slug.lower())
-            topics.extend(part for part in re.split(r"[-_]", slug.lower()) if part)
+            folded = normalize_lexical_text(slug)
+            topics.append(folded)
+            topics.extend(part for part in re.split(r"[-_]", folded) if part)
 
     return {
         "topics": topics,
         "heading_path": _normalize(" ".join(chunk.heading_path or ())).split(),
-        "lexical_terms": [t.lower() for t in (chunk.lexical_terms or ())],
+        "lexical_terms": [normalize_lexical_text(t) for t in (chunk.lexical_terms or ())],
         "text": _normalize(chunk.text or "").split(),
     }
 
@@ -2401,5 +2506,10 @@ def _slugify(value: str) -> str:
     return normalized or "section"
 
 
+def normalize_lexical_text(value: str) -> str:
+    """Canonical lexical text: compatibility-normalized and case-insensitive."""
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
 def _normalize(value: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+    return " ".join(re.findall(r"[^\W_]+", normalize_lexical_text(value), flags=re.UNICODE))

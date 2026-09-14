@@ -303,6 +303,12 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
+                "preferred_keywords": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {"type": "string", "minLength": 1},
+                    "description": "Optional positive lexical preferences. They boost already-relevant results without changing the semantic query or filtering unmatched results.",
+                },
                 "cwd": {"type": "string", "default": "."},
                 "top_k": {"type": "integer", "default": 8},
                 "lambda_days": {"type": "number", "default": 0.01},
@@ -325,7 +331,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["decision", "entry", "section"],
                     "default": "decision",
-                    "description": "Default 'decision': one result per recorded decision, keyed by its canonical mse_<id>:dN identity and carrying that decision's whole DRAFT block (D/R/A/F/T) plus only its own topics and lifecycle edges; entries without decision headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
+                    "description": "Default 'decision': one result per recorded decision, keyed by its canonical mse_<id>:dN identity and carrying that decision's whole DRAFTS block (D/R/A/F/T/S) plus only its own topics and lifecycle edges; entries without decision headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
                 },
                 "exclude_replaced": {
                     "type": "boolean",
@@ -613,12 +619,12 @@ TOOLS: list[dict[str, Any]] = [
             "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
             "do not hand-write session files. The tool owns structure (target path, heading timestamp from the server "
             "clock, canonical entry_id, YAML shape, chronological ordering) and refuses malformed or out-of-order writes; "
-            "you own voice (title and D/R/A/F/T body prose, all taken verbatim). New semantic fields belong in the "
+            "you own voice (title and D/R/A/F/T/S body prose, all taken verbatim). New semantic fields belong in the "
             "decision-sidecar envelope: use `decisions` to attach each body decision's controlled topics and lifecycle "
             "links. The writer stores those only in topic/link sidecars, before it publishes the narrative entry; do not "
             "combine `decisions` with the legacy top-level topic/link fields. "
             "Guards run together and nothing is written when any fails: chronology, ref existence (fabricated ids are "
-            "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
+            "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFTS body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
             "memory_link_suggest / memory_link_show to choose related_entries, replaces and evolves before calling. "
             "If any decision remains unlinked, every passing response includes link_suggestions; pass consulted entry "
@@ -633,7 +639,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
                 "body": {
                     "type": "string",
-                    "description": "The entry body, verbatim. Current DRAFT shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', and '- T:'. Legacy singular '### Decision' remains readable but is refused for new appends.",
+                    "description": "The entry body, verbatim. Current DRAFTS shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', '- T:', and repeatable '- S:' repository-local source references. Legacy singular '### Decision' remains readable but is refused for new appends.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
@@ -1002,6 +1008,7 @@ def call_tool(
         return _project_search_payload(search_memory(
             query,
             args.get("cwd", "."),
+            preferred_keywords=args.get("preferred_keywords") or [],
             top_k=int(args.get("top_k", 8)),
             today=today,
             lambda_days=float(args.get("lambda_days", 0.01)),
@@ -1442,7 +1449,7 @@ def call_tool(
 
         body = args.get("body")
         if not isinstance(body, str) or not body.strip():
-            return {"ok": False, "written": False, "issues": ["body is empty - pass the D/R/A/F/T prose"]}
+            return {"ok": False, "written": False, "issues": ["body is empty - pass the D/R/A/F/T/S prose"]}
 
         authored_decision_issues = _mcp_authored_decision_issues(body, args.get("decisions"))
         if authored_decision_issues:

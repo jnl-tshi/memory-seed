@@ -26,11 +26,11 @@ from .core import (
     iter_topic_sidecar_documents,
     resolve_runtime,
 )
-from .semantic_cache import ContinuityBlock, MemoryChunk
+from .semantic_cache import ContinuityBlock, MemoryChunk, SourceReference
 
 
-CACHE_SCHEMA_VERSION = 1
-SERIALIZER_VERSION = 2
+CACHE_SCHEMA_VERSION = 2
+SERIALIZER_VERSION = 3
 _GRANULARITIES = ("entry", "section", "decision")
 _VIEWS = ("raw", "augmented")
 # This literal is intentionally not derived from ``fields(MemoryChunk)``.  A
@@ -42,13 +42,13 @@ _SERIALIZED_CHUNK_FIELDS = (
     "end_line", "entry_id", "user_initials", "agent_type", "project_path", "subproject_path",
     "user", "file_hash_id", "related_entries", "replaces", "evolves", "decision_edges",
     "commits", "continuity", "topics", "inferred_topics", "inferred_decision_topics", "branch",
-    "entry_title", "entry_line_range", "sections", "granularity",
+    "entry_title", "entry_line_range", "sections", "source_refs", "granularity",
 )
 _CHUNK_FIELDS = _SERIALIZED_CHUNK_FIELDS
 _TUPLE_FIELDS = {
     "heading_path", "tags", "contexts", "lexical_terms", "related_entries", "replaces",
     "evolves", "decision_edges", "commits", "continuity", "topics", "inferred_topics",
-    "inferred_decision_topics", "sections",
+    "inferred_decision_topics", "sections", "source_refs",
 }
 
 
@@ -218,7 +218,16 @@ def _encode_chunk(chunk: MemoryChunk) -> dict[str, Any]:
         {"kind": block.kind, "from_ref": block.from_ref, "to_ref": block.to_ref}
         for block in chunk.continuity
     ]
-    for name in _TUPLE_FIELDS - {"continuity"}:
+    value["source_refs"] = [
+        {
+            "path": ref.path,
+            "anchor": ref.anchor,
+            "resolved_path": ref.resolved_path,
+            "status": ref.status,
+        }
+        for ref in chunk.source_refs
+    ]
+    for name in _TUPLE_FIELDS - {"continuity", "source_refs"}:
         value[name] = [list(item) if isinstance(item, tuple) else item for item in value[name]]
     if chunk.entry_line_range is not None:
         value["entry_line_range"] = list(chunk.entry_line_range)
@@ -234,7 +243,8 @@ def _decode_chunk(value: Any) -> MemoryChunk:
         encoded_datetime = decoded["entry_datetime"]
         decoded["entry_datetime"] = datetime.fromisoformat(encoded_datetime) if encoded_datetime else None
         decoded["continuity"] = tuple(ContinuityBlock(**item) for item in decoded["continuity"])
-        for name in _TUPLE_FIELDS - {"continuity"}:
+        decoded["source_refs"] = tuple(SourceReference(**item) for item in decoded["source_refs"])
+        for name in _TUPLE_FIELDS - {"continuity", "source_refs"}:
             if not isinstance(decoded[name], list):
                 raise ValueError(f"{name} is not a list")
             decoded[name] = tuple(tuple(item) if isinstance(item, list) else item for item in decoded[name])

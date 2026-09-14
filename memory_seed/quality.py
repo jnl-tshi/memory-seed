@@ -191,7 +191,7 @@ def _metric_draft_reason_coverage(entry_texts, format_issues) -> Metric:
             population=0,
             excluded=excluded,
             notes=(
-                "no entry uses a '### Decision'/'### Decisions' DRAFT shape, so there is "
+                "no entry uses a '### Decision'/'### Decisions' DRAFTS shape, so there is "
                 "nothing to measure; reported as not_applicable rather than 100% coverage"
             ),
         )

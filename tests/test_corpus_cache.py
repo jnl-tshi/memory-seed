@@ -18,7 +18,7 @@ from memory_seed.core import resolve_runtime
 from memory_seed.retrieval import (
     augment_chunks_with_link_sidecars, augment_chunks_with_topic_sidecars, load_corpus,
 )
-from memory_seed.semantic_cache import ContinuityBlock, MemoryChunk, extract_memory_chunks
+from memory_seed.semantic_cache import ContinuityBlock, MemoryChunk, SourceReference, extract_memory_chunks
 
 
 def test_snapshot_exposes_immutable_empty_views():
@@ -50,6 +50,7 @@ def _views(marker: str = "one"):
         start_line=1, end_line=2, entry_id=marker, decision_edges=(("evolves", "d1", "old", "d2", ""),),
         continuity=(ContinuityBlock("rename", "old", "new"),), inferred_topics=("topic",),
         inferred_decision_topics=(("d1", "topic"),), entry_line_range=(1, 2), sections=("Decision",),
+        source_refs=(SourceReference("docs/proposal.md", None, "docs/proposal.md", "resolved"),),
     )
     augmented = replace(chunk, replaces=("old",), inferred_topics=("sidecar-topic",))
     return {(granularity, view): (augmented if view == "augmented" else chunk,)

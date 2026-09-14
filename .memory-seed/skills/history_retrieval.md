@@ -69,17 +69,23 @@ Useful optional search fields:
 
 ```json
 {
+  "preferred_keywords": ["architecture", "proposal"],
   "semantic_enabled": true,
   "recency_enabled": true,
   "recency_floor": 0.15
 }
 ```
 
+Use `preferred_keywords` when a natural-language query needs a positive lexical nudge toward known
+terms. Values are Unicode-normalized and case-folded, so capitalization cannot cause misses. The bonus
+is bounded and cannot make a zero-match result relevant; inspect `matched_preferred_keywords` and
+`preference_bonus` in the result. This field is optional and never excludes results.
+
 Recency is anchored to the current date read from the system clock at call time. There is no date-override field; the tool never trusts a caller-supplied "today".
 
-Search results include `chunk_id`, `entry_id`, `source`, `line_range`, `heading_path`, `excerpt`, matched fields, score fields, entry metadata, and `granularity`. Keys that would be empty are omitted, except the lifecycle and attention fields, where empty is a claim rather than an absence.
+Search results include `chunk_id`, `entry_id`, `source`, structured DRAFTS `source_refs`, `line_range`, `heading_path`, `excerpt`, matched fields, score fields, entry metadata, and `granularity`. Keys that would be empty are omitted, except the lifecycle and attention fields, where empty is a claim rather than an absence.
 
-`excerpt` is sized to answer one question - *is this the result I want?* A **decision** result carries its whole DRAFT block. Anything else is a window around the terms that made it rank, with the entry's metadata block excluded because every field in it is already a key on the same result. A window that had to cut says so: a leading `...` where the head was elided, and `[preview - call memory_get_chunk for the full entry]` where the tail was. An excerpt carrying neither mark is the complete text.
+`excerpt` is sized to answer one question - *is this the result I want?* A **decision** result carries its whole DRAFTS block. Anything else is a window around the terms that made it rank, with the entry's metadata block excluded because every field in it is already a key on the same result. A window that had to cut says so: a leading `...` where the head was elided, and `[preview - call memory_get_chunk for the full entry]` where the tail was. An excerpt carrying neither mark is the complete text.
 
 Fetch any result that may affect implementation, policy, bootstrap behavior, release behavior, or memory structure:
 
@@ -107,7 +113,7 @@ These MCP tools close the *authoring* loop — find what to link, then write the
 ```
 
 - `memory_link_show`: show one entry's graph node — stored `outbound` edges, computed `inbound` backlinks, `replaces`/`replaced_by`, `importance_score`, and `commit_reference_count`. Use it to traverse the related-entry graph structurally instead of re-running a topical search.
-- `memory_session_append`: append a session entry with every structural guard enforced — chronology, ref existence (fabricated ids refused), forward-only `replaces`/`evolves` edges, controlled topic vocabulary, id collision, DRAFT body format, and the same content-bound ADR review preflight as CLI `session append`. This is the **only** sanctioned way to author an entry; do not hand-write session files. The server stamps the heading timestamp from its own clock — omit `timestamp` in normal use (an explicit far-off value earns a drift warning). Refusals come back as `{ok: false, issues: [...]}`, each independently fixable. Required: `title`, `body`, `user_initials`, `agent_type`; common options are `decisions`, `branch`, `consulted`, and `dry_run`. When a decision has no related or lifecycle link, every passing dry-run and real-write response carries `link_suggestions`; ids supplied in `consulted` sort first, but no edge is auto-written. A `dry_run` runs every guard and returns the `entry_id`, timestamp, target path, and `rendered` — the exact entry block a real call would append, so the final output is inspectable **before writing**. To commit to the previewed bytes, pass the previewed `timestamp` back on the real call: the id hashes the timestamp, so a fresh server stamp that ticks to the next minute mints a different id than the one inspected.
+- `memory_session_append`: append a session entry with every structural guard enforced — chronology, ref existence (fabricated ids refused), forward-only `replaces`/`evolves` edges, controlled topic vocabulary, id collision, DRAFTS body format, and the same content-bound ADR review preflight as CLI `session append`. This is the **only** sanctioned way to author an entry; do not hand-write session files. The server stamps the heading timestamp from its own clock — omit `timestamp` in normal use (an explicit far-off value earns a drift warning). Refusals come back as `{ok: false, written: false, issues: [...]}`, each independently fixable. Required: `title`, `body`, `user_initials`, `agent_type`; common options are `decisions`, `branch`, `consulted`, and `dry_run`. When a decision has no related or lifecycle link, every passing dry-run and real-write response carries `link_suggestions`; ids supplied in `consulted` sort first, but no edge is auto-written. A `dry_run` runs every guard and returns the `entry_id`, timestamp, target path, and `rendered` — the exact entry block a real call would append, so the final output is inspectable **before writing**. To commit to the previewed bytes, pass the previewed `timestamp` back on the real call: the id hashes the timestamp, so a fresh server stamp that ticks to the next minute mints a different id than the one inspected.
 
 ```json
 {
@@ -141,7 +147,7 @@ Until they are recalibrated with evidence:
 - **Do not treat `no_match_above_threshold: false` as evidence that something was recorded.** It is
   currently false always. Abstain when the served content does not answer the question, regardless
   of the band.
-- Decision-granular results carry the whole DRAFT block, so the material you need to make that
+- Decision-granular results carry the whole DRAFTS block, so the material you need to make that
   judgement is already in the payload - which is what makes judging from content, rather than from
   a score, practical.
 

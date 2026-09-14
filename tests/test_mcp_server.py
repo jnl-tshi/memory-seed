@@ -257,6 +257,37 @@ class MemoryMcpServerTests(unittest.TestCase):
         search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
         self.assertNotIn("today", search_tool["inputSchema"]["properties"])
 
+    def test_memory_search_schema_and_payload_expose_preferred_keywords(self):
+        from memory_seed.mcp_server import TOOLS
+
+        search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
+        prop = search_tool["inputSchema"]["properties"]["preferred_keywords"]
+        self.assertEqual(prop["type"], "array")
+        self.assertEqual(prop["maxItems"], 16)
+
+        cwd = self.make_memory_fixture()
+        payload = call_tool(
+            "memory_search",
+            {
+                "query": "compact",
+                "preferred_keywords": ["COMMAND", "command"],
+                "cwd": str(cwd),
+                "semantic_enabled": False,
+            },
+            today=date(2026, 5, 19),
+        )
+        self.assertEqual(payload["preferred_keywords"], ["command"])
+        self.assertIn("command", payload["results"][0]["matched_preferred_keywords"])
+        self.assertGreater(payload["results"][0]["preference_bonus"], 0)
+
+        baseline = call_tool(
+            "memory_search",
+            {"query": "compact", "cwd": str(cwd), "semantic_enabled": False},
+            today=date(2026, 5, 19),
+        )
+        self.assertNotIn("preferred_keywords", baseline)
+        self.assertNotIn("preference_bonus", baseline["results"][0])
+
     def _replaced_search_fixture(self):
         cwd = self.make_project()
         self.write_session(

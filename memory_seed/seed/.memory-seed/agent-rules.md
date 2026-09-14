@@ -209,7 +209,7 @@ After any turn where meaningful work was completed, append a concise entry to th
 
 Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
 
-Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFT labels, entry shapes, append-only chronology, `related_entries`, and examples.
+Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFTS labels, entry shapes, append-only chronology, `related_entries`, and examples.
 
 ### Consolidation Review Triggers
 
@@ -219,7 +219,7 @@ These triggers require review, not automatic edits. Promote stable conclusions, 
 
 ## Skill Loading
 
-Skills are lazy-loaded runbooks. `index.md`: deterministic trigger registry — read `.memory-seed/skills/index.md` first, the authoritative `load_when`/`do_not_load_when` map for every skill; this section is a pointer to it, not a second copy. Two are worth knowing by name because nearly every turn needs them: `session_logging.md` (session entry shape, DRAFT labels, `related_entries`) and `end_of_turn.md` (the closeout obligation below, full ESR checklist). Every other skill routes through the registry as normal — load only what a `load_when` rule actually matches.
+Skills are lazy-loaded runbooks. `index.md`: deterministic trigger registry — read `.memory-seed/skills/index.md` first, the authoritative `load_when`/`do_not_load_when` map for every skill; this section is a pointer to it, not a second copy. Two are worth knowing by name because nearly every turn needs them: `session_logging.md` (session entry shape, DRAFTS labels, `related_entries`) and `end_of_turn.md` (the closeout obligation below, full ESR checklist). Every other skill routes through the registry as normal — load only what a `load_when` rule actually matches.
 
 Evaluate registry rules in listed order, load every matching required skill, and keep the loaded set as small as the task safely allows. For sub-projects, use the nearest runtime's registry first; inherited parent registries apply only when enabled and not locally overridden or disabled.
 
@@ -245,7 +245,7 @@ Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinction
 
 Session entries use dated files under `.memory-seed/sessions/`. Entries include a current-time heading plus YAML fields for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `related_entries` when meaningful prior entries are linked.
 
-Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
+Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFTS decision record, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
 
 Detailed work logs belong in the nearest active runtime. Do not mirror sub-project logs into root memory.
 
