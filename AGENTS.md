@@ -57,6 +57,18 @@ routing step, not the destination: step 1 still has to happen, not just be reach
 Do not read skills preemptively. Skills are lazy-loaded execution runbooks.
 Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
 
+<!-- BEGIN context-mode -->
+## Context Mode Routing
+
+When Context Mode MCP tools are available, prefer `ctx_execute`, `ctx_execute_file`, or
+`ctx_batch_execute` for analysis whose raw or unpredictable output would otherwise enter the model
+context. Continue using normal `exec_command`, `apply_patch`, direct file editing, and dedicated tools
+for short fixed output, mutations, tests that need direct interaction, or purpose-built capabilities.
+Context Mode is an optional capture layer; it does not replace Memory Seed authority, startup, write,
+validation, or session-log requirements. This repository intentionally does not enable Context Mode's
+broad `PreToolUse` enforcement hook.
+<!-- END context-mode -->
+
 ## Bootstrap Mode
 
 When initializing or repairing a project, the seed installs the reusable control plane:
