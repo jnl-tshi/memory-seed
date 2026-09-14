@@ -250,5 +250,3 @@ The design is working when a decision-heavy workstream can show:
 - a visible human approval point before authoritative relationship or ADR changes;
 - a post-merge verification pass that reconciles the canonical `main` history; and
 - a safe manual fallback when no external or inline executor is available.
-
-
