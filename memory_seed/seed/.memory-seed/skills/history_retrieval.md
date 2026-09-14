@@ -69,17 +69,30 @@ Useful optional search fields:
 
 ```json
 {
-  "preferred_keywords": ["architecture", "proposal"],
+  "preferred_keywords": ["React", "framework", "frontend"],
   "semantic_enabled": true,
   "recency_enabled": true,
   "recency_floor": 0.15
 }
 ```
 
-Use `preferred_keywords` when a natural-language query needs a positive lexical nudge toward known
-terms. Values are Unicode-normalized and case-folded, so capitalization cannot cause misses. The bonus
-is bounded and cannot make a zero-match result relevant; inspect `matched_preferred_keywords` and
-`preference_bonus` in the result. This field is optional and never excludes results.
+For topical or "why was this chosen?" searches, derive 2-5 preferred keywords from the user's wording
+and already-known domain context, and include them in the first `memory_search` call whenever that
+produces meaningful discriminators. Prefer the named subject and its obvious domain terms; for example,
+"Why was React chosen?" supports `React`, `framework`, and `frontend`. Intent terms such as `decision`,
+`rationale`, and `alternatives` may clarify the natural-language query, but do not blindly expand the
+preference list: a small focused set is stronger than a bag of generic words.
+
+Do not guess unknown document types, artifact names, or hidden rationale merely to populate the field.
+The React example does not require knowing that an architecture proposal exists: retrieve the React
+decision first, then follow its `source_refs`. Omit `preferred_keywords` for exact identifiers or paths,
+or when no useful discriminator is available. If the first results are poor, refine the preferences once
+from evidence in those results instead of repeatedly appending terms.
+
+`preferred_keywords` is a positive lexical nudge toward known terms. Values are Unicode-normalized and
+case-folded, so capitalization cannot cause misses. The bonus is bounded and cannot make a zero-match
+result relevant; inspect `matched_preferred_keywords` and `preference_bonus` in the result. This field is
+optional and never excludes results.
 
 Recency is anchored to the current date read from the system clock at call time. There is no date-override field; the tool never trusts a caller-supplied "today".
 
