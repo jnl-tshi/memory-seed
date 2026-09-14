@@ -29,7 +29,7 @@ except OSError:
     pass
 
 _draft = (
-    "Record durable decisions using DRAFT labels: "
+    "Record durable decisions using DRAFTS labels: "
     "D (Decision, required), R (Reason, required), "
     "A (Alternatives, optional), F (Files, optional), T (Tests, optional)."
 )

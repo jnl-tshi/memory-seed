@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.12 — **RATIFIED 2026-09-06** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.13 — **RATIFIED 2026-09-14** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -15,7 +15,8 @@ amended 2026-08-11 to make a declared ratified Constitution formally govern lowe
 documents; **corrected** 2026-08-13 (1.9, evolution-class — not an amendment) to record the shipped
 quality instrumentation in §8; amended 2026-09-05 to make the governed path the path of least
 resistance through inspectable outcome-level composition (§3); amended 2026-09-06 with the bounded
-temporary reflection-board lifecycle (Invariant #2). **Source:** distilled from demonstrated behaviour
+temporary reflection-board lifecycle (Invariant #2); amended 2026-09-14 so DRAFTS decisions cite
+material source artifacts and retrieval lexical matching is capitalization-safe (§4). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -224,7 +225,14 @@ ordinary proposal work.
   the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
   optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
 <!-- constitution-ref: constitution:v1#draft-format -->
-- **DRAFT session-entry format** (D/R/A/F/T) and append-only chronology (`session_logging.md`).
+- **DRAFTS session-entry format** (D/R/A/F/T/S) and append-only chronology (`session_logging.md`).
+  `S:` names the repository-relative source artifact when a proposal, specification, research report,
+  or other evidence artifact materially informed the decision. New writes validate supplied source
+  references mechanically; historical DRAFT records remain valid and append-only.
+<!-- constitution-ref: constitution:v1#lexical-normalization -->
+- **Lexical matching is capitalization-safe.** Retrieval normalizes query text, preferred keywords,
+  and indexed lexical fields with Unicode NFKC plus case folding before matching. Optional preferred
+  keywords may add a bounded positive ranking signal, but never exclude otherwise matching history.
 <!-- constitution-ref: constitution:v1#topic-vocabulary -->
 - **Controlled topic vocabulary** in `.memory-seed/topics.yaml`; **seed/live twin parity** for shipped
   skills; **schema, API (`/api/v1`), and CLI surfaces** are versioned and may grow.
@@ -269,7 +277,7 @@ override a constitutional invariant.
 
 Memory should classify *what kind of knowledge* an entry carries — authoritative policy, historical
 context, evidence, hypothesis, instruction, observation, or generated summary — because retrieval and agent
-safety depend on it. Today only the DRAFT labels (Decision/Reason/Alternatives/Files/Tests) and
+safety depend on it. Today only the DRAFTS labels (Decision/Reason/Alternatives/Files/Tests/Sources) and
 `memory_hygiene`/`risk_signaling` exist; a first-class content-trust taxonomy is proposed, not built.
 *(Ref: `4_Reference/memory-seed-rectification-priorities-report.md`.)*
 
@@ -359,6 +367,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.13 | 2026-09-14 | **DRAFTS source attribution and capitalization-safe lexical retrieval.** Renames the current decision-record mnemonic from DRAFT to DRAFTS; adds `S:` for a materially informing repository artifact, with mechanical validation whenever supplied while preserving historical DRAFT records unchanged; and requires Unicode NFKC plus case-fold normalization across lexical query/index text. Optional preferred keywords are a bounded positive ranking aid, never a filter. | JNL (approved the implementation plan and directed implementation live, 2026-09-14) |
 | 1.12 | 2026-09-06 | **Amendment: bounded temporary reflection-board expiry.** Reflection blocks created inside a declared plan-scoped board are temporary coordination material rather than durable memory. After required validation and orchestrator synthesis, complete chains close independently with durable receipt coverage; their user-configurable retention period, seven days by default, starts from chain close. Elapsed closed chains expire automatically and individually, never as a board wipe; early removal of an unpromoted chain requires live user approval and a durable disposition. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (ratified live 2026-09-06) |
 | 1.11 | 2026-09-05 | **Make the correct path the easiest path.** Adds a permanent §3 principle requiring Memory Seed to compose mechanically determined continuations behind outcome-level operations, stop at genuine judgment or authority boundaries, preserve all underlying validation/provenance/human control, and expose selections, omissions, guards, and stopping reasons. This turns the storyline and workflow-architecture direction into a constitutional design constraint without authorizing opaque automation. | JNL (ratified in live discussion, 2026-09-05) |
 | 1.10 | 2026-08-31 | **Amendment: one-time Canonical ADR Ledger v2 migration.** Authorizes only the corpus-locked conversion from the ambiguous `Decision`/`Why`/`Evolution` and `Reason` event prose to a uniform `Decision`/`Reason`/`Impact` ledger. It requires a preimage archive and SHA-256 manifest before rewrite; preserves event IDs, timestamps, envelopes, and references; requires declared impact provenance with direct evidence for reconstructions; and forbids a reusable rewrite command. Once run, the exception is exhausted and Invariant #2 again applies without qualification. | JNL |

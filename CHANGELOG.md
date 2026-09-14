@@ -4,6 +4,20 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Added
+
+- [2026-09-14] **DRAFTS decisions can name their material source artifact.** The new `S:` label uses a
+  validated repository-relative path, is exposed as structured retrieval metadata, and remains optional
+  for historical DRAFT records. Authoring guidance requires it when a proposal, specification, research
+  report, or other evidence artifact materially informed the decision.
+- [2026-09-14] **Memory search accepts optional preferred keywords.** Preferences receive a bounded
+  positive BM25F bonus and remain inspectable in result diagnostics; they never act as a filter.
+
+### Changed
+
+- [2026-09-14] **Lexical matching is capitalization-safe.** Query terms, indexed fields, and preferred
+  keywords now share Unicode NFKC plus case-fold normalization, preventing capitalization-only misses.
+
 ## 2.21.0 - 2026-09-11
 
 Landed dates in this section come from the corresponding `.memory-seed/sessions/` records; Git

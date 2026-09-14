@@ -19,23 +19,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L143`
+Authoritative decision: `mse_mrrnd0wam54vjrpc:d1`
 
 ### Decision
 
-The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.
+DRAFTS is the current session decision-record mnemonic: D/R remain mandatory, A/F/T remain optional, and S is conditionally required when a repository artifact materially informed the decision.
 
 ### Reason
 
-A baseline structure with mandatory decision rationale ensures every memory entry captures the core reasoning. Explicit numbering makes multi-decision entries unambiguous and discoverable.
+Direct source references preserve proposal-to-decision provenance without weakening append-only history or forcing invented sources for conversational decisions.
 
 ### Impact
 
-Founded from the control file; established as baseline in 2.4.0 per the control plane history.
-
-### Constitution
-
-- `constitution:v1#draft-format` (governing)
+New supplied S references are validated and retrievable as structured metadata; historical DRAFT records remain valid and unchanged.
 
 ### Awaiting review
 
@@ -127,3 +123,58 @@ Rests on the session decision that instituted it: "Use `D`, `R`, `A`, `F`, and `
 #### Impact
 
 Founded from .memory-seed/index.md#L143; this revision moves the concern off that control-file line onto ms-db2d715c:d1, the decision that made it. Selected by semantic recall over the concern text, grounded verbatim, and confirmed by an independent refutation pass.
+
+### revision-proposed - 2026-09-14T02:45:00
+
+```json
+{
+  "decision_ref": "mse_mrrnd0wam54vjrpc:d1",
+  "event_id": "adre_61fa084d0bfa44c454a6",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "ms-db2d715c:d1",
+      "relation_assertion": "link:mse_mrrnd0wam54vjrpc:d1:evolves:ms-db2d715c:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_mrrnd0wam54vjrpc"
+}
+```
+
+#### Decision
+
+DRAFTS is the current session decision-record mnemonic: D/R remain mandatory, A/F/T remain optional, and S is conditionally required when a repository artifact materially informed the decision.
+
+#### Reason
+
+Direct source references preserve proposal-to-decision provenance without weakening append-only history or forcing invented sources for conversational decisions.
+
+#### Impact
+
+New supplied S references are validated and retrievable as structured metadata; historical DRAFT records remain valid and unchanged.
+
+### revision-accepted - 2026-09-14T02:46:00Z
+
+```json
+{
+  "decision_ref": "mse_mrrnd0wam54vjrpc:d1",
+  "event_id": "adre_2494ec18f16e95b48e80",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L143",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_mrrnd0wam54vjrpc"
+}
+```
+
+#### Decision
+
+Accept mse_mrrnd0wam54vjrpc:d1.
+
+#### Reason
+
+JNL approved the DRAFTS source-attribution plan and explicitly directed its implementation on 2026-09-14.
+
+#### Impact
+
+mse_mrrnd0wam54vjrpc:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.

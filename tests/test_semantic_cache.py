@@ -15,6 +15,7 @@ from memory_seed.semantic_cache import (
     build_related_entry_graph,
     evolves_lineage_heads,
     extract_memory_chunks,
+    normalize_lexical_text,
     rank_memory_chunks,
     rank_session_memory,
     semantic_text,
@@ -311,6 +312,57 @@ class SemanticCacheTests(unittest.TestCase):
         # spelling of the topic idea and survive on 1% of the corpus, so they share a weight
         # with the curated vocabulary rather than holding one of their own.
         self.assertIn("topics", ranked[0].matched_fields)
+
+    def test_lexical_matching_is_casefolded_for_query_text_and_preferences(self):
+        today = date(2026, 5, 19)
+        react = MemoryChunk(
+            chunk_id="react", source_path="session.md", source_file="session.md",
+            session_date=today, entry_datetime=None, heading_path=("React architecture",),
+            heading_level=2, title="React architecture", text="REACT component reuse proposal",
+            tags=(), contexts=(), lexical_terms=(), start_line=1, end_line=2,
+        )
+        other = MemoryChunk(
+            chunk_id="other", source_path="session.md", source_file="session.md",
+            session_date=today, entry_datetime=None, heading_path=("Renderer",),
+            heading_level=2, title="Renderer", text="React renderer details",
+            tags=(), contexts=(), lexical_terms=(), start_line=3, end_line=4,
+        )
+
+        lower = rank_memory_chunks("why react", [other, react], today=today)
+        upper = rank_memory_chunks("WHY REACT", [other, react], today=today)
+        preferred = rank_memory_chunks(
+            "why react", [other, react], today=today,
+            preferred_keywords=["ARCHITECTURE", "architecture"],
+        )
+
+        self.assertEqual([r.chunk.chunk_id for r in lower], [r.chunk.chunk_id for r in upper])
+        self.assertEqual([r.final_score for r in lower], [r.final_score for r in upper])
+        self.assertEqual(normalize_lexical_text("Straße"), normalize_lexical_text("STRASSE"))
+        self.assertEqual(preferred[0].chunk.chunk_id, "react")
+        self.assertIn("architecture", preferred[0].matched_preferred_keywords)
+        self.assertLessEqual(preferred[0].preference_bonus, lower[0].match_score)
+
+    def test_drafts_sources_are_decision_local_and_resolved(self):
+        cwd = self.make_project()
+        proposal = cwd / "docs" / "proposal.md"
+        proposal.parent.mkdir()
+        proposal.write_text("# Proposal\n", encoding="utf-8")
+        self.write_session(
+            cwd,
+            "2026-05-19.md",
+            "## 2026-05-19 09:00 - Choice\n\n```yaml\nentry_id: mse_sources1234\n```\n\n"
+            "### Decisions\n\n#### D1 - React\n\n- D: choose React\n- R: reuse\n"
+            "- S: Proposal `docs/proposal.md#decision`\n\n"
+            "#### D2 - Other\n\n- D: keep API\n- R: stable\n",
+        )
+
+        chunks = extract_memory_chunks(cwd, granularity="decision")
+
+        self.assertEqual(len(chunks[0].source_refs), 1)
+        self.assertEqual(chunks[0].source_refs[0].path, "docs/proposal.md")
+        self.assertEqual(chunks[0].source_refs[0].anchor, "decision")
+        self.assertEqual(chunks[0].source_refs[0].status, "resolved")
+        self.assertEqual(chunks[1].source_refs, ())
 
     def test_semantic_provider_contributes_cosine_similarity(self):
         today = date(2026, 5, 19)

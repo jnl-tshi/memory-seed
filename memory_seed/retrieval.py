@@ -41,6 +41,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     evolves_lineage_heads,
     extract_memory_chunks,
+    normalize_lexical_text,
     rank_session_memory,
     replacing_lineage_heads,
 )
@@ -73,6 +74,7 @@ def search_memory(
     query: str,
     cwd: str | Path = ".",
     *,
+    preferred_keywords: list[str] | None = None,
     top_k: int = 8,
     today: date | None = None,
     lambda_days: float = 0.01,
@@ -122,6 +124,9 @@ def search_memory(
     usage - until then the signal is exposure-only (`attention_score` /
     `fetch_count` / `last_fetch` on every result row).
     """
+    from .semantic_cache import normalize_preferred_keywords
+
+    normalised_preferences = normalize_preferred_keywords(preferred_keywords or ())
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
         embedding_provider,
@@ -138,6 +143,7 @@ def search_memory(
     ranked = rank_session_memory(
         query,
         cwd,
+        preferred_keywords=normalised_preferences,
         top_k=top_k,
         today=today or date.today(),
         lambda_days=lambda_days,
@@ -158,6 +164,7 @@ def search_memory(
     payload = format_search_results(
         query,
         ranked,
+        preferred_keywords=normalised_preferences,
         top_k=top_k,
         semantic_enabled=provider is not None,
         semantic_provider=provider_name,
@@ -307,7 +314,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     # A decision fetched on its own arrives without the entry that frames it. Attach the entry's
     # non-decision sections - Summary, Follow-up, Validation, Facts, whatever the author wrote at
     # entry level - so the caller sees the decision in the context it was recorded in rather than a
-    # bare D/R/A/F/T block. Sibling decisions are NOT included: the container is excluded, so asking
+    # bare D/R/A/F/T/S block. Sibling decisions are NOT included: the container is excluded, so asking
     # for :d1 does not drag :d2 along with it.
     payload["entry_context"] = []
     if found.granularity == "decision" and found.entry_id:
@@ -4849,18 +4856,24 @@ def format_search_results(
     query: str,
     ranked: list[RankedMemoryChunk],
     *,
+    preferred_keywords: Sequence[str] = (),
     top_k: int = 8,
     semantic_enabled: bool | None = None,
     semantic_provider: str | None = None,
     semantic_fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     results = [ranked_to_dict(result) for result in ranked[:top_k]]
+    if not preferred_keywords:
+        for result in results:
+            result.pop("preferred_keyword_score", None)
+            result.pop("preference_bonus", None)
+            result.pop("matched_preferred_keywords", None)
     effective_semantic_enabled = (
         any(result["semantic_score"] is not None for result in results)
         if semantic_enabled is None
         else semantic_enabled
     )
-    return {
+    payload = {
         "query": query,
         "semantic_enabled": effective_semantic_enabled,
         "semantic_provider": semantic_provider if effective_semantic_enabled else semantic_provider,
@@ -4868,6 +4881,9 @@ def format_search_results(
         "results": results,
         "human_report": _human_report(query, results),
     }
+    if preferred_keywords:
+        payload["preferred_keywords"] = list(preferred_keywords)
+    return payload
 
 
 def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
@@ -4906,6 +4922,9 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
         "matched_fields": list(result.matched_fields),
+        "preferred_keyword_score": round(result.preferred_keyword_score, 6),
+        "preference_bonus": round(result.preference_bonus, 6),
+        "matched_preferred_keywords": list(result.matched_preferred_keywords),
         # Decision results carry the complete DRAFT block; everything else is windowed on the
         # terms that made it rank. Note the branch is on the chunk's ACTUAL granularity, not the
         # requested one - an entry with no decision section comes back labelled "entry" even on a
@@ -4925,6 +4944,15 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "entry_title": chunk.entry_title,
         "entry_line_range": None if chunk.entry_line_range is None else list(chunk.entry_line_range),
         "sections": list(chunk.sections),
+        "source_refs": [
+            {
+                "path": ref.path,
+                "anchor": ref.anchor,
+                "resolved_path": ref.resolved_path,
+                "status": ref.status,
+            }
+            for ref in chunk.source_refs
+        ],
         "granularity": chunk.granularity,
     }
 
@@ -4974,6 +5002,15 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "entry_title": chunk.entry_title,
         "entry_line_range": None if chunk.entry_line_range is None else list(chunk.entry_line_range),
         "sections": list(chunk.sections),
+        "source_refs": [
+            {
+                "path": ref.path,
+                "anchor": ref.anchor,
+                "resolved_path": ref.resolved_path,
+                "status": ref.status,
+            }
+            for ref in chunk.source_refs
+        ],
         "granularity": chunk.granularity,
     }
 
@@ -5092,7 +5129,7 @@ def _human_report(query: str, results: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-# A decision result is served WHOLE: the agent gets the complete DRAFT block (D/R/A/F/T),
+# A decision result is served WHOLE: the agent gets the complete DRAFTS block (D/R/A/F/T/S),
 # not a preview of it, because the block is the unit it must reason about. 2500 chars covers
 # 97.6% of recorded decisions in the reference corpus; the rest are truncated with an explicit
 # marker so an agent knows to fetch rather than assuming it saw everything.
@@ -5106,7 +5143,7 @@ _DECISIONS_CONTAINER_RE = re.compile(r"^decisions?$", re.IGNORECASE)
 def entry_context_sections(entry_text: str) -> list[dict[str, str]]:
     """The entry's non-decision `###` sections, in document order.
 
-    A decision block carries its own D/R/A/F/T, but that is not the whole record of the decision.
+    A decision block carries its own D/R/A/F/T/S, but that is not the whole record of the decision.
     The `### Summary` that frames it and the `### Follow-up` that continues it belong to the entry,
     and a reader handed only the block is missing context the author wrote deliberately - what the
     session was doing, what was validated, what was left open. Anything the author put at entry
@@ -5179,10 +5216,10 @@ def _selection_preview(
         return body
 
     start = 0
-    lowered = body.lower()
+    lowered = normalize_lexical_text(body)
     hits = [
         found
-        for found in (lowered.find(term.lower()) for term in matched_terms if term)
+        for found in (lowered.find(normalize_lexical_text(term)) for term in matched_terms if term)
         if found >= 0
     ]
     if hits:

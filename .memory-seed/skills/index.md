@@ -93,7 +93,7 @@ skills:
     required: true
     load_when:
       - writing, validating, or repairing session entries
-      - deciding DRAFT labels, entry shapes, topics, related_entries, or append-only chronology
+      - deciding DRAFTS labels, entry shapes, topics, related_entries, or append-only chronology
       - changing session log schema or examples
       - preparing or finalizing ordinary session receipts for Reflection Board v1 close
     do_not_load_when:

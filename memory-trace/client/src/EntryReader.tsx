@@ -197,11 +197,11 @@ function renderMarkdown(text: string, highlight: string | null, onOpenFile: (pat
   return out;
 }
 
-// DRAFT is the entry grammar: Decision, Reason, Alternatives, Files, Tests.
+// DRAFTS is the entry grammar: Decision, Reason, Alternatives, Files, Tests, Sources.
 // Stored as terse "- D:" / "- R:" bullets, which is compact to author and
 // unreadable to scan — so the reader spells every field out consistently.
-const DRAFT_LABELS: Record<string, string> = { D: "Decision", R: "Reason", A: "Alternatives", F: "Files", T: "Tests" };
-const DRAFT_BULLET = /^-\s*([DRAFT]):\s*(.*)$/;
+const DRAFT_LABELS: Record<string, string> = { D: "Decision", R: "Reason", A: "Alternatives", F: "Files", T: "Tests", S: "Sources" };
+const DRAFT_BULLET = /^-\s*([DRAFTS]):\s*(.*)$/;
 
 /**
  * File references out of an F block. Entries write them as backticked paths,

@@ -2172,8 +2172,8 @@ _ENTRY_HEADING_RE = re.compile(
 # being mistaken for the end of the metadata.
 _METADATA_FENCE_OPEN_RE = re.compile(r"^\s*```ya?ml\s*$")
 _FENCE_CLOSE_RE = re.compile(r"^\s*```\s*$")
-_BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T)\d*\s*:")         # column-0 label with no '- '
-_BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
+_BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T|S)\d*\s*:")         # column-0 label with no '- '
+_BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T|S)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
 _ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
 _SUMMARY_HEADING_RE = re.compile(r"^###\s+Summary\s*$", re.I)
@@ -2190,6 +2190,68 @@ DECISION_TITLE_ORDINAL_RE = re.compile(r"^D(\d+)\s*[-–]\s*")
 # Indent-aware: a nested '  - R:' under a '- D1:' is still a reason present.
 _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
+_SOURCE_LABEL_RE = re.compile(r"^\s*-\s+S\s*:\s*(.*)$")
+_BACKTICK_REFERENCE_RE = re.compile(r"`([^`]+)`")
+
+
+def entry_body_source_references(body: str) -> tuple[tuple[str, str | None], ...]:
+    """Return authored DRAFTS source paths as ``(path, anchor)`` pairs."""
+    refs: list[tuple[str, str | None]] = []
+    for line in body.splitlines():
+        match = _SOURCE_LABEL_RE.match(line)
+        if not match:
+            continue
+        tokens = _BACKTICK_REFERENCE_RE.findall(match.group(1))
+        if len(tokens) != 1:
+            continue
+        authored = tokens[0].strip().replace("\\", "/")
+        path, marker, anchor = authored.partition("#")
+        refs.append((path, anchor or None if marker else None))
+    return tuple(refs)
+
+
+def entry_body_source_issues(
+    body: str,
+    *,
+    workspace_root: Path | None = None,
+    require_existing: bool = False,
+) -> list[str]:
+    """Validate the machine-readable shape of authored DRAFTS ``S:`` items."""
+    issues: list[str] = []
+    for line_number, line in enumerate(body.splitlines(), start=1):
+        match = _SOURCE_LABEL_RE.match(line)
+        if not match:
+            continue
+        tokens = _BACKTICK_REFERENCE_RE.findall(match.group(1))
+        if len(tokens) != 1:
+            issues.append(
+                f"S: on body line {line_number} must contain exactly one backtick-quoted source path"
+            )
+            continue
+        authored = tokens[0].strip().replace("\\", "/")
+        path_text, marker, anchor = authored.partition("#")
+        path = Path(path_text)
+        if not path_text or (marker and not anchor):
+            issues.append(f"S: on body line {line_number} has an empty path or anchor")
+            continue
+        if "://" in path_text or path.is_absolute() or ".." in path.parts:
+            issues.append(
+                f"S: on body line {line_number} must use a repository-relative path without traversal"
+            )
+            continue
+        if workspace_root is not None:
+            root = workspace_root.resolve()
+            resolved = (root / path).resolve()
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                issues.append(f"S: on body line {line_number} resolves outside the repository")
+                continue
+            if require_existing and not resolved.is_file():
+                issues.append(
+                    f"S: on body line {line_number} references missing file '{path_text}'"
+                )
+    return issues
 
 
 def entry_body_format_issues(
@@ -2198,14 +2260,14 @@ def entry_body_format_issues(
     require_summary: bool = False,
     require_numbered_decisions: bool = False,
 ) -> list[str]:
-    """Return DRAFT-format problems in one entry BODY (text after the ```yaml
+    """Return DRAFTS-format problems in one entry BODY (text after the ```yaml
     block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
-    ``- `` list items; DRAFT prose with no ``### Decision``/``### Summary``
+    ``- `` list items; DRAFTS prose with no ``### Decision``/``### Summary``
     heading; multiple decisions crammed under a singular ``### Decision`` via
     inline ``- Dn:`` (should be ``### Decisions`` + ``#### Dn - name``); and a
-    decision (``D:``) with no reason (``R:`` is mandatory). Entries with no DRAFT
+    decision (``D:``) with no reason (``R:`` is mandatory). Entries with no DRAFTS
     labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
-    only rejects malformed DRAFT usage, it does not force DRAFT on every entry.
+    only rejects malformed DRAFTS usage, it does not force DRAFTS on every entry.
 
     ``require_summary`` and ``require_numbered_decisions`` are write-time
     policies for new entries. Integrity checks leave both false so historic
@@ -2223,9 +2285,9 @@ def entry_body_format_issues(
     numbered_decision = any(_NUMBERED_DECISION_HEADING_RE.match(ln) for ln in lines)
     if bare:
         labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
-        issues.append(f"DRAFT labels ({labels}) are not list items - prefix each with '- ' under a section heading")
+        issues.append(f"DRAFTS labels ({labels}) are not list items - prefix each with '- ' under a section heading")
     if bare and not has_section:
-        issues.append("DRAFT prose has no '### Decision'/'### Decisions'/'### Summary' section heading")
+        issues.append("DRAFTS prose has no '### Decision'/'### Decisions'/'### Summary' section heading")
     # Only the singular-heading case is a genuine error: a lone '### Decision'
     # holding several inline '- Dn:' bullets conflates decisions and drops the
     # per-decision structure. A well-formed '### Decisions' block with '- D1:' +
@@ -2350,7 +2412,7 @@ def _walk_entry_bodies(
         # '```yaml' and never equals a bare '```', so an index-based split took
         # fences[1] to be the metadata closer when it is really the opening
         # fence of a code block in the *body* - and every entry that quotes code
-        # had its whole DRAFT body dropped by this lint. Entries with no
+        # had its whole DRAFTS body dropped by this lint. Entries with no
         # metadata block (the corpus predates the convention) keep everything
         # after the heading.
         opener = next(
@@ -2414,7 +2476,7 @@ def check_entry_advisories(text: str) -> list[tuple[str, str]]:
     return _walk_entry_bodies(text, entry_body_advisories)
 
 
-# Heading timestamps are authored inputs: the entry lint validates DRAFT shape
+# Heading timestamps are authored inputs: the entry lint validates DRAFTS shape
 # and grammar but nothing checks temporal sanity, so a stamp hours in the future
 # passes silently. The grace window absorbs ordinary clock skew between
 # machines; anything beyond it means the author did not read the wall clock.
@@ -2467,6 +2529,11 @@ def check_entry_format(text: str) -> list[tuple[str, str]]:
     write-time gate in ``session append`` calls ``entry_body_format_issues`` on
     the single body it is about to write."""
     return _walk_entry_bodies(text, entry_body_format_issues)
+
+
+def check_entry_sources(text: str) -> list[tuple[str, str]]:
+    """Validate stored DRAFTS source syntax without requiring old paths to exist."""
+    return _walk_entry_bodies(text, entry_body_source_issues)
 
 
 def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
@@ -2838,6 +2905,9 @@ def check_session_links(
         # runs links check. Structural only; see entry_body_format_issues.
         for entry_id, issue in check_entry_format(text):
             issues.append(LinkIssue(rel, "malformed-entry-format", f"{entry_id}: {issue}"))
+
+        for entry_id, issue in check_entry_sources(text):
+            issues.append(LinkIssue(rel, "malformed-entry-source", f"{entry_id}: {issue}"))
 
         for entry_id, issue in check_entry_decision_origins(text):
             issues.append(LinkIssue(rel, "malformed-decision-origin", f"{entry_id}: {issue}"))
@@ -4036,6 +4106,30 @@ def check_session_links(
                 )
             )
 
+    # Source references use the same continuity-aware resolver as retrieval. A
+    # moved artifact therefore stays healthy when its alias is declared, while
+    # a genuinely missing historical source is advisory: published entries are
+    # append-only and must not be rewritten merely to repair navigation.
+    from .retrieval import load_corpus
+
+    source_chunks = (
+        snapshot.chunks("entry", "augmented")
+        if snapshot is not None
+        else load_corpus(root, "entry")
+    )
+    for chunk in source_chunks:
+        for source_ref in chunk.source_refs:
+            if source_ref.status != "missing":
+                continue
+            issues.append(
+                LinkIssue(
+                    chunk.source_path,
+                    "missing-entry-source",
+                    f"{chunk.entry_id}: source '{source_ref.path}' cannot be resolved",
+                    "warning",
+                )
+            )
+
     return LinksCheckResult(
         ok=not any(issue.severity == "error" for issue in issues),
         files_checked=files_checked,
@@ -4805,7 +4899,7 @@ def session_append_entry(
     The tool owns structure, the agent owns voice: target resolution, heading
     timestamp, canonical entry id, YAML shape, ref/topic validation, and
     chronological append are handled here; ``title``, ``topics``, lifecycle
-    classification, and the D/R/A/F/T ``body`` prose arrive verbatim and are
+    classification, and the D/R/A/F/T/S ``body`` prose arrive verbatim and are
     never reworded.
 
     Guards (all reported together; nothing is written when any fails):
@@ -5156,6 +5250,12 @@ def session_append_entry(
         require_numbered_decisions=True,
     ):
         issues.append(f"body format: {issue}")
+    for issue in entry_body_source_issues(
+        body,
+        workspace_root=runtime.workspace_root,
+        require_existing=True,
+    ):
+        issues.append(f"body sources: {issue}")
 
     yaml_lines = [
         f"entry_id: {entry_id}",

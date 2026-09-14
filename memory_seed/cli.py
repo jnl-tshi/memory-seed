@@ -2153,7 +2153,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 body = sys.stdin.read()
             if not body.strip():
-                print("Entry body is empty (pass --body-file or pipe the D/R/A/F/T prose on stdin).", file=sys.stderr)
+                print("Entry body is empty (pass --body-file or pipe the D/R/A/F/T/S prose on stdin).", file=sys.stderr)
                 return 1
             decisions: list[dict] = []
             if args.decisions_file:

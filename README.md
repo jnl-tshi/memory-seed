@@ -16,7 +16,7 @@ It is built first for solo developers who move between Codex, Claude Code, Gemin
 
 - **Local-first, Git-native.** Memory is plain Markdown in your repository - versioned, diffable, greppable, and yours. No database, no hosted service, no telemetry.
 - **Vendor-neutral.** One control plane serves Claude Code, Codex, Gemini CLI, Cursor, and Copilot; switching agents keeps the memory.
-- **Inspectable decisions, not summaries.** Append-only session logs record decisions with reasons (DRAFT records), typed lifecycle edges (`replaces`/`evolves`), artifact lineage, and commit links - validated by `links check`.
+- **Inspectable decisions, not summaries.** Append-only session logs record decisions with reasons and sources (DRAFTS records), typed lifecycle edges (`replaces`/`evolves`), artifact lineage, and commit links - validated by `links check`.
 - **Agent-native retrieval.** MCP `memory_search`/`memory_get_chunk` give ranked, self-contained memory chunks with computed freshness status; hooks keep agents oriented at session start.
 - **Safe collaboration.** Branch-aware session fusing (`session merge-branch`) integrates multi-agent work with chronology and provenance enforced.
 
@@ -733,7 +733,7 @@ If the console script is not on `PATH`, use the module form from the active Pyth
 The server exposes:
 
 ```text
-memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true, user=null, date_from=null, date_to=null)
+memory_search(query, cwd=".", preferred_keywords=null, top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true, user=null, date_from=null, date_to=null)
 memory_get_chunk(chunk_id, cwd=".")
 memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
@@ -752,9 +752,9 @@ memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 
 `memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in `sessions/YYYY-MM/YYYY-MM-DD.md`, `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c` for legacy entries or `mse_0123456789abcdef` for new generated entries. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
 
-`memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`/`replaces`/`evolves`/`continuity`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. Each result also carries the **computed lifecycle status** (`replaced_by`, `evolved_by`) so a consumer sees "this decision was retired" or "newer work builds on this" at the moment of consumption, without a per-result `memory_get_chunk` round trip - additive read-only fields; ranking and result order are untouched. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
+`memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`/`replaces`/`evolves`/`continuity`, structured DRAFTS `source_refs`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. Each result also carries the **computed lifecycle status** (`replaced_by`, `evolved_by`) so a consumer sees "this decision was retired" or "newer work builds on this" at the moment of consumption, without a per-result `memory_get_chunk` round trip - additive read-only fields; ranking and result order are untouched. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
 
-The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
+The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. Lexical query and index text share Unicode NFKC plus case-fold normalization. Optional `preferred_keywords` add a bounded positive BM25F bonus to already-relevant results; diagnostics expose the matched preferences and bonus, and preferences never filter results. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
 
 `memory_link_suggest` and `memory_link_show` are read-only authoring-support tools and
 `memory_session_append` is the write path: together they close the authoring loop that
@@ -764,7 +764,7 @@ file-overlap boost and per-suggestion `shared_files` evidence), `memory_link_sho
 entry's graph node (outbound/inbound edges, supersession and evolution edges with their computed
 inverses, continuity blocks, importance, linked-commit count), and `memory_session_append` appends
 the entry itself through every structural guard (chronology, ref existence, forward-only
-`replaces`/`evolves` edges, controlled topics, id collision, DRAFT body), stamping the heading
+`replaces`/`evolves` edges, controlled topics, id collision, DRAFTS body), stamping the heading
 timestamp from the server clock; a `dry_run` returns the `entry_id`, timestamp, target path, and
 `rendered` - the exact entry block a real call would append - without writing. They are routed through `history_retrieval.md`. `memory_session_append` is the only
 sanctioned way to author an entry, so agents no longer hand-write session files.

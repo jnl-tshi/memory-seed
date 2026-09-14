@@ -45,7 +45,7 @@ class SessionSchemaTests(unittest.TestCase):
             "Small work entry",
             "Meaningful decision entry",
             "Multi-decision session entry",
-            "DRAFT decision record",
+            "DRAFTS decision record",
             "D = Decision",
             "R = Reason",
             "A = Alternatives considered or rejected",
@@ -267,7 +267,7 @@ class SessionSchemaTests(unittest.TestCase):
             ),
             "session_logging.md": (
                 "Session Log Format",
-                "DRAFT decision record",
+                "DRAFTS decision record",
                 "Append-Only Chronology",
                 "related_entries",
                 "Meaningful decision entry",
@@ -751,7 +751,7 @@ class SessionSchemaTests(unittest.TestCase):
             "inheritance model",
             "active skill selection",
             "major assumptions",
-            "DRAFT decision records",
+            "DRAFTS decision records",
             "Do not require reason for obvious file discoveries",
         ):
             self.assertIn(phrase, content)
@@ -802,7 +802,7 @@ class SessionSchemaTests(unittest.TestCase):
             "sessions preserve reason and tradeoffs",
             "index.md receives only durable current conclusions",
             "policy.md receives only durable behavioral constraints",
-            "Preserve DRAFT decision records",
+            "Preserve DRAFTS decision records",
             "Do not copy full reason into index.md",
         ):
             self.assertIn(phrase, content)

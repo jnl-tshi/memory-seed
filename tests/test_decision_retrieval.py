@@ -8,7 +8,7 @@ topics, lifecycle edges, ADRs and Trace already speak.
 
 The 2026-05-26 decision (ms-845042c7) that made entries the default rejected heading-level chunking
 because it "can separate a decision from its rationale and validation". These tests pin the property
-that makes decision chunks exempt: a `#### Dn` block carries its own D/R/A/F/T.
+that makes decision chunks exempt: a `#### Dn` block carries its own D/R/A/F/T/S.
 """
 
 import shutil

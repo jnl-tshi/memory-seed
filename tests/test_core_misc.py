@@ -72,6 +72,36 @@ class CoreMiscTests(unittest.TestCase):
         # A decision with no reason.
         self.assertTrue(any("no reason (R:)" in i for i in fmt("### Decision\n\n- D: only a decision")))
 
+    def test_drafts_source_references_are_structured_and_repository_local(self):
+        from memory_seed.core import entry_body_source_issues, entry_body_source_references
+
+        cwd = self.make_project()
+        proposal = cwd / "docs" / "proposal.md"
+        proposal.parent.mkdir()
+        proposal.write_text("# Proposal\n", encoding="utf-8")
+        body = (
+            "### Decisions\n\n#### D1 - choose\n\n"
+            "- D: choose React\n- R: component reuse\n- T: verified\n"
+            "- S: Architecture proposal `docs/proposal.md#decision`\n"
+        )
+
+        self.assertEqual(
+            entry_body_source_references(body),
+            (("docs/proposal.md", "decision"),),
+        )
+        self.assertEqual(
+            entry_body_source_issues(body, workspace_root=cwd, require_existing=True),
+            [],
+        )
+        malformed = entry_body_source_issues("- S: docs/proposal.md")
+        self.assertTrue(any("exactly one backtick-quoted" in issue for issue in malformed))
+        escaping = entry_body_source_issues("- S: `../outside.md`")
+        self.assertTrue(any("without traversal" in issue for issue in escaping))
+        missing = entry_body_source_issues(
+            "- S: `docs/missing.md`", workspace_root=cwd, require_existing=True
+        )
+        self.assertTrue(any("missing file" in issue for issue in missing))
+
     def test_decision_count_reads_both_entry_styles(self):
         from memory_seed.core import entry_body_decision_count
 

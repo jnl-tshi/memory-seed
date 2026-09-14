@@ -48,6 +48,7 @@ related_entries:
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
 - T: Tests or validation outcome. (optional)
+- S: Source proposal, specification, research, or evidence artifact, when one materially informed the decision. Use one backtick-quoted repo-relative path per line. (conditionally required)
 ````
 
 `agent_type` is the LLM model or vendor. `related_entries` is an optional list of related `entry_id` values, legacy `ms-` or current `mse_`, that link this entry to prior entries. It forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. To fill it, prefer the `memory_link_suggest` MCP tool (or `memory-seed link suggest`), which ranks older candidate entries and returns a paste-ready list instead of guessing. To append the entry, use `memory_session_append` (or `memory-seed session append`); a `dry_run` returns the resolved target path, the canonical `entry_id`, and `rendered` — the exact block a real call would append — without writing; when committing after a preview, echo the returned `timestamp` into the real call so a minute tick cannot change the id.
@@ -96,7 +97,7 @@ A lifecycle link item is an object, not a bare id:
 - **`type` is required on `evolves`** — `refines` (the next form of that decision) or `builds-on` (later work resting on it, which stays valid). A decision has **at most one `refines` successor**; `builds-on` is unlimited. That cap is what keeps a lineage walkable as a line instead of fanning to 25 terminal heads. `session append` refuses a second `refines`, and `links check` raises `multiple-refines-successors` across the corpus, since two branches can each author one without either being refused. Fix a conflict with `retracts:` — downgrade the loser to `builds-on` in a new block, never by editing the published one.
 
 `--topics`/`--related`/`--replaces`/`--evolves` are **refused** as of 2026-08-09: they attribute at ENTRY level only, so every decision in a multi-decision entry inherited one shared list and none owned its own, and they have nowhere to put the evidence or the evolution type. That was measurably what happened when they were used — decision-keyed attribution across this corpus fell from 92% in July to 8% in August while coverage stayed at 100%. Governed by `adr_lifecycle_edges_live_in_sidecars`.
-The tool owns structure — target resolution, the heading timestamp (now, refusing to append out of chronological order; a conflict is fixed consciously via `--timestamp` or `session reorder`, never silently), the canonical `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids are refused), topic vocabulary (aliases stored as canonical), and branch auto-capture. You own voice — title, lifecycle classification, and the D/R/A/F/T body, passed through verbatim.
+The tool owns structure — target resolution, the heading timestamp (now, refusing to append out of chronological order; a conflict is fixed consciously via `--timestamp` or `session reorder`, never silently), the canonical `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids are refused), topic vocabulary (aliases stored as canonical), and branch auto-capture. You own voice — title, lifecycle classification, and the D/R/A/F/T/S body, passed through verbatim.
 
 When a lifecycle link touches any current or historical ADR member, both CLI `session append` and MCP `memory_session_append` run the same content-bound review preflight: the first call returns the full matched ADR contexts plus a receipt and writes zero bytes. Put one `adrs` outcome (`revise` or `no-change`) per matched ADR into the owning decision object, then retry MCP with `adr_review_receipt` or CLI with `--adr-review-receipt`. When a review confirms the current ADR without warranting a new session decision, use `memory-seed adr reviewed --adr-id <id> --entry <existing-entry-id> --reason <text>` or its parity twin `memory_adr_reviewed`; both require real entry provenance and move no head.
 
@@ -113,7 +114,7 @@ after required independent validation, orchestrator synthesis, and rebind:
 
 1. Preview `memory-seed reflection ledger close <workstream_id> --chain-id <chain_id> --json`.
    Its `required_receipts` / `missing_receipts` identify every member needing durable coverage.
-2. Prepare an ordinary DRAFT entry with `memory_session_append` dry-run or `session append --dry-run`.
+2. Prepare an ordinary DRAFTS entry with `memory_session_append` dry-run or `session append --dry-run`.
    Use its canonical destination path and entry identity, plus the exact uppercase decision locator
    such as `D1`. Follow the ordinary writer's preview/replay contract; never invent identities or times.
    If the destination identity changes, re-draft the mappings before committing them.
@@ -122,7 +123,7 @@ after required independent validation, orchestrator synthesis, and rebind:
    `record_id` covers all members. Choose `promoted-to-decision` or `already-covered-by-decision`
    for decision-backed coverage, or `expired-unpromoted` for an unpromoted disposition.
    Early expiry is unavailable; a disposition string is never permission to remove a chain.
-4. Copy each returned exact mapping as its own fenced YAML block inside the named DRAFT decision.
+4. Copy each returned exact mapping as its own fenced YAML block inside the named DRAFTS decision.
    Preserve every field and digest. Append through the ordinary guarded writer and commit that entry;
    raw mapping objects passed to close and uncommitted session text do not establish receipt coverage.
    Keep session bytes canonical UTF-8, NFC, and LF through the normal text writer.
@@ -211,9 +212,9 @@ The session file is strictly append-only and must stay in ascending time order.
 
 ## Reason Rules
 
-DRAFT is the baseline decision-record format for session entries. A DRAFT decision record is the default whenever a turn produced a decision or durable change.
+DRAFTS is the baseline decision-record format for session entries. A DRAFTS decision record is the default whenever a turn produced a decision or durable change. Historical DRAFT records without `S:` remain valid and are never rewritten merely to adopt the newer name.
 
-Write DRAFT records with **simple technical precision**: be concise but precise, use plain language by
+Write DRAFTS records with **simple technical precision**: be concise but precise, use plain language by
 default, and define a necessary technical term when its meaning may not be shared. Preserve the constraints,
 reasoning, uncertainty, and distinctions needed to understand or challenge the decision; brevity must never
 erase meaning. Remove repetition, ornamental jargon, and implementation detail that does not explain the
@@ -224,8 +225,11 @@ decision or its validation.
 - A = Alternatives considered or rejected
 - F = Files, artifacts, or behaviors changed
 - T = Tests or validation
+- S = Sources
 
-`D` and `R` are required for every meaningful decision. `A`, `F`, and `T` are optional when not relevant.
+`D` and `R` are required for every meaningful decision. `A`, `F`, and `T` are optional when not relevant. `S` is conditionally required when a proposal, specification, research document, or evidence artifact materially informed the decision. Do not guess this condition with a keyword heuristic; the author decides applicability and the writer validates every supplied reference.
+
+Write each source as its own `S:` item after the other fields, with exactly one backtick-quoted repository-relative file and an optional Markdown anchor: `- S: Architecture proposal \`docs/2_Todo/example.md#decision\``. Paths must resolve to files inside the repository when the entry is appended. Add another `S:` line for another source. External URLs are not part of the v1 contract.
 
 - Do not invent reason.
 - If reason is inferred, label it `Inferred reason`.
@@ -379,6 +383,7 @@ Use for one durable decision.
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
 - T: Tests or validation outcome. (optional)
+- S: Source artifact, when one materially informed the decision. (conditionally required)
 ```
 
 **One decision still uses `### Decisions` and `#### D1`.** There is one shape, whatever the count.
@@ -429,6 +434,7 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
 - T: Tests or validation outcome. (optional)
+- S: Source artifact, when one materially informed the decision. (conditionally required)
 
 #### D2 - Short decision name
 
@@ -450,12 +456,12 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 
 ### Format is enforced (not just guidance)
 
-The DRAFT shapes above are checked by tooling, so a malformed entry cannot enter
+The DRAFTS shapes above are checked by tooling, so a malformed entry cannot enter
 through the sanctioned path and is caught everywhere else:
 
 - `memory-seed session append` **rejects** a malformed body before writing - a missing `### Summary`
   on a new entry, bare
-  `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no section
+  `D:`/`R:` labels that are not `- ` list items, DRAFTS prose with no section
   heading, several decisions crammed under a singular `### Decision`, or a `D:`
   with no `R:`. The error names the fix.
 - `links check` (surfaced by `esr`, merge-blocking under CI) flags the same across

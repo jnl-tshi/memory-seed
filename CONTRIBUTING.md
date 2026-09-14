@@ -31,7 +31,7 @@ than pretend otherwise. External pull requests do get maintainer review before m
   declined.
 - **Session history is append-only** (Invariant #2): corrections are new entries that point back, never
   edits to old ones.
-- **Decision records:** durable decisions are logged in `.memory-seed/sessions/` using the DRAFT shape
+- **Decision records:** durable decisions are logged in `.memory-seed/sessions/` using the DRAFTS shape
   (`D:` decision and `R:` reason are mandatory). See `.memory-seed/skills/session_logging.md`.
 - **Dependency hygiene:** plain `pip install memory-seed` stays web-framework-free; UI dependencies
   belong to the `trace` extra. New runtime dependencies need a strong case.
