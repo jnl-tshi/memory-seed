@@ -125,6 +125,17 @@ skills:
     do_not_load_when:
       - ordinary mid-task work with no closeout or Reflection Board expiry/receipt work
 
+  - skill: worktree_reconciliation.md
+    required: true
+    load_when:
+      - reconciling dirty, stale, or deletion-candidate Git worktrees
+      - deciding whether a worktree or deregistered worktree residue is safe to remove
+      - recovering or classifying unique, duplicated, referenced, generated, or uncertain worktree content
+      - producing a cleanup recommendation from branch-local session history and Git evidence
+    do_not_load_when:
+      - only listing current worktrees with no cleanup assessment or recommendation
+      - immediate cleanup of the exact clean source worktree after guarded branch integration
+
   - skill: adr_sweep.md
     required: true
     load_when:

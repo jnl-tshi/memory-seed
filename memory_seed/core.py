@@ -9716,6 +9716,10 @@ SEED_FILES = [
         ".memory-seed/skills/end_of_turn.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "worktree_reconciliation.md",
+        ".memory-seed/skills/worktree_reconciliation.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "adr_sweep.md",
         ".memory-seed/skills/adr_sweep.md",
     ),
@@ -10032,6 +10036,7 @@ CORE_SKILL_NAMES = (
     "history_retrieval.md",
     "orientation.md",
     "end_of_turn.md",
+    "worktree_reconciliation.md",
     "adr_sweep.md",
     "memory_hygiene.md",
     "risk_signaling.md",
@@ -10117,6 +10122,7 @@ SKILL_DESCRIPTIONS = {
     "superpowers_integration.md": "Route optional Superpowers delegation while retaining Memory Seed safety and integration ownership.",
     "systematic_debugging.md": "Diagnose unexpected behaviour with causal hypotheses, discriminating tests, and fresh verification.",
     "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
+    "worktree_reconciliation.md": "Reconcile worktree-local session history with Git evidence before cleanup.",
 }
 
 PROPOSAL_LIFECYCLE_ARTIFACTS = (

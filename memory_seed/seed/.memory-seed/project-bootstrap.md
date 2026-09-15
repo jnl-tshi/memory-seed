@@ -333,6 +333,7 @@ Core skills are always installed and registry-wired:
 - `session_logging.md`
 - `history_retrieval.md`
 - `end_of_turn.md`
+- `worktree_reconciliation.md`
 - `memory_hygiene.md`
 - `risk_signaling.md`
 - `memory_doctor.md`

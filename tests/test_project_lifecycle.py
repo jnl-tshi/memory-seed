@@ -663,6 +663,17 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue(any(path.endswith("proposal_lifecycle.md") for path in removed["backed_up"]))
         self.assertFalse(any("proposal_lifecycle.md" in w for w in doctor(cwd=cwd).warnings))
 
+    def test_worktree_reconciliation_is_a_core_safety_skill(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd)
+
+        self.assertIn("worktree_reconciliation.md", CORE_SKILL_NAMES)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "worktree_reconciliation.md").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("skill: worktree_reconciliation.md", registry)
+        self.assertIn("worktree_reconciliation.md", skill_status(cwd=cwd)["core"])
+
     def test_skill_status_reports_profiles_installed_and_ignored(self):
         cwd = self.make_project()
         init_project(cwd=cwd, skill_profiles={"coding"})
@@ -819,6 +830,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/superpowers_integration.md",
                 ".memory-seed/skills/systematic_debugging.md",
                 ".memory-seed/skills/topic_swarm.md",
+                ".memory-seed/skills/worktree_reconciliation.md",
                 ".memory-seed/topics.yaml",
                 "AGENTS.md",
                 "CLAUDE.md",

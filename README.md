@@ -320,6 +320,7 @@ GEMINI.md
     security_triage.md
     session_logging.md
     subproject_runtime.md
+    worktree_reconciliation.md
   sessions/
   archive/
 ```

@@ -132,6 +132,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/session_logging.md`
 - `.memory-seed/skills/compact_mermaid_diagrams.md`
 - `.memory-seed/skills/end_of_turn.md`
+- `.memory-seed/skills/worktree_reconciliation.md`
 - `.memory-seed/skills/adr_sweep.md`
 - `.memory-seed/skills/link_swarm.md`
 - `.memory-seed/skills/topic_swarm.md`
