@@ -6,6 +6,12 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-15] **Worktree cleanup review is session-first and target-specific.** A new core
+  `worktree_reconciliation.md` skill reconstructs each candidate worktree from its own measured Memory
+  Seed session route before Git verifies reachability, divergence, dirty content, and duplication.
+  It requires a descriptive summary and six-way evidence classification per worktree, separate live
+  deletion approval for each exact target, branch preservation by default, and explicit post-removal
+  verification without touching unrelated dirty worktrees.
 - [2026-09-14] **DRAFTS decisions can name their material source artifact.** The new `S:` label uses a
   validated repository-relative path, is exposed as structured retrieval metadata, and remains optional
   for historical DRAFT records. Authoring guidance requires it when a proposal, specification, research

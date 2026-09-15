@@ -529,6 +529,48 @@ class SessionSchemaTests(unittest.TestCase):
                     continue
                 self.assertTrue((root / skill).exists(), f"{root / skill} is registered but missing")
 
+    def test_worktree_reconciliation_skill_is_seeded_registered_and_safety_complete(self):
+        live_skill = Path(".memory-seed/skills/worktree_reconciliation.md")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/worktree_reconciliation.md")
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+        end_of_turn = Path(".memory-seed/skills/end_of_turn.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live_skill.exists(), "live worktree reconciliation skill missing")
+        self.assertTrue(seed_skill.exists(), "seed worktree reconciliation skill missing")
+        self.assertEqual(live_skill.read_bytes(), seed_skill.read_bytes())
+
+        content = live_skill.read_text(encoding="utf-8")
+        for phrase in (
+            "Session-first",
+            "memory-seed situate",
+            "measured latest-session route",
+            "Never use `memory_search` to determine newest state",
+            "Git-second",
+            "committed work preserved by the branch",
+            "uncommitted unique work",
+            "content already present on the integration branch",
+            "non-governing reference",
+            "generated or disposable residue",
+            "uncertain",
+            "one descriptive summary per worktree",
+            "separate live approval",
+            "Approval for one worktree never authorizes another",
+            "Preserve the branch",
+            "resolved absolute target",
+            "git worktree list --porcelain",
+            "post-removal absence",
+            "do not claim success",
+        ):
+            self.assertIn(phrase, content)
+
+        for registry in (live_registry, seed_registry):
+            self.assertIn("skill: worktree_reconciliation.md", registry)
+            self.assertIn("dirty, stale, or deletion-candidate Git worktrees", registry)
+        self.assertIn(".memory-seed/skills/worktree_reconciliation.md", runtime_index)
+        self.assertIn("Load `worktree_reconciliation.md`", end_of_turn)
+
     def test_seed_registry_entries_are_installed_by_seed_files(self):
         # A registry entry with no shipped file makes `memory-seed init` write a
         # trigger map pointing at a skill it never installs (the 2.19
