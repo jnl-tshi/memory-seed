@@ -728,6 +728,17 @@
             ],
             "title": "Path"
           },
+          "record_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Kind"
+          },
           "related_entries": {
             "items": {
               "type": "string"
@@ -2045,6 +2056,17 @@
           "recency_multiplier": {
             "title": "Recency Multiplier",
             "type": "number"
+          },
+          "record_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Kind"
           },
           "related_entries": {
             "items": {

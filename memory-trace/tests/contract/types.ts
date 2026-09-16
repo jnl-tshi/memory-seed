@@ -465,6 +465,8 @@ export interface components {
             metadata: components["schemas"]["ChunkMetadata"];
             /** Path */
             path: string | null;
+            /** Record Kind */
+            record_kind?: string | null;
             /** Related Entries */
             related_entries: string[];
             /** Sections */
@@ -929,6 +931,8 @@ export interface components {
             path: string | null;
             /** Recency Multiplier */
             recency_multiplier: number;
+            /** Record Kind */
+            record_kind?: string | null;
             /** Related Entries */
             related_entries: string[];
             /** Score */

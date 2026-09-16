@@ -315,7 +315,7 @@ export function EntryReader({
       {decisions.length > 0 && (
         <section className="detail-section decisions-segment" aria-labelledby={`${decisionRegionId}-title`}>
           <div className="segment-heading">
-            <h4 id={`${decisionRegionId}-title`}>Decisions</h4>
+            <h4 id={`${decisionRegionId}-title`}>Records</h4>
             <span className="count">{decisions.length}</span>
           </div>
           {decisions.length > 1 && (
@@ -324,7 +324,7 @@ export function EntryReader({
                 const selected = decision.heading === activeDecision?.heading;
                 return (
                   <button key={decision.heading} type="button" className="decision-selector-item" aria-current={selected ? "true" : undefined} aria-controls={decisionRegionId} onClick={() => onOpenDecision(decision.heading)}>
-                    <span>{decision.ordinal?.toUpperCase() ?? "Decision"}</span>
+                    <span>{decision.ordinal?.toUpperCase() ?? "Decision"} · {decision.kind === "documentation" ? "Documentation" : "Decision"}</span>
                     <small>{decision.title}</small>
                   </button>
                 );
@@ -345,7 +345,7 @@ export function EntryReader({
                   aria-labelledby={headingId}
                 >
                   <header className="decision-entry-heading">
-                    {decision.ordinal && <span className="decision-ordinal">{decision.ordinal.toUpperCase()}</span>}
+                    {decision.ordinal && <span className="decision-ordinal">{decision.ordinal.toUpperCase()} · {decision.kind === "documentation" ? "Documentation" : "Decision"}</span>}
                     <h3 id={headingId}>{decision.title}</h3>
                   </header>
                   {decision.text ? <div className="markdown decision-body">{renderMarkdown(decision.text, null, onOpenFile)}</div> : <p className="reader-empty">No decision body was recorded.</p>}

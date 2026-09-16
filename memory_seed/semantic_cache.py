@@ -217,6 +217,7 @@ class MemoryChunk:
     sections: tuple[str, ...] = ()
     source_refs: tuple[SourceReference, ...] = ()
     granularity: str = "legacy"
+    record_kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1654,7 +1655,7 @@ def _extract_entry_chunks_from_file(
         if granularity == "decision":
             decision_ranges = _find_decision_ranges(entry_lines, start_line)
             if decision_ranges:
-                for d_start, d_end, d_title, ordinal in decision_ranges:
+                for d_start, d_end, d_title, ordinal, record_kind in decision_ranges:
                     d_lines = list(lines[d_start:d_end])
                     d_heading_path = (title, d_title)
                     text = "\n".join(d_lines).strip()
@@ -1706,6 +1707,7 @@ def _extract_entry_chunks_from_file(
                             entry_line_range=entry_range,
                             sections=sections,
                             granularity="decision",
+                            record_kind=record_kind,
                         )
                     )
                 continue
@@ -2068,7 +2070,10 @@ def _find_section_ranges(
     return ranges
 
 
-_DECISION_HEADING_RE = re.compile(r"^\s*#{4}\s+(D(\d+))\s*[-–—]\s*(.+?)\s*$")
+_DECISION_HEADING_RE = re.compile(
+    r"^\s*#{4}\s+(D(\d+))\s*[-–—]\s*(?:(Decision|Documentation)\s*:\s*)?(.+?)\s*$",
+    re.IGNORECASE,
+)
 
 # LEGACY. The entry format used to have two shapes for decisions: `#### Dn - title` under a
 # `### Decisions` heading for two or more, and a bare singular `### Decision` for one. As of
@@ -2083,21 +2088,24 @@ _LEGACY_SINGLE_DECISION_RE = re.compile(r"^\s*#{3}\s+Decision\s*$", re.IGNORECAS
 def _find_decision_ranges(
     entry_lines: Sequence[str],
     entry_start_line: int,
-) -> list[tuple[int, int, str, str]]:
+) -> list[tuple[int, int, str, str, str]]:
     """Line ranges for each `#### Dn - title` DRAFT block: (start, end, title, ordinal).
 
     A decision block runs to the next decision heading or to the next heading at level 3 or
     shallower (so trailing entry sections after the decisions are not swallowed). Returns []
     for entries with no decision headings - those keep the whole-entry unit.
     """
-    starts: list[tuple[int, str, str]] = []
+    starts: list[tuple[int, str, str, str]] = []
     boundaries: list[int] = []
-    legacy_single: tuple[int, str, str] | None = None
+    legacy_single: tuple[int, str, str, str] | None = None
     for offset, line in enumerate(entry_lines, start=entry_start_line + 1):
         decision = _DECISION_HEADING_RE.match(line)
         if decision:
             ordinal = decision.group(1).lower()
-            starts.append((offset, f"{decision.group(1)} - {decision.group(3)}", ordinal))
+            authored_kind = decision.group(3)
+            kind = (authored_kind or "decision").casefold()
+            kind_prefix = f"{authored_kind.title()}: " if authored_kind else ""
+            starts.append((offset, f"{decision.group(1)} - {kind_prefix}{decision.group(4)}", ordinal, kind))
             boundaries.append(offset)
             continue
         heading = HEADING_RE.match(line)
@@ -2106,17 +2114,17 @@ def _find_decision_ranges(
             if legacy_single is None and _LEGACY_SINGLE_DECISION_RE.match(line):
                 # Held, not appended: an entry could in principle carry both shapes, and the
                 # numbered blocks win. Only usable once the whole entry has been scanned.
-                legacy_single = (offset, "D1 - Decision", "d1")
+                legacy_single = (offset, "D1 - Decision", "d1", "decision")
 
     if not starts and legacy_single is not None:
         starts.append(legacy_single)
 
-    ranges: list[tuple[int, int, str, str]] = []
+    ranges: list[tuple[int, int, str, str, str]] = []
     entry_end = entry_start_line + len(entry_lines)
-    for start, title, ordinal in starts:
+    for start, title, ordinal, kind in starts:
         following = [b for b in boundaries if b > start]
         end = (following[0] - 1) if following else entry_end
-        ranges.append((start, end, title, ordinal))
+        ranges.append((start, end, title, ordinal, kind))
     return ranges
 
 

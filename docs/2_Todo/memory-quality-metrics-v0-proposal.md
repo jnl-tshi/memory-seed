@@ -74,9 +74,9 @@ changes ranking, or becomes authoritative project memory.
 
 ### 2. DRAFT reason coverage
 
-- **Population:** entries using a `### Decision` or `### Decisions` DRAFT shape.
+- **Population:** entries containing a Decision-kind DRAFTS record, including historical `### Decision`/`### Decisions` shapes.
 - **Counted:** decision records with every `D:` paired to a non-empty `R:` under the structural rules.
-- **Excluded:** small-work entries that make no decision and legacy entries that predate DRAFT.
+- **Excluded:** Documentation-only entries, other entries that make no decision, and legacy entries that predate DRAFT.
 - **Interpretation:** format/evidence coverage only; it does not judge whether a reason is persuasive.
 
 ### 3. Generated-claim citation coverage

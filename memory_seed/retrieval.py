@@ -4954,6 +4954,7 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
             for ref in chunk.source_refs
         ],
         "granularity": chunk.granularity,
+        "record_kind": chunk.record_kind,
     }
 
 
@@ -5012,6 +5013,7 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
             for ref in chunk.source_refs
         ],
         "granularity": chunk.granularity,
+        "record_kind": chunk.record_kind,
     }
 
 

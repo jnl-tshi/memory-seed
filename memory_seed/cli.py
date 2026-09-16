@@ -746,7 +746,7 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument(
         "--decisions-file",
         default=None,
-        help="JSON list of decision-sidecar objects; mutually exclusive with --topics/--related/--replaces/--evolves",
+        help="JSON list of per-record sidecar objects (the compatibility field is named 'decision'); mutually exclusive with --topics/--related/--replaces/--evolves",
     )
     # Repeatable (one ref per flag) AND comma-separated (legacy form), because
     # grammar v2 puts commas INSIDE a ref (`mse_x:d1,d4`) - see _ref_list.
@@ -2153,7 +2153,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 body = sys.stdin.read()
             if not body.strip():
-                print("Entry body is empty (pass --body-file or pipe the D/R/A/F/T/S prose on stdin).", file=sys.stderr)
+                print("Entry body is empty (pass --body-file or pipe the typed DRAFTS record prose on stdin).", file=sys.stderr)
                 return 1
             decisions: list[dict] = []
             if args.decisions_file:
@@ -2163,7 +2163,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Could not read --decisions-file as JSON: {exc}", file=sys.stderr)
                     return 1
                 if not isinstance(decoded, list):
-                    print("--decisions-file must contain a JSON list of decision objects.", file=sys.stderr)
+                    print("--decisions-file must contain a JSON list of record objects.", file=sys.stderr)
                     return 1
                 decisions = decoded
             elif args.topics or args.related or args.replaces or args.evolves:
@@ -2178,8 +2178,8 @@ def main(argv: list[str] | None = None) -> int:
                 # author is told what it costs and what to use instead.
                 print(
                     "warning: --topics/--related/--replaces/--evolves attribute at ENTRY level, so no "
-                    "decision owns its own topics or links. Prefer --decisions-file with one object per "
-                    "decision (see session_logging.md). memory_session_append requires it.",
+                    "record owns its own topics or links. Prefer --decisions-file with one object per "
+                    "record (see session_logging.md). memory_session_append requires it.",
                     file=sys.stderr,
                 )
 

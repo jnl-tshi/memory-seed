@@ -177,7 +177,7 @@ Restricted updates:
 - `.memory-seed/policy.md`: update only when durable behavioral constraints changed.
 - `.memory-seed/skills/*.md`: update only when the corresponding reusable runbook changes.
 
-Immediate durable-memory update exception: update `.memory-seed/index.md`, `.memory-seed/policy.md`, or an active skill during a session only when leaving the current content stale would immediately mislead active work, route an agent to wrong files, preserve an unsafe assumption, or cause repeated incorrect actions. This includes recording a durable fact established this turn that has no entry to live in (see `session_logging.md`'s Decision Harvest) — an `index.md` that never gained the fact is exactly as misleading as one that kept a stale one.
+Immediate durable-memory update exception: update `.memory-seed/index.md`, `.memory-seed/policy.md`, or an active skill during a session only when leaving the current content stale would immediately mislead active work, route an agent to wrong files, preserve an unsafe assumption, or cause repeated incorrect actions. This includes recording a durable fact established this turn that has no entry to live in (see `session_logging.md`'s Record Harvest) — an `index.md` that never gained the fact is exactly as misleading as one that kept a stale one.
 
 For restricted files, the agent must be able to explain why the file's ownership scope was affected.
 
@@ -245,7 +245,7 @@ Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinction
 
 Session entries use dated files under `.memory-seed/sessions/`. Entries include a current-time heading plus YAML fields for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `related_entries` when meaningful prior entries are linked.
 
-Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFTS decision record, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
+Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, typed DRAFTS Decision/Documentation records, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
 
 Detailed work logs belong in the nearest active runtime. Do not mirror sub-project logs into root memory.
 

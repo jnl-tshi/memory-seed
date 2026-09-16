@@ -3408,6 +3408,7 @@ def _chunk_to_api(chunk: MemoryChunk) -> dict[str, Any]:
         "text": chunk.text,
         "excerpt": _excerpt(chunk.text),
         "granularity": chunk.granularity,
+        "record_kind": chunk.record_kind,
         "related_entries": list(chunk.related_entries),
         "continuity": _continuity_to_api(chunk),
     }

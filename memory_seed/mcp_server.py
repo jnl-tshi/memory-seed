@@ -125,16 +125,16 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
 
     ``session_append_entry`` intentionally remains permissive enough to import
     and repair historical entries.  MCP is the authoring boundary, so it makes
-    every body decision explicit and classifies it with authored area/activity
+    every body record explicit and classifies it with authored area/activity
     topics before the core writer can publish either an entry or a sidecar.
     """
-    from .core import entry_body_decisions
+    from .core import entry_body_records
 
     issues: list[str] = []
-    expected = [decision.ordinal for decision in entry_body_decisions(body)]
+    expected = [record.ordinal for record in entry_body_records(body)]
     if not isinstance(decisions, list) or not decisions:
         return [
-            "decisions is required and must be a non-empty list with one topic envelope for every body decision"
+            "decisions is required and must be a non-empty compatibility envelope with one object for every body record"
         ]
 
     supplied_ordinals: list[str] = []
@@ -193,15 +193,15 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
     duplicate = sorted({ordinal for ordinal in supplied_ordinals if supplied_ordinals.count(ordinal) > 1})
     if missing:
         issues.append(
-            "decisions must cover every body decision exactly once; missing " + ", ".join(missing)
+            "decisions must cover every body record exactly once; missing " + ", ".join(missing)
         )
     if unexpected:
         issues.append(
-            "decisions must name only body decision ordinals; unexpected " + ", ".join(unexpected)
+            "decisions must name only body record ordinals; unexpected " + ", ".join(unexpected)
         )
     if duplicate:
         issues.append(
-            "decisions must cover every body decision exactly once; duplicated " + ", ".join(duplicate)
+            "decisions must cover every body record exactly once; duplicated " + ", ".join(duplicate)
         )
     return issues
 
@@ -331,7 +331,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["decision", "entry", "section"],
                     "default": "decision",
-                    "description": "Default 'decision': one result per recorded decision, keyed by its canonical mse_<id>:dN identity and carrying that decision's whole DRAFTS block (D/R/A/F/T/S) plus only its own topics and lifecycle edges; entries without decision headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
+                    "description": "Default 'decision' is the compatibility name for record granularity: one result per numbered Decision or Documentation record, keyed by its canonical mse_<id>:dN identity and carrying that record's whole DRAFTS block plus its record_kind, topics, and permitted edges; legacy entries without numbered headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
                 },
                 "exclude_replaced": {
                     "type": "boolean",
@@ -619,8 +619,8 @@ TOOLS: list[dict[str, Any]] = [
             "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
             "do not hand-write session files. The tool owns structure (target path, heading timestamp from the server "
             "clock, canonical entry_id, YAML shape, chronological ordering) and refuses malformed or out-of-order writes; "
-            "you own voice (title and D/R/A/F/T/S body prose, all taken verbatim). New semantic fields belong in the "
-            "decision-sidecar envelope: use `decisions` to attach each body decision's controlled topics and lifecycle "
+            "you own voice (title and typed DRAFTS record prose, all taken verbatim). New semantic fields belong in the "
+            "compatibility `decisions` envelope: use it to attach each body record's controlled topics and permitted "
             "links. The writer stores those only in topic/link sidecars, before it publishes the narrative entry; do not "
             "combine `decisions` with the legacy top-level topic/link fields. "
             "Guards run together and nothing is written when any fails: chronology, ref existence (fabricated ids are "
@@ -639,7 +639,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
                 "body": {
                     "type": "string",
-                    "description": "The entry body, verbatim. Current DRAFTS shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', '- T:', and repeatable '- S:' repository-local source references. Legacy singular '### Decision' remains readable but is refused for new appends.",
+                    "description": "The entry body, verbatim. Current DRAFTS shape: '### Records' with one or more typed '#### Dn - Decision: name' or '#### Dn - Documentation: name' subsections. Every record requires '- D:' with an indented '- Scope:'; decisions additionally require indented '- Disposition:' and their own '- R:'. Optional '- A:', '- F:', '- T:', and repeatable '- S:' remain available. Legacy '### Decision'/'### Decisions' entries remain readable but are refused for new appends.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
@@ -651,11 +651,11 @@ TOOLS: list[dict[str, Any]] = [
                 "decisions": {
                     "type": "array",
                     "minItems": 1,
-                    "description": "Required decision-sidecar envelope. Supply exactly one object for every body decision: {decision: 'dN', origin: 'user' | 'agent', topics: {area: slug, activity: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. origin is user only for a direct user instruction, answer, or correction; it is agent for an implementation, investigation, test, or review finding. Each decision must carry one Area and at least one Activity; topic and lifecycle values are written only to their respective sidecars.",
+                    "description": "Required per-record envelope; the field name is retained for compatibility. Supply exactly one object for every body record: {decision: 'dN', origin: 'user' | 'agent', topics: {area: slug, activity: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. Documentation records may use related_entries only; Decision records may also use replaces/evolves and ADR fields. origin is user only for a direct user instruction, answer, or correction; it is agent for an implementation, investigation, test, or review finding. Every record must carry one Area and at least one Activity; topic and permitted link values are written only to their respective sidecars.",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "decision": {"type": "string", "minLength": 1, "description": "Body decision ordinal, e.g. d1."},
+                            "decision": {"type": "string", "minLength": 1, "description": "Body record ordinal, e.g. d1 (compatibility field name)."},
                             "origin": {"type": "string", "enum": ["user", "agent"], "description": "Required accountable source: user for a direct user instruction, answer, or correction; agent for an implementation, investigation, test, or review finding."},
                             "topics": {
                                 "type": "object",
@@ -1449,7 +1449,7 @@ def call_tool(
 
         body = args.get("body")
         if not isinstance(body, str) or not body.strip():
-            return {"ok": False, "written": False, "issues": ["body is empty - pass the D/R/A/F/T/S prose"]}
+            return {"ok": False, "written": False, "issues": ["body is empty - pass the typed DRAFTS record prose"]}
 
         authored_decision_issues = _mcp_authored_decision_issues(body, args.get("decisions"))
         if authored_decision_issues:

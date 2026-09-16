@@ -220,7 +220,9 @@ topics:
         return {
             "cwd": str(self.root),
             "title": title,
-            "body": "### Summary\n\n- Review.\n\n### Decisions\n\n#### D1 - Evolve it\n\n- D: Evolve it.\n- R: New evidence.",
+            "body": "### Summary\n\n- Review.\n\n### Records\n\n#### D1 - Decision: Evolve it\n\n"
+                "- D: Evolve it.\n  - Scope: The accepted ADR lineage.\n"
+                "  - Disposition: Accepted for the review fixture.\n- R: New evidence.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": timestamp,
@@ -312,7 +314,10 @@ topics:
         decisions_path = self.root / "review-decisions.json"
         body_path.write_text(
             "### Summary\n\nThe CLI and MCP review the same proposed entry.\n\n"
-            "### Decisions\n\n#### D1 - Clarify the transaction\n\n- D: Keep the transaction and clarify its use.\n"
+            "### Records\n\n#### D1 - Decision: Clarify the transaction\n\n"
+            "- D: Keep the transaction and clarify its use.\n"
+            "  - Scope: The composite session and ADR transaction.\n"
+            "  - Disposition: Accepted for the CLI parity fixture.\n"
             "- R: The existing head still governs this refinement.\n",
             encoding="utf-8",
         )
@@ -611,7 +616,12 @@ topics:
         payload = {
             "cwd": str(self.root),
             "title": "Evolve the sidecar transaction",
-            "body": "### Summary\n\n- Evolve the writer.\n\n### Decisions\n\n#### D1 - Add ADR ledger publication\n\n- D: Add the ADR ledger to the transaction.\n- R: Review and mutation must remain atomic.",
+            "body": "### Summary\n\n- Evolve the writer.\n\n### Records\n\n"
+                "#### D1 - Decision: Add ADR ledger publication\n\n"
+                "- D: Add the ADR ledger to the transaction.\n"
+                "  - Scope: The composite session and ADR transaction.\n"
+                "  - Disposition: Accepted for the ADR publication fixture.\n"
+                "- R: Review and mutation must remain atomic.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:10",
@@ -682,7 +692,9 @@ topics:
         payload = {
             "cwd": str(self.root),
             "title": "Review lineage",
-            "body": "### Summary\n\n- Review.\n\n### Decisions\n\n#### D1 - Evolve it\n\n- D: Evolve it.\n- R: New evidence.",
+            "body": "### Summary\n\n- Review.\n\n### Records\n\n#### D1 - Decision: Evolve it\n\n"
+                "- D: Evolve it.\n  - Scope: The accepted ADR lineage.\n"
+                "  - Disposition: Accepted for the changed-draft fixture.\n- R: New evidence.",
             "user_initials": "JNL",
             "agent_type": "codex",
             "timestamp": "2026-07-30 12:00",

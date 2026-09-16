@@ -30,9 +30,12 @@ from memory_seed.retrieval import entry_topic_sidecars
 from memory_seed import corpus_cache
 
 BODY = (
-    "### Summary\n\n- Context for this entry.\n\n### Decisions\n\n"
-    "#### D1 - Record the durable choice\n\n"
-    "- D: Something durable.\n- R: Because."
+    "### Summary\n\n- Context for this entry.\n\n### Records\n\n"
+    "#### D1 - Decision: Record the durable choice\n\n"
+    "- D: Something durable.\n"
+    "  - Scope: This entry's durable choice.\n"
+    "  - Disposition: Accepted.\n"
+    "- R: Because."
 )
 
 
@@ -241,12 +244,12 @@ topics:
             result.path.read_text(encoding="utf-8"),
         )
 
-    def test_lower_level_origin_requires_complete_body_decision_coverage(self):
+    def test_lower_level_origin_requires_complete_body_record_coverage(self):
         self._vocabulary()
         body = (
-            "### Summary\n\n- Two choices.\n\n### Decisions\n\n"
-            "#### D1 - User choice\n\n- D: Honor it.\n- R: Direct instruction.\n\n"
-            "#### D2 - Agent finding\n\n- D: Keep the guard.\n- R: Tests require it.\n"
+            "### Summary\n\n- Two choices.\n\n### Records\n\n"
+            "#### D1 - Decision: User choice\n\n- D: Honor it.\n  - Scope: This instruction.\n  - Disposition: Accepted.\n- R: Direct instruction.\n\n"
+            "#### D2 - Decision: Agent finding\n\n- D: Keep the guard.\n  - Scope: The tested writer.\n  - Disposition: Accepted.\n- R: Tests require it.\n"
         )
         incomplete_envelope = self._append(
             body=body,
@@ -277,7 +280,7 @@ topics:
             self.assertFalse(result.ok)
             self.assertFalse(result.written)
             self.assertIn(
-                "decision origins must cover every body decision",
+                "decision origins must cover every body record",
                 " ".join(result.issues),
             )
         self.assertEqual(list((self.cwd / MEMORY_DIR_NAME / "sessions").rglob("*.md")), [])
@@ -294,7 +297,7 @@ topics:
             encoding="utf-8",
         )
 
-    def test_both_axes_are_mandatory_on_every_decision(self):
+    def test_both_axes_are_mandatory_on_every_record(self):
         # The MCP schema has required area+activity since 2026-07-31; the CLI
         # path accepted neither, and that asymmetry is what let decision-keyed
         # attribution fall 92% -> 8% while coverage stayed at 100%.
@@ -470,9 +473,9 @@ topics:
 
     def _append_multi_decision_older(self):
         body = (
-            "### Summary\n\n- Context.\n\n### Decisions\n\n"
-            "#### D1 - First call\n\n- D: alpha\n- R: because\n\n"
-            "#### D2 - Second call\n\n- D: beta\n- R: reasons\n"
+            "### Summary\n\n- Context.\n\n### Records\n\n"
+            "#### D1 - Decision: First call\n\n- D: alpha\n  - Scope: First call.\n  - Disposition: Accepted.\n- R: because\n\n"
+            "#### D2 - Decision: Second call\n\n- D: beta\n  - Scope: Second call.\n  - Disposition: Accepted.\n- R: reasons\n"
         )
         result = self._append(title="Older with decisions", body=body, timestamp="2026-06-13 08:00")
         self.assertTrue(result.ok, result.issues)
@@ -619,13 +622,20 @@ topics:
         self.assertFalse(result.ok)
         self.assertTrue(any("has 2 decisions (d1,d2)" in issue for issue in result.issues), result.issues)
 
-    def test_append_accepts_bare_ref_to_a_decisionless_target(self):
-        summary_only = self._append(
-            title="Note only", body="### Summary\n\n- a plain note.", timestamp="2026-06-13 08:00"
+    def test_append_refuses_lifecycle_ref_to_documentation_target(self):
+        documentation = self._append(
+            title="Note only",
+            body=(
+                "### Summary\n\n- a plain note.\n\n### Records\n\n"
+                "#### D1 - Documentation: Preserve the note\n\n"
+                "- D: Recorded a plain note.\n  - Scope: This verification fixture.\n"
+            ),
+            timestamp="2026-06-13 08:00",
         )
-        self.assertTrue(summary_only.ok, summary_only.issues)
-        result = self._append_links("replaces", [summary_only.entry_id])
-        self.assertTrue(result.ok, result.issues)
+        self.assertTrue(documentation.ok, documentation.issues)
+        result = self._append_links("replaces", [documentation.entry_id])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("Documentation records may use related_entries only" in issue for issue in result.issues))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
     def test_append_takes_a_single_decision_target_bare_and_rejects_its_d1(self):
@@ -854,8 +864,9 @@ topics:
     def test_append_requires_a_summary_for_new_entries_only(self):
         refused = self._append(
             body=(
-                "### Decisions\n\n#### D1 - Missing summary\n\n"
-                "- D: Something durable.\n- R: Because."
+                "### Records\n\n#### D1 - Decision: Missing summary\n\n"
+                "- D: Something durable.\n  - Scope: New entries.\n"
+                "  - Disposition: Accepted.\n- R: Because."
             )
         )
 
@@ -875,12 +886,34 @@ topics:
         )
 
         self.assertFalse(refused.ok)
-        self.assertTrue(any("legacy '### Decision'" in issue for issue in refused.issues))
+        self.assertTrue(any("'### Records'" in issue for issue in refused.issues))
         from memory_seed.core import entry_body_format_issues
         self.assertEqual(
             entry_body_format_issues("### Decision\n\n- D: old.\n- R: because."),
             [],
         )
+
+    def test_append_requires_typed_records_and_accepts_minimal_documentation(self):
+        documentation = (
+            "### Summary\n\n- Recorded a small verification.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture the smoke test\n\n"
+            "- D: Recorded the writer smoke test.\n"
+            "  - Scope: The local append path.\n"
+            "- T: Passed.\n"
+        )
+        accepted = self._append(body=documentation, dry_run=True)
+        self.assertTrue(accepted.ok, accepted.issues)
+
+        legacy_numbered = self._append(
+            body=(
+                "### Summary\n\n- Old shape.\n\n### Decisions\n\n"
+                "#### D1 - Untyped new record\n\n- D: Old.\n- R: Compatibility.\n"
+            ),
+            title="Untyped new record",
+            dry_run=True,
+        )
+        self.assertFalse(legacy_numbered.ok)
+        self.assertTrue(any("typed 'Decision:' or 'Documentation:'" in issue for issue in legacy_numbered.issues))
 
     def test_append_refuses_existing_headerless_flat_file(self):
         target = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-13.md"

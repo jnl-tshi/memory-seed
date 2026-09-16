@@ -22,6 +22,28 @@ test("models each numbered decision without swallowing following entry sections"
   assert.doesNotMatch(sections[1].text, /Reader fixture/);
 });
 
+test("models typed decision and documentation records with visible kinds", () => {
+  const sections = decisionSections(`### Records
+
+#### D1 - Decision: Adopt typed records
+- D: Use explicit kinds.
+  - Scope: New entries.
+  - Disposition: Accepted.
+- R: Authority stays explicit.
+
+#### D2 - Documentation: Capture verification
+- D: Recorded the smoke test.
+  - Scope: The writer fixture.`);
+
+  assert.deepEqual(
+    sections.map((section) => [section.ordinal, section.kind, section.title]),
+    [
+      ["d1", "decision", "Adopt typed records"],
+      ["d2", "documentation", "Capture verification"],
+    ],
+  );
+});
+
 test("selects the exact Trail decision heading and falls back to the first recorded decision", () => {
   const sections = decisionSections(MULTI_DECISION);
   assert.equal(selectedDecision(sections, "D2 - Keep evidence exact")?.ordinal, "d2");

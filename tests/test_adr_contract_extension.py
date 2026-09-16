@@ -120,6 +120,55 @@ class PinnedAdrByteCanonicalTests(unittest.TestCase):
                 self.assertIsNone(event.founding_source, path.name)
 
 
+class DocumentationAuthorityTests(ProjectFixture):
+    def test_documentation_record_cannot_be_promoted_to_adr_authority(self):
+        root = self.make_project()
+        session = root / ".memory-seed" / "sessions" / "2026-08-06.md"
+        session.write_text(
+            session.read_text(encoding="utf-8")
+            + """
+
+## 2026-08-06 10:10 - Capture supporting evidence
+
+```yaml
+entry_id: mse_documentation0001
+user_initials: JNL
+agent_type: codex
+project_path: .
+subproject_path: null
+```
+
+### Records
+
+#### D1 - Documentation: Capture the verification result
+
+- D: Recorded the parser compatibility result.
+  - Scope: The typed-record compatibility fixture.
+- T: Passed.
+""",
+            encoding="utf-8",
+        )
+
+        result = promote_decision(
+            root,
+            adr_id="adr_documentation_refused",
+            source_entry_id="mse_documentation0001",
+            source_decision="d1",
+            title="Documentation must not govern",
+            topics=("retrieval",),
+            user_initials="JNL",
+            agent_type="codex",
+            source="write-time",
+            decision="This must not become an ADR head.",
+            reason="Documentation carries evidence, not governing authority.",
+            timestamp="2026-08-06T10:11:00Z",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("missing decision mse_documentation0001:d1" in issue for issue in result.issues))
+        self.assertFalse((root / ".memory-seed" / "decisions" / "adr_documentation_refused.md").exists())
+
+
 class ConstitutionBindingTests(ProjectFixture):
     def test_binding_resolves_against_anchor(self):
         root = self.make_project()

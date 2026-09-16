@@ -21,7 +21,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
    Read every section - each prints even when clean, so a skipped check is visible. Use its
    sections for steps 5, 12, and 13 instead of re-running the underlying commands one by one.
 1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
-2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
+2. Run the Record Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
    identify every durable accepted choice, then choose single-decision, multi-decision, or separate
    entries from that list. The harvest includes the lifecycle questions: does any harvested decision
    replace/remove (`replaces`) or extend-while-still-valid (`evolves`) an earlier entry, and did
@@ -114,7 +114,7 @@ Review consolidation when:
 
 ## Lifecycle Link Sweep
 
-Write-time YAML (the Decision Harvest's lifecycle questions in step 2) is the first line of defense;
+Write-time YAML (the Record Harvest's lifecycle questions in step 2) is the first line of defense;
 this sweep is the safety net for edges you could not know at authoring time. It exists because typed
 lifecycle edges rot silently otherwise: genuine supersessions get logged as generic
 `related_entries` and the distinction collapses.

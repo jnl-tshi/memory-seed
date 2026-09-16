@@ -75,6 +75,11 @@ class OpenApiContractFixtureTests(unittest.TestCase):
         for name in ("GraphNode", "TrailEvent"):
             self.assertIn("provenance_class", schemas[name]["properties"], name)
 
+    def test_chunk_contract_exposes_record_kind(self):
+        schemas = self.fixture["components"]["schemas"]
+        for name in ("ChunkResponse", "SearchResult"):
+            self.assertIn("record_kind", schemas[name]["properties"], name)
+
     def test_graph_contract_preserves_ordinal_decision_topics(self):
         schemas = self.fixture["components"]["schemas"]
         self.assertEqual(

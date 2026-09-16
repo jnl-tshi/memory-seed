@@ -18,20 +18,26 @@ from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.mcp_server import TOOLS, call_tool
 
 BODY = (
-    "### Decisions\n\n"
-    "#### D1 - Ship the gated append path\n\n"
+    "### Records\n\n"
+    "#### D1 - Decision: Ship the gated append path\n\n"
     "- D: Ship the gated append path.\n"
+    "  - Scope: The MCP authoring surface.\n"
+    "  - Disposition: Accepted.\n"
     "- R: The ungated one skipped every guard.\n\n"
     "### Summary\n\n"
     "The MCP writer records this decision with authored topics.\n"
 )
 MULTI_DECISION_BODY = (
-    "### Decisions\n\n"
-    "#### D1 - Gate authoring\n\n"
+    "### Records\n\n"
+    "#### D1 - Decision: Gate authoring\n\n"
     "- D: Require an authored topic envelope.\n"
+    "  - Scope: Every new record.\n"
+    "  - Disposition: Accepted.\n"
     "- R: Every decision needs durable topic coverage.\n\n"
-    "#### D2 - Keep imports compatible\n\n"
+    "#### D2 - Decision: Keep imports compatible\n\n"
     "- D: Keep the core append interface permissive.\n"
+    "  - Scope: Historical import and repair.\n"
+    "  - Disposition: Accepted.\n"
     "- R: Historical repair must remain possible.\n\n"
     "### Summary\n\n"
     "The MCP boundary is stricter than lower-level repair paths.\n"
@@ -110,6 +116,105 @@ topics:
             "decision_origins:\n  d1: user",
             Path(result["path"]).read_text(encoding="utf-8"),
         )
+
+    def test_documentation_record_uses_the_compatible_decisions_envelope(self):
+        body = (
+            "### Summary\n\n- A small verification.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture verification\n\n"
+            "- D: Recorded the MCP smoke test.\n"
+            "  - Scope: The MCP append surface.\n"
+            "- T: Passed.\n"
+        )
+        result = self._append(body=body, _now="2026-06-13 09:00")
+
+        self.assertTrue(result["ok"], result["issues"])
+        self.assertIn("decision_origins:\n  d1: agent", Path(result["path"]).read_text(encoding="utf-8"))
+
+    def test_documentation_record_refuses_lifecycle_authority(self):
+        body = (
+            "### Summary\n\n- A small verification.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture verification\n\n"
+            "- D: Recorded the MCP smoke test.\n"
+            "  - Scope: The MCP append surface.\n"
+        )
+        result = self._append(
+            body=body,
+            decisions=[{
+                "decision": "d1",
+                "origin": "agent",
+                "topics": {"area": "schema", "activity": "feature-build"},
+                "links": {
+                    "evolves": [{
+                        "ref": "mse_aaaaaaaaaaaaaaaa",
+                        "type": "builds-on",
+                        "why": "Documentation cannot own this authority.",
+                    }]
+                },
+            }],
+            _now="2026-06-13 09:00",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("Documentation records may use related_entries only" in issue for issue in result["issues"]))
+
+    def test_documentation_record_refuses_lifecycle_target_authority(self):
+        documentation = self._append(
+            title="Documentation target",
+            body=(
+                "### Summary\n\n- A small verification.\n\n### Records\n\n"
+                "#### D1 - Documentation: Capture verification\n\n"
+                "- D: Recorded the MCP smoke test.\n"
+                "  - Scope: The MCP append surface.\n"
+            ),
+            _now="2026-06-13 09:00",
+        )
+        self.assertTrue(documentation["ok"], documentation["issues"])
+
+        result = self._append(
+            title="Invalid lifecycle target",
+            decisions=[{
+                "decision": "d1",
+                "origin": "agent",
+                "topics": {"area": "schema", "activity": "feature-build"},
+                "links": {
+                    "evolves": [{
+                        "ref": documentation["entry_id"],
+                        "type": "builds-on",
+                        "why": "A Documentation record is not lifecycle authority.",
+                    }]
+                },
+            }],
+            _now="2026-06-13 10:00",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("Documentation records may use related_entries only" in issue for issue in result["issues"]))
+
+    def test_documentation_record_refuses_atomic_adr_promotion(self):
+        body = (
+            "### Summary\n\n- A small verification.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture verification\n\n"
+            "- D: Recorded the MCP smoke test.\n"
+            "  - Scope: The MCP append surface.\n"
+        )
+        result = self._append(
+            body=body,
+            decisions=[{
+                "decision": "d1",
+                "origin": "agent",
+                "topics": {"area": "schema", "activity": "feature-build"},
+                "adr": {
+                    "disposition": "promote",
+                    "adr_id": "adr_documentation_refused",
+                    "title": "Documentation must not govern",
+                },
+            }],
+            _now="2026-06-13 09:00",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("cannot promote or review ADR authority" in issue for issue in result["issues"]))
+        self.assertFalse((self.cwd / MEMORY_DIR_NAME / "decisions" / "adr_documentation_refused.md").exists())
 
     def test_lifecycle_edges_arrive_as_arrays_not_csv(self):
         # The target (BODY) is single-decision, so the evolves ref stays BARE -

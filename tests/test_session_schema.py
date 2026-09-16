@@ -30,23 +30,27 @@ def _seed_files_skill_names():
 
 
 class SessionSchemaTests(unittest.TestCase):
-    def test_session_logging_opening_example_uses_current_numbered_decision_shape(self):
+    def test_session_logging_opening_example_uses_current_typed_record_shape(self):
         content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
         opening_example = content.split("````markdown", 1)[1].split("````", 1)[0]
 
-        self.assertIn("### Decisions", opening_example)
-        self.assertIn("#### D1 - State the decision", opening_example)
+        self.assertIn("### Records", opening_example)
+        self.assertIn("#### D1 - Decision: State the decision", opening_example)
+        self.assertIn("- Scope:", opening_example)
+        self.assertIn("- Disposition:", opening_example)
         self.assertNotIn("### Decision\n", opening_example)
 
     def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
         content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
 
         for phrase in (
-            "Small work entry",
-            "Meaningful decision entry",
-            "Multi-decision session entry",
-            "DRAFTS decision record",
-            "D = Decision",
+            "Documentation / small work record",
+            "Meaningful decision record",
+            "Multi-record session entry",
+            "DRAFTS is the baseline record format",
+            "D = Decision or Documentation record",
+            "Scope = the behavior, artifact, or boundary the record covers",
+            "Disposition = the decision outcome",
             "R = Reason",
             "A = Alternatives considered or rejected",
             "F = Files, artifacts, or behaviors changed",
@@ -270,10 +274,10 @@ class SessionSchemaTests(unittest.TestCase):
             ),
             "session_logging.md": (
                 "Session Log Format",
-                "DRAFTS decision record",
+                "DRAFTS is the baseline record format",
                 "Append-Only Chronology",
                 "related_entries",
-                "Meaningful decision entry",
+                "Meaningful decision record",
             ),
             # Re-anchored when sidecars moved to full Mermaid rendering. The
             # previous anchors pinned the subset restriction ("`subgraph` Is Not
@@ -796,7 +800,7 @@ class SessionSchemaTests(unittest.TestCase):
             "inheritance model",
             "active skill selection",
             "major assumptions",
-            "DRAFTS decision records",
+            "typed DRAFTS records",
             "Do not require reason for obvious file discoveries",
         ):
             self.assertIn(phrase, content)
@@ -847,7 +851,7 @@ class SessionSchemaTests(unittest.TestCase):
             "sessions preserve reason and tradeoffs",
             "index.md receives only durable current conclusions",
             "policy.md receives only durable behavioral constraints",
-            "Preserve DRAFTS decision records",
+            "Preserve typed DRAFTS Decision and Documentation records",
             "Do not copy full reason into index.md",
         ):
             self.assertIn(phrase, content)
