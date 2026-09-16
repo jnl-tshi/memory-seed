@@ -4947,7 +4947,11 @@ def apply_workstream_commit(cwd: Path | str, preview: WorkstreamCommitPreview, *
             from .core import session_append_entry
             session_args = dict(title=f"Reflection compaction {cleanup}", user_initials="MS", agent_type="memory-seed",
                 body="### Summary\n\nExpired one closed reflection chain after signed elapsed retention. "
-                    + EXPIRY_DISCLOSURE + "\n\n### Reflection workstream compaction\n\n```yaml\n"
+                    + EXPIRY_DISCLOSURE
+                    + "\n\n### Records\n\n#### D1 - Documentation: Record reflection compaction\n\n"
+                    + "- D: Recorded the signed elapsed-retention compaction receipt.\n"
+                    + "  - Scope: The expired closed reflection chain and its ordinary session receipt.\n"
+                    + "\n### Reflection workstream compaction\n\n```yaml\n"
                     + render_workstream_compaction_receipt(elapsed_receipt) + "```\n")
             session_preview = session_append_entry(root, **session_args, dry_run=True)
             if not session_preview.ok:
