@@ -244,7 +244,7 @@ topics:
             result.path.read_text(encoding="utf-8"),
         )
 
-    def test_lower_level_origin_requires_complete_body_decision_coverage(self):
+    def test_lower_level_origin_requires_complete_body_record_coverage(self):
         self._vocabulary()
         body = (
             "### Summary\n\n- Two choices.\n\n### Records\n\n"
@@ -280,7 +280,7 @@ topics:
             self.assertFalse(result.ok)
             self.assertFalse(result.written)
             self.assertIn(
-                "decision origins must cover every body decision",
+                "decision origins must cover every body record",
                 " ".join(result.issues),
             )
         self.assertEqual(list((self.cwd / MEMORY_DIR_NAME / "sessions").rglob("*.md")), [])
@@ -297,7 +297,7 @@ topics:
             encoding="utf-8",
         )
 
-    def test_both_axes_are_mandatory_on_every_decision(self):
+    def test_both_axes_are_mandatory_on_every_record(self):
         # The MCP schema has required area+activity since 2026-07-31; the CLI
         # path accepted neither, and that asymmetry is what let decision-keyed
         # attribution fall 92% -> 8% while coverage stayed at 100%.

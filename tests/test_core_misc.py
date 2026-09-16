@@ -294,7 +294,7 @@ class CoreMiscTests(unittest.TestCase):
             any("missing d2" in issue for _, issue in check_entry_decision_origins(missing))
         )
         self.assertTrue(
-            any("names no body decision: d3" in issue for _, issue in check_entry_decision_origins(unexpected))
+            any("names no body record: d3" in issue for _, issue in check_entry_decision_origins(unexpected))
         )
         self.assertTrue(
             any("repeats d1" in issue for _, issue in check_entry_decision_origins(duplicate))

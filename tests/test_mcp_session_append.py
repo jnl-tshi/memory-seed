@@ -190,6 +190,32 @@ topics:
         self.assertFalse(result["ok"])
         self.assertTrue(any("Documentation records may use related_entries only" in issue for issue in result["issues"]))
 
+    def test_documentation_record_refuses_atomic_adr_promotion(self):
+        body = (
+            "### Summary\n\n- A small verification.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture verification\n\n"
+            "- D: Recorded the MCP smoke test.\n"
+            "  - Scope: The MCP append surface.\n"
+        )
+        result = self._append(
+            body=body,
+            decisions=[{
+                "decision": "d1",
+                "origin": "agent",
+                "topics": {"area": "schema", "activity": "feature-build"},
+                "adr": {
+                    "disposition": "promote",
+                    "adr_id": "adr_documentation_refused",
+                    "title": "Documentation must not govern",
+                },
+            }],
+            _now="2026-06-13 09:00",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("cannot promote or review ADR authority" in issue for issue in result["issues"]))
+        self.assertFalse((self.cwd / MEMORY_DIR_NAME / "decisions" / "adr_documentation_refused.md").exists())
+
     def test_lifecycle_edges_arrive_as_arrays_not_csv(self):
         # The target (BODY) is single-decision, so the evolves ref stays BARE -
         # :d1 there is redundant (2026-07-24). related_entries is entry-level

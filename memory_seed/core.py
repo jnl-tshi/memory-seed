@@ -2603,7 +2603,7 @@ def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
     """Validate optional generated decision-origin metadata.
 
     Older entries predate this field, so its absence is intentionally silent.
-    Once declared, it must cover exactly the entry's DRAFT decisions and use
+    Once declared, it must cover exactly the entry's DRAFTS records and use
     the closed ``user|agent`` tag.
     """
     body_ordinals: dict[str, set[str]] = {}
@@ -2685,7 +2685,7 @@ def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
                 issues.append(
                     (
                         entry_id,
-                        "decision_origins names no body decision: " + ", ".join(unexpected),
+                        "decision_origins names no body record: " + ", ".join(unexpected),
                     )
                 )
     return issues
@@ -4886,6 +4886,12 @@ def _normalise_decision_sidecars(
 
         adr_write: _AdrPromotionWrite | None = None
         raw_adr = raw.get("adr")
+        if own_record_kinds.get(decision) == "documentation" and raw_adr is not None:
+            issues.append(
+                f"decisions[{index}] ({decision}) is Documentation; "
+                "Documentation records cannot promote or review ADR authority"
+            )
+            raw_adr = None
         if raw_adr is not None:
             if not isinstance(raw_adr, Mapping):
                 issues.append(f"decisions[{index}].adr must be an object")
@@ -5022,7 +5028,7 @@ def session_append_entry(
     The tool owns structure, the agent owns voice: target resolution, heading
     timestamp, canonical entry id, YAML shape, ref/topic validation, and
     chronological append are handled here; ``title``, ``topics``, lifecycle
-    classification, and the D/R/A/F/T/S ``body`` prose arrive verbatim and are
+    classification, and the typed DRAFTS ``body`` prose arrive verbatim and are
     never reworded.
 
     Guards (all reported together; nothing is written when any fails):
@@ -5421,7 +5427,7 @@ def session_append_entry(
         covered_ordinals = {decision.decision for decision in decision_writes}
         if any(origin is None for origin in supplied_origins) or covered_ordinals != own_ordinals:
             issues.append(
-                "decision origins must cover every body decision when any origin is supplied"
+                "decision origins must cover every body record when any origin is supplied"
             )
         else:
             yaml_lines.append("decision_origins:")
