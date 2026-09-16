@@ -2932,8 +2932,11 @@ def check_session_links(
     # (file, kind, raw ref, bad word) for a `(...)` suffix that is not one of
     # EVOLUTION_TYPES, or one on a kind where the distinction does not apply.
     evolution_type_issues: list[tuple[str, str, str, str]] = []
-    # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
+    # entry_id -> {"d1", "d2", ...}: which records a ref can legally target.
     entry_decision_ordinals: dict[str, set[str]] = {}
+    # entry_id -> {"d1": "decision"|"documentation", ...}: lifecycle edges
+    # are authority links and therefore may connect Decision records only.
+    entry_record_kinds: dict[str, dict[str, str]] = {}
     # entry_id -> the topic slugs the AUTHOR wrote in the entry's own yaml, so
     # a topic sidecar can be told it is restating one rather than adding one.
     entry_authored_topics: dict[str, set[str]] = {}
@@ -3083,6 +3086,12 @@ def check_session_links(
         # views of "where does this entry end" drift apart.
         for entry_id_seen, ordinal in _walk_entry_bodies(text, _entry_record_ordinals):
             entry_decision_ordinals.setdefault(entry_id_seen, set()).add(ordinal)
+        for entry_id_seen, descriptor in _walk_entry_bodies(
+            text,
+            lambda body: [f"{record.ordinal}:{record.kind}" for record in entry_body_records(body)],
+        ):
+            ordinal, kind = descriptor.split(":", 1)
+            entry_record_kinds.setdefault(entry_id_seen, {})[ordinal] = kind
 
         # Second, heading-anchored pass: attribute each replaces/evolves ref
         # to its source entry and heading timestamp for the forward-only guard.
@@ -3662,6 +3671,27 @@ def check_session_links(
                             LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {parsed.entry_id} (no such entry_id)")
                         )
                         continue
+                    source_kinds = entry_record_kinds.get(entry_id, {})
+                    source_kind = (
+                        source_kinds.get(parsed.source_decision)
+                        if parsed.source_decision is not None
+                        else next(iter(source_kinds.values()), None) if len(source_kinds) == 1 else None
+                    )
+                    target_kinds = entry_record_kinds.get(parsed.entry_id, {})
+                    target_kind = (
+                        target_kinds.get(parsed.decision)
+                        if parsed.decision is not None
+                        else next(iter(target_kinds.values()), None) if len(target_kinds) == 1 else None
+                    )
+                    if source_kind == "documentation" or target_kind == "documentation":
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "documentation-lifecycle-edge",
+                                f"{kind} -> {parsed.raw}: Documentation records may use related links only",
+                            )
+                        )
+                        continue
                     # Arrow source prefix (`dM -> <ref>`): the named decision
                     # must exist on the BLOCK's entry - the sidecar author is
                     # claiming which of that entry's decisions drives the edge.
@@ -4070,6 +4100,28 @@ def check_session_links(
                     f"{kind} -> {raw}: {source_id} has no {source_ordinal} to author this edge from",
                 )
             )
+        if kind != "related":
+            source_kinds = entry_record_kinds.get(source_id, {})
+            source_kind = (
+                source_kinds.get(source_ordinal)
+                if source_ordinal is not None
+                else next(iter(source_kinds.values()), None) if len(source_kinds) == 1 else None
+            )
+            target_kinds = entry_record_kinds.get(target_id, {})
+            target_kind = (
+                target_kinds.get(ordinal)
+                if ordinal is not None
+                else next(iter(target_kinds.values()), None) if len(target_kinds) == 1 else None
+            )
+            if source_kind == "documentation" or target_kind == "documentation":
+                issues.append(
+                    LinkIssue(
+                        rel_path,
+                        "documentation-lifecycle-edge",
+                        f"{kind} -> {raw}: Documentation records may use related links only",
+                    )
+                )
+                continue
         if ordinal is None:
             continue
         if target_id not in known_entries:
@@ -5043,19 +5095,33 @@ def session_append_entry(
     # Ordinals are parsed lazily - only when a decision ref is actually present
     # does the corpus get a body pass.
     _corpus_ordinals: dict[str, set[str]] | None = None
+    _corpus_record_kinds: dict[str, dict[str, str]] | None = None
 
     def _ordinals() -> dict[str, set[str]]:
-        nonlocal _corpus_ordinals
+        nonlocal _corpus_ordinals, _corpus_record_kinds
         if _corpus_ordinals is None:
             _corpus_ordinals = {}
+            _corpus_record_kinds = {}
             for doc in iter_session_documents(sessions_dir):
                 try:
                     text = doc.path.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
-                for seen_id, ordinal in _walk_entry_bodies(text, _entry_record_ordinals):
+                for seen_id, descriptor in _walk_entry_bodies(
+                    text,
+                    lambda entry_body: [
+                        f"{record.ordinal}:{record.kind}"
+                        for record in entry_body_records(entry_body)
+                    ],
+                ):
+                    ordinal, kind = descriptor.split(":", 1)
                     _corpus_ordinals.setdefault(seen_id, set()).add(ordinal)
+                    _corpus_record_kinds.setdefault(seen_id, {})[ordinal] = kind
         return _corpus_ordinals
+
+    def _record_kinds() -> dict[str, dict[str, str]]:
+        _ordinals()
+        return _corpus_record_kinds or {}
 
     # The entry's own decisions come from the body being appended.  Both the
     # decision envelope and legacy lifecycle grammar validate against them.
@@ -5265,6 +5331,17 @@ def session_append_entry(
             for item in parsed_items:
                 if item.decision is not None and item.decision not in target_ordinals:
                     issues.append(f"{kind} -> {ref}: {target_id} has no {item.decision}")
+                if kind != "related_entries":
+                    target_kinds = _record_kinds().get(target_id, {})
+                    target_kind = (
+                        target_kinds.get(item.decision)
+                        if item.decision is not None
+                        else next(iter(target_kinds.values()), None) if len(target_kinds) == 1 else None
+                    )
+                    if target_kind == "documentation":
+                        issues.append(
+                            f"{kind} -> {ref}: Documentation records may use related_entries only"
+                        )
             # `:dN` and the arrow prefix are VALIDATED on all three kinds -
             # since 2026-07-25 `related_entries` may also carry them (decision-
             # level related, JNL's direction: lay the grammar so one swarm run

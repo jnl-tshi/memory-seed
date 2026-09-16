@@ -622,8 +622,8 @@ topics:
         self.assertFalse(result.ok)
         self.assertTrue(any("has 2 decisions (d1,d2)" in issue for issue in result.issues), result.issues)
 
-    def test_append_accepts_bare_ref_to_a_decisionless_target(self):
-        summary_only = self._append(
+    def test_append_refuses_lifecycle_ref_to_documentation_target(self):
+        documentation = self._append(
             title="Note only",
             body=(
                 "### Summary\n\n- a plain note.\n\n### Records\n\n"
@@ -632,9 +632,10 @@ topics:
             ),
             timestamp="2026-06-13 08:00",
         )
-        self.assertTrue(summary_only.ok, summary_only.issues)
-        result = self._append_links("replaces", [summary_only.entry_id])
-        self.assertTrue(result.ok, result.issues)
+        self.assertTrue(documentation.ok, documentation.issues)
+        result = self._append_links("replaces", [documentation.entry_id])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("Documentation records may use related_entries only" in issue for issue in result.issues))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
     def test_append_takes_a_single_decision_target_bare_and_rejects_its_d1(self):

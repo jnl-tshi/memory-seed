@@ -1530,6 +1530,37 @@ class LinksCheckTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
 
+    def test_lifecycle_edge_to_documentation_record_is_rejected(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-01.md").write_text(
+            "## 2026-06-01 09:00 - Evidence\n\n```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Records\n\n#### D1 - Documentation: Capture evidence\n\n"
+            "- D: Recorded the compatibility result.\n  - Scope: The parser fixture.\n",
+            encoding="utf-8",
+        )
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Decision\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\n```\n\n"
+            "### Records\n\n#### D1 - Decision: Keep authority typed\n\n"
+            "- D: Restrict lifecycle authority to decisions.\n"
+            "  - Scope: DRAFTS lifecycle links.\n"
+            "  - Disposition: Accepted.\n"
+            "- R: Documentation is evidence, not authority.\n",
+            encoding="utf-8",
+        )
+        self._link_sidecar(
+            cwd,
+            "2026-06-02",
+            "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa (builds-on)"],
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        self.assertIn("documentation-lifecycle-edge", [i.kind for i in result.issues])
+
     # The same two corruptions, but in an entry's OWN ```yaml frontmatter and
     # per-user file frontmatter - the paths that kept scraping the region text
     # after the sidecar path was migrated, until _entry_level_ref_ids replaced

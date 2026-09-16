@@ -39,11 +39,13 @@ related_entries:
 
 - Required for every newly appended entry: state the context, change, or check.
 
-### Decisions
+### Records
 
-#### D1 - State the decision
+#### D1 - Decision: State the decision
 
 - D: State the decision that was made or implemented. (mandatory)
+  - Scope: Name the behavior, artifact, or boundary this record covers. (mandatory)
+  - Disposition: State its outcome, such as accepted, rejected, deferred, or implemented. (mandatory for decisions)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
@@ -59,7 +61,7 @@ related_entries:
 
 **Applying the three-way rule — the patterns that decide it** (measured against 68 validated corrections, 2026-07-24): an entry that *implements what an earlier entry proposed, scoped, or drafted* **evolves** it (the proposal stays valid as rationale) — this is the single most under-declared shape; an entry that *completes a design call an earlier entry explicitly deferred* (an evaluation, a selection, a scoping) **evolves** the deferring entry; an *explicit rewrite* of an earlier decision **replaces** it. Two shapes that are NOT lifecycle edges: an entry whose decision is to merge/land/integrate/publish existing work does not evolve the work it lands, and parallel steps of one campaign (audits of different files, batches of one sweep) are `related` at most. When in doubt between related and evolves, ask whether the newer entry changes or completes the older *decision itself* — not merely follows it in time.
 
-**Decision-level refs at write time — MANDATED** (grammar v2, JNL 2026-07-24): every `replaces:`/`evolves:` item names the decision on **both ends, but only when there is a choice to make.** Target side: a target with **2+ decisions must** carry `:dN` (several are comma-separated, `- mse_x:d1,d4`, one edge per ordinal); a **single- or no-decision target stays a bare id** — its `:d1` and its bare id denote the same edge, so bare is canonical and `:d1` on a single-decision target is *rejected* as redundant. Source side, symmetrically: when the writing entry has 2+ decisions, prefix each item with the authoring decision as `- d2 -> mse_x:d1,d4`; a single-decision writer omits the prefix (implicit `d1`). The unifying rule for both ends: **name an ordinal exactly when the entry it belongs to has more than one decision.** `session append`/`memory_session_append` refuse a ref that leaves a multi-decision end unnamed, over-specifies a single-decision end, or names a nonexistent ordinal; `links check` validates the same plus self-references and postdating targets, and warns (never errors — append-only) on post-cutoff entries authored around the tool (`unaddressed-target-decision`, `redundant-decision-ref`, `unattributed-source-decision`). The same arrow grammar applies in link-sidecar blocks, where the source ordinal must exist on the block's entry. **`related_entries` may also carry `:dN` (decision-level related, since 2026-07-25) — but ALLOWED, never MANDATED**: a related ref to a multi-decision target may name the decision (`related_entries: - mse_x:d2`, or `- d1 -> mse_x:d2`) and it is validated (the ordinal must exist, forward-only, `:d1`-on-single-decision still rejected as redundant), yet a bare related ref to a multi-decision target is fine — related stays casual for hand-authoring; the swarm opts into precision. The Trail renders each edge between the actual decision rows — `d2 -> mse_x:d1` leaves the writer's D2 row and lands on the target's D1 row, related included.
+**Record-level refs at write time — MANDATED** (grammar v2, JNL 2026-07-24): `entry_id:dN` addresses the numbered record, whether its kind is Decision or Documentation. Every `replaces:`/`evolves:` item names a Decision record on **both ends, but only when there is a choice to make**; Documentation records may participate only in `related_entries` and cannot own lifecycle-authority edges. Target side: an entry with **2+ records must** carry `:dN` (several are comma-separated, `- mse_x:d1,d4`, one edge per ordinal); a **single- or no-record target stays a bare id** — its `:d1` and its bare id denote the same edge, so bare is canonical and `:d1` on a single-record target is *rejected* as redundant. Source side, symmetrically: when the writing entry has 2+ records, prefix each item with the authoring record as `- d2 -> mse_x:d1,d4`; a single-record writer omits the prefix (implicit `d1`). `session append`/`memory_session_append` refuse a ref that leaves a multi-record end unnamed, over-specifies a single-record end, names a nonexistent ordinal, or gives a Documentation record `replaces`/`evolves`. The same arrow grammar applies in link-sidecar blocks. **`related_entries` may carry `:dN`, but precision remains optional**: a related ref to a multi-record target may name the record (`related_entries: - mse_x:d2`, or `- d1 -> mse_x:d2`), while a bare related ref remains valid. Trace shows the record type and routes precise related edges to the addressed row.
 
 `continuity` is an optional list of artifact-lineage items recording that this entry's work renamed, migrated, or removed an artifact — a name-level record (file path, directory, command, or product/concept term), distinct from the entry-level edges above. Each item is `kind: rename|migration|removal` with `from:` (always required) and `to:` (required for rename/migration, forbidden for removal). Values are historical labels like `branch:` — never validated against the live tree, because the old artifact is expected to be gone. Recorded mappings let `link suggest` bridge file-overlap ranking across renames (transitively), so record both the old and new names at the moment of the change:
 
@@ -89,7 +91,7 @@ In a final handoff, record the artifact produced by the project mode (local `ses
 Keep new session files in month-grouped folders, such as `.memory-seed/sessions/2026-05/2026-05-02.md`. **Append entries with the scaffolder, not by hand**:
 `memory-seed session append --title "<title>" --user-initials <XX> --agent-type <agent> --decisions-file <d.json> --body-file <f>` (or body on stdin).
 
-**Use `--decisions-file`. The entry-level ref flags no longer write anything.** It carries the decision-sidecar envelope — one object per body decision, each with its own Area + Activity topics, its own `replaces`/`evolves`/`related_entries` links, and optional lower-level origin metadata: `[{"decision": "d1", "origin": "agent", "topics": {"area": "lifecycle-edges", "activity": "bugfix"}, "links": {"evolves": [{"ref": "mse_x:d2", "type": "refines", "why": "supersedes the sampling rule it drafted"}]}}]`. At the MCP authoring boundary, **`origin` is required** and is exactly `user` (a direct user instruction, answer, or correction) or `agent` (a decision discovered through implementation, investigation, testing, or review). The writer records supplied values as generated entry metadata under `decision_origins:`. Older entries without that field remain valid; when the field is present, `links check` requires it to cover every body decision exactly once.
+**Use `--decisions-file`. The name is retained as a compatibility envelope, but it carries one object per body record.** Each object owns its Area + Activity topics, `related_entries`, and origin metadata; Decision records may additionally own `replaces`/`evolves`, while Documentation records may not. Example: `[{"decision": "d1", "origin": "agent", "topics": {"area": "lifecycle-edges", "activity": "bugfix"}, "links": {"evolves": [{"ref": "mse_x:d2", "type": "refines", "why": "supersedes the sampling rule it drafted"}]}}]`. At the MCP authoring boundary, **`origin` is required** and is exactly `user` (a direct user instruction, answer, or correction) or `agent` (a record discovered through implementation, investigation, testing, or review). The writer records supplied values under the compatibility metadata name `decision_origins:`. Older entries without that field remain valid; when the field is present, `links check` requires it to cover every body record exactly once.
 
 A lifecycle link item is an object, not a bare id:
 
@@ -97,7 +99,7 @@ A lifecycle link item is an object, not a bare id:
 - **`type` is required on `evolves`** — `refines` (the next form of that decision) or `builds-on` (later work resting on it, which stays valid). A decision has **at most one `refines` successor**; `builds-on` is unlimited. That cap is what keeps a lineage walkable as a line instead of fanning to 25 terminal heads. `session append` refuses a second `refines`, and `links check` raises `multiple-refines-successors` across the corpus, since two branches can each author one without either being refused. Fix a conflict with `retracts:` — downgrade the loser to `builds-on` in a new block, never by editing the published one.
 
 `--topics`/`--related`/`--replaces`/`--evolves` are **refused** as of 2026-08-09: they attribute at ENTRY level only, so every decision in a multi-decision entry inherited one shared list and none owned its own, and they have nowhere to put the evidence or the evolution type. That was measurably what happened when they were used — decision-keyed attribution across this corpus fell from 92% in July to 8% in August while coverage stayed at 100%. Governed by `adr_lifecycle_edges_live_in_sidecars`.
-The tool owns structure — target resolution, the heading timestamp (now, refusing to append out of chronological order; a conflict is fixed consciously via `--timestamp` or `session reorder`, never silently), the canonical `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids are refused), topic vocabulary (aliases stored as canonical), and branch auto-capture. You own voice — title, lifecycle classification, and the D/R/A/F/T/S body, passed through verbatim.
+The tool owns structure — target resolution, the heading timestamp (now, refusing to append out of chronological order; a conflict is fixed consciously via `--timestamp` or `session reorder`, never silently), the canonical `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids are refused), topic vocabulary (aliases stored as canonical), and branch auto-capture. You own voice — title, record kind, lifecycle classification, and the D/Scope/Disposition/R/A/F/T/S body, passed through verbatim.
 
 When a lifecycle link touches any current or historical ADR member, both CLI `session append` and MCP `memory_session_append` run the same content-bound review preflight: the first call returns the full matched ADR contexts plus a receipt and writes zero bytes. Put one `adrs` outcome (`revise` or `no-change`) per matched ADR into the owning decision object, then retry MCP with `adr_review_receipt` or CLI with `--adr-review-receipt`. When a review confirms the current ADR without warranting a new session decision, use `memory-seed adr reviewed --adr-id <id> --entry <existing-entry-id> --reason <text>` or its parity twin `memory_adr_reviewed`; both require real entry provenance and move no head.
 
@@ -210,9 +212,9 @@ The session file is strictly append-only and must stay in ascending time order.
 - If recording work completed earlier, still stamp the heading with the current time and describe the original timing in the entry body if it matters.
 - Read the real wall clock before stamping — authored times are inputs and nothing validates them at write time. `links check` warns (`entry-future-timestamp`) when a heading is more than ~10 minutes ahead of the clock at check time. It is a warning, never an error: published drifted stamps stay as they are (append-only); restamp only entries that are still unpublished.
 
-## Reason Rules
+## Record And Reason Rules
 
-DRAFTS is the baseline decision-record format for session entries. A DRAFTS decision record is the default whenever a turn produced a decision or durable change. Historical DRAFT records without `S:` remain valid and are never rewritten merely to adopt the newer name.
+DRAFTS is the baseline record format for session entries. Its `D` means **Decision or Documentation record**. Use a Decision record for a choice with authority or future-governing effect; use a Documentation record for small work, verification, observations, and supporting notes that should remain searchable without pretending they govern later work. Historical `### Decision`/`### Decisions` records and DRAFT records without `S:` remain valid decisions and are never rewritten merely to adopt the newer shape.
 
 Write DRAFTS records with **simple technical precision**: be concise but precise, use plain language by
 default, and define a necessary technical term when its meaning may not be shared. Preserve the constraints,
@@ -220,24 +222,26 @@ reasoning, uncertainty, and distinctions needed to understand or challenge the d
 erase meaning. Remove repetition, ornamental jargon, and implementation detail that does not explain the
 decision or its validation.
 
-- D = Decision
+- D = Decision or Documentation record
+- Scope = the behavior, artifact, or boundary the record covers
+- Disposition = the decision outcome (for example accepted, rejected, deferred, or implemented)
 - R = Reason
 - A = Alternatives considered or rejected
 - F = Files, artifacts, or behaviors changed
 - T = Tests or validation
 - S = Sources
 
-`D` and `R` are required for every meaningful decision. `A`, `F`, and `T` are optional when not relevant. `S` is conditionally required when a proposal, specification, research document, or evidence artifact materially informed the decision. Do not guess this condition with a keyword heuristic; the author decides applicability and the writer validates every supplied reference.
+Every newly authored record requires `D` plus an indented `Scope` sub-bullet. A Decision record also requires an indented `Disposition` sub-bullet and its own `R`. A Documentation record may include `Disposition` when an outcome is useful, but `R`, `A`, `F`, and `T` are optional. `S` is conditionally required when a proposal, specification, research document, or evidence artifact materially informed a record. Do not guess this condition with a keyword heuristic; the author decides applicability and the writer validates every supplied reference.
 
 Write each source as its own `S:` item after the other fields, with exactly one backtick-quoted repository-relative file and an optional Markdown anchor: `- S: Architecture proposal \`docs/2_Todo/example.md#decision\``. Paths must resolve to files inside the repository when the entry is appended. Add another `S:` line for another source. External URLs are not part of the v1 contract.
 
-- Do not invent reason.
+- Do not invent reason. If the record only documents what happened and no decisive reason exists, use Documentation rather than fabricating `R`.
 - If reason is inferred, label it `Inferred reason`.
 - If reason is unknown, write `Reason not recorded`.
 - Alternatives are optional unless they affected the decision or tradeoff.
 - If an approach was **attempted and failed** or proved incompatible during the session, log it under `A` even when not explicitly asked to — this is empirical evidence for future sessions, not an optional nicety. State what was tried and why it failed in one line; that's enough for a future agent to skip it without re-deriving the failure.
 - Do not borrow a prior entry's stated non-action ("left untouched," "not this session's work") as your own `R:` — accurate for that prior entry, it says nothing about whether logging is warranted for what changed this turn.
-- Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
+- Use `D1`, `D2`, and similar labels for every record, including a one-record entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 
 ## Fresh completion evidence
@@ -306,24 +310,25 @@ difference. You can.
 This is not a licence to log noise. A milestone is a *durable decision plus the work that settled it* —
 not every commit, file touched, or command run.
 
-## Decision Harvest
+## Record Harvest (Decision Harvest)
 
-Before choosing the entry shape, harvest the durable decisions made this turn.
+Before choosing the entry shape, harvest both durable decisions and useful documentation made this turn.
 
 1. List the accepted choices that changed project behavior, user workflow, file layout, schema,
    migration behavior, policy, skill behavior, agent coordination, release behavior, or architecture.
 2. Count rejected alternatives, failed attempts, and compatibility constraints separately; they belong
    under `A:` unless they became their own accepted decision.
-3. If exactly one durable choice remains, use the single-decision shape.
-4. If two or more durable choices belong to one coherent task **and were settled in the same
+3. Capture routine edits, verification-only work, observations, and small documentation as Documentation records with explicit Scope; do not promote them to decisions merely to fit the format.
+4. If exactly one durable choice remains, use one Decision record.
+5. If two or more durable choices belong to one coherent task **and were settled in the same
    deliberation**, use the multi-decision shape with `D1`, `D2`, and so on. Do not bury accepted
    decisions as rationale, implementation detail, or alternatives under one broad `D:`.
-5. Write separate entries when durable choices affect unrelated areas, **or when work happened
+6. Write separate entries when durable choices affect unrelated areas, **or when work happened
    between them** — see "When To Append". One coherent task is not, by itself, one entry: a task that
    spans implement → review → fix spans milestones, and each is its own entry.
-6. If a single-decision entry is still used after considering multiple candidate decisions, make the
+7. If a single Decision record is still used after considering multiple candidate decisions, make the
    consolidation explicit in `R:` or `A:` so future readers know why the choices were treated as one.
-7. Ask: does any harvested decision **replace, remove, or evolve** an earlier entry's decision?
+8. Ask: does any harvested Decision record **replace, remove, or evolve** an earlier entry's decision?
    Replace or remove → `replaces`; extend-while-still-valid → `evolves`; merely related →
    `related_entries` only. **Start from the entries you consulted while grounding this turn** (the
    pre-work history retrieval): pass their ids as `memory_link_suggest`'s `consulted` set — they are
@@ -334,10 +339,10 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
    `related_entries`, or `no-edge`. Store the first three; `no-edge` is authoring-time evidence that
    the candidate was considered, not a new persisted relation. Most consults are no-edge — be
    conservative turning a mere consult into `related_entries` (co-occurrence is not a lifecycle edge).
-8. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
+9. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
    concept/product name)? If so, record a `continuity:` block with the old and new names — that
    mapping is what keeps file-overlap ranking and traceability working across the change.
-9. Ask: did this turn **establish durable project facts that are not decisions**? Roles and
+10. Ask: did this turn **establish durable project facts that are not decisions**? Roles and
    ownership ("Marcus owns the benchmark suite"), names and codenames, cadences, thresholds and
    budgets, environments, external locations. A fact is not a decision - it has no `R:` to give -
    so the harvest above will not catch it, and it has no home in an entry body. Promote it to
@@ -365,7 +370,7 @@ only after the exact paths are present.
 
 ## Entry Shapes
 
-### Meaningful decision entry
+### Meaningful decision record
 
 Use for one durable decision.
 
@@ -374,11 +379,13 @@ Use for one durable decision.
 
 - Summarize the coherent task.
 
-### Decisions
+### Records
 
-#### D1 - Short decision name
+#### D1 - Decision: Short decision name
 
 - D: State the decision. (mandatory)
+  - Scope: Name the behavior, artifact, or boundary governed by this decision. (mandatory)
+  - Disposition: State the outcome. (mandatory)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
@@ -386,9 +393,8 @@ Use for one durable decision.
 - S: Source artifact, when one materially informed the decision. (conditionally required)
 ```
 
-**One decision still uses `### Decisions` and `#### D1`.** There is one shape, whatever the count.
-The singular `### Decision` heading is LEGACY: it is still read, because the store is append-only and
-494 entries already use it, but it is no longer authored.
+**One record still uses `### Records` and `#### D1`.** There is one shape, whatever the count.
+The `### Decision` and `### Decisions` headings are LEGACY: they are still read as Decision records because the store is append-only, but they are no longer authored.
 
 The reason is not tidiness. Until 2026-08-06 the reader recognised only `#### Dn`, so a singular
 entry produced no decision chunk, fell back to the whole-entry unit, and retrieval served 280
@@ -396,9 +402,9 @@ characters of it instead of the whole block - 45% of the corpus and 51% of its t
 nothing reporting a problem. Numbering every decision also makes `entry_id:d1` addressing universal,
 which lifecycle edges, ADR sidecars and decision-level topics already assume.
 
-### Small work entry
+### Documentation / small work record
 
-Use for routine edits, small fixes, or verification-only work with no real decision. Do not invent reason.
+Use for routine edits, small fixes, observations, or verification-only work with no real decision. Do not invent reason.
 This applies even when the fact is now fully expressed in the changed file itself — a README line or a
 RELEASE.md note is what's true now, not why or when it became true, and is not a substitute for this entry.
 
@@ -407,39 +413,46 @@ RELEASE.md note is what's true now, not why or when it became true, and is not a
 
 - What changed or what was checked.
 
-### Validation
+### Records
 
-- Command or check and outcome, if relevant.
+#### D1 - Documentation: Short record name
 
-### Follow-up
+- D: State what was changed, checked, or observed. (mandatory)
+  - Scope: Name the exact artifact, behavior, or check covered. (mandatory)
+- F: Files, artifacts, or behaviors changed. (optional)
+- T: Command or check and outcome. (optional)
 
-- Only include if there is residual risk or a next action.
 ```
 
-### Multi-decision session entry
+Documentation records are searchable, topic-addressable, and linkable through `related_entries`. They do not establish lifecycle authority, cannot own `replaces`/`evolves`, and cannot become an ADR head or member.
 
-Use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated areas, sub-projects, or goals.
+### Multi-record session entry
+
+Use one entry when several records belong to one coherent task, plan, or user goal. Decision and Documentation records may be mixed. Split entries when decisions affect unrelated areas, sub-projects, or goals.
 
 ```markdown
 ### Summary
 
 - Summarize the coherent task.
 
-### Decisions
+### Records
 
-#### D1 - Short decision name
+#### D1 - Decision: Short decision name
 
 - D: State the choice. (mandatory)
+  - Scope: Name what the choice governs. (mandatory)
+  - Disposition: State the outcome. (mandatory)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)
 - A: Alternative considered or rejected, with reason, if it mattered. (optional)
 - F: Files, artifacts, or behaviors changed. (optional)
 - T: Tests or validation outcome. (optional)
 - S: Source artifact, when one materially informed the decision. (conditionally required)
 
-#### D2 - Short decision name
+#### D2 - Documentation: Short evidence name
 
-- D: State the choice. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
+- D: State what was changed, checked, or observed. (mandatory)
+  - Scope: Name what the record covers. (mandatory)
+- T: Record the check and outcome, if relevant. (optional)
 
 ### Implementation
 
@@ -456,14 +469,14 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 
 ### Format is enforced (not just guidance)
 
-The DRAFTS shapes above are checked by tooling, so a malformed entry cannot enter
+The DRAFTS record shapes above are checked by tooling, so a malformed entry cannot enter
 through the sanctioned path and is caught everywhere else:
 
 - `memory-seed session append` **rejects** a malformed body before writing - a missing `### Summary`
   on a new entry, bare
-  `D:`/`R:` labels that are not `- ` list items, DRAFTS prose with no section
-  heading, several decisions crammed under a singular `### Decision`, or a `D:`
-  with no `R:`. The error names the fix.
+  `D:`/`R:` labels that are not `- ` list items, DRAFTS prose with no `### Records`
+  section, an untyped `#### Dn` heading, a record without `Scope`, or a Decision
+  without its own `Disposition` and `R`. The error names the fix.
 - `links check` (surfaced by `esr`, merge-blocking under CI) flags the same across
   the whole corpus as `malformed-entry-format`, and separately flags an entry whose
   YAML metadata fence is opened but never closed as `malformed-entry-yaml` - an
@@ -471,7 +484,7 @@ through the sanctioned path and is caught everywhere else:
   to the fuse. The fix is to close the fence, never to delete the metadata.
 
 The shared integrity check (`core.entry_body_format_issues`) is **structural only** - it never
-decides whether a turn is one decision or several (that stays authoring judgement), and it does not
+decides whether a turn is one record or several (that stays authoring judgement), and it does not
 retroactively flag historic entries without a Summary. Write-time append validation additionally requires
 a Summary for new entries. Fix a flagged entry to the templates above; do not hand-write a malformed entry
 to bypass the gate.

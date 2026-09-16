@@ -331,7 +331,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["decision", "entry", "section"],
                     "default": "decision",
-                    "description": "Default 'decision': one result per recorded decision, keyed by its canonical mse_<id>:dN identity and carrying that decision's whole DRAFTS block (D/R/A/F/T/S) plus only its own topics and lifecycle edges; entries without decision headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
+                    "description": "Default 'decision' is the compatibility name for record granularity: one result per numbered Decision or Documentation record, keyed by its canonical mse_<id>:dN identity and carrying that record's whole DRAFTS block plus its record_kind, topics, and permitted edges; legacy entries without numbered headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
                 },
                 "exclude_replaced": {
                     "type": "boolean",
@@ -639,7 +639,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
                 "body": {
                     "type": "string",
-                    "description": "The entry body, verbatim. Current DRAFTS shape: '### Decisions' with one or more '#### Dn - name' subsections, each containing '- D:' and mandatory '- R:' items, optionally '- A:', '- F:', '- T:', and repeatable '- S:' repository-local source references. Legacy singular '### Decision' remains readable but is refused for new appends.",
+                    "description": "The entry body, verbatim. Current DRAFTS shape: '### Records' with one or more typed '#### Dn - Decision: name' or '#### Dn - Documentation: name' subsections. Every record requires '- D:' with an indented '- Scope:'; decisions additionally require indented '- Disposition:' and their own '- R:'. Optional '- A:', '- F:', '- T:', and repeatable '- S:' remain available. Legacy '### Decision'/'### Decisions' entries remain readable but are refused for new appends.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},

@@ -191,7 +191,7 @@ def _metric_draft_reason_coverage(entry_texts, format_issues) -> Metric:
             population=0,
             excluded=excluded,
             notes=(
-                "no entry uses a '### Decision'/'### Decisions' DRAFTS shape, so there is "
+                "no entry contains a Decision-kind DRAFTS record, so there is "
                 "nothing to measure; reported as not_applicable rather than 100% coverage"
             ),
         )
@@ -212,7 +212,7 @@ def _metric_draft_reason_coverage(entry_texts, format_issues) -> Metric:
         notes=(
             "decision records whose every D: has a non-empty R:. structural only - it does "
             "not judge whether a reason is persuasive. excluded: entries that record no "
-            "decision, including legacy entries predating DRAFT."
+            "decision, including Documentation-only and legacy pre-DRAFT entries."
         ),
     )
 

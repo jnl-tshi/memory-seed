@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.13 — **RATIFIED 2026-09-14** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.14 — **RATIFIED 2026-09-16** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -16,7 +16,8 @@ documents; **corrected** 2026-08-13 (1.9, evolution-class — not an amendment) 
 quality instrumentation in §8; amended 2026-09-05 to make the governed path the path of least
 resistance through inspectable outcome-level composition (§3); amended 2026-09-06 with the bounded
 temporary reflection-board lifecycle (Invariant #2); amended 2026-09-14 so DRAFTS decisions cite
-material source artifacts and retrieval lexical matching is capitalization-safe (§4). **Source:** distilled from demonstrated behaviour
+material source artifacts and retrieval lexical matching is capitalization-safe (§4); evolved 2026-09-16
+so typed DRAFTS records distinguish decisions from documentation while sharing one searchable structure (§4). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -225,10 +226,14 @@ ordinary proposal work.
   the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
   optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
 <!-- constitution-ref: constitution:v1#draft-format -->
-- **DRAFTS session-entry format** (D/R/A/F/T/S) and append-only chronology (`session_logging.md`).
-  `S:` names the repository-relative source artifact when a proposal, specification, research report,
-  or other evidence artifact materially informed the decision. New writes validate supplied source
-  references mechanically; historical DRAFT records remain valid and append-only.
+- **Typed DRAFTS session-entry format** and append-only chronology (`session_logging.md`). The `D`
+  denotes either a **Decision** or **Documentation** record under `### Records`; every record states
+  its `Scope`, while a Decision additionally states its `Disposition` and its own `R:`. Documentation
+  records capture small work and evidence without acquiring lifecycle or ADR authority: they may be
+  searched, addressed, topic-tagged, and related, but cannot own `replaces`/`evolves` or become an ADR
+  member/head. `A/F/T/S` remain optional when applicable; `S:` names a materially informing
+  repository-relative source artifact. Historical untyped and singular decision records remain valid,
+  readable as decisions, and append-only.
 <!-- constitution-ref: constitution:v1#lexical-normalization -->
 - **Lexical matching is capitalization-safe.** Retrieval normalizes query text, preferred keywords,
   and indexed lexical fields with Unicode NFKC plus case folding before matching. Optional preferred
@@ -277,7 +282,8 @@ override a constitutional invariant.
 
 Memory should classify *what kind of knowledge* an entry carries — authoritative policy, historical
 context, evidence, hypothesis, instruction, observation, or generated summary — because retrieval and agent
-safety depend on it. Today only the DRAFTS labels (Decision/Reason/Alternatives/Files/Tests/Sources) and
+safety depend on it. Today only typed DRAFTS records (Decision or Documentation, Scope, decision
+Disposition/Reason, Alternatives/Files/Tests/Sources) and
 `memory_hygiene`/`risk_signaling` exist; a first-class content-trust taxonomy is proposed, not built.
 *(Ref: `4_Reference/memory-seed-rectification-priorities-report.md`.)*
 
@@ -367,6 +373,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.14 | 2026-09-16 | **Evolution: typed DRAFTS decisions and documentation.** Expands `D` to mean Decision or Documentation record under one `### Records` structure. Every new record carries Scope; decisions additionally require Disposition and their own Reason. Documentation records make small work and evidence searchable without granting lifecycle or ADR authority. Historical untyped/singular records remain decisions and are not rewritten. | JNL (approved the design-discovery plan and directed implementation live, 2026-09-16) |
 | 1.13 | 2026-09-14 | **DRAFTS source attribution and capitalization-safe lexical retrieval.** Renames the current decision-record mnemonic from DRAFT to DRAFTS; adds `S:` for a materially informing repository artifact, with mechanical validation whenever supplied while preserving historical DRAFT records unchanged; and requires Unicode NFKC plus case-fold normalization across lexical query/index text. Optional preferred keywords are a bounded positive ranking aid, never a filter. | JNL (approved the implementation plan and directed implementation live, 2026-09-14) |
 | 1.12 | 2026-09-06 | **Amendment: bounded temporary reflection-board expiry.** Reflection blocks created inside a declared plan-scoped board are temporary coordination material rather than durable memory. After required validation and orchestrator synthesis, complete chains close independently with durable receipt coverage; their user-configurable retention period, seven days by default, starts from chain close. Elapsed closed chains expire automatically and individually, never as a board wipe; early removal of an unpromoted chain requires live user approval and a durable disposition. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (ratified live 2026-09-06) |
 | 1.11 | 2026-09-05 | **Make the correct path the easiest path.** Adds a permanent §3 principle requiring Memory Seed to compose mechanically determined continuations behind outcome-level operations, stop at genuine judgment or authority boundaries, preserve all underlying validation/provenance/human control, and expose selections, omissions, guards, and stopping reasons. This turns the storyline and workflow-architecture direction into a constitutional design constraint without authorizing opaque automation. | JNL (ratified in live discussion, 2026-09-05) |
