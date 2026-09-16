@@ -19,19 +19,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `mse_mrrnd0wam54vjrpc:d1`
+Authoritative decision: `mse_c4xmkemz549dvp15:d1`
 
 ### Decision
 
-DRAFTS is the current session decision-record mnemonic: D/R remain mandatory, A/F/T remain optional, and S is conditionally required when a repository artifact materially informed the decision.
+DRAFTS is the typed session-record format: D means Decision or Documentation; every new record requires Scope, Decision records additionally require Disposition and R, and Documentation records are searchable but have no lifecycle or ADR authority. A, F, and T remain optional, while S remains conditionally required for material repository sources.
 
 ### Reason
 
-Direct source references preserve proposal-to-decision provenance without weakening append-only history or forcing invented sources for conversational decisions.
+Typed records retain rationale and authority for real decisions while giving small work and verification a concise searchable home without invented reasons; explicit Scope and Disposition labels remain standard Markdown.
 
 ### Impact
 
-New supplied S references are validated and retrievable as structured metadata; historical DRAFT records remain valid and unchanged.
+New typed headings and subfields are validated on every write surface; retrieval, quality metrics, APIs, and Memory Trace expose record kind; legacy Decision headings remain readable and unchanged.
 
 ### Awaiting review
 
@@ -178,3 +178,58 @@ JNL approved the DRAFTS source-attribution plan and explicitly directed its impl
 #### Impact
 
 mse_mrrnd0wam54vjrpc:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### revision-proposed - 2026-09-16T18:13:00
+
+```json
+{
+  "decision_ref": "mse_c4xmkemz549dvp15:d1",
+  "event_id": "adre_41db686672eb0b98873c",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_mrrnd0wam54vjrpc:d1",
+      "relation_assertion": "link:mse_c4xmkemz549dvp15:d1:evolves:mse_mrrnd0wam54vjrpc:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_c4xmkemz549dvp15"
+}
+```
+
+#### Decision
+
+DRAFTS is the typed session-record format: D means Decision or Documentation; every new record requires Scope, Decision records additionally require Disposition and R, and Documentation records are searchable but have no lifecycle or ADR authority. A, F, and T remain optional, while S remains conditionally required for material repository sources.
+
+#### Reason
+
+Typed records retain rationale and authority for real decisions while giving small work and verification a concise searchable home without invented reasons; explicit Scope and Disposition labels remain standard Markdown.
+
+#### Impact
+
+New typed headings and subfields are validated on every write surface; retrieval, quality metrics, APIs, and Memory Trace expose record kind; legacy Decision headings remain readable and unchanged.
+
+### revision-accepted - 2026-09-16T18:14:00Z
+
+```json
+{
+  "decision_ref": "mse_c4xmkemz549dvp15:d1",
+  "event_id": "adre_09ac0789743dacd250fe",
+  "expected_authoritative_decision": "mse_mrrnd0wam54vjrpc:d1",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_c4xmkemz549dvp15"
+}
+```
+
+#### Decision
+
+Accept mse_c4xmkemz549dvp15:d1.
+
+#### Reason
+
+JNL explicitly approved the typed DRAFTS plan and directed its implementation in the live conversation on 2026-09-16.
+
+#### Impact
+
+mse_c4xmkemz549dvp15:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
