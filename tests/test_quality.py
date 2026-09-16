@@ -104,6 +104,29 @@ class QualityReportTests(unittest.TestCase):
         self.assertEqual((coverage.numerator, coverage.denominator), (1, 1))
         self.assertEqual(coverage.excluded, 1)
 
+    def test_documentation_records_are_excluded_from_decision_reason_coverage(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry(
+                "2026-05-10 09:00 - Decision",
+                "ms-a0000000",
+                "### Records\n\n#### D1 - Decision: Choose\n\n"
+                "- D: Choose it.\n  - Scope: New entries.\n  - Disposition: Accepted.\n- R: Because.",
+            ),
+            _entry(
+                "2026-05-10 10:00 - Documentation",
+                "ms-b0000000",
+                "### Records\n\n#### D1 - Documentation: Check\n\n"
+                "- D: Recorded a check.\n  - Scope: One verification run.",
+            ),
+        )
+
+        coverage = self.metric(build_quality_report(cwd), "draft_reason_coverage")
+
+        self.assertEqual((coverage.numerator, coverage.denominator), (1, 1))
+        self.assertEqual(coverage.excluded, 1)
+
     def test_entry_with_decision_but_no_reason_is_counted_uncovered(self):
         cwd = self.make_project()
         self.write_day(

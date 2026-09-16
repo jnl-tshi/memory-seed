@@ -2175,21 +2175,31 @@ _FENCE_CLOSE_RE = re.compile(r"^\s*```\s*$")
 _BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T|S)\d*\s*:")         # column-0 label with no '- '
 _BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T|S)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
-_ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
+_ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Records|Implementation|Validation|Follow-up)", re.I)
 _SUMMARY_HEADING_RE = re.compile(r"^###\s+Summary\s*$", re.I)
 _SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
-_NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–]")  # '#### D1 - name'
-# Same heading, capturing the ordinal and the name after the dash.
-_NUMBERED_DECISION_CAPTURE_RE = re.compile(r"^####\s+D(\d+)\s*[-–]\s*(.*)$")
+_RECORDS_HEADING_RE = re.compile(r"^###\s+Records\s*$", re.I)
+_NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–—]")  # legacy public name
+# One address space serves both record kinds. New headings carry an explicit
+# kind; an untyped historical ``#### Dn - name`` remains a Decision.
+_NUMBERED_RECORD_CAPTURE_RE = re.compile(
+    r"^####\s+D(\d+)\s*[-–—]\s*(?:(Decision|Documentation)\s*:\s*)?(.*)$",
+    re.I,
+)
+_NUMBERED_DECISION_CAPTURE_RE = _NUMBERED_RECORD_CAPTURE_RE  # compatibility alias
 # Public: the same numbered-decision grammar applied to a BARE section title
 # ('D2 - name', no '#### ' prefix) as section chunks carry it. Consumers that
 # detect decisions from chunk titles (e.g. Memory Trace's per-decision Trail
 # rows) must use this rather than hand-rolling a lookalike, so detection can
 # never drift from the write-time-validated heading grammar above.
-DECISION_TITLE_ORDINAL_RE = re.compile(r"^D(\d+)\s*[-–]\s*")
+DECISION_TITLE_ORDINAL_RE = re.compile(r"^D(\d+)\s*[-–—]\s*")
 # Indent-aware: a nested '  - R:' under a '- D1:' is still a reason present.
 _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
+_RECORD_D_LABEL_RE = re.compile(r"^\s*-\s+D\s*:\s*\S", re.I | re.M)
+_RECORD_R_LABEL_RE = re.compile(r"^\s*-\s+R\s*:\s*\S", re.I | re.M)
+_RECORD_SCOPE_LABEL_RE = re.compile(r"^\s{2,}-\s+Scope\s*:\s*\S", re.I | re.M)
+_RECORD_DISPOSITION_LABEL_RE = re.compile(r"^\s{2,}-\s+Disposition\s*:\s*\S", re.I | re.M)
 _SOURCE_LABEL_RE = re.compile(r"^\s*-\s+S\s*:\s*(.*)$")
 _BACKTICK_REFERENCE_RE = re.compile(r"`([^`]+)`")
 
@@ -2259,6 +2269,7 @@ def entry_body_format_issues(
     *,
     require_summary: bool = False,
     require_numbered_decisions: bool = False,
+    require_typed_records: bool = False,
 ) -> list[str]:
     """Return DRAFTS-format problems in one entry BODY (text after the ```yaml
     block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
@@ -2269,7 +2280,8 @@ def entry_body_format_issues(
     labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
     only rejects malformed DRAFTS usage, it does not force DRAFTS on every entry.
 
-    ``require_summary`` and ``require_numbered_decisions`` are write-time
+    ``require_summary``, ``require_numbered_decisions``, and
+    ``require_typed_records`` are write-time
     policies for new entries. Integrity checks leave both false so historic
     records remain readable rather than being retroactively labelled malformed
     or rewritten."""
@@ -2283,6 +2295,9 @@ def entry_body_format_issues(
     singular_decision = any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines)
     plural_decision = any(re.match(r"^###\s+Decisions\s*$", ln, re.I) for ln in lines)
     numbered_decision = any(_NUMBERED_DECISION_HEADING_RE.match(ln) for ln in lines)
+    records_heading = any(_RECORDS_HEADING_RE.match(ln) for ln in lines)
+    records = entry_body_records(body)
+    typed_records = [record for record in records if record.typed]
     if bare:
         labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
         issues.append(f"DRAFTS labels ({labels}) are not list items - prefix each with '- ' under a section heading")
@@ -2295,8 +2310,25 @@ def entry_body_format_issues(
     # historical style over pedantic '#### Dn' conformance).
     if inline_numbered and singular_decision:
         issues.append("multiple decisions under a singular '### Decision' - use '### Decisions' + '#### Dn - name' subsections")
-    if (bare or bulleted) and any(_ANY_D_LABEL_RE.match(ln) for ln in lines) and not any(_ANY_R_LABEL_RE.match(ln) for ln in lines):
+    if (
+        not typed_records
+        and (bare or bulleted)
+        and any(_ANY_D_LABEL_RE.match(ln) for ln in lines)
+        and not any(_ANY_R_LABEL_RE.match(ln) for ln in lines)
+    ):
         issues.append("a decision (D:) has no reason (R:) - R is mandatory")
+
+    for record in typed_records:
+        label = record.ordinal.upper()
+        if not _RECORD_D_LABEL_RE.search(record.text):
+            issues.append(f"{label} {record.kind.title()} record has no D: statement")
+        if not _RECORD_SCOPE_LABEL_RE.search(record.text):
+            issues.append(f"{label} {record.kind.title()} record has no nested Scope: sub-bullet")
+        if record.kind == "decision":
+            if not _RECORD_DISPOSITION_LABEL_RE.search(record.text):
+                issues.append(f"{label} Decision record has no nested Disposition: sub-bullet")
+            if not _RECORD_R_LABEL_RE.search(record.text):
+                issues.append(f"{label} Decision record has no own reason (R:)")
     if require_summary and not has_summary:
         issues.append("entry has no '### Summary' section - every newly recorded entry needs context")
     if require_numbered_decisions and singular_decision:
@@ -2314,11 +2346,22 @@ def entry_body_format_issues(
             "new decision records require '### Decisions' + at least one "
             "'#### D1 - name' subsection"
         )
+    if require_typed_records:
+        if not records_heading:
+            issues.append("new DRAFTS entries require a '### Records' section")
+        if not records:
+            issues.append("new DRAFTS entries require at least one typed record")
+        untyped = [record.ordinal.upper() for record in records if not record.typed]
+        if untyped:
+            issues.append(
+                "new record headings require a typed 'Decision:' or 'Documentation:' label: "
+                + ", ".join(untyped)
+            )
     return issues
 
 
-def _entry_decision_ordinals(body: str) -> list[str]:
-    """The dN ordinals a decision ref may legally target in this entry body.
+def _entry_record_ordinals(body: str) -> list[str]:
+    """The dN ordinals a record ref may legally target in this entry body.
 
     Follows the ratified identity table: numbered ``#### Dn -`` headings give
     their own ordinal, and a singular ``### Decision`` reads as ``d1`` by
@@ -2326,26 +2369,73 @@ def _entry_decision_ordinals(body: str) -> list[str]:
     since single-decision entries are the corpus majority. An entry with no
     decision section has no addressable decision at all.
     """
-    lines = body.splitlines()
-    ordinals = [
-        f"d{int(m.group(1))}"
-        for ln in lines
-        if (m := re.match(r"^####\s+D(\d+)\s*[-–]", ln))
-    ]
+    records = entry_body_records(body)
+    ordinals = [record.ordinal for record in records]
     if ordinals:
         return ordinals
-    if any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines):
-        return ["d1"]
     return []
 
 
+def _entry_decision_ordinals(body: str) -> list[str]:
+    """The dN ordinals that carry governing Decision authority."""
+    return [record.ordinal for record in entry_body_decisions(body)]
+
+
 @dataclass(frozen=True)
-class DecisionSummary:
-    """One decision of an entry, at the granularity a `:dN` ref addresses."""
+class RecordSummary:
+    """One typed or legacy record at the granularity a ``:dN`` ref addresses."""
 
     ordinal: str  # "d1", "d2", ... — the ref suffix that targets this decision
-    name: str  # the "#### Dn - <name>" heading text; "" for a singular ### Decision
+    name: str  # heading text without the optional ``Decision:``/``Documentation:`` prefix
     text: str  # the decision's own body (D:/R:/A:/… lines), trimmed
+    kind: str = "decision"  # ``decision`` or ``documentation``
+    typed: bool = False  # whether the heading explicitly stated the kind
+
+
+DecisionSummary = RecordSummary  # public compatibility name
+
+
+def entry_body_records(body: str) -> list[RecordSummary]:
+    """Return every addressable Decision or Documentation record in ``body``."""
+    lines = body.splitlines()
+
+    def section_end(start: int) -> int:
+        for j in range(start + 1, len(lines)):
+            if re.match(r"^#{2,4}\s", lines[j]):
+                return j
+        return len(lines)
+
+    numbered = [
+        (index, match)
+        for index, line in enumerate(lines)
+        if (match := _NUMBERED_RECORD_CAPTURE_RE.match(line))
+    ]
+    if numbered:
+        records: list[RecordSummary] = []
+        for start, match in numbered:
+            authored_kind = match.group(2)
+            records.append(
+                RecordSummary(
+                    ordinal=f"d{int(match.group(1))}",
+                    name=match.group(3).strip(),
+                    text="\n".join(lines[start + 1 : section_end(start)]).strip(),
+                    kind=(authored_kind or "decision").casefold(),
+                    typed=authored_kind is not None,
+                )
+            )
+        return records
+    for index, line in enumerate(lines):
+        if _SINGULAR_DECISION_HEADING_RE.match(line):
+            return [
+                RecordSummary(
+                    ordinal="d1",
+                    name="",
+                    text="\n".join(lines[index + 1 : section_end(index)]).strip(),
+                    kind="decision",
+                    typed=False,
+                )
+            ]
+    return []
 
 
 def entry_body_decisions(body: str) -> list[DecisionSummary]:
@@ -2361,34 +2451,7 @@ def entry_body_decisions(body: str) -> list[DecisionSummary]:
     a human, or a judgment agent, reads to narrow an edge to `:dN`; it invents no
     new signal, it just exposes what the entry already wrote.
     """
-    lines = body.splitlines()
-
-    def section_end(start: int) -> int:
-        for j in range(start + 1, len(lines)):
-            if re.match(r"^#{2,4}\s", lines[j]):
-                return j
-        return len(lines)
-
-    numbered = [(i, m) for i, ln in enumerate(lines) if (m := _NUMBERED_DECISION_CAPTURE_RE.match(ln))]
-    if numbered:
-        return [
-            DecisionSummary(
-                ordinal=f"d{int(m.group(1))}",
-                name=m.group(2).strip(),
-                text="\n".join(lines[start + 1 : section_end(start)]).strip(),
-            )
-            for start, m in numbered
-        ]
-    for i, ln in enumerate(lines):
-        if _SINGULAR_DECISION_HEADING_RE.match(ln):
-            return [
-                DecisionSummary(
-                    ordinal="d1",
-                    name="",
-                    text="\n".join(lines[i + 1 : section_end(i)]).strip(),
-                )
-            ]
-    return []
+    return [record for record in entry_body_records(body) if record.kind == "decision"]
 
 
 def _walk_entry_bodies(
@@ -2544,7 +2607,7 @@ def check_entry_decision_origins(text: str) -> list[tuple[str, str]]:
     the closed ``user|agent`` tag.
     """
     body_ordinals: dict[str, set[str]] = {}
-    for entry_id, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+    for entry_id, ordinal in _walk_entry_bodies(text, _entry_record_ordinals):
         body_ordinals.setdefault(entry_id, set()).add(ordinal)
 
     issues: list[tuple[str, str]] = []
@@ -3018,7 +3081,7 @@ def check_session_links(
         # checked against reality. Reuses _walk_entry_bodies rather than
         # re-deriving entry boundaries: a second body parser is exactly how two
         # views of "where does this entry end" drift apart.
-        for entry_id_seen, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+        for entry_id_seen, ordinal in _walk_entry_bodies(text, _entry_record_ordinals):
             entry_decision_ordinals.setdefault(entry_id_seen, set()).add(ordinal)
 
         # Second, heading-anchored pass: attribute each replaces/evolves ref
@@ -4339,7 +4402,7 @@ def amend_topic_sidecar(
             entry_date = doc.session_date
             entry_timestamp = block.group(1)
             body_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
-            ordinals = set(_entry_decision_ordinals(text[block.end():body_end]))
+            ordinals = set(_entry_record_ordinals(text[block.end():body_end]))
             break
         if entry_date:
             break
@@ -4528,6 +4591,7 @@ def _normalise_decision_sidecars(
     decisions: Sequence[Mapping[str, Any]],
     *,
     own_ordinals: set[str],
+    own_record_kinds: Mapping[str, str],
     topic_resolution: Mapping[str, str],
     topic_axes: Mapping[str, str],
 ) -> tuple[list[_DecisionSidecarWrite], list[str]]:
@@ -4693,6 +4757,13 @@ def _normalise_decision_sidecars(
         if unknown_link_keys:
             issues.append(
                 f"decisions[{index}].links has unsupported field(s): {', '.join(sorted(str(key) for key in unknown_link_keys))}"
+            )
+        if own_record_kinds.get(decision) == "documentation" and any(
+            raw_links.get(kind) for kind in ("replaces", "evolves")
+        ):
+            issues.append(
+                f"decisions[{index}] ({decision}) is Documentation; "
+                "Documentation records may use related_entries only and cannot replace or evolve authority"
             )
 
         rendered_links: dict[str, tuple[str, ...]] = {}
@@ -4982,13 +5053,14 @@ def session_append_entry(
                     text = doc.path.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
-                for seen_id, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+                for seen_id, ordinal in _walk_entry_bodies(text, _entry_record_ordinals):
                     _corpus_ordinals.setdefault(seen_id, set()).add(ordinal)
         return _corpus_ordinals
 
     # The entry's own decisions come from the body being appended.  Both the
     # decision envelope and legacy lifecycle grammar validate against them.
-    own_ordinals = set(_entry_decision_ordinals(body))
+    own_records = {record.ordinal: record for record in entry_body_records(body)}
+    own_ordinals = set(own_records)
     own_listed = ",".join(sorted(own_ordinals, key=lambda o: int(o[1:])))
 
     # Decision envelopes are the new write-time authority for semantic fields.
@@ -5038,6 +5110,7 @@ def session_append_entry(
             decision_writes, decision_issues = _normalise_decision_sidecars(
                 decisions,
                 own_ordinals=own_ordinals,
+                own_record_kinds={ordinal: record.kind for ordinal, record in own_records.items()},
                 topic_resolution=topic_resolution,
                 topic_axes=topic_axes,
             )
@@ -5247,7 +5320,7 @@ def session_append_entry(
     for issue in entry_body_format_issues(
         body,
         require_summary=True,
-        require_numbered_decisions=True,
+        require_typed_records=True,
     ):
         issues.append(f"body format: {issue}")
     for issue in entry_body_source_issues(

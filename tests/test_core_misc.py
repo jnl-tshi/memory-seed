@@ -144,6 +144,82 @@ class CoreMiscTests(unittest.TestCase):
 
         self.assertEqual(entry_body_decisions("Just prose, no decision heading.\n"), [])
 
+    def test_typed_records_parse_kind_scope_and_legacy_decisions(self):
+        from memory_seed.core import entry_body_decisions, entry_body_records
+
+        body = (
+            "### Records\n\n"
+            "#### D1 - Decision: Adopt typed records\n\n"
+            "- D: Use explicit record kinds.\n"
+            "  - Scope: New session entries only.\n"
+            "  - Disposition: Accepted; implementation pending.\n"
+            "- R: Readers need to distinguish authority from evidence.\n\n"
+            "#### D2 - Documentation: Capture the verification note\n\n"
+            "- D: Recorded the compatibility result.\n"
+            "  - Scope: The parser compatibility fixture.\n"
+            "- T: Legacy entries still parse.\n"
+        )
+
+        records = entry_body_records(body)
+        self.assertEqual(
+            [(record.ordinal, record.kind, record.name) for record in records],
+            [
+                ("d1", "decision", "Adopt typed records"),
+                ("d2", "documentation", "Capture the verification note"),
+            ],
+        )
+        self.assertEqual([decision.ordinal for decision in entry_body_decisions(body)], ["d1"])
+
+        legacy = entry_body_records("### Decisions\n\n#### D1 - Historic heading\n\n- D: Keep it.\n- R: Compatibility.\n")
+        self.assertEqual([(record.kind, record.name) for record in legacy], [("decision", "Historic heading")])
+
+    def test_typed_record_format_enforces_each_records_own_required_fields(self):
+        from memory_seed.core import entry_body_format_issues
+
+        valid_decision = (
+            "### Summary\n\n- Context.\n\n### Records\n\n"
+            "#### D1 - Decision: Choose the format\n\n"
+            "- D: Use typed records.\n"
+            "  - Scope: Newly authored session records.\n"
+            "  - Disposition: Accepted and implemented.\n"
+            "- R: The type makes authority explicit.\n"
+        )
+        valid_documentation = (
+            "### Summary\n\n- Context.\n\n### Records\n\n"
+            "#### D1 - Documentation: Capture a check\n\n"
+            "- D: Recorded the smoke-test result.\n"
+            "  - Scope: The local writer smoke test.\n"
+            "- T: Passed.\n"
+        )
+        mixed = valid_decision + (
+            "\n#### D2 - Documentation: Capture supporting evidence\n\n"
+            "- D: Recorded the parser fixture.\n"
+            "  - Scope: Compatibility behavior.\n"
+        )
+        missing_scope = valid_decision.replace("  - Scope: Newly authored session records.\n", "")
+        missing_disposition = valid_decision.replace("  - Disposition: Accepted and implemented.\n", "")
+        sibling_reason_only = (
+            "### Summary\n\n- Context.\n\n### Records\n\n"
+            "#### D1 - Decision: Missing its own reason\n\n"
+            "- D: Choose the format.\n"
+            "  - Scope: New entries.\n"
+            "  - Disposition: Accepted.\n\n"
+            "#### D2 - Documentation: Has a reason-like note\n\n"
+            "- D: Recorded why the test exists.\n"
+            "  - Scope: The fixture.\n"
+            "- R: This must not satisfy D1.\n"
+        )
+
+        for body in (valid_decision, valid_documentation, mixed):
+            with self.subTest(body=body[:80]):
+                self.assertEqual(
+                    entry_body_format_issues(body, require_typed_records=True),
+                    [],
+                )
+        self.assertTrue(any("Scope" in issue for issue in entry_body_format_issues(missing_scope, require_typed_records=True)))
+        self.assertTrue(any("Disposition" in issue for issue in entry_body_format_issues(missing_disposition, require_typed_records=True)))
+        self.assertTrue(any("own reason" in issue for issue in entry_body_format_issues(sibling_reason_only, require_typed_records=True)))
+
     def test_the_body_lint_sees_past_a_code_fence_in_the_body(self):
         # Regression: the body used to be split on fences[1], but the metadata
         # opener is '```yaml' and never equals a bare '```', so fences[1] was

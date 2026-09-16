@@ -218,7 +218,9 @@ def _metric_draft_reason_coverage(entry_texts, format_issues) -> Metric:
 
 
 def _declares_a_decision(text: str) -> bool:
-    return "### Decision" in text
+    from .core import entry_body_decisions
+
+    return bool(entry_body_decisions(text))
 
 
 def build_quality_report(cwd: str | Path = ".") -> QualityReport:

@@ -30,7 +30,7 @@ from .semantic_cache import ContinuityBlock, MemoryChunk, SourceReference
 
 
 CACHE_SCHEMA_VERSION = 2
-SERIALIZER_VERSION = 3
+SERIALIZER_VERSION = 4
 _GRANULARITIES = ("entry", "section", "decision")
 _VIEWS = ("raw", "augmented")
 # This literal is intentionally not derived from ``fields(MemoryChunk)``.  A
@@ -42,7 +42,7 @@ _SERIALIZED_CHUNK_FIELDS = (
     "end_line", "entry_id", "user_initials", "agent_type", "project_path", "subproject_path",
     "user", "file_hash_id", "related_entries", "replaces", "evolves", "decision_edges",
     "commits", "continuity", "topics", "inferred_topics", "inferred_decision_topics", "branch",
-    "entry_title", "entry_line_range", "sections", "source_refs", "granularity",
+    "entry_title", "entry_line_range", "sections", "source_refs", "granularity", "record_kind",
 )
 _CHUNK_FIELDS = _SERIALIZED_CHUNK_FIELDS
 _TUPLE_FIELDS = {

@@ -254,6 +254,7 @@ class ChunkSummary(BaseModel):
     text: str
     excerpt: str
     granularity: str
+    record_kind: str | None = None
     related_entries: list[str]
     continuity: list["ContinuityItem"]
 

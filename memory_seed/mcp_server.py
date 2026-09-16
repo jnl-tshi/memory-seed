@@ -128,10 +128,10 @@ def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
     every body decision explicit and classifies it with authored area/activity
     topics before the core writer can publish either an entry or a sidecar.
     """
-    from .core import entry_body_decisions
+    from .core import entry_body_records
 
     issues: list[str] = []
-    expected = [decision.ordinal for decision in entry_body_decisions(body)]
+    expected = [record.ordinal for record in entry_body_records(body)]
     if not isinstance(decisions, list) or not decisions:
         return [
             "decisions is required and must be a non-empty list with one topic envelope for every body decision"

@@ -91,6 +91,34 @@ agent_type: claude
 - R: Unreleased sections rot when nobody folds them.
 """
 
+TYPED_RECORDS = """## 2026-06-13 11:00 - Typed decision and documentation
+
+```yaml
+entry_id: mse_typedrecords001
+user_initials: JN
+agent_type: codex
+```
+
+### Summary
+
+- Kept authority and supporting evidence distinct.
+
+### Records
+
+#### D1 - Decision: Adopt typed records
+
+- D: Use explicit record kinds.
+  - Scope: Newly authored entries.
+  - Disposition: Accepted and implemented.
+- R: Authority must remain distinguishable from evidence.
+
+#### D2 - Documentation: Capture compatibility evidence
+
+- D: Recorded the legacy-parser result.
+  - Scope: Historical untyped decision records.
+- T: Legacy records still parse as decisions.
+"""
+
 
 class DecisionRetrievalTests(unittest.TestCase):
     def make_store(self):
@@ -101,6 +129,7 @@ class DecisionRetrievalTests(unittest.TestCase):
         (sessions / "2026-06-10.md").write_text(MULTI, encoding="utf-8")
         (sessions / "2026-06-11.md").write_text(SINGLE, encoding="utf-8")
         (sessions / "2026-06-12.md").write_text(NO_DECISION, encoding="utf-8")
+        (sessions / "2026-06-13.md").write_text(TYPED_RECORDS, encoding="utf-8")
         return root
 
     def chunks(self, root):
@@ -142,6 +171,16 @@ class DecisionRetrievalTests(unittest.TestCase):
         self.assertIn("- T: `pytest", first)
         # and does not bleed into the sibling decision
         self.assertNotIn("Priya", first)
+
+    def test_typed_records_are_searchable_with_their_kind(self):
+        chunks = self.chunks(self.make_store())
+        decision = chunks["mse_typedrecords001:d1"]
+        documentation = chunks["mse_typedrecords001:d2"]
+
+        self.assertEqual(decision.record_kind, "decision")
+        self.assertEqual(documentation.record_kind, "documentation")
+        self.assertIn("legacy-parser result", documentation.text)
+        self.assertEqual(get_chunk(documentation.chunk_id, self.make_store())["record_kind"], "documentation")
 
     def test_topics_and_edges_are_decision_scoped(self):
         chunks = self.chunks(self.make_store())
