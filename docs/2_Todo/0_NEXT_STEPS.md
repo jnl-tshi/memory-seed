@@ -1,136 +1,55 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-09
+Updated: 2026-09-19
 
-This is the short route through the live work in `docs/2_Todo/`. Source plans keep their full
-requirements, rationale, history, and phase detail. The folder remains the lifecycle authority; this
-page answers “what can move next, what is gated, and what needs a decision?”
+The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
+complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
+complete Markdown export. The two editions share semantics, not writable persistence.
 
-## Read this first
+## P0 hosted sequence
 
-1. Pick one ready slice below and open its source plan.
-2. Check the gate before starting; blocked work is not ready work.
-3. Ask JNL when marked **user decision**; an advisory recommendation is not approval.
-4. Reconcile completion in the source plan and lifecycle lane; one shipped phase does not close a plan.
+1. Start with [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md): validate authenticated
+   MCP/Codex-first capture, the pause-and-queue contract, team/project boundaries, and deletion/export
+   acceptance fixtures.
+2. Implement the smallest SQL event and curated-memory model that satisfies the
+   [live edition authority contract](../3_Spec/edition-authority-contract.md).
+3. Prove permission-filtered retrieval parity, curator evidence, and provider fail-closed behaviour before
+   widening the surface.
+4. Keep launch UI, chatbot, bidirectional repository sync, embeddings as authority, and broad provider
+   ingestion out of the MVP.
 
-The [Inbox/Todo lifecycle audit](../4_Reference/inbox-todo-lifecycle-audit-2026-09-09.md) records the
-evidence and exact session filename matches for every work item. The prior terminal moves remain in
-[the 2026-09-08 audit](../4_Reference/todo-lifecycle-audit-2026-09-08.md).
+No hosted service, provider call, upload, paid trial, release, or remote-setting change is authorized by
+the documentation amendment alone.
 
-For shipped-history context, use the root [`CHANGELOG.md`](../../CHANGELOG.md). This page does not
-duplicate release notes.
-For the superseded long-form route's preserved requirements and dependency owners, see the
-[Next Steps preservation map](../4_Reference/next-steps-history-2026-09-09.md).
+## Local OSS obligations that remain active
 
-## Ready next actions
+- [Memory quality metrics v0](memory-quality-metrics-v0-proposal.md): maintainer review of the existing
+  baseline remains the next gate.
+- [Task Packet hardening](task-packet-hardening-progressive-provenance-plan.md) and
+  [calibration](task-packet-calibration-harness-plan.md): finish independent review, dogfooding, and the
+  representative/holdout design.
+- [Memory Trace UX reference plan](memory-trace-ux-reference-model-implementation-plan.md) and
+  [interaction matrix](memory-trace-ux-m0-interaction-matrix.md): M3 bounded graph perspectives remain
+  the next local UI slice.
+- [Reflection launch verification](reflection-launch-verification-closeout.md): complete only the bounded
+  launch-matrix and first-board checks; future Reflection expansion is deferred.
 
-### Memory Trace UX — M3 bounded graph perspectives
+## Parked and historical work
 
-Open [the UX implementation plan](memory-trace-ux-reference-model-implementation-plan.md) and
-[its interaction matrix](memory-trace-ux-m0-interaction-matrix.md). M0–M2 are delivered. M3 is the
-next bounded slice: one-hop expansion with explicit node/edge counts, a keyboard-operable non-canvas
-equivalent, reduced-motion checks, selection continuity, and the named neighbourhood fixture. M4
-Quick Open and M5 deterministic resume/attention follow only after M3’s fixture and accessibility
-gates.
+- Post-MVP product ideas live in [`8_Deferred/`](../8_Deferred/), each with a revisit condition.
+- Consolidated or superseded plans live in [`7_Replaced/`](../7_Replaced/) with successor pointers.
+- Shipped plans live in [`5_Completed/`](../5_Completed/); external account or submission choices are
+  references/checklists, not active engineering plans.
+- The full 41-document disposition is recorded in the
+  [2026-09-19 consolidation audit](../4_Reference/hosted-roadmap-consolidation-audit-2026-09-19.md).
 
-### Task Packet hardening and calibration
+## Decisions still requiring JNL
 
-- [Task Packet hardening](task-packet-hardening-progressive-provenance-plan.md): continue independent
-  review and dogfooding of the hardened compiler/progressive-provenance path.
-- [Calibration harness](task-packet-calibration-harness-plan.md): freeze the representative population
-  and sealed holdout design after the smoke-tested harness.
+- Whether and when to authorize any hosted implementation tranche beyond local documentation/design.
+- Provider, hosting, billing, and retention choices once the MVP gates require them.
+- Whether to submit the completed Memory Index dry run externally.
+- Any remote OpenSSF, branch-protection, vulnerability-reporting, or organisation-owner settings.
 
-Calibration measures the harness; hardening changes the packet/provenance contract.
-
-### Evidence programme — choose one bounded review
-
-- [Independent validation](independent-validation-brief.md) — hand to an independent agent.
-- [Adjudication queue](adjudication-queue.md) — JNL rules each row; rulings are validity ground truth.
-- [Memory-index dry run](memory-index-dry-run-plan.md) — JNL decides whether to submit the CLEAR run.
-- [Workflow evidence/workbench](memory-seed-workflow-evidence-and-review-workbench-plan.md) —
-  reconstruct three completed journeys before fixing the workbench fixture.
-
-The ordering among these four is intentionally unresolved.
-
-## Dependency-blocked work
-
-### Reflection and Seed Pod launch
-
-- [Reflection ledger evolution](reflection-ledger-workstream-evolution-plan.md) owns integrated launch
-  verification, first-board evaluation, and public retention-extension follow-up. The first real closed
-  board exists; ESR’s receipt/header interpretation still blocks a clean launch evaluation.
-- [Prototype retirement](reflection-prototype-retirement-plan.md) verifies the retired prototype stays
-  absent in the integrated launch matrix.
-- [Seed Pod P0](seed-pod-p0-reconciliation-plan.md) waits on G0 independent re-review and stabilized
-  Reflection evidence.
-
-### Retrieval, provenance, and quality gates
-
-- [Provenance and authority](memory-provenance-and-authority-taxonomy-proposal.md): steps 5–7 wait on
-  the participant/role model and a user go.
-- [Quality metrics v0](memory-quality-metrics-v0-proposal.md): JNL reviews the v0 baseline before
-  targets or graduation are proposed.
-- [Semantic record and signal foundation](memory-seed-semantic-record-and-signal-foundation-plan.md):
-  evaluate remaining record-kind and retrieval-signal work after provenance and quality gates.
-- [Semantic projections](memory-trace-semantic-projections-plan.md): validate one Decision projection
-  only after B0b and the semantic foundation.
-
-### Sidecar and lifecycle infrastructure
-
-- [Write-time sidecar consolidation](write-time-sidecar-consolidation-proposal.md): accepted writer
-  tranche remains in progress; parsed fusion fixtures and remaining lenses are open.
-- [Link-audit judgment swarm](link-audit-decision-judgment-swarm-proposal.md): batching/retention shipped;
-  vendor-neutral queue/controller orchestration remains.
-- [Lifecycle-link authoring assist](lifecycle-link-authoring-assist-proposal.md): steps 1–3 shipped;
-  optional authoring extensions remain.
-- [Hierarchical vocabulary](hierarchical-topic-vocabulary-proposal.md): core build shipped; a maintainer
-  call is still needed for project-type starter vocabulary.
-
-## Programme backlogs — sequence unresolved
-
-These are coordinated sets, not equal “next steps.” The matrix, roadmap, and blueprint are the canonical
-owners; component proposals stay in Todo for traceability.
-
-- [Coverage matrix](memory-trace-next-generation-coverage-matrix.md) — integration authority.
-- [Implementation roadmap](memory-trace-next-generation-implementation-roadmap.md) — sequencing source.
-- [Architecture blueprint](memory-trace-product-and-system-architecture-blueprint.md) — P0 planning entry.
-- Components: [graph/workspace set](memory-trace-graph-and-workspace-proposal-set-index.md), [graph visualisation](memory-trace-graph-visualisation-and-temporal-topology-proposal.md), [structural graph provider](memory-trace-structural-graph-enrichment-provider-proposal.md), [three-region workspace](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md), [evidence annotations](memory-trace-evidence-annotations-and-projection-architecture.md), [frontend architecture](memory-trace-frontend-architecture-and-design-system-proposal.md), and [living archive](memory-trace-living-archive-and-editorial-focus-proposal.md).
-
-Do not invent an order within this set. M3 is the currently recorded ready Trace slice; later choices remain
-a roadmap decision.
-
-## User decisions and external actions
-
-- [OpenSSF credibility](openssf-credibility-proposals.md): the in-repo slice shipped; external
-  security-setting/user actions remain.
-- [AI timeline summarisation](memory-trace-ai-timeline-summarisation-plan.md): optional provider remains
-  disabled by default and follows packaging/release gates.
-
-## Inbox candidates — not accepted roadmap
-
-These proposals remain discoverable in [`docs/1_Inbox/`](../1_Inbox/) but are intentionally absent from
-the roadmap route until an explicit disposition: [ranking A/B unit-change gate](../1_Inbox/ranking-ab-unit-change-gate-proposal.md),
-[retrieval recall fixes](../1_Inbox/retrieval-recall-fixes-proposal.md),
-[editable lens refinement](../1_Inbox/sidecar-editable-lens-refinement-proposal.md), and
-[SkillOpt fit analysis](../1_Inbox/skillopt-fit-analysis.md).
-
-Decision-level topic keying is the exception: its governing D2 explicitly records a deferred, not-built
-disposition, so it lives in [`decision-level-topics-proposal.md`](../8_Deferred/decision-level-topics-proposal.md) with a
-revisit trigger rather than in Inbox.
-
-## Superpowers collaboration follow-up
-
-[Superpowers collaboration integration](superpowers-collaboration-integration-proposal.md) is the existing
-accepted integration programme in Todo, with its own remaining Phase 0 routing and multi-task trial work.
-The separate [delivery-quality uplift plan](../5_Completed/superpowers-delivery-quality-uplift-plan.md) shipped
-on 2026-09-10: discovery, governed planning evidence, debugging, verification, implementation/test planning,
-review disposition, and behavioral evaluation are now part of the native workflow. Its first bounded trial
-established route viability but did not prove causal speed, cost, or quality uplift; future trials belong
-under the existing collaboration programme rather than reopening the completed implementation plan.
-
-## Terminal history
-
-Ten fully shipped documents are already in `5_Completed/`, and one superseded remedy is in `7_Replaced/`.
-Partial implementation does not erase an open remainder. See the audits above for exact filenames and
-evidence.
+The folder remains lifecycle authority. Do not reopen a replaced plan to recover one requirement: carry
+the requirement into the canonical hosted programme or a new bounded successor instead.

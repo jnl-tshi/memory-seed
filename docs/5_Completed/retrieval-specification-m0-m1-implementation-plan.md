@@ -4,7 +4,7 @@ status: completed
 priority: P1
 next_action: "None. M0-M1 landed on main; M2-M5 remain owned by the active declarative retrieval specification proposal."
 sources:
-  - ../2_Todo/declarative-retrieval-specification-proposal.md
+  - ../7_Replaced/declarative-retrieval-specification-proposal.md
 spec_binding: null
 ---
 
@@ -16,7 +16,7 @@ spec_binding: null
 > than treating a historical v1 pack as a stored artifact.
 
 This was the executable critical path for the active [Declarative Retrieval Specification
-proposal](../2_Todo/declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
+proposal](../7_Replaced/declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
 
 Implementation state: Tasks 1 and 2, the bounded repair, and the final whole-branch re-review are
 complete and landed on `main`. Later milestones remain with the active parent proposal.

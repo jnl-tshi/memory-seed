@@ -10,7 +10,7 @@ tags:
 # Leg B: does per-decision topic attribution beat free inheritance?
 
 > **Measured 2026-08-07.** Resolves the open question carried in
-> [`write-time-sidecar-consolidation-proposal.md`](../2_Todo/write-time-sidecar-consolidation-proposal.md)
+> [`write-time-sidecar-consolidation-proposal.md`](../7_Replaced/write-time-sidecar-consolidation-proposal.md)
 > and restated in
 > [`write-time-topic-envelope-closure-proposal.md`](../5_Completed/write-time-topic-envelope-closure-proposal.md).
 > **Verdict: yes, and by a wide margin. The backfill sweep is worth running.**

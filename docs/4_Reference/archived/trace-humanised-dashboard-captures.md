@@ -6,7 +6,7 @@ status: "archived-reference"
 extracted_into: "docs/4_Reference/trace-humanised-dashboard-references/README.md"
 related:
   - "docs/4_Reference/trace-humanised-dashboard-references/README.md"
-  - "docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md"
+  - "docs/7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md"
 ---
 
 # Trace Humanised Dashboard — Raw Reference Captures

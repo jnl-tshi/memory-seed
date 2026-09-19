@@ -5,18 +5,18 @@ project: "memory-seed"
 status: "proposed-specification"
 spec_binding: candidate
 related:
-  - "../2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
-  - "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+  - "../8_Deferred/memory-trace-ai-timeline-summarisation-plan.md"
+  - "../7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
 ---
 
 # Memory Trace Derived-Artifact Provenance Contract
 
 Status: Active proposed specification, promoted from inbox on 2026-07-11.
 Priority: P3 contract before AI summaries, project updates, reports, presentations, or exports are treated as product features.
-Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, folded with `../2_Todo/memory-trace-ai-timeline-summarisation-plan.md`.
+Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, folded with `../8_Deferred/memory-trace-ai-timeline-summarisation-plan.md`.
 Scope: Derived artefact package shape, provenance manifest, claim/evidence requirements, contradiction handling, export adapters, promotion, storage, and validation.
 Non-goals: No AI provider implementation, no external publishing by default, no generated artefact becoming authoritative without explicit promotion.
-Dependencies: `../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md`, `../2_Todo/memory-trace-ai-timeline-summarisation-plan.md`, and `../2_Todo/session-decision-diagrams-plan.md`.
+Dependencies: `../7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md`, `../8_Deferred/memory-trace-ai-timeline-summarisation-plan.md`, and `../5_Completed/session-decision-diagrams-plan.md`.
 Acceptance criteria: Every material generated claim maps to evidence, manifests validate cited entries/chunks/freshness, adapters do not invent claims, and promotion is explicit/auditable.
 
 ## 1. Purpose

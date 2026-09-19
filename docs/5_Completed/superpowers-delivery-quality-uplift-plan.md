@@ -44,7 +44,7 @@ sources.
 | Surface | What the inspected source establishes | Consequence for this proposal |
 | --- | --- | --- |
 | Existing Superpowers adapter | [`.memory-seed/skills/superpowers_integration.md`](../../.memory-seed/skills/superpowers_integration.md) permits only verified official `dispatching-parallel-agents` for independent read-only work and `subagent-driven-development` for approved same-session implementation. It keeps Memory Seed responsible for worktrees, integration, durable records, and cleanup. | Preserve this boundary; do not broaden it by implication. |
-| Existing collaboration proposal | [`docs/2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md) already adopts the two external routes and identifies baseline validation, exact-range review, SDD return receipts, and behavioural routing evaluation as Memory Seed-owned improvements. | This proposal extends that work; it does not replace or relitigate its boundary. |
+| Existing collaboration proposal | [`docs/8_Deferred/superpowers-collaboration-integration-proposal.md`](../8_Deferred/superpowers-collaboration-integration-proposal.md) already adopts the two external routes and identifies baseline validation, exact-range review, SDD return receipts, and behavioural routing evaluation as Memory Seed-owned improvements. | This proposal extends that work; it does not replace or relitigate its boundary. |
 | Existing native owners | [`agent_collaboration.md`](../../.memory-seed/skills/agent_collaboration.md) owns Task Packets, plan gates, worktree and integration safety. [`local_compilation.md`](../../.memory-seed/skills/local_compilation.md), [`end_of_turn.md`](../../.memory-seed/skills/end_of_turn.md), and [`session_logging.md`](../../.memory-seed/skills/session_logging.md) own verification and durable evidence. | Amend these owners where the concern already belongs; do not create parallel controllers. |
 | Constitution and authority | [`docs/CONSTITUTION.md`](../CONSTITUTION.md) makes files authoritative for current truth, preserves append-only history, and requires the correct path to preserve validation and human control. The accepted control-file ADR likewise partitions Constitution, control files, ADR heads, and sessions by concern. | Any resulting policy must preserve those boundaries; it cannot silently override an invariant. |
 | Topic implementation | [`.memory-seed/topics.yaml`](../../.memory-seed/topics.yaml) is schema v3 and currently represents `area` and `activity` as separate top-level branches with nested children. | The agreed future rule is instead to use the existing topic-tree hierarchy for applicability: area/activity are topic types, not a second independent policy-metadata axis. Reconcile this deliberately; do not claim the current schema already has the agreed interpretation. |
@@ -242,12 +242,12 @@ stars, anecdotes, or a completed-looking schema as proof of reduced cost or impr
 
 ## Source trail
 
-- [Existing Superpowers collaboration integration proposal](../2_Todo/superpowers-collaboration-integration-proposal.md)
+- [Existing Superpowers collaboration integration proposal](../8_Deferred/superpowers-collaboration-integration-proposal.md)
 - [Existing Superpowers integration skill](../../.memory-seed/skills/superpowers_integration.md)
 - [Agent collaboration owner](../../.memory-seed/skills/agent_collaboration.md)
 - [Current Constitution](../CONSTITUTION.md)
 - [ADR scope proposal](../1_Inbox/adr-ledger-evolution-and-reasoning-semantics-plan.md)
-- [Reflection Board workstream plan](../2_Todo/reflection-ledger-workstream-evolution-plan.md)
+- [Reflection Board workstream plan](../7_Replaced/reflection-ledger-workstream-evolution-plan.md)
 - [Official Superpowers repository and catalogue](https://github.com/obra/superpowers)
 - [Official dispatching-parallel-agents skill](https://github.com/obra/superpowers/blob/main/skills/dispatching-parallel-agents/SKILL.md)
 - [Official subagent-driven-development skill](https://github.com/obra/superpowers/blob/main/skills/subagent-driven-development/SKILL.md)

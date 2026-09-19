@@ -7,7 +7,7 @@ priority: "P1"
 next_action: "None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the fallback almost never fires."
 related:
   - "experiments/memory-index-dryrun/answer_visible.py"
-  - "docs/2_Todo/memory-index-dry-run-plan.md"
+  - "docs/5_Completed/memory-index-dry-run-plan.md"
   - "experiments/band-calibration/FINDINGS.md"
 ---
 

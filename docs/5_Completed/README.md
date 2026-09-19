@@ -49,6 +49,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [configurable-integration-mode-plan.md](configurable-integration-mode-plan.md) | — | — | — |
 | [constitution-1.1-partitioned-markdown-authority-amendment.md](constitution-1.1-partitioned-markdown-authority-amendment.md) | — | — | completed |
 | [dev-tools-reel-10of10-websites.md](dev-tools-reel-10of10-websites.md) | — | — | — |
+| [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [docx-render-windows-seed-lessons.md](docx-render-windows-seed-lessons.md) | — | — | — |
 | [evolution-edges-plan.md](evolution-edges-plan.md) | — | — | — |
 | [evolution-type-refines-builds-on-proposal.md](evolution-type-refines-builds-on-proposal.md) | — | — | None. The four-step delivery order shipped on 2026-08-09. |
@@ -63,14 +64,19 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [goal-run-trace-surface-claude.md](goal-run-trace-surface-claude.md) | — | — | — |
 | [graph recommendations.md](graph%20recommendations.md) | — | — | — |
 | [grounding-provenance-write-time-links-proposal.md](grounding-provenance-write-time-links-proposal.md) | — | — | — |
+| [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P3 | — | ACCEPTED 2026-07-26/27 (JNL, settled inline below) - not a JNL gate any more. Build order steps… |
+| [hosted-edition-authority-amendment.md](hosted-edition-authority-amendment.md) | — | — | — |
 | [interaction-frequency-ranking-plan.md](interaction-frequency-ranking-plan.md) | — | — | — |
+| [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |
 | [link-sidecar-placement-review.md](link-sidecar-placement-review.md) | — | — | — |
 | [memory-entry-trailer-plan.md](memory-entry-trailer-plan.md) | — | — | — |
 | [memory-explorer-entry-level-ui-results-plan.md](memory-explorer-entry-level-ui-results-plan.md) | — | — | — |
+| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL decides whether to submit to Verging Labs v0.2 (early September) on Run 9's 87.1/CLEAR, zer… |
 | [Memory-Seed Logic Capture Improvement.md](Memory-Seed%20Logic%20Capture%20Improvement.md) | — | — | — |
 | [memory-seed-architectural-discovery-proposal.md](memory-seed-architectural-discovery-proposal.md) | — | — | — |
 | [memory-seed-trace-upgrade-shutdown-plan.md](memory-seed-trace-upgrade-shutdown-plan.md) | — | — | — |
 | [memory-seed-utf8-encoding-policy-phase-1.md](memory-seed-utf8-encoding-policy-phase-1.md) | — | — | — |
+| [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | DONE 2026-07-27 - 17 slugs live in .memory-seed/topics.yaml and 166 entries attributed via topi… |
 | [memory-trace-distribution-plan.md](memory-trace-distribution-plan.md) | — | — | — |
 | [memory-trace-plan-integration-and-retirement-guide.md](memory-trace-plan-integration-and-retirement-guide.md) | — | — | execution-guide |
 | [memory-trace-product-and-trail-view-plan.md](memory-trace-product-and-trail-view-plan.md) | — | — | — |
@@ -81,6 +87,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [mermaid-usage-guidance-plan.md](mermaid-usage-guidance-plan.md) | — | — | — |
 | [multi-user-deep-research-report.md](multi-user-deep-research-report.md) | — | — | — |
 | [multi-user-session-memory-proposal.md](multi-user-session-memory-proposal.md) | — | — | — |
+| [openssf-credibility-proposals.md](openssf-credibility-proposals.md) | — | — | — |
 | [operating-mode-variables-proposal.md](operating-mode-variables-proposal.md) | P2 | — | completed |
 | [outcome-level-composition-constitutional-amendment.md](outcome-level-composition-constitutional-amendment.md) | — | — | — |
 | [persona-usage-deactivation-esr-proposal.md](persona-usage-deactivation-esr-proposal.md) | — | — | — |
@@ -93,8 +100,10 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [related-entries-p2-mutation-plan.md](related-entries-p2-mutation-plan.md) | — | — | None. link add shipped; historical backfill remains a deliberately manual, per-edge procedure r… |
 | [residual-fuse-non-utf8-silent-skip.md](residual-fuse-non-utf8-silent-skip.md) | — | — | — |
 | [residual-processes-cp1252-decode.md](residual-processes-cp1252-decode.md) | — | — | — |
+| [resolve-stale-worktrees-and-decision-origins-plan.md](resolve-stale-worktrees-and-decision-origins-plan.md) | P1 | — | todo |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | None. M0-M1 landed on main; M2-M5 remain owned by the active declarative retrieval specificatio… |
 | [risk-signaling-and-stop-triggers-plan.md](risk-signaling-and-stop-triggers-plan.md) | — | — | — |
+| [session-decision-diagrams-plan.md](session-decision-diagrams-plan.md) | — | — | — |
 | [stop-trigger-taxonomy-proposal.md](stop-trigger-taxonomy-proposal.md) | — | — | — |
 | [storyline-gap-tranche-implementation-plan.md](storyline-gap-tranche-implementation-plan.md) | P1 | — | None — R5, R8, and R13 are reconciled from reviewed implementation evidence. |
 | [structured-mermaid-d2-diagrams-skill-evaluation.md](structured-mermaid-d2-diagrams-skill-evaluation.md) | — | — | — |

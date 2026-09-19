@@ -12,7 +12,7 @@ sources:
   - ../4_Reference/INBOX-ASSESSMENT-2026-08-20-DROP.md
   - ../4_Reference/inbox-2026-08-20-drop-review-claude.md
   - ../4_Reference/inbox-2026-08-20-drop-review-codex.md
-  - ../2_Todo/declarative-retrieval-specification-proposal.md
+  - ../7_Replaced/declarative-retrieval-specification-proposal.md
   - ../4_Reference/information-theoretic-evolution-disposition.md
   - ../../experiments/semantic-compression/recommendation.md
 spec_binding: null
@@ -61,7 +61,7 @@ This plan does not replace or weaken any existing owner:
 
 - Canonical project memory remains human-editable, append-only Markdown. Session decisions retain detailed
   evidence authority; living ADRs curate concern-specific heads and synopsis.
-- [`declarative-retrieval-specification-proposal.md`](../2_Todo/declarative-retrieval-specification-proposal.md)
+- [`declarative-retrieval-specification-proposal.md`](../7_Replaced/declarative-retrieval-specification-proposal.md)
   owns reproducible context requests and Evidence Pack resolution. M0/M1 are delivered; this plan does not
   reimplement them or pull M2 profiles/composition forward.
 - `experiments/context-derivation/` owns retrieval-packet experiments. Its current measured result is the

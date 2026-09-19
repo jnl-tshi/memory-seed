@@ -2,7 +2,7 @@
 title: Living ADR sidecar contract
 status: live
 spec_binding: live
-parent: ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
+parent: ../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md
 ---
 
 # Living ADR Sidecar Contract

@@ -33,6 +33,7 @@ These files are not completed proposals. Completed proposal and source-plan docu
 |---|---|---|---|
 | [adr-graph-community-detection.md](adr-graph-community-detection.md) | — | — | accepted |
 | [adr-lifecycle-sidecar-contract.md](adr-lifecycle-sidecar-contract.md) | — | — | live |
+| [edition-authority-contract.md](edition-authority-contract.md) | — | — | — |
 | [functionality-audit.md](functionality-audit.md) | — | — | — |
 | [graph-edge-contract.md](graph-edge-contract.md) | — | — | — |
 | [lifecycle-edge-linking-sidecars.md](lifecycle-edge-linking-sidecars.md) | — | — | — |

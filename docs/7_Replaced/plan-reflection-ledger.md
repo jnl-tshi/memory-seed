@@ -3,7 +3,7 @@ title: "Plan-Scoped Reflection Ledger"
 date: "2026-09-06"
 project: "memory-seed"
 status: "replaced"
-superseded_by: "docs/2_Todo/reflection-ledger-workstream-evolution-plan.md"
+superseded_by: "docs/7_Replaced/reflection-ledger-workstream-evolution-plan.md"
 priority: "P1"
 next_action: "Documentary evidence only. Do not compile or launch these prototype dispatches; use the sequential Reflection Board v1 and complete prototype-retirement plans."
 source:
@@ -38,8 +38,8 @@ acceptance_criteria:
 > Replaced 2026-09-07. This document records the unused participant-fragment prototype, which
 > never created a real board in the inspected repository. Historical version labels below are
 > documentary evidence, not supported product versions. All remaining implementation is owned by the
-> [Reflection Board v1 workstream plan](../2_Todo/reflection-ledger-workstream-evolution-plan.md) and
-> [complete prototype retirement plan](../2_Todo/reflection-prototype-retirement-plan.md).
+> [Reflection Board v1 workstream plan](../7_Replaced/reflection-ledger-workstream-evolution-plan.md) and
+> [complete prototype retirement plan](../7_Replaced/reflection-prototype-retirement-plan.md).
 > Embedded dispatches below are inactive and must not be launched.
 
 ## Outcome and decision

@@ -326,7 +326,7 @@ validation or detection.
    **optional layer**, never in the network-free core (Invariant #1): the core does mechanical recall and
    emits the task; the model calls happen outside; the suggested edge is human/guard-approved and stored
    as an ordinary `:dN` edge, so it stays model-independent (Invariant #5). See
-   `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md`. This is the "human narrows" outcome step
+   `docs/7_Replaced/link-audit-decision-judgment-swarm-proposal.md`. This is the "human narrows" outcome step
    4 predicted, made concrete, with the machine-narrowing path scoped as a separate proposal.
 2. **Should ESR count decision edges separately** in coverage metrics, or would that make historical
    coverage look worse by moving the denominator?

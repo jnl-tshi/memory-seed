@@ -1,14 +1,14 @@
 ---
 title: "Proposal: Typed Memory Entries and ADR Sidecar Lifecycle Tracking"
 status: "superseded"
-replaced_by: "../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md"
+replaced_by: "../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Proposal: Typed Memory Entries and ADR Sidecar Lifecycle Tracking
 
 **Status:** Superseded 2026-07-16.
-**Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md)
+**Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md)
 and [`adr-lifecycle-sidecar-contract.md`](../3_Spec/adr-lifecycle-sidecar-contract.md). The successor
 keeps authoritative ADR sidecars but replaces mutable generated YAML with append-only Markdown and derives
 current status from transition replay.

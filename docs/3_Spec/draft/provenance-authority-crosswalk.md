@@ -6,16 +6,16 @@ spec_binding: draft
 status: "candidate — not binding"
 next_action: "JNL decides the authority_class contract question in §5, then steps 3–6 of the BG1 proposal can proceed."
 related:
-  - "docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md"
+  - "docs/7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md"
   - "docs/CONSTITUTION.md"
-  - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
-  - "docs/2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md"
+  - "docs/7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
+  - "docs/8_Deferred/memory-trace-structural-graph-enrichment-provider-proposal.md"
 ---
 
 # Provenance and authority crosswalk (draft)
 
 **Candidate — not binding.** Steps 1–2 of the
-[BG1 taxonomy proposal](../../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md): inventory every
+[BG1 taxonomy proposal](../../7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md): inventory every
 existing provenance/authority/confidence/lifecycle field, then publish canonical ownership and aliases.
 Per that proposal's own instruction — *"do not change ranking or actionability defaults in the
 taxonomy-definition step"* — this document **changes no code and no default**. It is a map of what exists

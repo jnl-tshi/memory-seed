@@ -184,5 +184,5 @@ The vocabulary decision does not depend on the gap: `graph` (70), `trail` (32) a
 rest on counts three cycles agreed on. **The sweep does** — writing labels into the corpus needs a
 validity number that does not currently exist.
 
-`docs/2_Todo/adjudication-queue.md` holds the 22 contested rows of 77. Ruling those is the only route to
+`docs/7_Replaced/adjudication-queue.md` holds the 22 contested rows of 77. Ruling those is the only route to
 ground truth left, and it is bounded: the 55 uncontested rows need no human time.

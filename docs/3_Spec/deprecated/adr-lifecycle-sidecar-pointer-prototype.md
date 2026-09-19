@@ -3,7 +3,7 @@ title: Deprecated ADR pointer-sidecar prototype
 status: deprecated
 spec_binding: deprecated
 deprecated_by: ../adr-lifecycle-sidecar-contract.md
-parent: ../../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
+parent: ../../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md
 ---
 
 # Deprecated ADR Pointer-Sidecar Prototype
@@ -36,7 +36,7 @@ MADR compatibility.
 
 *Amended 2026-07-26. Brought onto the first-hand / reconstructed split and the explicit `source:` provenance
 field accepted in
-[write-time-sidecar-consolidation-proposal.md](../../2_Todo/write-time-sidecar-consolidation-proposal.md).
+[write-time-sidecar-consolidation-proposal.md](../../7_Replaced/write-time-sidecar-consolidation-proposal.md).
 This is an alignment pass on a draft, not a ratification: status stays `draft` and no runtime state is
 created.*
 

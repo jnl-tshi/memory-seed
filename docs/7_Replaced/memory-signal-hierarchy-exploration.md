@@ -1,14 +1,14 @@
 ---
 title: "Initial Proposal: Memory Signal Hierarchy"
 status: "superseded"
-replaced_by: "../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md"
+replaced_by: "../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Initial Proposal: Memory Signal Hierarchy
 
 **Status:** Superseded 2026-07-16
-**Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md)
+**Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md)
 **Related systems:** Retrieval, MCP context collection, Memory Trace, entry types, topics
 
 > [!IMPORTANT]

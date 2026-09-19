@@ -15,7 +15,7 @@ Components are **React + Tailwind CSS + Radix UI** (shadcn/ui-inspired). **Memor
 ## If revisited
 The 2026-07-11 next-generation Memory Trace frontend proposal now supplies that independent reason
 to evaluate React/Tailwind-compatible component ideas:
-`docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`. This does **not**
+`docs/7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md`. This does **not**
 make 21st.dev a dependency by default; it remains inspiration-only until a specific component is
 reviewed for licence, accessibility, bundle cost, and fit with the Trace design system.
 

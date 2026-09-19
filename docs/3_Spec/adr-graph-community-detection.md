@@ -2,7 +2,7 @@
 title: ADR graph community detection
 status: accepted
 spec_binding: live
-parent: ../../2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md
+parent: ../../7_Replaced/memory-trace-graph-visualisation-and-temporal-topology-proposal.md
 ---
 
 # ADR: Community Detection On The Trace Graph

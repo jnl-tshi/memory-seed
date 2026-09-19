@@ -1,14 +1,14 @@
 ---
 title: "Initial Proposal: Idea-to-Ship Trace Model"
 status: "superseded"
-replaced_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+replaced_by: "../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Initial Proposal: Idea-to-Ship Trace Model
 
 **Status:** Superseded 2026-07-16
-**Superseded by:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md)
+**Superseded by:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md)
 **Related systems:** Entry types, relationships, Memory Trace, issue trackers, Git
 
 > [!IMPORTANT]

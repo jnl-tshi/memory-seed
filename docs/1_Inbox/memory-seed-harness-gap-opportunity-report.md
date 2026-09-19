@@ -185,9 +185,9 @@ claim that preserved rationale improves decisions.
 **Disposition:** Bounded evaluation across existing owners.
 
 **Owners:** the bounded review loop in `.memory-seed/skills/agent_collaboration.md`,
-[`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md),
+[`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md),
 and the actionability gate in
-[`memory-provenance-and-authority-taxonomy-proposal.md`](../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md).
+[`memory-provenance-and-authority-taxonomy-proposal.md`](../7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md).
 
 The opportunity is not to remove human approval. It is to compress the material a human must inspect:
 a small packet containing the requested decision, source evidence, authority, freshness, conflict state,
@@ -208,7 +208,7 @@ decision, it fails even when reviewers approve faster.
 
 **Disposition:** Existing owner; sharpen its evaluation.
 
-**Owner:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md).
+**Owner:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md).
 
 Anthropic's employee account of losing track of what one has been doing as delegation rises gives this
 opportunity a concrete user outcome. The workbench already plans to reconstruct three completed journeys.
@@ -282,7 +282,7 @@ destructive-action, or source-verification decision is ineligible.
 
 **Disposition:** Continue only through the existing gate.
 
-**Owner:** [`memory-provenance-and-authority-taxonomy-proposal.md`](../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md).
+**Owner:** [`memory-provenance-and-authority-taxonomy-proposal.md`](../7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md).
 
 The combined external reading reinforces why provenance, authority, confidence, lifecycle, and
 actionability must remain separate. Research taste includes deciding which result to trust, but neither

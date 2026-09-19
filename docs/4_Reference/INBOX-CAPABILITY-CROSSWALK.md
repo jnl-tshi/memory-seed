@@ -20,8 +20,8 @@ sources:
   - ../7_Replaced/high-signal-knowledge-lenses-exploration.md
   - ../7_Replaced/integrated-implementation-sequence-exploration.md
   - ../CONSTITUTION.md
-  - ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
-  - ../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md
+  - ../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md
+  - ../7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md
   - ../2_Todo/memory-quality-metrics-v0-proposal.md
   - ../3_Spec/graph-edge-contract.md
   - ../3_Spec/lifecycle-edge-linking-sidecars.md
@@ -80,11 +80,11 @@ Proposal codes:
 
 Owner shorthand used in the tables:
 
-- **Semantic-record plan** — [memory-seed-semantic-record-and-signal-foundation-plan.md](../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md)
+- **Semantic-record plan** — [memory-seed-semantic-record-and-signal-foundation-plan.md](../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md)
 - **Edge contract** — [graph-edge-contract.md](../3_Spec/graph-edge-contract.md)
 - **Link sidecars** — [lifecycle-edge-linking-sidecars.md](../3_Spec/lifecycle-edge-linking-sidecars.md)
 - **ADR contract (live)** — [adr-lifecycle-sidecar-contract.md](../3_Spec/adr-lifecycle-sidecar-contract.md)
-- **Provenance taxonomy** — [memory-provenance-and-authority-taxonomy-proposal.md](../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md)
+- **Provenance taxonomy** — [memory-provenance-and-authority-taxonomy-proposal.md](../7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md)
 - **Quality metrics v0** — [memory-quality-metrics-v0-proposal.md](../2_Todo/memory-quality-metrics-v0-proposal.md)
 - **Derived-artifact provenance contract** — [memory-trace-derived-artifact-provenance-contract.md](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
 - **Constitution** — [CONSTITUTION.md](../CONSTITUTION.md), v1.3, ratified 2026-07-19
@@ -287,7 +287,7 @@ were retired on their basis. Deltas 1–5 survived clean. Deltas 6–10 were tru
 of their own wording and are reworded above; delta 8 was outright false and is corrected. In two cases
 (6, 7) the crosswalk's own table rows were more accurate than this Findings prose, so the tables above
 stand as written. Deltas 2, 3, 6, 7 and 10 additionally gained a named active owner on 2026-07-20 when
-[the Living Archive proposal](../2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md) was
+[the Living Archive proposal](../8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md) was
 promoted — it proposes an Open Questions Brief, open-question metadata, assumption lenses, queryable
 absence, and a task-completion test for decision quality.
 

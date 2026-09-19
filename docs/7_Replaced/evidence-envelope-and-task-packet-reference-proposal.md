@@ -8,18 +8,18 @@ next_action: "After React Trail parity, decide whether a stable cross-surface ev
 dependencies:
   - "React Trail parity and B0b acceptance"
   - "docs/5_Completed/worker-context-minimisation-proposal.md"
-  - "docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md"
+  - "docs/7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md"
 related:
-  - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
-  - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
-replaced_by: "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+  - "docs/8_Deferred/memory-trace-ai-timeline-summarisation-plan.md"
+  - "docs/7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
+replaced_by: "../7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
 replaced_on: "2026-07-16"
 ---
 
 # Evidence Envelope and Task Packet Reference Proposal
 
 Status: **SUPERSEDED 2026-07-16** by section 11.1 of
-[`memory-trace-evidence-annotations-and-projection-architecture.md`](../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md).
+[`memory-trace-evidence-annotations-and-projection-architecture.md`](../7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md).
 Priority: P2 after React Trail parity and B0b acceptance.
 Source: The 2026-07-16 post-Trail platform review triage.
 

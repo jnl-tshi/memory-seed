@@ -38,6 +38,7 @@ Current Memory Trace provenance:
 | [designing-user-interfaces-source-learnings.md](designing-user-interfaces-source-learnings.md) | — | — | source-learnings |
 | [fffuel-svg-css-generators.md](fffuel-svg-css-generators.md) | — | — | — |
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |
+| [hosted-roadmap-consolidation-audit-2026-09-19.md](hosted-roadmap-consolidation-audit-2026-09-19.md) | — | — | — |
 | [inbox-2026-08-20-drop-review-claude.md](inbox-2026-08-20-drop-review-claude.md) | — | — | inbox-assessed |
 | [inbox-2026-08-20-drop-review-codex.md](inbox-2026-08-20-drop-review-codex.md) | — | — | inbox-assessed |
 | [INBOX-ASSESSMENT-2026-08-13-DROP.md](INBOX-ASSESSMENT-2026-08-13-DROP.md) | — | — | inbox-assessed |
@@ -52,6 +53,7 @@ Current Memory Trace provenance:
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
 | [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
 | [next-steps-history-2026-09-09.md](next-steps-history-2026-09-09.md) | — | — | reference |
+| [openssf-external-settings-checklist.md](openssf-external-settings-checklist.md) | — | — | — |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [reflection-board-v1-operator-guide.md](reflection-board-v1-operator-guide.md) | — | — | reference |
 | [todo-lifecycle-audit-2026-09-08.md](todo-lifecycle-audit-2026-09-08.md) | — | — | reference |

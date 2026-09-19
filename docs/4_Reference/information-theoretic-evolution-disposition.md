@@ -11,7 +11,7 @@ sources:
   - ../3_Spec/draft/link-retraction.md
   - ../3_Spec/lifecycle-edge-linking-sidecars.md
   - ../3_Spec/memory-trace-derived-artifact-provenance-contract.md
-  - ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
+  - ../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md
   - ../2_Todo/memory-quality-metrics-v0-proposal.md
   - ../2_Todo/0_NEXT_STEPS.md
 ---

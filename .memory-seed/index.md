@@ -10,7 +10,9 @@ tags:
 
 ## Purpose
 
-Memory Seed is a portable local memory system for AI coding agents. This runtime is the active control plane for developing the reusable seed, CLI, MCP memory retrieval, and compatibility behavior.
+Memory Seed has a complete portable local OSS edition and a separately governed hosted team edition.
+This runtime is the active control plane for the Markdown-authoritative local seed, CLI, MCP retrieval,
+hosted-edition contracts, and compatibility behavior.
 
 ## Repository Structure
 
@@ -99,9 +101,10 @@ entry points matter.
 Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
 head → session evidence → derived projection.
 
-- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v1.14 ratified 2026-09-16**.
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v2.0 ratified 2026-09-19**.
 - Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
-- Markdown source-of-truth boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md).
+- Edition authority boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md) and the
+  live [edition authority contract](../docs/3_Spec/edition-authority-contract.md).
 - Append-only history: [`adr_append_rule_is_an_invariant`](decisions/adr_append_rule_is_an_invariant.md).
 - Integration and worktree posture: [`adr_integration_mode`](decisions/adr_integration_mode.md) and
   [`adr_worktree_convention`](decisions/adr_worktree_convention.md).
@@ -117,8 +120,8 @@ file to direct reading at or below 12,000 characters or economy-worker compressi
 
 Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
 relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
-before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v1.10**, ratified
-2026-08-31) before consequential design, governance, or control-plane changes. It remains the highest
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v2.0**, ratified
+2026-09-19) before consequential design, governance, or control-plane changes. It remains the highest
 declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
@@ -154,17 +157,27 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 
 ## Active State
 
-- Project type: reusable local AI memory-system seed and Python CLI/MCP tooling.
-- Current priority: use this repository as a meta-test for the all-in-one `.memory-seed/` v2 layout with nearest-runtime sub-project discovery.
+- Project type: reusable local AI memory-system seed plus a separately scoped hosted team edition.
+- Current priority: execute the capture-first [hosted Memory MVP programme](../docs/2_Todo/hosted-memory-mvp-programme.md)
+  without weakening the complete, network-independent local OSS edition.
+- Authority boundary: local OSS is Markdown-authoritative; hosted is SQL-authoritative with complete
+  Markdown export. The editions share semantics but have no repository settlement, bidirectional sync,
+  or dual-writer mode.
 - Retrieval Specification M0-M3 and the reconstructable Task Packet compiler are delivered as of 2026-09-01. Six immutable core v1 profiles live under `.memory-seed/retrieval-profiles/`; semantic Task Dispatch plus measured binding and a pinned corpus revision reconstructs a complete ephemeral packet through shared CLI/MCP/core code. Trace/Evidence Envelope and advanced selectors remain planned; this adds no registry, dispatch engine, authority, provider lookup, or network dependency.
 - Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed; v2.17.0 released; Memory Trace packaging now ships through the root `memory-seed[trace]` extra with the `memory-trace` command.
-- Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `replacing_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
-- Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b packages the React/TypeScript shell with the accepted graph, search, selection, Trail, reader, diagram, and workspace interaction rules. Accessibility and scale closeout landed 2026-07-29; JNL approved the frontend cutover on 2026-08-11, so React owns `/` and the vanilla frontend and parity-only harnesses are retired. **Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)** — an ADR records the corpus-density measurement that ruled it out; it does not gate B0b acceptance. **Navigation and layout gained ground 2026-07-28/29**: the flat topic-chip list became a recursive Areas/Activities ontology tree; long lifecycle chains now wind into a spiral (oldest innermost, gated by a concordance check so a chain only spirals when its topology actually tracks chronology); the layout leans away from crossing edges via a soft force; and Trace can now open any correctly-initialised folder from inside the app, not only switch between this repo's own git worktrees. **Memory Seed 2.20.0 released 2026-08-12** with the React-only frontend and durable bootstrap-to-ADR authority chain.
+- Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1,
+  Trail continuity lanes, successor ranking, configurable integration mode, and the lifecycle-link scaffold.
+  Optional AI summarisation and lifecycle extensions are now deferred rather than active.
+- Memory Trace's React local review surface is shipped. Its former next-generation plans were consolidated
+  on 2026-09-19: requirements relevant to team capture, evidence, governance, privacy, and retrieval now
+  live in the hosted MVP programme; local UX work remains only in the active reference-model plan and matrix.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v1.14** as of 2026-09-16 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v2.0** as of 2026-09-19 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
-  `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
-  living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
+  the historical semantic-foundation plan is preserved in
+  `docs/7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md`; its applicable hosted
+  requirements now live in the hosted MVP programme. Its living ADR foundation shipped 2026-08-03:
+  one append-only concern record under `.memory-seed/decisions/`,
   mandatory MCP review for any lineage-linked evolution/replacement, structural branch fusion, read-only
   ADR MCP tools, and the Trace ADR workspace. Remaining record-kind/ranking signals stay gated; workflow
   evidence/review and one Decision projection follow. Publishability and a generic skill/workflow router remain deferred. The worktree hygiene plan uses
@@ -223,10 +236,11 @@ and configured surfaces that a folder tree cannot explain by itself.
 - `.memory-seed/skills/index.md` is the deterministic trigger registry for deciding which lazy-loaded skills apply.
 - `skills/*.md` are lazy-loaded execution runbooks.
 - `.memory-seed/sessions/` is the rationale and audit trail for decisions; `index.md` should store current orientation and durable conclusions, not full decision history.
-- Authoritative memory may be partitioned across append-only Markdown entries and narrowly scoped Markdown
-  sidecars. Under the live ADR contract, session decisions own detailed rationale/evidence while one living
-  concern ADR owns its curated Decision/Why/Evolution synopsis, lineage membership, and accepted head;
-  current status, registries, indexes, databases, API responses, and Trace views are derived.
+- In the local OSS edition, authoritative memory may be partitioned across append-only Markdown entries and
+  narrowly scoped Markdown sidecars. Session decisions own detailed rationale/evidence while one living
+  concern ADR owns its curated synopsis, lineage, and accepted head; local indexes, databases, API responses,
+  and Trace views are derived. In the separate hosted edition, SQL owns accepted events, curated records,
+  permissions, approvals, retention, and audit state; Markdown is export only.
 - ADR inverse coverage is a standing ESR check: same-area decision-lineage chains with no ADR, weak
   unclaimed pairs, and claimed chains that have grown are exposed with advisory recommendations. The
   `adr_sweep` skill owns adjudication; discovery never creates an ADR or moves a head.
@@ -295,7 +309,10 @@ and configured surfaces that a folder tree cannot explain by itself.
   `integration_mode`, `merge_trigger`, session fusion, and fail-closed cleanup. The adapter is
   unavailable by default when the external skills are absent; that is a named fallback, not a core failure.
 - Encoding hardening (current unreleased worktree): `memory-seed encoding check` reports UTF-8/BOM/newline/NFC drift, likely mojibake, and implicit production Python text I/O; `encoding repair` previews or atomically repairs mechanically safe BOM/newline/NFC drift after timestamped backup. Invalid UTF-8 and likely mojibake remain manual. Encoding policy stays owned by Memory Seed rather than being duplicated in Memory Trace, and `doctor` provides a non-fatal summary. (ADR [`adr_encoding_policy`](decisions/adr_encoding_policy.md))
-- Memory Trace UI (current shipped-but-unreleased surface): the human review UI has a separate source boundary under `memory-trace/`, but its public install target is `memory-seed[trace]` with the `memory-trace` command. The old `memory-seed lense` route is a deprecated compatibility shim. Markdown session files remain the source of truth; Trace exposes searchable memory, filters, graph, Trail (commit-accurate merges, typed lifecycle routes, topic chains, and derived continuity lanes), reader/details, worktree switching, and sidecar diagrams. Deterministic timeline Evidence Packs are available from `memory_trace.evidence` with no provider or write path; provider/local-model summaries remain Phase 2 and non-authoritative. Assets are content-hash versioned at serve time and `--static-root` serves another checkout's UI.
+- Memory Trace UI (local OSS surface): the human review UI has a separate source boundary under
+  `memory-trace/`, but its public install target is `memory-seed[trace]` with the `memory-trace` command.
+  Markdown session files remain authoritative for this local surface. A future hosted Trace view must derive
+  from hosted SQL and must not imply that exported Markdown is a synchronized writer.
 - Session-authoring and end-of-turn tooling (current shipped-but-unreleased surface): lifecycle-edge link sidecars, `session append`/`reorder`/`entry-id`, `memory-seed esr`, trailer stamping, and `memory-seed link audit --date <date> --apply` are implemented. The apply path creates only inert, idempotent `classify_pending` stubs with commented candidate evidence; humans must classify and approve live edges, `links check` warns on unresolved stubs, and ESR counts them. ESR's Worktrees section also compares registered worktrees with physical agent-namespace directories so deregistered residue remains visible for fail-closed cleanup. Spec: `docs/3_Spec/lifecycle-edge-linking-sidecars.md`.
 - Lifecycle-link judgment swarm + confidence (current unreleased worktree, 2026-07-25): the `link_swarm` skill drives an optional, network-using fan-out of small models that judge `link audit` gaps at decision granularity — the automated **judgment** layer above the mechanical sweep. It only suggests; a mechanical validator (quote-grounding, ordinal existence, forward-only) and a human scope approval gate every write, and stored edges are ordinary `:dN` edges with no dependency on the model that suggested them (Invariants #1, #5). A 2026-07-25 campaign judged all 1,108 file-overlap never-linked pairs and landed 696 decision-level edges. Each machine-suggested edge carries a structured **`edge_confidence`** field (`{ref, confidence, tier}` per authored ref) that `links check` tolerates as an unknown sibling key (zero parser change); the Trace graph and Trail now **fade** low-confidence edges by opacity so an unverified suggestion never reads as settled fact. Draft specs: `docs/3_Spec/draft/edge-confidence-metadata.md`, `docs/3_Spec/draft/link-retraction.md`. (ADR [`adr_edge_confidence`](decisions/adr_edge_confidence.md))
 - Decision-level topic judgment swarm — **the scored auto-backfill was piloted twice and explicitly

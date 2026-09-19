@@ -20,24 +20,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `mse_gn2kmdenk0p4cn7z:d1`
+Authoritative decision: `mse_kn36asmf96bf5tk1:d1`
 
 ### Decision
 
-The memory core is encoded in plain Markdown throughout all tiers. All critical files—session logs, decision records, control policies—are human-editable Markdown. Even in future collaborative or hosted implementations, Markdown remains the authoritative source of truth; any database, cache, or index is a derived, rebuildable projection, never a second source of truth.
+The local OSS edition remains Markdown-authoritative; the separate hosted team edition is SQL-authoritative with complete Markdown export and no dual writable authority.
 
 ### Reason
 
-Markdown is readable for file-reading agents and human maintainers, directly supporting the core differentiation. The open-core, layered-implementation model allows optional accelerators (DuckDB, vector indices, hosted backends) without splitting the truth model. Keeping Markdown authoritative everywhere simplifies the invariant landscape—one source of truth across core, derived-local, and optional-hosted tiers—and preserves the ability for any tier to re-derive all databases from the Markdown source.
+JNL explicitly authorized the two-edition boundary on 2026-09-19, preserving the local portability guarantee while giving hosted team state one transactional authority.
 
 ### Impact
 
-Reframed Markdown within the Constitution's derived-layer/optional-tier model as Invariant #6, making the source-of-truth principle explicit and extending it to all implementation tiers. This resolved a design fork about whether collaborative or hosted tiers could make a server database authoritative; the answer is no, to maintain the unified truth model.
-
-### Constitution
-
-- `constitution:v1#markdown-authority` (governing)
-- `constitution:v1#evidence-first` (supporting)
+Replaces the prior all-tiers rule with one authoritative substrate per edition and requires repository settlement, synchronization, and dual-writer designs to remain out of scope.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -216,3 +211,58 @@ Reason was not recorded in the schema-v1 event.
 #### Impact
 
 mse_gn2kmdenk0p4cn7z:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### revision-proposed - 2026-09-19T00:54:00
+
+```json
+{
+  "decision_ref": "mse_kn36asmf96bf5tk1:d1",
+  "event_id": "adre_87f48f782a60e0b6331f",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_gn2kmdenk0p4cn7z:d1",
+      "relation_assertion": "link:mse_kn36asmf96bf5tk1:d1:replaces:mse_gn2kmdenk0p4cn7z:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_kn36asmf96bf5tk1"
+}
+```
+
+#### Decision
+
+The local OSS edition remains Markdown-authoritative; the separate hosted team edition is SQL-authoritative with complete Markdown export and no dual writable authority.
+
+#### Reason
+
+JNL explicitly authorized the two-edition boundary on 2026-09-19, preserving the local portability guarantee while giving hosted team state one transactional authority.
+
+#### Impact
+
+Replaces the prior all-tiers rule with one authoritative substrate per edition and requires repository settlement, synchronization, and dual-writer designs to remain out of scope.
+
+### revision-accepted - 2026-09-19T00:55:00Z
+
+```json
+{
+  "decision_ref": "mse_kn36asmf96bf5tk1:d1",
+  "event_id": "adre_fd3345201d67532ca91b",
+  "expected_authoritative_decision": "mse_gn2kmdenk0p4cn7z:d1",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_kn36asmf96bf5tk1"
+}
+```
+
+#### Decision
+
+Accept mse_kn36asmf96bf5tk1:d1.
+
+#### Reason
+
+Accepted under JNL's explicit constitutional authorization on 2026-09-19; the local OSS guarantee remains intact and the hosted edition now has one SQL authority.
+
+#### Impact
+
+mse_kn36asmf96bf5tk1:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.

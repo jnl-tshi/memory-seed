@@ -7,20 +7,20 @@ priority: "P3"
 next_action: "After React Trail parity and the named prerequisite contracts, define deterministic fixtures for a read-only review projection."
 dependencies:
   - "React Trail parity and B0b acceptance"
-  - "docs/2_Todo/document-lifecycle-system-plan.md"
+  - "docs/5_Completed/document-lifecycle-system-plan.md"
   - "docs/2_Todo/memory-quality-metrics-v0-proposal.md"
-  - "docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md"
+  - "docs/7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md"
 related:
   - "docs/3_Spec/draft/derived-read-model-projection-contract.md"
-  - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
-replaced_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+  - "docs/7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
+replaced_by: "../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Derived Review Queue and Document Lineage Proposal
 
 Status: **SUPERSEDED 2026-07-16** by
-[`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md).
+[`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md).
 Priority: P3 after React Trail parity, document-lifecycle Phase 2, quality metrics v0, and the provenance gate.
 Source: The 2026-07-16 post-Trail platform review triage.
 

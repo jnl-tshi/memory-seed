@@ -5,7 +5,7 @@ project: "memory-seed"
 status: "active-specification"
 spec_binding: "live"
 role: "B0a benchmark contract"
-parent: "../2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md"
+parent: "../7_Replaced/memory-trace-graph-visualisation-and-temporal-topology-proposal.md"
 ---
 
 # Memory Trace Renderer-Neutral Graph Projection
