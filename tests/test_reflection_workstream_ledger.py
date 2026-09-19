@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import stat
 from types import SimpleNamespace
@@ -762,6 +763,38 @@ def test_nested_reflection_discovery_does_not_exclude_dependency_or_generated_pa
     with pytest.raises(ReflectionValidationError, match="reserved"):
         recheck_reflection_integration(root, preview)
     assert _admission_state(root) == before
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows extended-length path regression")
+def test_reflection_discovery_inventories_ignored_file_beyond_max_path(tmp_path, monkeypatch):
+    from memory_seed.reflection_ledger import preview_reflection_integration, recheck_reflection_integration
+
+    root, ledger, _ledger_path = _new_git_workstream(tmp_path)
+    ignored_root = root / "ignored-long-path"
+    parent = ignored_root / ("d" * 100)
+    filename_length = 270 - len(str(parent)) - 1
+    assert 8 <= filename_length <= 200
+    logical = parent / (("f" * (filename_length - 4)) + ".txt")
+    assert len(str(logical)) == 270
+    extended_root = Path("\\\\?\\" + str(ignored_root))
+    extended = Path("\\\\?\\" + str(logical))
+    extended.parent.mkdir(parents=True)
+    extended.write_bytes(b"ignored but still inventoried\n")
+    (root / ".git/info/exclude").write_text("ignored-long-path/\n", encoding="utf-8")
+
+    preview = preview_reflection_integration(
+        root,
+        source_ref=ledger.header.working_branch,
+        base_ref=ledger.header.base_sha,
+    )
+    try:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(reflection_ledger_module, "_extended_length_path", lambda path: path)
+            with pytest.raises(FileNotFoundError):
+                recheck_reflection_integration(root, preview)
+        recheck_reflection_integration(root, preview)
+    finally:
+        shutil.rmtree(extended_root)
 
 
 def test_reflection_discovery_stops_at_git_and_registered_nested_worktrees(tmp_path):
