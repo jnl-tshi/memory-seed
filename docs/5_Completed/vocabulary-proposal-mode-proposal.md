@@ -1,7 +1,7 @@
 ---
 priority: P3
 status: completed
-next_action: "SHIPPED 2026-07-27 (day after JNL raised it) - not a JNL gate any more. scripts/propose_topic_children.py (gather + score) is built, committed, and has run at least twice on memory-trace, producing docs/2_Todo/memory-trace-children-proposal.md. No follow-up action."
+next_action: "SHIPPED 2026-07-27 (day after JNL raised it) - not a JNL gate any more. scripts/propose_topic_children.py (gather + score) is built, committed, and has run at least twice on memory-trace, producing docs/5_Completed/memory-trace-children-proposal.md. No follow-up action."
 ---
 
 # Swarm proposal mode: how the vocabulary grows as the project does

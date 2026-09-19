@@ -9,7 +9,6 @@ spec moves up to `3_Spec/`; if abandoned it goes to `6_Rejected/`.
 **Contents physically here:**
 
 - `derived-read-model-projection-contract.md` - candidate local projection contract;
-- `memory-trace-hosted-markdown-settlement-contract.md` - candidate hosted settlement/rebuildability gate;
 - `provenance-authority-crosswalk.md` - BG1 steps 1-2: the provenance/authority field inventory and alias
   map. Blocked on one user decision (the shipped `authority_class` value disagrees with the proposed
   vocabulary, and correcting it is a v1 contract break).

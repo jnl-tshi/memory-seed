@@ -13,6 +13,7 @@ see Phase 2.)
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
+| [memory-trace-hosted-markdown-settlement-contract.md](memory-trace-hosted-markdown-settlement-contract.md) | — | — | docs/3_Spec/edition-authority-contract.md |
 | [topic-discovery-from-evidence.md](topic-discovery-from-evidence.md) | n/a | — | none - see closing note. The write-time, per-agent proposal direction JNL named instead is capt… |
 | [topics-schema-v3-writer-migration-proposal.md](topics-schema-v3-writer-migration-proposal.md) | n/a | — | none - revisit only if a real second-project signal appears (see closing note) |
 <!-- docs-index:end -->

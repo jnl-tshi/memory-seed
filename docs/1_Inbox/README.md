@@ -61,7 +61,7 @@ The warranty-claims ML project's file index that arrived here by mistake was ass
 
 The Inbox stood empty from 2026-07-29, when the Superpowers collaboration proposal was approved for
 implementation and promoted to
-[`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md).
+[`../8_Deferred/superpowers-collaboration-integration-proposal.md`](../8_Deferred/superpowers-collaboration-integration-proposal.md).
 
 The two assessment artifacts and the design-reference folder that sat here after the 2026-07-20 triage
 were themselves reference material, not undecided captures — moved the same day to
@@ -99,7 +99,7 @@ were themselves reference material, not undecided captures — moved the same da
   non-goals, and the genuine deltas were folded into the plans that own them. Nothing was deleted — the
   *why* is preserved, as with every prior set.
 - `memory-trace-living-archive-and-editorial-focus-proposal.md` → promoted to
-  [`../2_Todo/`](../2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md); its section 14 was
+  [`../2_Todo/`](../8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md); its section 14 was
   answered the same day and the Community Decision Brief slice is approved to build.
 - Seven raw iOS mood-board captures → archived to
   [`../4_Reference/archived/`](../4_Reference/archived/trace-humanised-dashboard-captures.md) once their

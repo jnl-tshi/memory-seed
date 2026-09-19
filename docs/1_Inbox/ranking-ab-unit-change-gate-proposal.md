@@ -7,8 +7,8 @@ priority: "P2"
 next_action: "Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness is the right instrument for them."
 related:
   - "docs/CONSTITUTION.md"
-  - "docs/2_Todo/attention-retrieval-signal-proposal.md"
-  - "docs/2_Todo/memory-index-dry-run-plan.md"
+  - "docs/7_Replaced/attention-retrieval-signal-proposal.md"
+  - "docs/5_Completed/memory-index-dry-run-plan.md"
   - "docs/5_Completed/real-corpus-ranking-validation-gate-proposal.md"
 ---
 

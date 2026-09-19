@@ -1,14 +1,14 @@
 ---
 title: "Initial Proposal: Type-Specific Memory Trace Projections"
 status: "superseded"
-replaced_by: "../2_Todo/memory-trace-semantic-projections-plan.md"
+replaced_by: "../8_Deferred/memory-trace-semantic-projections-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Initial Proposal: Type-Specific Memory Trace Projections
 
 **Status:** Superseded 2026-07-16
-**Superseded by:** [`memory-trace-semantic-projections-plan.md`](../2_Todo/memory-trace-semantic-projections-plan.md)
+**Superseded by:** [`memory-trace-semantic-projections-plan.md`](../8_Deferred/memory-trace-semantic-projections-plan.md)
 **Related systems:** Memory Trace, typed entries, topics, ADR sidecars, search
 
 > [!IMPORTANT]

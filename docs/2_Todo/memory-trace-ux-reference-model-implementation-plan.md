@@ -22,9 +22,9 @@ Non-goals: Rebuild GitLens, Obsidian, NotebookLM, Neo4j Bloom, Linear, or any ot
 add a second authoring system; make a global graph the default; hide source evidence behind generated prose;
 or change canonical session, sidecar, decision, or graph-edge semantics.
 Dependencies: [`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md),
-[`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md),
-[`memory-trace-next-generation-implementation-roadmap.md`](memory-trace-next-generation-implementation-roadmap.md),
-[`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md),
+[`memory-trace-product-and-system-architecture-blueprint.md`](../7_Replaced/memory-trace-product-and-system-architecture-blueprint.md),
+[`memory-trace-next-generation-implementation-roadmap.md`](../7_Replaced/memory-trace-next-generation-implementation-roadmap.md),
+[`memory-trace-graph-and-workspace-proposal-set-index.md`](../7_Replaced/memory-trace-graph-and-workspace-proposal-set-index.md),
 and the renderer-neutral graph and provenance specifications.
 Acceptance criteria: Each implemented increment is fixture- and accessibility-gated, preserves exact
 Markdown/Git provenance and the active Trail parity contract, and exposes the origin of sidecar or projected
@@ -315,8 +315,8 @@ authorize it.
   product-direction input; product-specific claims have not been independently relied upon here.
 - [`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md)
   — current proposed Trail/search/graph interaction contract.
-- [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md)
+- [`memory-trace-product-and-system-architecture-blueprint.md`](../7_Replaced/memory-trace-product-and-system-architecture-blueprint.md)
   — authoritative/semantic/projection/experience-layer boundary.
-- [`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md)
+- [`memory-trace-graph-and-workspace-proposal-set-index.md`](../7_Replaced/memory-trace-graph-and-workspace-proposal-set-index.md)
   — graph/workspace constitutional and renderer-neutral requirements.
 - [`../CONSTITUTION.md`](../CONSTITUTION.md) — constitutional invariants, principles, and five-question test.

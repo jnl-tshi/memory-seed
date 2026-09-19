@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 1.14 — **RATIFIED 2026-09-16** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.0 — **RATIFIED 2026-09-19** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -17,7 +17,10 @@ quality instrumentation in §8; amended 2026-09-05 to make the governed path the
 resistance through inspectable outcome-level composition (§3); amended 2026-09-06 with the bounded
 temporary reflection-board lifecycle (Invariant #2); amended 2026-09-14 so DRAFTS decisions cite
 material source artifacts and retrieval lexical matching is capitalization-safe (§4); evolved 2026-09-16
-so typed DRAFTS records distinguish decisions from documentation while sharing one searchable structure (§4). **Source:** distilled from demonstrated behaviour
+so typed DRAFTS records distinguish decisions from documentation while sharing one searchable structure (§4);
+amended 2026-09-19 to establish separate single-authority editions: Markdown-authoritative OSS/local and
+SQL-authoritative hosted, with Markdown export rather than synchronization (Invariants #1 and #6, §3, §5 and
+§10). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -31,10 +34,12 @@ across the codebase,
 
 ## 1. Vision
 
-Memory Seed is **the local-first, model-independent memory substrate that preserves a project's reasoning
-— its decisions, evidence, and context — so humans and AI agents can continue work without repeating
-prior investigation.** It is infrastructure that many clients consume, not an application. *(Source: the
-discovery proposal's strategic-position statement; `../business/market/memory-seed-market-fit-report.md`.)*
+Memory Seed is **the model-independent memory substrate that preserves a project's reasoning — its decisions,
+evidence, and context — so humans and AI agents can continue work without repeating prior investigation.**
+It is delivered through explicit editions: a local-first OSS substrate and a hosted team service. It is
+infrastructure that many clients consume, not one application. *(Source: the discovery proposal's
+strategic-position statement; `../business/market/memory-seed-market-fit-report.md`; the ratified hosted
+edition amendment in `5_Completed/hosted-edition-authority-amendment.md`.)*
 
 It is **not** another documentation tool, Git client, or knowledge graph. Its differentiation lives above
 the Git-history layer: decision and reasoning provenance. *(Ref: `../business/market/memory-seed-gitlens-competitor-report.md`.)*
@@ -46,11 +51,12 @@ the Git-history layer: decision and reasoning provenance. *(Ref: `../business/ma
 The sacred properties. Changing one is a [constitutional amendment](#11-governance).
 
 <!-- constitution-ref: constitution:v1#ownership -->
-1. **Users own their memory.** It lives as plain files in the user's repository; the **core** runs with no
-   server, database, or network. Optional layers may add a cache, index, database, or hosted service for
-   performance or collaboration — the core never depends on them. *(Cited: Markdown+YAML storage with no DB;
-   `memory-seed situate`/`esr` and the core CLI/MCP are network-free; `memory-seed` installs
-   web-framework-free; the `memory-seed[trace]` optional extra is the pattern.)*
+1. **Users own and control their memory through an explicit edition boundary.** In the OSS/local edition,
+   memory lives as plain files in the user's repository and the core runs with no server, database, account or
+   network. In the hosted edition, the service's SQL store is authoritative, while users retain governed access,
+   deliberate deletion and complete human-readable Markdown export. The local core never depends on the hosted
+   service, and the hosted service never silently turns a local repository into a client-side replica. *(Cited:
+   the local Markdown+YAML core and `3_Spec/edition-authority-contract.md`.)*
 <!-- constitution-ref: constitution:v1#append-only -->
 2. **The past is append-only — extend and supersede, never rewrite or delete.** History is evidence;
    corrections are new entries that point back. *(Cited: append-only session logs; `links check`
@@ -140,19 +146,15 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    serves any agent and any human. *(Cited: `agent-rules.md` `vendor_neutral: true`; the seed ships for
    Claude, Codex, Gemini, Cursor, and Copilot alike.)*
 <!-- constitution-ref: constitution:v1#markdown-authority -->
-6. **Markdown is the authoritative memory substrate — human-readable, durable, and authoritative
-   *everywhere*.** Authority may be partitioned across append-only primary entries and narrowly scoped
-   Markdown sidecars, but every authoritative field or lifecycle has exactly one declared owner. Every other
-   store — cache, index, database, embedding, computed snapshot, or hosted backend — is a **derived
-   projection**: fully rebuildable from the authoritative Markdown, never authoritative, and never required
-   for the core to run. This holds even under hosted or collaborative use — concurrent writes resolve *into*
-   Markdown, and a server database is only ever an accelerator over it, never a second source of truth. A
-   person can always read and edit the source directly with no service; derived layers need not be
-   human-readable.
-   Narrow sidecars may own explicit promotion or lifecycle facts while referenced entries own narrative
-   rationale and evidence. *(Cited: the rebuildable SQLite cache outside the repo; per-user session files +
-   `session merge-branch`/fuse; lifecycle and diagram sidecars; Constitution 1.1 amendment. "Markdown today,
-   another durable format tomorrow" — the format may change; the source-of-truth role may not.)*
+6. **Each edition has exactly one authoritative memory substrate.** In the OSS/local edition, Markdown is
+   authoritative: authority may be partitioned across append-only primary entries and narrowly scoped Markdown
+   sidecars, while caches, indexes, databases, embeddings and computed snapshots are derived and rebuildable.
+   In the hosted edition, SQL is authoritative for accepted events, curated records, permissions, approvals,
+   retention and audit state; Markdown is a complete human-readable export, not a synchronized second writer.
+   The editions may share semantic contracts but not persistence authority. There is no implicit repository
+   settlement, bidirectional synchronization or dual-authority conflict resolution between them. Moving memory
+   between editions requires an explicit transfer or migration contract. *(Cited: the local sidecar architecture;
+   `3_Spec/edition-authority-contract.md`; the 2026-09-19 hosted edition amendment.)*
 <!-- constitution-ref: constitution:v1#retrieval-transparency -->
 7. **Retrieval never hides live history to flatter a ranking.** A superseded entry is down-ranked, never
    removed from results. *(Cited: `SUPERSEDED_RANK_DAMPING` down-rank-only rule in `graph-edge-contract.md`;
@@ -204,9 +206,10 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   or stopped, and which governing guards were applied. *(Cited: `1_Inbox/agent-interaction-storylines-review.md`;
   `8_Deferred/agent-skill-workflow-architecture-proposal.md`; `mse_d1h4mf4z40epm8jz:d1` and `:d2`.)*
 <!-- constitution-ref: constitution:v1#open-core -->
-- **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
-  hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
-  store. **[direction — decided 2026-07-14; no paid tier exists yet.]**
+- **Open-core, explicit edition authority.** The local Markdown edition is free and complete on its own. The
+  hosted team edition is a separate SQL-authoritative product with Markdown export. Shared semantics and clients
+  must make the active edition and authority explicit; neither edition becomes a hidden cache, replica or second
+  writer for the other. **[direction — hosted edition approved 2026-09-19; no hosted product exists yet.]**
 
 ---
 
@@ -248,8 +251,8 @@ ordinary proposal work.
 
 ## 5. Implementations — freely replaceable technology
 
-No allegiance is owed to any of these; they serve the layers above, and every non-core store sits
-downstream of Invariant #6 (derived, rebuildable). Grouped by distance from the core:
+No allegiance is owed to any of these; they serve the layers above. Invariant #6 determines whether a store is
+authoritative or derived by edition:
 
 - **Core (always present):** Markdown + YAML files · Git as the commit substrate · MCP over stdio ·
   Python 3.11+ / setuptools · Mermaid/D2 for diagrams.
@@ -259,8 +262,9 @@ downstream of Invariant #6 (derived, rebuildable). Grouped by distance from the 
 - **Optional-local capability** (adds features, still offline, degrades to the core): Model2Vec embeddings;
   the supported **React/Vite** Memory Trace client; a **VS Code extension** (memory beside the code — a candidate
   high-leverage adoption surface); a desktop shell; pluggable local AI providers.
-- **Hosted / collaborative** (paid tier — still Markdown-authoritative per Invariant #6): a team-sync /
-  managed backend and cross-project memory — candidate directions, not adopted.
+- **Hosted / collaborative edition** (approved direction; not yet implemented): authenticated clients,
+  SQL-authoritative event and curated-memory storage, permission-filtered MCP retrieval, Markdown export and
+  optional focused Memory Trace surfaces. Hosted indexes and embeddings remain derived from hosted SQL.
 
 ---
 
@@ -324,10 +328,10 @@ The live record of what is *not* settled (this is the honest half of "discovery"
 - **The next-generation Trace shell — RESOLVED (2026-08-11):** React/Vite is the sole supported
   Memory Trace frontend. A **VS Code extension** remains a candidate optional-local surface (§5).
 - **Trust taxonomy (§7) and quality metrics (§8)** are named but undefined.
-- **Source-of-truth under collaboration — RESOLVED (2026-07-14):** even a future hosted/collaborative tier
-  keeps Markdown authoritative; any server database is a derived projection (Invariant #6). *Still open:*
-  **which** commercial tier to reach (local-pro / team-hosted / enterprise) and when — parked pending
-  usage + market validation (`8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`).
+- **Source-of-truth under collaboration — RE-RESOLVED (2026-09-19):** the hosted team edition is
+  SQL-authoritative and exports Markdown; the OSS/local edition remains Markdown-authoritative. The editions do
+  not synchronize or share writable authority. The former Markdown-everywhere resolution remains historical
+  rationale in Constitution v1.x and `adr_markdown_substrate`. Commercial packaging and pricing remain open.
 - **Where the Constitution sits relative to the locked control plane — RESOLVED (2026-08-11):** a
   ratified Constitution explicitly declared by the active runtime index formally governs the lower
   control plane. A draft, candidate, or undisclosed Constitution remains evidence only.
@@ -373,6 +377,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.0 | 2026-09-19 | **Amendment: explicit local and hosted edition authority.** Changes Invariants #1 and #6 so the complete OSS/local edition remains Markdown-authoritative and network-independent while the separate hosted team edition is SQL-authoritative with complete Markdown export. Forbids hidden dual authority, repository settlement and bidirectional synchronization; shared semantics do not imply shared persistence. Updates the Vision, open-core principle, implementation map and collaboration resolution. | JNL (explicit live authorization, 2026-09-19) |
 | 1.14 | 2026-09-16 | **Evolution: typed DRAFTS decisions and documentation.** Expands `D` to mean Decision or Documentation record under one `### Records` structure. Every new record carries Scope; decisions additionally require Disposition and their own Reason. Documentation records make small work and evidence searchable without granting lifecycle or ADR authority. Historical untyped/singular records remain decisions and are not rewritten. | JNL (approved the design-discovery plan and directed implementation live, 2026-09-16) |
 | 1.13 | 2026-09-14 | **DRAFTS source attribution and capitalization-safe lexical retrieval.** Renames the current decision-record mnemonic from DRAFT to DRAFTS; adds `S:` for a materially informing repository artifact, with mechanical validation whenever supplied while preserving historical DRAFT records unchanged; and requires Unicode NFKC plus case-fold normalization across lexical query/index text. Optional preferred keywords are a bounded positive ranking aid, never a filter. | JNL (approved the implementation plan and directed implementation live, 2026-09-14) |
 | 1.12 | 2026-09-06 | **Amendment: bounded temporary reflection-board expiry.** Reflection blocks created inside a declared plan-scoped board are temporary coordination material rather than durable memory. After required validation and orchestrator synthesis, complete chains close independently with durable receipt coverage; their user-configurable retention period, seven days by default, starts from chain close. Elapsed closed chains expire automatically and individually, never as a board wipe; early removal of an unpromoted chain requires live user approval and a durable disposition. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (ratified live 2026-09-06) |

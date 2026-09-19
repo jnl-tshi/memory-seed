@@ -1,14 +1,14 @@
 ---
 title: "Initial Proposal: Agent-Workflow Observability"
 status: "superseded"
-replaced_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+replaced_by: "../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md"
 replaced_on: "2026-07-16"
 ---
 
 # Initial Proposal: Agent-Workflow Observability
 
 **Status:** Superseded 2026-07-16
-**Superseded by:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md)
+**Superseded by:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md)
 **Related systems:** Memory Seed, Memory Trace, MCP, CLI, control plane
 
 > [!IMPORTANT]

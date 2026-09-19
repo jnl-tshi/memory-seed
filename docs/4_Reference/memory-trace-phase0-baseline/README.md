@@ -3,7 +3,7 @@ title: "Memory Trace Phase 0 Baseline Report"
 date: "2026-07-11"
 project: "memory-seed"
 status: "reference-baseline"
-parent: "../../2_Todo/memory-trace-next-generation-implementation-roadmap.md"
+parent: "../../7_Replaced/memory-trace-next-generation-implementation-roadmap.md"
 ---
 
 # Memory Trace Phase 0 Baseline Report

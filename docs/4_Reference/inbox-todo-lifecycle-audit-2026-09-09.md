@@ -65,46 +65,46 @@ the same document still owns an explicit follow-up.
 
 | Original document | Outcome | Evidence / why retained |
 |---|---|---|
-| `2_Todo/seed-pod-p0-reconciliation-plan.md` | Retain active | P0 G0 re-review and provenance migration remain gated; Reflection launch evidence is a prerequisite, not completion. |
+| `8_Deferred/seed-pod-p0-reconciliation-plan.md` | Retain active | P0 G0 re-review and provenance migration remain gated; Reflection launch evidence is a prerequisite, not completion. |
 | `2_Todo/task-packet-hardening-progressive-provenance-plan.md` | Retain active | P0 hardening and progressive provenance work remain in the current next action. |
-| `2_Todo/declarative-retrieval-specification-proposal.md` | Retain active | M0–M3 are delivered, but M4/M5 design remains explicit. |
-| `2_Todo/derived-projection-implementation-plan.md` | Retain partial | Phase 1 and incremental ingest shipped; git-rooted integrity follow-up remains. |
-| `2_Todo/independent-validation-brief.md` | Retain open | Independent agent validation is still the next action. |
-| `2_Todo/memory-index-dry-run-plan.md` | Retain decision-gated | Run 9 is evidence, but submission and unresolved S4/S6 usefulness decisions remain. |
-| `2_Todo/memory-provenance-and-authority-taxonomy-proposal.md` | Retain gated | Steps 1–4 shipped; steps 5–7 remain behind participant/role and maintainer approval gates. |
+| `7_Replaced/declarative-retrieval-specification-proposal.md` | Retain active | M0–M3 are delivered, but M4/M5 design remains explicit. |
+| `8_Deferred/derived-projection-implementation-plan.md` | Retain partial | Phase 1 and incremental ingest shipped; git-rooted integrity follow-up remains. |
+| `7_Replaced/independent-validation-brief.md` | Retain open | Independent agent validation is still the next action. |
+| `5_Completed/memory-index-dry-run-plan.md` | Retain decision-gated | Run 9 is evidence, but submission and unresolved S4/S6 usefulness decisions remain. |
+| `7_Replaced/memory-provenance-and-authority-taxonomy-proposal.md` | Retain gated | Steps 1–4 shipped; steps 5–7 remain behind participant/role and maintainer approval gates. |
 | `2_Todo/memory-quality-metrics-v0-proposal.md` | Retain review-gated | v0 baseline shipped; usefulness review and any graduation decision remain. |
-| `2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` | Retain active | Remaining record-kind and retrieval-signal work is explicitly owned here. |
-| `2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md` | Retain active | Three real project journeys must be reconstructed before defining the workbench fixture. |
-| `2_Todo/memory-trace-ai-timeline-summarisation-plan.md` | Retain active | Optional provider remains disabled-by-default and is sequenced after packaging/release gates. |
-| `2_Todo/memory-trace-children-proposal.md` | Retain partial | Topic slugs/attribution shipped; activity and validity work remain open. |
-| `2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md` | Retain proposed | Versioned API, Trail/search parity, and annotation architecture remain proposed work. |
-| `2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md` | Retain proposed | Frontend architecture remains a proposal with explicit prerequisites. |
-| `2_Todo/memory-trace-graph-and-workspace-proposal-set-index.md` | Retain active set | Proposal-set index remains the owner for the related Graph/Workspace documents. |
-| `2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md` | Retain proposed | Graph topology and visual semantics remain roadmap work. |
-| `2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md` | Retain partial | Community Decision Brief slice is approved, while naming/commercial and other sections remain parked or gated. |
-| `2_Todo/memory-trace-next-generation-coverage-matrix.md` | Retain active matrix | Matrix remains the integration/planning authority for the next-generation Trace set. |
-| `2_Todo/memory-trace-next-generation-implementation-roadmap.md` | Retain proposed roadmap | Roadmap sequencing remains the next-generation planning source. |
-| `2_Todo/memory-trace-product-and-system-architecture-blueprint.md` | Retain canonical plan | Blueprint remains the P0 planning entry point before the next-generation implementation. |
-| `2_Todo/memory-trace-semantic-projections-plan.md` | Retain active | Decision projection validation remains gated on B0b and semantic foundation evidence. |
-| `2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md` | Retain proposed | Provider adoption remains fixture/benchmark-gated. |
-| `2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md` | Retain proposed | Workspace composition remains a proposed Trace surface. |
+| `7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md` | Retain active | Remaining record-kind and retrieval-signal work is explicitly owned here. |
+| `7_Replaced/memory-seed-workflow-evidence-and-review-workbench-plan.md` | Retain active | Three real project journeys must be reconstructed before defining the workbench fixture. |
+| `8_Deferred/memory-trace-ai-timeline-summarisation-plan.md` | Retain active | Optional provider remains disabled-by-default and is sequenced after packaging/release gates. |
+| `5_Completed/memory-trace-children-proposal.md` | Retain partial | Topic slugs/attribution shipped; activity and validity work remain open. |
+| `7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md` | Retain proposed | Versioned API, Trail/search parity, and annotation architecture remain proposed work. |
+| `7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md` | Retain proposed | Frontend architecture remains a proposal with explicit prerequisites. |
+| `7_Replaced/memory-trace-graph-and-workspace-proposal-set-index.md` | Retain active set | Proposal-set index remains the owner for the related Graph/Workspace documents. |
+| `7_Replaced/memory-trace-graph-visualisation-and-temporal-topology-proposal.md` | Retain proposed | Graph topology and visual semantics remain roadmap work. |
+| `8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md` | Retain partial | Community Decision Brief slice is approved, while naming/commercial and other sections remain parked or gated. |
+| `7_Replaced/memory-trace-next-generation-coverage-matrix.md` | Retain active matrix | Matrix remains the integration/planning authority for the next-generation Trace set. |
+| `7_Replaced/memory-trace-next-generation-implementation-roadmap.md` | Retain proposed roadmap | Roadmap sequencing remains the next-generation planning source. |
+| `7_Replaced/memory-trace-product-and-system-architecture-blueprint.md` | Retain canonical plan | Blueprint remains the P0 planning entry point before the next-generation implementation. |
+| `8_Deferred/memory-trace-semantic-projections-plan.md` | Retain active | Decision projection validation remains gated on B0b and semantic foundation evidence. |
+| `8_Deferred/memory-trace-structural-graph-enrichment-provider-proposal.md` | Retain proposed | Provider adoption remains fixture/benchmark-gated. |
+| `7_Replaced/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md` | Retain proposed | Workspace composition remains a proposed Trace surface. |
 | `2_Todo/memory-trace-ux-m0-interaction-matrix.md` | Retain active | M3 bounded graph perspectives and controlled expansion remain the next action. |
 | `2_Todo/memory-trace-ux-reference-model-implementation-plan.md` | Retain active | Same M3 implementation remains explicitly owned here. |
-| `2_Todo/openssf-credibility-proposals.md` | Retain partial | In-repo slice shipped; external security-setting/user action and remaining credibility work remain. |
-| `2_Todo/reflection-ledger-workstream-evolution-plan.md` | Retain partial | v1 public lifecycle and first real closed board now exist, but the plan still owns integrated launch/retention-extension follow-up. |
-| `2_Todo/reflection-prototype-retirement-plan.md` | Retain partial | Prototype retirement shipped; integrated launch-matrix verification remains explicit. |
-| `2_Todo/session-decision-diagrams-plan.md` | Retain proposed | Diagram sidecar workflow remains a live plan. |
-| `2_Todo/superpowers-collaboration-integration-proposal.md` | Retain active | Phase 0 routing and first suitable approved multi-task trial remain the next action; a separate user-owned plan is out of scope here. |
+| `5_Completed/openssf-credibility-proposals.md` | Retain partial | In-repo slice shipped; external security-setting/user action and remaining credibility work remain. |
+| `7_Replaced/reflection-ledger-workstream-evolution-plan.md` | Retain partial | v1 public lifecycle and first real closed board now exist, but the plan still owns integrated launch/retention-extension follow-up. |
+| `7_Replaced/reflection-prototype-retirement-plan.md` | Retain partial | Prototype retirement shipped; integrated launch-matrix verification remains explicit. |
+| `5_Completed/session-decision-diagrams-plan.md` | Retain proposed | Diagram sidecar workflow remains a live plan. |
+| `8_Deferred/superpowers-collaboration-integration-proposal.md` | Retain active | Phase 0 routing and first suitable approved multi-task trial remain the next action; a separate user-owned plan is out of scope here. |
 | `2_Todo/task-packet-calibration-harness-plan.md` | Retain active | Representative population and sealed holdout design remain open. |
-| `2_Todo/write-time-sidecar-consolidation-proposal.md` | Retain partial | Accepted writer tranche is in progress; diagrams/ADR lenses/parsed fusion fixtures remain. |
-| `2_Todo/adjudication-queue.md` | Retain decision queue | JNL rulings are explicitly still required. |
-| `2_Todo/adr-attached-decisions-earn-a-diagram-proposal.md` | Retain gated | Accepted direction remains blocked on ADR backlog and unresolved attachment/write-time questions. |
-| `2_Todo/attention-retrieval-signal-proposal.md` | Retain partial | Capture/exposure shipped; default-ranking flip remains gated on real usage and ranking A/B evidence. |
-| `2_Todo/document-lifecycle-system-plan.md` | Retain partial | Migration, docs check, and docs index shipped; secondary-YAML backfill remains. |
-| `2_Todo/file-touch-decision-surfacing-proposal.md` | Retain partial | Claude hook shipped; other-agent observation and extension remain deferred. |
-| `2_Todo/hierarchical-topic-vocabulary-proposal.md` | Retain partial | Core build shipped; project-type starter vocabulary still needs a maintainer call. |
-| `2_Todo/lifecycle-link-authoring-assist-proposal.md` | Retain partial | Steps 1–3 shipped; optional authoring extensions remain. |
-| `2_Todo/link-audit-decision-judgment-swarm-proposal.md` | Retain active | Batching/retention shipped; vendor-neutral queue/controller orchestration remains. |
+| `7_Replaced/write-time-sidecar-consolidation-proposal.md` | Retain partial | Accepted writer tranche is in progress; diagrams/ADR lenses/parsed fusion fixtures remain. |
+| `7_Replaced/adjudication-queue.md` | Retain decision queue | JNL rulings are explicitly still required. |
+| `8_Deferred/adr-attached-decisions-earn-a-diagram-proposal.md` | Retain gated | Accepted direction remains blocked on ADR backlog and unresolved attachment/write-time questions. |
+| `7_Replaced/attention-retrieval-signal-proposal.md` | Retain partial | Capture/exposure shipped; default-ranking flip remains gated on real usage and ranking A/B evidence. |
+| `5_Completed/document-lifecycle-system-plan.md` | Retain partial | Migration, docs check, and docs index shipped; secondary-YAML backfill remains. |
+| `7_Replaced/file-touch-decision-surfacing-proposal.md` | Retain partial | Claude hook shipped; other-agent observation and extension remain deferred. |
+| `5_Completed/hierarchical-topic-vocabulary-proposal.md` | Retain partial | Core build shipped; project-type starter vocabulary still needs a maintainer call. |
+| `5_Completed/lifecycle-link-authoring-assist-proposal.md` | Retain partial | Steps 1–3 shipped; optional authoring extensions remain. |
+| `7_Replaced/link-audit-decision-judgment-swarm-proposal.md` | Retain active | Batching/retention shipped; vendor-neutral queue/controller orchestration remains. |
 
 ### Exact filename evidence ledger
 

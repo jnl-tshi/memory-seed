@@ -13,7 +13,7 @@ format: "Markdown research proposal"
 > the companion UI workstream. Supersedes the Trail-only naming plan now archived at
 > [`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md).
 > Future Memory Trace product/system evolution is now governed by
-> [`../memory-trace-product-and-system-architecture-blueprint.md`](../2_Todo/memory-trace-product-and-system-architecture-blueprint.md)
+> [`../memory-trace-product-and-system-architecture-blueprint.md`](../7_Replaced/memory-trace-product-and-system-architecture-blueprint.md)
 > and [`../../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md).
 > **Priority:** Resolved. Naming, branch capture, package extraction, and the Trail view are present
 > in the unpushed Memory Trace worktree.
@@ -28,7 +28,7 @@ format: "Markdown research proposal"
 > branch-existence validation. No write/curation UI. No fork of parser/ranker/retrieval logic.
 > **Dependencies:** [`../memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md),
-> [`../session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md), and
+> [`../session-decision-diagrams-plan.md`](../5_Completed/session-decision-diagrams-plan.md), and
 > [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 > **Acceptance criteria:** see "Acceptance Criteria" below.
 

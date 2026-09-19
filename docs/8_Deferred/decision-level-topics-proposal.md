@@ -108,5 +108,5 @@ entry-level graph in the meantime.
 - `docs/3_Spec/draft/decision-level-link-sidecar-refs.md` — the `:dN` grammar this would mirror.
 - `docs/3_Spec/lifecycle-edge-linking-sidecars.md` — topic sidecar family lives beside the link one.
 - `memory_seed/core.py` `MAX_INFERRED_TOPICS`, the topic-sidecar validation.
-- `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md` — the sibling swarm (lifecycle edges),
+- `docs/7_Replaced/link-audit-decision-judgment-swarm-proposal.md` — the sibling swarm (lifecycle edges),
   same mechanical-recall → haiku-judgment → human-validation shape the topic backfill uses.

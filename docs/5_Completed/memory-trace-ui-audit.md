@@ -15,7 +15,7 @@ tags:
 > recommend a focused audit + token baseline, **not** a redesign). Scope: the shipped read-only
 > surfaces - search, reader, timeline, graph, and the new Trail view.
 > Future frontend architecture is governed by
-> [`../memory-trace-frontend-architecture-and-design-system-proposal.md`](../2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md);
+> [`../memory-trace-frontend-architecture-and-design-system-proposal.md`](../7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md);
 > this audit remains parity/baseline evidence.
 > **Non-goals:** No visual redesign, no new component library, no responsive-breakpoint system.
 

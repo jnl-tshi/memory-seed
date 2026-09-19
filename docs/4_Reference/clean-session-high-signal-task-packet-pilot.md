@@ -149,7 +149,7 @@ data with the packet; do not substitute a named profile or registry reference.
   },
   "filters": {
     "paths": [
-      "docs/2_Todo/declarative-retrieval-specification-proposal.md",
+      "docs/7_Replaced/declarative-retrieval-specification-proposal.md",
       ".memory-seed/decisions/adr_retrieval_entry_granularity.md",
       ".memory-seed/decisions/adr_mcp_metadata_and_filters.md"
     ],

@@ -163,7 +163,7 @@ targets. Do not promote the metric set merely because the command exists.
 **The candidate.** A small gold set of real questions ("why did X change, and what replaced it?"), scored
 on task completion — time and accuracy — against a bounded context. Two things make it cheap: the Evidence
 Pack already supplies a deterministic, fingerprinted structural-expansion arm with no new building, and
-[the Living Archive proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) §14.6 already
+[the Living Archive proposal](../8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md) §14.6 already
 commits to running exactly this test as its own B0b adoption gate. **This plan owns the measurement; that
 proposal is its first caller.**
 

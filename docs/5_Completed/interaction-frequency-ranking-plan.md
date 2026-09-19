@@ -12,7 +12,7 @@ tags:
 
 > **Status: P1a + P1b IMPLEMENTED (unreleased); Option B (real access-frequency telemetry) was
 > PICKED UP 2026-08-04** by
-> [`../2_Todo/attention-retrieval-signal-proposal.md`](../2_Todo/attention-retrieval-signal-proposal.md)
+> [`../7_Replaced/attention-retrieval-signal-proposal.md`](../7_Replaced/attention-retrieval-signal-proposal.md)
 > (capture + exposure shipped; default-ranking flip gated on `ranking-ab`).** `inbound_relation_count` (raw inbound backlink count) and
 > `importance_score` (that count, dampened by `SUPERSEDED_IMPORTANCE_DAMPING = 0.25` when the entry
 > is superseded) are both exposed read-only via `memory-seed link show` and `memory_get_chunk`;

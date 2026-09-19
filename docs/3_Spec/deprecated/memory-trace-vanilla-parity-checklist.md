@@ -4,8 +4,8 @@ date: "2026-07-11"
 project: "memory-seed"
 status: "deprecated"
 deprecated_date: "2026-08-11"
-deprecated_by: "../../2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md"
-parent: "../../2_Todo/memory-trace-next-generation-implementation-roadmap.md"
+deprecated_by: "../../7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md"
+parent: "../../7_Replaced/memory-trace-next-generation-implementation-roadmap.md"
 ---
 
 # Memory Trace Vanilla Parity Checklist

@@ -2,18 +2,18 @@
 
 Disposition: Reference / provenance. Promoted from `docs/1_Inbox/` on 2026-07-11. The actionable
 documents now live in `docs/2_Todo/`, the normative specs live in `docs/3_Spec/`, and the coverage
-decision is recorded in `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md`.
+decision is recorded in `docs/7_Replaced/memory-trace-next-generation-coverage-matrix.md`.
 
 This package contains the proposed next-generation Memory Trace planning set.
 
 ## Planning documents
 
-- `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md`
-- `docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`
-- `docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md`
+- `docs/7_Replaced/memory-trace-product-and-system-architecture-blueprint.md`
+- `docs/7_Replaced/memory-trace-frontend-architecture-and-design-system-proposal.md`
+- `docs/7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md`
 - `docs/8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`
 - `docs/8_Deferred/memory-trace-hosted-product-and-security-architecture.md`
-- `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md`
+- `docs/7_Replaced/memory-trace-next-generation-implementation-roadmap.md`
 
 ## Specifications
 

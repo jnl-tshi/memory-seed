@@ -6,7 +6,7 @@ decision_status: accepted-provisional-baseline
 sources:
   - ../../.memory-seed/skills/adr_sweep.md
   - ../../.memory-seed/skills/end_of_turn.md
-  - ../2_Todo/link-audit-decision-judgment-swarm-proposal.md
+  - ../7_Replaced/link-audit-decision-judgment-swarm-proposal.md
   - https://developers.openai.com/api/docs/models
   - https://developers.openai.com/api/docs/models/gpt-5.6-terra
   - https://platform.claude.com/docs/en/models/overview

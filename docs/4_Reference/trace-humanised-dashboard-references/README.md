@@ -7,7 +7,7 @@ The seven raw mood-board captures were archived on 2026-07-20 to
 once the themes below had been extracted from them — this file is now the citable record of what they
 contributed. The five generated mockups stay here, beside it, because live documents reference them.
 This folder itself moved from `1_Inbox/` to `4_Reference/` on 2026-07-20: its themes are already
-extracted and it is actively cited by [`2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md`](../../2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md),
+extracted and it is actively cited by [`8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md`](../../8_Deferred/memory-trace-living-archive-and-editorial-focus-proposal.md),
 so it is triaged reference material, not an untriaged Inbox capture — even though no mockup direction
 has been selected yet.
 

@@ -18,7 +18,7 @@ no-git degradation guarantees, progressive loading, and cross-consumer adoption 
 the Platform-layer contract that makes
 [`CONSTITUTION.md`](../../CONSTITUTION.md) **Invariant #6** ("Markdown is the single source of truth; every
 other store is a derived projection") concrete. Implementation plan:
-[`2_Todo/derived-projection-implementation-plan.md`](../../2_Todo/derived-projection-implementation-plan.md).
+[`8_Deferred/derived-projection-implementation-plan.md`](../../8_Deferred/derived-projection-implementation-plan.md).
 
 ## Purpose
 

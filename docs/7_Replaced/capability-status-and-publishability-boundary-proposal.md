@@ -9,10 +9,10 @@ dependencies:
   - "React Trail parity and B0b acceptance"
   - "security and privacy review"
 related:
-  - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
-  - "docs/2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md"
+  - "docs/8_Deferred/memory-trace-ai-timeline-summarisation-plan.md"
+  - "docs/8_Deferred/memory-trace-structural-graph-enrichment-provider-proposal.md"
   - "docs/CONSTITUTION.md"
-replaced_by: "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+replaced_by: "../7_Replaced/memory-trace-evidence-annotations-and-projection-architecture.md"
 replaced_on: "2026-07-16"
 ---
 

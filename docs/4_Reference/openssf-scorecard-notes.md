@@ -4,7 +4,7 @@ date: "2026-07-17"
 project: "memory-seed"
 kind: report
 related:
-  - "docs/2_Todo/openssf-credibility-proposals.md"
+  - "docs/5_Completed/openssf-credibility-proposals.md"
 ---
 
 # OpenSSF Scorecard — expected results and solo-maintainer caps

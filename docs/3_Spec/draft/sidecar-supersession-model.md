@@ -33,7 +33,7 @@ families currently face.
 write-time declaration in this repository is an agent, exactly as the author of a sweep's block is;
 `user_initials` records who the session was *for*, not who typed. What separates the two is that a
 write-time agent had just done the work and a sweep is reading finished prose. Once the accepted
-[write-time consolidation proposal](../../2_Todo/write-time-sidecar-consolidation-proposal.md) folds
+[write-time consolidation proposal](../../7_Replaced/write-time-sidecar-consolidation-proposal.md) folds
 write-time values into these same sidecars, that difference stops being readable from the file path and
 must be carried by the block's declared `source: write-time | derived` field — and this rule's
 newest-wins sort will then order first-hand and reconstructed blocks against each other.

@@ -74,7 +74,7 @@ topics:
 ### "Authored" here means write-time, not human-written
 
 *Added 2026-07-26, aligning with
-[write-time-sidecar-consolidation-proposal.md](../../2_Todo/write-time-sidecar-consolidation-proposal.md).*
+[write-time-sidecar-consolidation-proposal.md](../../7_Replaced/write-time-sidecar-consolidation-proposal.md).*
 
 Every use of **authored** below contrasts a slug declared when the entry was written against one a later
 sweep inferred from finished prose. It does **not** mean a person typed it. In this repository the author is

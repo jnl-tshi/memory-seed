@@ -133,7 +133,7 @@ until 1–2 prove the ergonomics; only build if recall-based passing leaks.
 
 ## Relationship to existing coverage (checked — complementary, not a duplicate)
 
-- `docs/2_Todo/lifecycle-link-authoring-assist-proposal.md` — the **retroactive / end-of-session /
+- `docs/5_Completed/lifecycle-link-authoring-assist-proposal.md` — the **retroactive / end-of-session /
   file-topic** sidecar-scaffold backstop. This proposal is the **native / write-time / consult-sourced**
   upstream channel. They compose: consult-sourced links raise the write-time baseline (cheapest, freshest
   context); the `--apply` sweep catches whatever slipped. Could be folded into that plan as its write-time

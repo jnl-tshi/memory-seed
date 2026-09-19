@@ -2,7 +2,7 @@
 title: Decision sidecar envelope contract
 status: draft
 spec_binding: draft
-parent: ../../2_Todo/write-time-sidecar-consolidation-proposal.md
+parent: ../../7_Replaced/write-time-sidecar-consolidation-proposal.md
 ---
 
 # DecisionSidecarEnvelope v1

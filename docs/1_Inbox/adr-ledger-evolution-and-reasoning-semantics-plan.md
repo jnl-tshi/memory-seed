@@ -9,7 +9,7 @@ sources:
   - git commit 4fb9d977fd031484e6ac478d9e083bec38cebaa3
   - git commit 92f4563ce9de5380131b28de90582575d8765fff
   - .memory-seed/sessions/2026-08/2026-08-31.md
-  - ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
+  - ../7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md
 spec_binding: null
 ---
 

@@ -269,5 +269,5 @@ after the configured retention period (30 days by default), then writes `gc.json
 unfinalized, modified, path-escaping, or otherwise unverifiable artifacts fail closed. `--purge-now`
 may bypass time retention but never receipt or hash verification.
 
-See `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md` for the design rationale and the
+See `docs/7_Replaced/link-audit-decision-judgment-swarm-proposal.md` for the historical design rationale and the
 open orchestration questions this skill resolves.
