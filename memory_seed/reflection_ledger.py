@@ -38,6 +38,18 @@ RFC3339_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 SAFE_SCALAR_RE = re.compile(r"^[A-Za-z0-9_./:+@=-]+$")
 
 
+def _extended_length_path(path: Path) -> Path:
+    """Return an absolute Windows path that is not constrained by MAX_PATH."""
+    if os.name != "nt":
+        return path
+    raw = str(path)
+    if raw.startswith("\\\\?\\") or len(raw) < 260:
+        return path
+    if raw.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + raw[2:])
+    return Path("\\\\?\\" + raw)
+
+
 @dataclass(frozen=True)
 class ReflectionDiagnostic:
     code: str
@@ -2815,6 +2827,7 @@ def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str],
         directory_names = set(dirs)
         for name in dirs + files:
             path = Path(directory) / name
+            filesystem_path = _extended_length_path(path)
             folded = name.rstrip(" .").casefold()
             relative = path.relative_to(root).as_posix()
             reserved = is_reserved_reflection_path(relative)
@@ -2822,7 +2835,7 @@ def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str],
                 if reserved:
                     _fail("unsupported-reflection-format", relative, "checkout boundaries cannot hide reserved state")
                 continue
-            metadata = path.lstat()
+            metadata = filesystem_path.lstat()
             linked = (stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_reparse_tag", None)
                       == getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003))
             if folded == ".memory-seed" and (
@@ -2838,7 +2851,7 @@ def _check_reflection_worktree(root: Path, expected: tuple[tuple[str, str, str],
                 elif relative not in expected_paths or not stat.S_ISREG(metadata.st_mode):
                     _fail("unsupported-reflection-format", relative, "unknown reserved file is not admitted")
                 else:
-                    actual[relative] = path.read_bytes()
+                    actual[relative] = filesystem_path.read_bytes()
             if name in directory_names and not linked:
                 descend.append(name)
         dirs[:] = descend
