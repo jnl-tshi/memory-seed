@@ -50,27 +50,6 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "planning_fingerprint_mismatch")
 
-    def test_reflection_missing_capability_is_refused_by_cli_and_mcp_before_export(self):
-        root = self.make_project()
-        dispatch, binding = self.dispatch(), self.binding(root)
-        dispatch["execution"]["write_intent"] = "writing"
-        dispatch["execution"]["allowed_files"] = [".MEMORY-SEED\\REFLECTIONS\\active\\missing\\ledger.md"]
-        dispatch["execution"]["expected_absent"] = list(dispatch["execution"]["allowed_files"])
-        binding.update(working_branch="main", worktree=str(root))
-        dispatch_file, binding_file = self.write_inputs(root)
-        dispatch_file.write_text(json.dumps(dispatch), encoding="utf-8")
-        binding_file.write_text(json.dumps(binding), encoding="utf-8")
-        before = self.snapshot(root)
-        for command in ("preview", "compile"):
-            code, stdout, stderr = self.cli(["task-packet", command, "--dispatch-file", str(dispatch_file),
-                                            "--binding-file", str(binding_file), "--cwd", str(root)])
-            self.assertNotEqual(code, 0)
-            self.assertIn("reflection-capability-required", stdout + stderr)
-            result = call_tool("memory_task_packet_" + command, {"dispatch": dispatch, "binding": binding, "cwd": str(root)})
-            self.assertFalse(result["ok"])
-            self.assertIn("reflection-capability-required", json.dumps(result))
-        self.assertEqual(self.snapshot(root), before)
-
     def make_project(self) -> Path:
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-surfaces-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))

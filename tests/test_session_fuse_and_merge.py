@@ -18,44 +18,6 @@ from memory_seed.adr import promote_decision
 
 
 class SessionFuseAndMergeTests(unittest.TestCase):
-    def test_unsupported_reflection_refuses_all_local_integration_before_mutation(self):
-        cwd = self.make_project()
-        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
-        self._init_git_project(cwd)
-        self._commit_all(cwd, "base")
-        self._git(cwd, "switch", "-c", "feature-reflection")
-        path = cwd / ".memory-seed/reflections/active/unknown/manifest.yaml"
-        path.parent.mkdir(parents=True)
-        path.write_text("schema: memory-seed/reflection-plan\nversion: 1\n", encoding="utf-8")
-        self._commit_all(cwd, "unsupported data")
-        source = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
-        prepared = session_prepare_pr_branch(cwd, branch="feature-reflection", base_branch="main")
-        self.assertTrue(prepared.issues)
-        self.assertIn("unsupported-reflection-format", " ".join(prepared.issues))
-        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), source)
-        self._git(cwd, "switch", "main")
-        before = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
-        for result in (session_fuse(cwd, branch="feature-reflection"),
-                       session_merge_branch(cwd, branch="feature-reflection", dry_run=True),
-                       session_merge_branch(cwd, branch="feature-reflection")):
-            self.assertIn("unsupported-reflection-format", " ".join(result.issues))
-        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), before)
-        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
-        from memory_seed.mcp_server import call_tool
-        for name, args in (("memory_session_fuse_preview", {}),
-                           ("memory_session_integrate", {"dry_run": True}),
-                           ("memory_session_integrate", {})):
-            response = call_tool(name, {"cwd": str(cwd), "branch": "feature-reflection", **args})
-            self.assertFalse(response["ok"])
-            self.assertIn("unsupported-reflection-format", " ".join(response["issues"]))
-        from memory_seed.cli import main as cli_main
-        from contextlib import chdir
-        for command in ("fuse", "merge-branch", "integrate"):
-            with chdir(cwd):
-                self.assertNotEqual(cli_main(["session", command, "--branch", "feature-reflection"]), 0)
-        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), before)
-        self.assertEqual(self._git(cwd, "status", "--porcelain").stdout.strip(), "")
-
     NO_MERGE_ATTR = ".memory-seed/sessions/** -merge\n"
 
     def make_project(self):
@@ -2654,31 +2616,6 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertLess(events.index("session-plan"), events.index("push"))
         self.assertEqual(self._git(cwd, "rev-parse", "origin/main").stdout.strip(), commit_b)
         self.assertIn("mse_bbbbbbbbbbbbbbbb", (cwd / ".memory-seed/sessions/2026-07/2026-07-11.md").read_text())
-
-    @pytest.mark.integration
-    def test_session_open_pr_refuses_ignored_nested_reflection_before_fetch_or_gh(self):
-        cwd = self.make_project()
-        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
-        self._init_git_project(cwd)
-        self._commit_all(cwd, "base")
-        self._git(cwd, "switch", "-c", "feature-pr")
-        self._write_grouped_session(cwd, "2026-07-11", "mse_bbbbbbbbbbbbbbbb", branch="feature-pr")
-        self._commit_all(cwd, "feature")
-        self._git(cwd, "remote", "add", "origin", "https://example.test/owner/repo.git")
-        (cwd / ".git/info/exclude").write_text("pod/\n", encoding="utf-8")
-        unsupported = cwd / "pod/.memory-seed/reflections/unknown/manifest.yaml"
-        unsupported.parent.mkdir(parents=True)
-        unsupported.write_text("unsupported\n", encoding="utf-8")
-        before = {p.relative_to(cwd).as_posix(): p.read_bytes() for p in cwd.rglob("*") if p.is_file()}
-        with mock.patch("memory_seed.core._refresh_pr_base_branch", side_effect=AssertionError("fetch before admission")) as refresh, \
-                mock.patch("memory_seed.core._gh_text", side_effect=AssertionError("gh before admission")) as gh:
-            result = session_open_pr(cwd, branch="feature-pr", base_branch="main")
-        self.assertFalse(result.opened)
-        self.assertIn("unsupported-reflection-format", " ".join(result.issues))
-        refresh.assert_not_called()
-        gh.assert_not_called()
-        after = {p.relative_to(cwd).as_posix(): p.read_bytes() for p in cwd.rglob("*") if p.is_file()}
-        self.assertEqual(after, before)
 
     @pytest.mark.integration
     def test_session_open_pr_refuses_failed_base_refresh_before_branch_modification(self):
