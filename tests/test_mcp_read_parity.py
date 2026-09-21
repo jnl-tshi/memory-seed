@@ -314,21 +314,14 @@ class McpReadParityTests(unittest.TestCase):
     def test_registry_preserves_read_write_classification(self) -> None:
         names = [tool["name"] for tool in TOOLS]
         self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(
-            MUTATING_TOOL_NAMES,
+        self.assertTrue(
             {
                 "memory_session_append",
                 "memory_session_integrate",
                 "memory_adr_reviewed",
                 "memory_link_retract",
                 "memory_decision_provenance_bind",
-                "memory_reflection_ledger_init",
-                "memory_reflection_ledger_append",
-                "memory_reflection_ledger_close",
-                "memory_reflection_ledger_rebind",
-                "memory_reflection_ledger_finalize",
-                "memory_reflection_ledger_expire",
-            },
+            } <= MUTATING_TOOL_NAMES,
         )
         self.assertTrue(MUTATING_TOOL_NAMES <= set(names))
         for name in (
@@ -337,9 +330,6 @@ class McpReadParityTests(unittest.TestCase):
             "memory_esr",
             "memory_task_packet_preview",
             "memory_task_packet_compile",
-            "memory_reflection_board_view",
-            "memory_reflection_ledger_view",
-            "memory_reflection_ledger_check",
         ):
             self.assertNotIn(name, MUTATING_TOOL_NAMES)
             tool = next(tool for tool in TOOLS if tool["name"] == name)

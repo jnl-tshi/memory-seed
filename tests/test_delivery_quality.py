@@ -299,7 +299,6 @@ class TestDeliveryQualityScenarioHarness:
             ("evaluate", "external_output"),
             ("integrate", "memory_seed_integration"),
             ("classify", "external_recommendations_and_acceptance_references_as_evidence"),
-            ("preserve", "reflection_board_dormant"),
         } <= required
         prohibited = {
             (observation["action"], observation["subject"])
@@ -315,7 +314,6 @@ class TestDeliveryQualityScenarioHarness:
             ("copy", "external_sdd_briefs"),
             ("copy", "external_sdd_reports"),
             ("copy", "external_sdd_reviews"),
-            ("alter", "reflection_board_configuration"),
         } <= prohibited
 
         for scenario_id, ineligibility, fallback in (
@@ -427,7 +425,6 @@ class TestDeliveryQualityScenarioHarness:
             "fresh_verification",
             "governed_planning_authority",
             "implementation_planning_test_strategy",
-            "discovery_reuse",
             "scoped_evidence_freshness",
             "evidence_aware_review",
             "routine_non_trigger",
@@ -706,7 +703,7 @@ class TestDeliveryQualityScenarioHarness:
             "fresh_final_verification",
         } <= review_subjects
 
-    def test_topic_applicability_plan_strategy_and_reuse_have_structured_negative_controls(self):
+    def test_topic_applicability_and_plan_strategy_have_structured_negative_controls(self):
         evaluator = load_delivery_quality_evaluator()
         corpus = evaluator.load_corpus(HARNESS_ROOT / "scenarios.json")
         scenarios = {scenario["id"]: scenario for scenario in corpus["scenarios"]}
@@ -736,17 +733,6 @@ class TestDeliveryQualityScenarioHarness:
             "reviewable_test_exception",
         } <= plan_subjects
 
-        reuse_subjects = {
-            observation["subject"]
-            for observation in scenarios["reflection-board-reuse-discovery"]["required_observations"]
-        }
-        assert {
-            "closed_reflection_board_launch_ledger",
-            "reflection_board_controls_to_external_sdd",
-            "reuse_tradeoff",
-            "reflection_board_artifacts",
-        } <= reuse_subjects
-
         negative = evaluator.evaluate_declared_fixtures(corpus, kind="negative")
         results_by_fixture = {result["fixture_id"]: result for result in negative["results"]}
         expected_controls = {
@@ -765,14 +751,6 @@ class TestDeliveryQualityScenarioHarness:
             "exception-without-compensating-check": (
                 "trigger",
                 "required observation alternative-check-declared is absent",
-            ),
-            "closed-ledger-not-found": (
-                "trigger",
-                "required observation closed-ledger-discovered is absent",
-            ),
-            "board-artifacts-changed": (
-                "trigger",
-                "prohibited observation board-artifacts-altered was observed",
             ),
         }
         for fixture_id, (expected_routing, expected_failure) in expected_controls.items():

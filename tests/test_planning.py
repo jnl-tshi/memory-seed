@@ -324,7 +324,6 @@ def test_defaults_and_project_ownership():
     assert parse_delivery_quality(text) == {
         **resolve_delivery_quality(), "tests_before_behavior_change": True,
     }
-    assert "reflection_board: dormant" in text
     assert "merge_trigger: automatic" in text
     # Bootstrap owns these project-specific files, not the reusable seed.
     assert not (root / "memory_seed/seed/.memory-seed/policy.md").exists()
