@@ -18,5 +18,6 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [task-packet-calibration-harness-plan.md](task-packet-calibration-harness-plan.md) | P1 | — | Freeze the representative development population and sealed holdout design now that the Qwen3.5… |
 | [reflection-launch-verification-closeout.md](reflection-launch-verification-closeout.md) | P2 | [] | Run one integrated-launch and first-board verification; record pass/fail evidence, then close o… |
+| [reflection-runtime-retirement-superpowers-plan.md](reflection-runtime-retirement-superpowers-plan.md) | P2 | — | JNL decides whether to approve decommissioning, ratifies any required constitutional amendment,… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
 <!-- docs-index:end -->
