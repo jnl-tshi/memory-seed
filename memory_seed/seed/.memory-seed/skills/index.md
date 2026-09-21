@@ -176,8 +176,9 @@ skills:
       - making a consequential new product, architectural, data, safety, or workflow choice
       - choosing a new capability, component, policy, workflow, or data approach before implementation
       - deciding whether uncertainty warrants a bounded trial before committing to an approach
+      - starting a new work tranche whose next-steps roadmap declares a design discovery gate
     do_not_load_when:
-      - routine work directly follows an already assessed decision whose scope and evidence remain current
+      - routine work directly follows an already assessed decision whose scope and evidence remain current, after any declared tranche-entry gate is complete
       - a task only executes an approved detailed plan and introduces no consequential new choice
 
   - skill: subproject_runtime.md

@@ -160,6 +160,9 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Project type: reusable local AI memory-system seed plus a separately scoped hosted team edition.
 - Current priority: execute the capture-first [hosted Memory MVP programme](../docs/2_Todo/hosted-memory-mvp-programme.md)
   without weakening the complete, network-independent local OSS edition.
+- Hosted next gate: P0.1 authority closeout is integrated; P0.2 Codex capture/approval feasibility is next.
+  The [decision-layer model tournament](../docs/2_Todo/decision-layer-model-tournament-plan.md) is a P1
+  subplan after the authenticated decision loop, with Laya worker and storyline retrieval deferred.
 - Authority boundary: local OSS is Markdown-authoritative; hosted is SQL-authoritative with complete
   Markdown export. The editions share semantics but have no repository settlement, bidirectional sync,
   or dual-writer mode.
