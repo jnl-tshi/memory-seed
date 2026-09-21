@@ -181,7 +181,7 @@ release gates; its candidate architecture and model examples do not pre-approve 
 
 1. **P0.1 Authority closeout — integrated:** Constitution v2.0, the edition contract, ADR evolution and
    lifecycle consolidation are in the project baseline.
-2. **P0.2 Codex feasibility spike:** prove accessible event kinds, ordering, idempotency, identity refresh, pause,
+2. **P0.2 Codex feasibility spike:** follow the [capture feasibility tranche plan](codex-capture-feasibility-plan.md) to prove accessible event kinds, ordering, idempotency, identity refresh, pause,
    queue drain and authenticated approval delivery without collecting private production data.
 3. **P0.3 Authenticated substrate:** tenant/project/membership/delegation, immutable event store, branch registry,
    retention states and audit skeleton.
