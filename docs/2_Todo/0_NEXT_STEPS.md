@@ -27,7 +27,7 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
 
 1. **P0.1 authority — integrated.** Constitution v2.0, the edition contract, ADR evolution, and
    lifecycle consolidation form the baseline for the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md).
-2. **P0.2 capture feasibility — next.** Use synthetic data to prove Codex event access, authenticated identity,
+2. **P0.2 capture feasibility — discovery in progress.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md) to use synthetic data to prove Codex event access, authenticated identity,
    ordering and replay, pause/queue behavior, and approval delivery.
 3. **P0.3–P0.4 useful loop.** Build the minimum authenticated SQL event/curated-memory substrate, then capture
    one user decision and return one evidence-linked record to an authorized team member over MCP. Prove

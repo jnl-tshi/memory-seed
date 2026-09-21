@@ -9,6 +9,7 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
+| [codex-capture-feasibility-plan.md](codex-capture-feasibility-plan.md) | P0 | Target Codex workflow, capture boundary, identity binding, … | Complete interactive design discovery with JNL, then approve a bounded synthetic-data implement… |
 | [hosted-memory-mvp-programme.md](hosted-memory-mvp-programme.md) | P0 | [] | Run P0.2 Codex capture and approval feasibility spike using synthetic data, then build the auth… |
 | [task-packet-hardening-progressive-provenance-plan.md](task-packet-hardening-progressive-provenance-plan.md) | P0 | — | Harden and independently review Task Packet compilation, then dogfood the improved packets whil… |
 | [decision-layer-model-tournament-plan.md](decision-layer-model-tournament-plan.md) | P1 | — | After the P0 thin slice, begin a dedicated design discovery with JNL; settle the evaluation des… |
