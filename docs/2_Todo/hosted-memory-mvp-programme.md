@@ -3,9 +3,8 @@ title: "Hosted Memory MVP programme"
 date: "2026-09-19"
 priority: P0
 status: accepted-programme
-next_action: "Complete P0.1 authority closeout, then run the Codex capture and approval feasibility spike without uploading private data."
-blocked_by:
-  - "No product implementation until authority docs and ADR evolution are integrated."
+next_action: "Run P0.2 Codex capture and approval feasibility spike using synthetic data, then build the authenticated P0.3/P0.4 thin slice."
+blocked_by: []
 source:
   - "docs/4_Reference/archived/hosted-memory-seed-01-hosted-memory-seed-curator.md"
   - "docs/4_Reference/archived/hosted-memory-seed-02-curator-evaluation-framework.md"
@@ -168,12 +167,20 @@ remain inspectable. Attention does not influence default ranking until its exist
 Permission, tenant and project filters apply before candidates are ranked. Live history is down-ranked, never
 silently hidden; exclusion remains an explicit caller choice.
 
+## Entry gate for each tranche
+
+The [Next Steps tranche gate](0_NEXT_STEPS.md#tranche-entry-gate--design-discovery-first) applies to each
+P0, P1, and P2 tranche below. Before a new tranche's implementation begins, start a dedicated design
+discovery conversation with JNL, challenge the proposal's assumptions, resolve the tranche's open design
+choices and acceptance criteria, and write a bounded detailed plan. This programme sets sequence and
+release gates; its candidate architecture and model examples do not pre-approve implementation details.
+
 ## Programme sequence
 
 ### P0 — prove authority, capture and one useful loop
 
-1. **P0.1 Authority closeout:** integrate Constitution v2.0, the edition contract, ADR evolution and lifecycle
-   consolidation.
+1. **P0.1 Authority closeout — integrated:** Constitution v2.0, the edition contract, ADR evolution and
+   lifecycle consolidation are in the project baseline.
 2. **P0.2 Codex feasibility spike:** prove accessible event kinds, ordering, idempotency, identity refresh, pause,
    queue drain and authenticated approval delivery without collecting private production data.
 3. **P0.3 Authenticated substrate:** tenant/project/membership/delegation, immutable event store, branch registry,
@@ -183,7 +190,13 @@ silently hidden; exclusion remains an explicit caller choice.
 
 ### P1 — prove curator safety and team readiness
 
-5. Benchmark typed-classifier and prose-writer candidates against deterministic and alternative baselines.
+5. Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md) on reviewed, provenance-checked
+   labels. Compare stable-schema classifiers (Model2Vec + Logistic Regression, Model2Vec + XGBoost, SetFit)
+   with deterministic and generalized candidates per task, and evaluate the prose writer separately. Dynamic
+   Area/Activity attribution must receive each project's current candidate hierarchy; within-project label-ID
+   accuracy is not cross-project evidence. Freeze temporal and held-out tests, add independent-project and
+   unseen-ontology tests when data exists, and measure calibration, abstention, high-risk errors and full-pipeline
+   cost before choosing a provider or resident worker.
 6. Add guarded replacement, elevated approval and branch applicability behavior.
 7. Complete privacy, retention, deletion, export, secret-handling and payload-size decisions.
 8. Prove retrieval parity, permission isolation and a seconds-scale team pilot. Select a numerical p95 only from
@@ -191,8 +204,13 @@ silently hidden; exclusion remains an explicit caller choice.
 
 ### P2 — focused experience, after service value
 
-9. Focused Memory Trace decisions/topics/links/branches/conflicts view, evidence-linked Q&A and approval controls.
+9. Focused Memory Trace decisions/topics/links/branches/conflicts view, evidence-linked Q&A and approval
+   controls. [Decision storyline retrieval](../8_Deferred/decision-storyline-retrieval-proposal.md) is a later
+   evaluated mode after the governed capture/retrieval loop and bounded lineage fixtures work.
 10. Additional client adapters and enterprise controls only after the Codex/team loop is proven.
+
+A [persistent Laya worker](../8_Deferred/laya-local-decision-worker-proposal.md) remains deferred until
+task-specific results and measured queue load justify it. The [decision-knowledge report](../4_Reference/archived/decisions-first-class-knowledge-report.md), [governance report](../4_Reference/archived/decision-governance-architecture-report.md), and [combined architecture report](../4_Reference/archived/decision-intelligence-reference-architecture-report.md) are source references for this sequence, not parallel active programmes.
 
 ## Release gates
 

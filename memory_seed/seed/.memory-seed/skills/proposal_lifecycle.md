@@ -61,6 +61,26 @@ reference = source research/audits/scans (mined-out sources in `archived/`).
 8. **Never `git rm` a rejected or replaced document — move it to its lane.** Deletion loses the why-not
    and the reasoning trail (mirrors the memory system's replace-don't-delete rule).
 
+## Roadmap promotion and tranche discovery
+
+When an accepted proposal becomes a distinct tranche in a project's next-steps roadmap, keep that
+roadmap at the level of sequence, outcome, dependencies, and gates. Link the refined proposal, name
+important unresolved design questions, and add an explicit **design discovery before implementation**
+gate for the tranche. Do not treat a proposal's suggested architecture or examples as settled design
+merely because the proposal is now in `todo` or linked from the roadmap.
+
+At the first session that starts work on that tranche, automatically load `design_discovery.md` and
+open a dedicated, interactive discovery conversation with the project owner **before implementation**.
+Probe the intended outcome, current capabilities, alternatives, constraints, data and permission
+boundaries, failure cases, evidence, evaluation, and observable acceptance criteria. Record the owner's
+answers, selected approach, remaining questions, and a bounded tranche-specific plan in the existing
+planning surface; link it back to the roadmap. Do not start implementation while required design
+choices are unresolved. Repeat at the next new tranche or material scope change.
+
+Triaging and roadmap editing can finish without conducting a future tranche's discovery immediately;
+the trigger belongs to the session that starts that tranche. The routine-work bypass in
+`design_discovery.md` applies to tasks inside an already discovered tranche, not to its entry gate.
+
 ## Secondary metadata (what the folder can't show)
 
 The folder carries the primary state; YAML frontmatter carries the rest — `priority`, `next_action`,

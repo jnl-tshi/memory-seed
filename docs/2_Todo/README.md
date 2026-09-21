@@ -9,8 +9,9 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [hosted-memory-mvp-programme.md](hosted-memory-mvp-programme.md) | P0 | — | Complete P0.1 authority closeout, then run the Codex capture and approval feasibility spike wit… |
+| [hosted-memory-mvp-programme.md](hosted-memory-mvp-programme.md) | P0 | [] | Run P0.2 Codex capture and approval feasibility spike using synthetic data, then build the auth… |
 | [task-packet-hardening-progressive-provenance-plan.md](task-packet-hardening-progressive-provenance-plan.md) | P0 | — | Harden and independently review Task Packet compilation, then dogfood the improved packets whil… |
+| [decision-layer-model-tournament-plan.md](decision-layer-model-tournament-plan.md) | P1 | — | After the P0 thin slice, begin a dedicated design discovery with JNL; settle the evaluation des… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
 | [memory-trace-ux-m0-interaction-matrix.md](memory-trace-ux-m0-interaction-matrix.md) | P1 | [] | Implement M3 bounded graph perspectives and controlled expansion against the named fixtures. |
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |

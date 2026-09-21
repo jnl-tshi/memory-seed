@@ -22,6 +22,15 @@ constraints, and evidence still cover the work. Do not load this skill merely to
 If the work creates a new consequential choice, changes the assessed scope, or makes the earlier evidence
 stale, load it regardless of code size.
 
+## Roadmap tranche entry
+
+When a project's next-steps roadmap declares a discovery gate for a new tranche, the first session
+starting that tranche must begin with a dedicated, interactive discovery conversation with the
+project owner. Apply this gate even if a linked proposal looks detailed: its candidate design is
+input to questioning, not proof that the tranche has been assessed. Resolve the required choices
+and produce a bounded, reviewable tranche plan before implementation. Subsequent in-scope work
+can use the routine-work bypass below; a material scope change or the next tranche reopens discovery.
+
 ## Discovery Record
 
 Capture a concise, proportionate record in the existing planning or decision surface. It must identify:
@@ -93,6 +102,6 @@ replay broad discovery. Rebinding stale evidence alone is not replanning.
 
 ## Do Not Load When
 
-- Routine, already assessed work follows a decision whose scope and evidence remain current.
+- Routine, already assessed work follows a decision whose scope and evidence remain current. This bypass applies after any declared tranche-entry gate has been completed.
 - The task only executes an approved, detailed plan and introduces no consequential new choice.
 - A narrow mechanical edit has no product, architecture, data, safety, or workflow decision to make.

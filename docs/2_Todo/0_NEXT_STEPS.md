@@ -1,23 +1,47 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-19
+Updated: 2026-09-21
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
 complete Markdown export. The two editions share semantics, not writable persistence.
 
-## P0 hosted sequence
+## Tranche entry gate — design discovery first
 
-1. Start with [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md): validate authenticated
-   MCP/Codex-first capture, the pause-and-queue contract, team/project boundaries, and deletion/export
-   acceptance fixtures.
-2. Implement the smallest SQL event and curated-memory model that satisfies the
-   [live edition authority contract](../3_Spec/edition-authority-contract.md).
-3. Prove permission-filtered retrieval parity, curator evidence, and provider fail-closed behaviour before
-   widening the surface.
-4. Keep launch UI, chatbot, bidirectional repository sync, embeddings as authority, and broad provider
-   ingestion out of the MVP.
+This document is a high-level sequence, not an implementation specification. At the start of **every new
+tranche of work in this roadmap**, the agent must automatically open a dedicated design discovery
+conversation with JNL before doing implementation work for that tranche. This applies even when a linked
+proposal or the hosted programme already contains substantial detail. Do not infer that an earlier tranche
+answered the new tranche's questions.
+
+The discovery conversation should actively test assumptions and ask targeted, probing questions about the
+user outcome, current workflow, data and evidence access, affected users and permissions, design options,
+constraints, failure cases, privacy and governance, dependencies, evaluation, and measurable acceptance
+criteria. It should identify decisions that only JNL can make, document answers and open questions, then
+produce a bounded, tranche-specific implementation plan for review. Begin that tranche's implementation
+only after the detailed design and unresolved choices have been settled with JNL. Keep subsequent work
+within the agreed tranche scope; repeat discovery when a materially new tranche starts.
+
+## Hosted roadmap
+
+1. **P0.1 authority — integrated.** Constitution v2.0, the edition contract, ADR evolution, and
+   lifecycle consolidation form the baseline for the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md).
+2. **P0.2 capture feasibility — next.** Use synthetic data to prove Codex event access, authenticated identity,
+   ordering and replay, pause/queue behavior, and approval delivery.
+3. **P0.3–P0.4 useful loop.** Build the minimum authenticated SQL event/curated-memory substrate, then capture
+   one user decision and return one evidence-linked record to an authorized team member over MCP. Prove
+   permission-filtered retrieval and provider fail-closed behavior.
+4. **P1 curator quality and team readiness.** Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md)
+   on reviewed labels: Model2Vec + Logistic Regression, Model2Vec + XGBoost, and SetFit are fixed-schema
+   baselines, with generalized candidates tested by task. Dynamic Area/Activity assignment needs the current
+   candidate hierarchy and independent-project evaluation; the local corpus alone cannot prove transfer.
+   Select a model only after calibration, abstention, high-risk error, privacy, latency, and cost gates. Add
+   guarded replacement/approval, branch applicability, retention/export, and retrieval parity for a team pilot.
+5. **P2 experience.** Consider focused Trace and
+   [decision storyline retrieval](../8_Deferred/decision-storyline-retrieval-proposal.md) once the service loop works.
+   A [persistent Laya worker](../8_Deferred/laya-local-decision-worker-proposal.md) remains deferred until
+   task-specific tournament results and measured queue load justify it.
 
 No hosted service, provider call, upload, paid trial, release, or remote-setting change is authorized by
 the documentation amendment alone.
