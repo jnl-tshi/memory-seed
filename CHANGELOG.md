@@ -6,6 +6,10 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-22] **Local branch and session history can be inventoried before cleanup.** The
+  read-only `scripts/branch_session_inventory.py` compares authored session IDs with `main`, shows
+  branch-only commits and attached or detached worktrees, and reports dirty paths. It makes no merge
+  or deletion decision.
 - [2026-09-15] **Worktree cleanup review is session-first and target-specific.** A new core
   `worktree_reconciliation.md` skill reconstructs each candidate worktree from its own measured Memory
   Seed session route before Git verifies reachability, divergence, dirty content, and duplication.
@@ -21,8 +25,35 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- [2026-09-22] **Top-level CLI help explains the upgrade path.** Both `memory-seed help` and
+  `memory-seed -help` show the built-in `upgrade --dry-run` and `upgrade` commands, then distinguish
+  package upgrading from `memory-seed update`, which refreshes copied project files.
+- [2026-09-16] **Session records distinguish decisions from documentation.** New DRAFTS records
+  declare their kind and scope; decisions also state a disposition and reason. Documentation records
+  remain searchable without gaining ADR or lifecycle authority. Existing untyped records remain
+  readable, and Memory Trace displays the record kind.
 - [2026-09-14] **Lexical matching is capitalization-safe.** Query terms, indexed fields, and preferred
   keywords now share Unicode NFKC plus case-fold normalization, preventing capitalization-only misses.
+
+### Changed (breaking)
+
+- [2026-09-13] **MCP session authoring requires a record origin.** Each new MCP record envelope
+  declares `origin: user` or `origin: agent`; the writer stores per-record `decision_origins` metadata,
+  and integrity checks validate declarations when present. Historical records remain readable.
+
+### Removed
+
+- [2026-09-22] **The Reflection Board runtime and active guidance were retired.** CLI, MCP, packet,
+  ESR, hook, and merge paths no longer depend on Reflection admission. Ordinary integration keeps
+  explicit ref-identity and unique-merge-base guards. The historical board records were reconciled
+  into append-only sessions before the dormant modules, profiler, ledger, and trust anchor were removed.
+
+### Documentation
+
+- [2026-09-19] **The local and hosted editions have separate authority contracts.** The local OSS
+  edition remains Markdown-authoritative; the planned hosted team edition is specified as
+  SQL-authoritative with complete Markdown export. The capture-first hosted MVP roadmap was
+  consolidated; this records a product contract and plan, not a shipped hosted service.
 
 ## 2.21.0 - 2026-09-11
 
