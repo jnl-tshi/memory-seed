@@ -129,6 +129,25 @@ class TopicsTests(unittest.TestCase):
         self.assertEqual(by_kind["deprecated-topic-use"].severity, "warning")
         self.assertEqual(by_kind["topic-count"].severity, "warning")
 
+    def test_check_validates_decision_qualified_authored_topics_per_decision(self):
+        cwd = self.make_project()
+        self.write_index(cwd, self.VOCAB)
+        self.write_day(
+            cwd,
+            _entry(
+                "2026-07-01 09:00 - A",
+                "ms-a0000000",
+                "body.",
+                topics=["retrieval:d1", "search:d1", "ranking:d1", "retrieval:d2"],
+            ),
+        )
+
+        result = check_topics(cwd)
+
+        self.assertTrue(result.ok, [issue.__dict__ for issue in result.issues])
+        self.assertNotIn("unknown-entry-topic", [issue.kind for issue in result.issues])
+        self.assertNotIn("topic-count", [issue.kind for issue in result.issues])
+
     def test_check_errors_when_entries_have_topics_but_no_index(self):
         cwd = self.make_project()
         self.write_day(cwd, _entry("2026-07-01 09:00 - A", "ms-a0000000", "x", topics=["anything"]))

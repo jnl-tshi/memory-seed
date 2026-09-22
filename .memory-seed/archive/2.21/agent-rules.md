@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.22
+memory-system-version: 2.21
 tags:
   - memory-seed
   - agent-rules

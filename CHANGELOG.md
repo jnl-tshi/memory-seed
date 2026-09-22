@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.22.0 - 2026-09-22
+
 ### Added
 
 - [2026-09-22] **Local branch and session history can be inventoried before cleanup.** The
@@ -47,6 +49,15 @@ All notable changes to Memory Seed are summarized here.
 - [2026-09-13] **MCP session authoring requires a record origin.** Each new MCP record envelope
   declares `origin: user` or `origin: agent`; the writer stores per-record `decision_origins` metadata,
   and integrity checks validate declarations when present. Historical records remain readable.
+
+### Fixed
+
+- [2026-09-22] **Topic validation understands decision-qualified authored topics.** Values such as
+  `lifecycle-edges:d1` now resolve against the vocabulary by their base slug, and the one-to-three
+  topic guidance is evaluated per decision instead of against the rolled-up entry union.
+- [2026-09-22] **Distribution metadata uses the current SPDX form.** The package declares `MIT` as
+  an SPDX license expression and no longer emits setuptools warnings for the deprecated license
+  table or license classifier during source and wheel builds.
 
 ### Removed
 

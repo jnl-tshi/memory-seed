@@ -120,8 +120,8 @@ file to direct reading at or below 12,000 characters or economy-worker compressi
 
 Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
 relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
-before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v2.0**, ratified
-2026-09-19) before consequential design, governance, or control-plane changes. It remains the highest
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v2.1**, ratified
+2026-09-22) before consequential design, governance, or control-plane changes. It remains the highest
 declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
@@ -191,8 +191,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
-- Control-plane version: `2.20`.
-- Package version: `2.20.0` (published 2026-08-12).
+- Control-plane version: `2.22`.
+- Package version: `2.22.0` (release preparation; latest published version is `2.21.0`).
 
 ## Topology Notes
 

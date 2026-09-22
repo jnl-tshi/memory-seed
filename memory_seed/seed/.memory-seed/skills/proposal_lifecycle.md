@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.21
+memory-system-version: 2.22
 governing_adr: adr_docs_lifecycle_folders
 tags:
   - memory-seed
