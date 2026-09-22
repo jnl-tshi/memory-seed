@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core import resolve_runtime
+from .core import _parse_topic_slug, resolve_runtime
 from .semantic_cache import extract_memory_chunks
 
 # Same pattern family as user slugs (SESSION_USER_SLUG_RE precedent): one convention to
@@ -653,18 +653,29 @@ def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
         source = f"{chunk.source_path}:{chunk.entry_id or chunk.title}"
         if not index.exists:
             continue
-        for slug in chunk.topics:
-            canonical = resolution.get(slug)
+        topics_by_decision: dict[str | None, list[str]] = {}
+        for token in chunk.topics:
+            slug, ordinal, well_formed = _parse_topic_slug(token)
+            topics_by_decision.setdefault(ordinal if well_formed else None, []).append(token)
+            lookup = slug if well_formed else token
+            canonical = resolution.get(lookup)
             if canonical is None:
-                issues.append(TopicIssue("error", "unknown-entry-topic", f"topics -> {slug} (not a canonical slug or alias)", source))
+                issues.append(TopicIssue("error", "unknown-entry-topic", f"topics -> {token} (not a canonical slug or alias)", source))
                 continue
             used.add(canonical)
             if statuses.get(canonical) == "deprecated":
-                issues.append(TopicIssue("warning", "deprecated-topic-use", f"topics -> {slug} resolves to deprecated '{canonical}'", source))
-        if len(chunk.topics) > TOPIC_COUNT_TARGET:
-            issues.append(
-                TopicIssue("warning", "topic-count", f"{len(chunk.topics)} topics on one entry (target is 1-{TOPIC_COUNT_TARGET})", source)
-            )
+                issues.append(TopicIssue("warning", "deprecated-topic-use", f"topics -> {token} resolves to deprecated '{canonical}'", source))
+        for ordinal, tokens in topics_by_decision.items():
+            if len(tokens) > TOPIC_COUNT_TARGET:
+                subject = "one entry" if ordinal is None else ordinal
+                issues.append(
+                    TopicIssue(
+                        "warning",
+                        "topic-count",
+                        f"{len(tokens)} topics on {subject} (target is 1-{TOPIC_COUNT_TARGET})",
+                        source,
+                    )
+                )
 
     if not index.exists and entries_checked:
         issues.append(

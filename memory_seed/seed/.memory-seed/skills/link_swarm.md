@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.21
+memory-system-version: 2.22
 governing_adr: adr_edge_confidence
 tags:
   - memory-seed

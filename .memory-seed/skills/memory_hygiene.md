@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.21
+memory-system-version: 2.22
 governing_adr: adr_encoding_policy
 tags:
   - memory-seed
@@ -43,4 +43,3 @@ If sensitive information was accidentally recorded:
 2. Ask the user before rewriting historical memory unless the repository's policy already authorizes that repair.
 3. Replace the value with a category label, such as `[token redacted]`, only when repair is approved.
 4. Record the repair without repeating the secret.
-
