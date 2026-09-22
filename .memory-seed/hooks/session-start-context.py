@@ -38,6 +38,17 @@ for arg in sys.argv[1:]:
     if arg.startswith("--"):
         agent = arg[2:]
 
+try:
+    hook_payload = json.loads(sys.stdin.read() or "{}")
+except (json.JSONDecodeError, ValueError):
+    hook_payload = {}
+
+# VS Code also loads .github/hooks/*.json. Copilot's lower-camel command hook
+# is intended for CLI/cloud; VS Code's replay is skipped so .claude/settings.json
+# remains the single owner of the editor SessionStart event.
+if agent == "copilot" and hook_payload.get("hook_event_name"):
+    sys.exit(0)
+
 
 def offer_identity_setup(memory_dir):
     """One-time nudge to configure a local identity; never repeats.
@@ -72,7 +83,10 @@ def offer_identity_setup(memory_dir):
 
 
 def emit(text):
-    if agent == "cursor":
+    if agent == "copilot":
+        # Copilot CLI lower-camel sessionStart output.
+        print(json.dumps({"additionalContext": text}))
+    elif agent == "cursor":
         # Cursor sessionStart: additional_context (snake_case) injects into context.
         print(json.dumps({"additional_context": text}))
     elif agent == "gemini":

@@ -25,6 +25,13 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- [2026-09-22] **Copilot CLI/cloud and VS Code hooks now use their current event contracts.**
+  Copilot replaces its interactive-only startup prompt with command hooks for startup orientation,
+  end-of-turn logging, and file-touch decision surfacing. VS Code edit payloads support its tool names,
+  camelCase path fields, and multi-file edits; Stop output carries both Claude and VS Code shapes and
+  honors the continuation-loop guard. Copilot hooks skip VS Code's converted replay to avoid duplicate
+  processing. MCP documentation now states project-file precedence and the source checkout's intentional
+  local-build override.
 - [2026-09-22] **Top-level CLI help explains the upgrade path.** Both `memory-seed help` and
   `memory-seed -help` show the built-in `upgrade --dry-run` and `upgrade` commands, then distinguish
   package upgrading from `memory-seed update`, which refreshes copied project files.

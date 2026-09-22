@@ -63,6 +63,19 @@ class FileTouchHookTests(unittest.TestCase):
             "tool_input": {"file_path": str(root / rel)},
         }
 
+    def vscode_edit_payload(self, root, session="sess-vscode"):
+        return {
+            "hook_event_name": "PostToolUse",
+            "session_id": session,
+            "tool_name": "editFiles",
+            "tool_input": {
+                "files": [
+                    str(root / "strutil" / "unrelated.py"),
+                    str(root / "strutil" / "text.py"),
+                ]
+            },
+        }
+
     def test_match_fires_with_decision_and_duty_line(self):
         root = self.make_workspace()
         out = self.run_hook(root, self.edit_payload(root))
@@ -101,6 +114,39 @@ class FileTouchHookTests(unittest.TestCase):
         payload = self.edit_payload(root)
         payload["tool_name"] = "Read"
         self.assertEqual(self.run_hook(root, payload), "")
+
+    def test_vscode_edit_files_payload_surfaces_matching_file(self):
+        root = self.make_workspace()
+        out = self.run_hook(root, self.vscode_edit_payload(root))
+        message = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("strutil/text.py", message)
+        self.assertIn("Slugify separator policy", message)
+
+    def test_vscode_camel_case_file_path_is_supported(self):
+        root = self.make_workspace()
+        payload = {
+            "hook_event_name": "PostToolUse",
+            "session_id": "sess-vscode-path",
+            "tool_name": "replace_string_in_file",
+            "tool_input": {"filePath": str(root / "strutil" / "text.py")},
+        }
+        out = self.run_hook(root, payload)
+        self.assertIn("Slugify separator policy", out)
+
+    def test_copilot_camel_case_payload_uses_additional_context(self):
+        root = self.make_workspace()
+        payload = {
+            "sessionId": "sess-copilot",
+            "toolName": "edit",
+            "toolArgs": {"filePath": str(root / "strutil" / "text.py")},
+        }
+        data = json.loads(self.run_hook(root, payload, ("--copilot",)))
+        self.assertIn("Slugify separator policy", data["additionalContext"])
+
+    def test_copilot_hook_skips_vscode_compatible_replay(self):
+        root = self.make_workspace()
+        out = self.run_hook(root, self.vscode_edit_payload(root), ("--copilot",))
+        self.assertEqual(out, "")
 
     def test_stamp_suppresses_second_fire_per_session(self):
         root = self.make_workspace()

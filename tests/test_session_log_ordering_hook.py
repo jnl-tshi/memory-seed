@@ -45,6 +45,19 @@ class SessionLogOrderingHookTests(unittest.TestCase):
             text=True,
         ).stdout
 
+    def _run_payload(self, cwd, payload, *args):
+        import json
+        import subprocess
+        import sys
+
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), *args],
+            cwd=cwd,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+        ).stdout
+
     def _run_with_env(self, cwd, extra_env):
         import os
         import subprocess
@@ -86,6 +99,48 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         cwd = self.make_project()
         out = self._run(cwd)
         self.assertIn("SESSION LOG REMINDER", out)
+
+    def test_stop_output_supports_claude_and_vscode_shapes(self):
+        import json
+
+        cwd = self.make_project()
+        data = json.loads(self._run_payload(
+            cwd,
+            {"hook_event_name": "Stop", "session_id": "vscode-1", "stop_hook_active": False},
+        ))
+        self.assertEqual(data["decision"], "block")
+        self.assertEqual(data["hookSpecificOutput"]["decision"], "block")
+        self.assertEqual(data["hookSpecificOutput"]["hookEventName"], "Stop")
+        self.assertEqual(data["reason"], data["hookSpecificOutput"]["reason"])
+
+    def test_stop_hook_active_suppresses_repeat_block(self):
+        cwd = self.make_project()
+        out = self._run_payload(
+            cwd,
+            {"hook_event_name": "Stop", "session_id": "vscode-1", "stop_hook_active": True},
+        )
+        self.assertEqual(out.strip(), "")
+
+    def test_copilot_agent_stop_uses_top_level_decision(self):
+        import json
+
+        cwd = self.make_project()
+        data = json.loads(self._run_payload(
+            cwd,
+            {"sessionId": "copilot-1", "stop_hook_active": False},
+            "--copilot",
+        ))
+        self.assertEqual(data["decision"], "block")
+        self.assertNotIn("hookSpecificOutput", data)
+
+    def test_copilot_agent_stop_skips_vscode_compatible_replay(self):
+        cwd = self.make_project()
+        out = self._run_payload(
+            cwd,
+            {"hook_event_name": "Stop", "session_id": "vscode-1", "stop_hook_active": False},
+            "--copilot",
+        )
+        self.assertEqual(out.strip(), "")
 
     def test_staleness_fires_when_last_entry_is_old(self):
         import datetime

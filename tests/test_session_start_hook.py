@@ -30,6 +30,19 @@ class SessionStartContextHookTests(unittest.TestCase):
             text=True,
         ).stdout
 
+    def _run_with_input(self, cwd, payload, *args):
+        import json
+        import subprocess
+        import sys
+
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), *args],
+            cwd=cwd,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+        ).stdout
+
     def _run_with_env(self, cwd, extra_env, *args):
         import os
         import subprocess
@@ -102,6 +115,28 @@ class SessionStartContextHookTests(unittest.TestCase):
                 context = context_from(json.loads(self._run(cwd, *args)))
                 self.assertIn("`AGENTS.md`", context)
                 self.assertIn("context_route: direct", context)
+
+    def test_copilot_command_hook_uses_top_level_additional_context(self):
+        import json
+
+        cwd = self.make_project({"2026-02-02.md": "## 2026-02-02 10:00 - X\n\nb\n"})
+        out = self._run_with_input(
+            cwd,
+            {"sessionId": "copilot-1", "source": "new"},
+            "--copilot",
+        )
+        data = json.loads(out)
+        self.assertIn("`AGENTS.md`", data["additionalContext"])
+        self.assertNotIn("hookSpecificOutput", data)
+
+    def test_copilot_command_hook_skips_vscode_compatible_replay(self):
+        cwd = self.make_project({"2026-02-02.md": "## 2026-02-02 10:00 - X\n\nb\n"})
+        out = self._run_with_input(
+            cwd,
+            {"hook_event_name": "SessionStart", "session_id": "vscode-1"},
+            "--copilot",
+        )
+        self.assertEqual(out, "")
 
     def test_long_latest_file_selects_summary_route_and_worker_contract(self):
         import json
