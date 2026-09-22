@@ -16,7 +16,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 0. Run `memory-seed esr` (add `--date YYYY-MM-DD` for a session crossing midnight): one read-only
    report covering integrity, topics, lifecycle link gaps, ADR inverse-coverage candidates with
    attached recommendations, registered worktree posture, unregistered physical worktree residue,
-   seed-twin drift, and Reflection Board chain/receipt status. If an ADR section contains work, load `adr_sweep.md` for adjudication and
+   seed-twin drift. If an ADR section contains work, load `adr_sweep.md` for adjudication and
    orchestration; ESR discovers and recommends but never writes an ADR change.
    Read every section - each prints even when clean, so a skipped check is visible. Use its
    sections for steps 5, 12, and 13 instead of re-running the underlying commands one by one.
@@ -65,40 +65,6 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 15. Run the Skill evolution check when a persona is active.
 16. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
 17. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
-
-## Reflection Board closeout and expiry
-
-Read ESR's Reflection section (also `memory_esr` or `reflection board view`) even when it reports no
-candidates. ESR is read-only: it neither closes chains nor expires them. Malformed or unsupported
-reserved candidates remain visible with diagnostics; do not delete them to make the report clean.
-
-1. Inspect each relevant chain through `reflection ledger view` / `check`. Complete required
-   independent validation and orchestrator synthesis, then the exact local/PR integration and rebind
-   gates in `agent_collaboration.md`.
-2. Prepare/commit member receipts, preview/apply close, then append/commit the close member and
-   closure-outcome receipts through the ordinary session writer as specified in `session_logging.md`.
-   `closed_receipts_pending` blocks expiry; `closed` with no missing mappings completes receipts.
-3. Preview `memory-seed reflection ledger expire <workstream_id> --chain-id <chain_id> --json` on
-   the effective integration owner. The host derives elapsed retention from authenticated close-time
-   evidence and signs the complete cleanup identity. Git dates, mtimes, caller times, supplied signatures,
-   and task-packet assertions are not elapsed-time authority. New public ledgers use seven days;
-   public extension authoring is planned. Early expiry remains unavailable.
-4. Only after a successful eligible preview, apply the same command with `--apply` (MCP:
-   `memory_reflection_ledger_expire` with strict boolean `apply: true`). The kernel removes only the
-   complete selected closed chain, constructs cleanup plus ordinary compaction-receipt commits off-ref,
-   and publishes them with one ref compare-and-swap. Other chains and durable session history survive.
-5. Recheck board/ledger history and ESR, and report the resulting commit and compaction receipt.
-   Working-tree disappearance is **not cryptographic erasure**: historical/unreachable Git objects may
-   remain until Git garbage collection. Do not promise privacy-grade deletion or run garbage collection
-   as an implied part of expiry.
-
-On refusal, retain the chain and report the diagnostic. Missing/mismatched trust or a ledger base that
-predates its anchor has no key-rotation or history-retrofit remedy. Legacy pre-proof closes are readable
-but non-expirable. Trust depends on the local host account, clock, and private key; the pure-Python
-Ed25519 signer is not constant-time. A failed transaction preserves concurrent session edits and may
-report `append-rollback-conflict` / `preserved_paths`; inspect those paths before retrying, never reset
-them for cosmetic cleanliness. Failed PR finalize after handoff claim has separate non-replayable recovery
-constraints in `agent_collaboration.md`.
 
 ## Consolidation Review
 

@@ -72,8 +72,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
   A packet or policy result carries authorization evidence; it never invents approval or grants authority.
 - After the effective threshold of failed independent causal hypotheses (default three), require the
   architectural reconsideration and rationale owned by `skills/systematic_debugging.md` before continuing.
-- Planning assessment preserves the existing integration controller, external Superpowers boundary, and
-  project `reflection_board: dormant` state. It does not activate or mutate the board.
+- Planning assessment preserves the existing integration controller and external Superpowers boundary.
 
 ## File Ownership
 

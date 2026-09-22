@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-21
+Updated: 2026-09-22
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
@@ -56,13 +56,13 @@ the documentation amendment alone.
 - [Memory Trace UX reference plan](memory-trace-ux-reference-model-implementation-plan.md) and
   [interaction matrix](memory-trace-ux-m0-interaction-matrix.md): M3 bounded graph perspectives remain
   the next local UI slice.
-- [Reflection launch verification](reflection-launch-verification-closeout.md): complete only the bounded
-  launch-matrix and first-board checks; future Reflection expansion is deferred.
 
 ## Parked and historical work
 
 - Post-MVP product ideas live in [`8_Deferred/`](../8_Deferred/), each with a revisit condition.
 - Consolidated or superseded plans live in [`7_Replaced/`](../7_Replaced/) with successor pointers.
+- Reflection Board v1 launch verification was withdrawn when the runtime was retired; the
+  [historical plan](../7_Replaced/reflection-launch-verification-closeout.md) is not an active gate.
 - Shipped plans live in [`5_Completed/`](../5_Completed/); external account or submission choices are
   references/checklists, not active engineering plans.
 - The full 41-document disposition is recorded in the

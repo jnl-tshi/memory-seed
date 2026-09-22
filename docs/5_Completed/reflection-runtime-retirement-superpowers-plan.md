@@ -1,19 +1,37 @@
 ---
 title: "Reflection runtime retirement with bounded Superpowers workers"
 date: "2026-09-21"
-status: proposed
+status: completed
 priority: P2
-next_action: "JNL decides whether to approve decommissioning, ratifies any required constitutional amendment, and chooses the existing board's archival disposition before implementation starts."
-blocked_by:
-  - "Explicit implementation approval and constitutional disposition of Reflection Board v1"
-  - "Decision on read-only preservation of the tracked ledger and trust anchor"
+next_action: "None. Reflection runtime retirement completed under Constitution v2.1."
+blocked_by: []
+completed: "2026-09-22"
 source:
   - "docs/CONSTITUTION.md"
-  - "docs/2_Todo/reflection-launch-verification-closeout.md"
+  - "docs/7_Replaced/reflection-launch-verification-closeout.md"
   - ".memory-seed/skills/superpowers_integration.md"
 ---
 
-# Proposed Reflection runtime retirement plan
+# Reflection runtime retirement plan — completed
+
+## Outcome (2026-09-22)
+
+JNL approved the retirement and ratified Constitution v2.1. A first compatibility tranche removed
+Reflection callers while retaining the runtime modules and historical files; guarded session
+integration landed it on `main` as `ff9412e1`. The integrated hook/merge gate passed (103 tests,
+3 subtests; one known pre-existing topic-sidecar failure excluded), and the installed stock hook
+was refreshed through `hooks install`. A second tranche removed the two runtime modules, profiler,
+CLI/MCP/config/skill guidance, and the two specifically authorized historical active-tree files.
+The historical ledger and trust anchor were deleted only after all seven records had durable
+session coverage, append-only links validated, and their SHA-256/Git blob identities matched the
+reconciliation entry `mse_xjwdqwfhx03gy44c`. Git history remains. The former launch-verification
+Todo was withdrawn, not declared passed.
+
+The G0 recommendation below to retain the two files in place was superseded by JNL's explicit
+conditional-deletion authorization and the ratified v2.1 amendment. This plan's Superpowers SDD
+route was not used because the active release could not be verified; Memory Seed's sequential
+workflow and independent review gate were used instead. The task table and acceptance text below
+remain as the pre-execution plan, not current instructions.
 
 This is a plan, **not approval or execution**. The request is to stop investing in the Reflection Board/workstream-ledger machinery while retaining ordinary Memory Seed behavior. Reflection is currently `dormant`, but ordinary commits, session integration, packet compilation, ESR, CLI, and MCP still enter its code. The dedicated runtime is about 4,972 lines in `memory_seed/reflection_ledger.py` and `memory_seed/reflection_operations.py`, plus a 51-line profiler. The seven dedicated test modules were already removed; that did not remove production behavior. Baseline: clean `main` at `1c033a3fc9111dc532b3c52e3d56acac7b80020c` when this plan was drafted. Rebind every task to its measured execution base rather than treating this SHA as permanently current.
 

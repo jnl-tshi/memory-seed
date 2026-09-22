@@ -7,10 +7,6 @@ participants:
 # use the session fuse and stop on validation failures or unresolved conflicts.
 merge_trigger: automatic
 
-# Temporary project-wide pause. Existing Reflection history remains readable
-# and verified; set to active to permit new board operations again.
-reflection_board: dormant
-
 # Shared planning policy. Local/task settings may tighten these values only.
 delivery_quality:
   schema_version: 1
