@@ -69,14 +69,30 @@ class CliHelpTests(unittest.TestCase):
     def test_help_command_lists_all_commands(self):
         code, out = self._run(["help"])
         self.assertEqual(code, 0)
-        for command in ("init", "update", "compact", "doctor", "version", "migrate", "help"):
+        for command in ("init", "update", "upgrade", "compact", "doctor", "version", "migrate", "help"):
             self.assertIn(command, out)
         self.assertIn("Keeping Memory Seed current", out)
+        self.assertIn("memory-seed upgrade --dry-run", out)
+        self.assertIn("memory-seed upgrade", out)
+        self.assertIn("memory-seed update", out)
 
     def test_no_command_prints_help(self):
         code, out = self._run([])
         self.assertEqual(code, 0)
         self.assertIn("Keeping Memory Seed current", out)
+
+    def test_dash_help_shows_upgrade_workflow(self):
+        import contextlib
+        import io
+
+        from memory_seed.cli import main
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer), self.assertRaises(SystemExit) as exit_info:
+            main(["-help"])
+        self.assertEqual(exit_info.exception.code, 0)
+        self.assertIn("memory-seed upgrade --dry-run", buffer.getvalue())
+        self.assertIn("memory-seed update", buffer.getvalue())
 
     def test_lense_command_no_longer_exists(self):
         # Regression: the memory-seed[lense]/`memory-seed lense` deprecated
