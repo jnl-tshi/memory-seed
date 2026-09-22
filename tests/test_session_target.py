@@ -108,6 +108,7 @@ class SessionTargetTests(unittest.TestCase):
 
     def test_session_target_create_initializes_per_user_file_once(self):
         cwd = self.make_project()
+        (cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True)
 
         target = session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean", create=True)
         first = target.path.read_text(encoding="utf-8")

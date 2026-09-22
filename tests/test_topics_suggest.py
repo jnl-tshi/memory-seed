@@ -228,6 +228,7 @@ class TopicsSuggestTests(unittest.TestCase):
 
     def test_cli_suggest_errors_for_missing_malformed_and_empty_index(self):
         cwd = self.make_project()
+        (cwd / ".memory-seed").mkdir()
         source = cwd / "notes.md"
         source.write_text("cache ranking\n", encoding="utf-8")
 
