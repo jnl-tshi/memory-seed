@@ -357,14 +357,10 @@ Sub-project runtimes keep detailed logs local. Parent/root memory should receive
 
 Memory Seed includes a small Python CLI.
 
-Reflection Board v1 provides preview/apply commands for temporary sequential workstream ledgers:
-`reflection ledger init/append/view/check/close/rebind/prepare/finalize/expire`,
-`reflection board view`, and CLI-only `reflection trust init`. See the
-[operator guide](docs/4_Reference/reflection-board-v1-operator-guide.md) for exact command syntax,
-trust-before-base ordering, ordinary receipt preparation/finalization, and local versus PR rebind.
-Seven-day retention is the usable public default; extended-retention authoring is planned.
-Early expiry and key rotation/recovery are unavailable. The first real board and launch evaluation
-remain planned; implemented source surfaces are not evidence of a completed launch.
+Reflection Board v1 commands were retired in 2026-09. The
+[retirement record](docs/5_Completed/reflection-runtime-retirement-superpowers-plan.md)
+and [historical operator guide](docs/4_Reference/reflection-board-v1-operator-guide.md)
+preserve the former workflow; neither is a current CLI reference.
 
 Use `uvx` for one-off execution. It runs Memory Seed in an isolated tool environment, so you do not need a global install and you avoid stale local commands:
 
@@ -782,13 +778,8 @@ tools for agents. They expose the project topic index, resolve canonical slugs/a
 usage, and mirror `memory-seed topics check` validation without adding a write surface for the
 project-curated `.memory-seed/topics.yaml` file.
 
-Reflection has nine shared-facade MCP tools: `memory_reflection_board_view` and
-`memory_reflection_ledger_view/check/init/append/close/rebind/finalize/expire` (the slash groups
-abbreviate separate names). They mirror the CLI's validation, preview/apply behavior, and diagnostics;
-`memory_esr` reports the same board and `closed_receipts_pending` state without writing.
-Trust bootstrap and PR prepare remain CLI-only. The [MCP table and recovery runbook](docs/4_Reference/reflection-board-v1-operator-guide.md#mcp-parity)
-list exact names and inputs. Expiry is not cryptographic erasure: historical/unreachable Git objects
-may remain until garbage collection.
+The former Reflection MCP tools were retired with the v1 runtime. `memory_esr`
+continues to report ordinary session, link, ADR, topic, and worktree health.
 
 `memory_branch_status`, `memory_worktree_guard`, and `memory_session_fuse_preview` are read-only
 collaboration tools for LLM orchestrators, and `memory_session_integrate` is the write path that

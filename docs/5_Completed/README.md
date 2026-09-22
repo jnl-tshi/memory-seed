@@ -96,6 +96,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [README Improvements.md](README%20Improvements.md) | — | — | — |
 | [readme-front-door-refresh-plan.md](readme-front-door-refresh-plan.md) | — | — | — |
 | [real-corpus-ranking-validation-gate-proposal.md](real-corpus-ranking-validation-gate-proposal.md) | — | — | — |
+| [reflection-runtime-retirement-superpowers-plan.md](reflection-runtime-retirement-superpowers-plan.md) | P2 | [] | None. Reflection runtime retirement completed under Constitution v2.1. |
 | [related-entries-generation-plan.md](related-entries-generation-plan.md) | — | — | — |
 | [related-entries-p2-mutation-plan.md](related-entries-p2-mutation-plan.md) | — | — | None. link add shipped; historical backfill remains a deliberately manual, per-edge procedure r… |
 | [residual-fuse-non-utf8-silent-skip.md](residual-fuse-non-utf8-silent-skip.md) | — | — | — |

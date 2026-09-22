@@ -1,5 +1,5 @@
 ---
-superseded_by: "../2_Todo/reflection-launch-verification-closeout.md"
+superseded_by: "reflection-launch-verification-closeout.md"
 superseded_on: "2026-09-19"
 disposition_note: "Implementation is substantially complete; the remaining bounded launch verification moved to the successor closeout plan."
 title: "Reflection Prototype Retirement and First Board v1 Plan"

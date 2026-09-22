@@ -70,6 +70,7 @@ mechanical migration.
 | [memory-trace-product-and-system-architecture-blueprint.md](memory-trace-product-and-system-architecture-blueprint.md) | — | — | proposed-canonical-plan |
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
 | [plan-reflection-ledger.md](plan-reflection-ledger.md) | P1 | — | Documentary evidence only. Do not compile or launch these prototype dispatches; use the sequent… |
+| [reflection-launch-verification-closeout.md](reflection-launch-verification-closeout.md) | P2 | [] | None. The Reflection runtime was retired before this launch verification; see the retirement re… |
 | [reflection-ledger-workstream-evolution-plan.md](reflection-ledger-workstream-evolution-plan.md) | P1 | — | Complete integrated launch verification and first-board evaluation; track public retention-exte… |
 | [reflection-prototype-retirement-plan.md](reflection-prototype-retirement-plan.md) | P1 | — | Verify the retired prototype stays absent in the integrated launch matrix and first-board evalu… |
 | [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | ../5_Completed/document-lifecycle-system-plan.md |

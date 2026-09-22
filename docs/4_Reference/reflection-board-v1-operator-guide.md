@@ -2,16 +2,20 @@
 title: "Reflection Board v1 operator guide"
 date: "2026-09-08"
 project: "memory-seed"
-status: "reference"
+status: "historical"
 ---
 
 # Reflection Board v1 operator guide
 
-The public v1 lifecycle is implemented in the current source tree. The first real board and launch
-evaluation remain planned; disposable fixtures are not a production board. This guide describes the
-implemented commands, including their current limits. The [functionality audit](../3_Spec/functionality-audit.md)
-and [REFLECT storyline](../1_Inbox/agent-interaction-storylines-review.md#s9-reflect--govern-a-temporary-reflection-board-v1-chain)
-track that distinction.
+Historical reference only. Reflection Board v1 commands, MCP tools, runtime modules, and
+automatic retention are retired; the commands below no longer exist in the current OSS
+edition. A first real chain was evaluated and closed on 2026-09-08; the later
+integrated launch-verification Todo was withdrawn rather than completed. The
+[retirement plan](../5_Completed/reflection-runtime-retirement-superpowers-plan.md) and
+[functionality audit](../3_Spec/functionality-audit.md) describe the current state.
+
+The remainder of this guide records the former v1 operating contract, not instructions
+to run against a current checkout.
 
 A board is a derived view of branch-owned temporary ledgers. Its sole supported authored format is
 `memory-seed/reflection-workstream-ledger` v1, stored at
