@@ -10273,6 +10273,9 @@ _CLAUDE_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py"
 _CODEX_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --codex"
 _CURSOR_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --cursor"
 _GEMINI_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --gemini"
+_COPILOT_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --copilot"
+_COPILOT_STOP_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --copilot"
+_COPILOT_FILE_TOUCH_COMMAND = "python3 .memory-seed/hooks/file-touch-decisions.py --copilot"
 
 _MCP_SERVER_COMMAND = "uvx"
 _MCP_SERVER_ARGS = ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
@@ -10288,10 +10291,12 @@ _MCP_SERVER_KEY = "memory-seed"
 _OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
 
 # GitHub Copilot CLI integration. Its MCP config is repo-local at .github/mcp.json
-# with a distinct schema (type + tools). Its sessionStart hook cannot inject context
-# from a command hook (stdout is consumed, not processed) — only a "prompt" hook can,
-# so Copilot gets a static directive (it must glob the sessions dir itself) rather
-# than running session-start-context.py.
+# with a distinct schema (type + tools). Current Copilot CLI and cloud agents process
+# command-hook output for sessionStart, agentStop, and postToolUse, including resumed
+# and non-interactive sessions where prompt hooks do not fire. The commands use lower-
+# camel event names so their payload/output contract is unambiguous. VS Code also reads
+# this file, so each --copilot script ignores VS Code-compatible payloads and lets the
+# Claude-format workspace hooks own editor events without duplicate processing.
 # type "stdio" (over the also-valid "local") is the GitHub-documented preferred
 # value for compatibility with VS Code and other MCP clients.
 _COPILOT_MCP_EXPECTED = {
@@ -10308,16 +10313,6 @@ _VSCODE_MCP_EXPECTED = {
     "args": _MCP_SERVER_ARGS,
 }
 _COPILOT_STARTUP_MARKER = "memory-seed:"
-_COPILOT_STARTUP_PROMPT = (
-    "memory-seed: Before any work, locate the nearest applicable AGENTS.md by "
-    "walking upward from the current directory, read it first, and follow every "
-    "instruction and routing path it defines. Load .memory-seed/skills/orientation.md, "
-    "run memory-seed situate, and apply its measured latest-session context_route: "
-    "read the whole file when direct, or use the skill's read-only economy-worker "
-    "compression contract when summarize. Do NOT use memory_search to find the most "
-    "recent work - use it only for topical 'why was X decided / what do we know "
-    "about Y' questions."
-)
 
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
@@ -10812,12 +10807,12 @@ def _merge_vscode_mcp(target_root: Path) -> bool:
 
 
 def _merge_copilot_startup_hook(target_root: Path) -> bool:
-    """Upsert a sessionStart prompt hook in .github/hooks/memory-seed.json.
+    """Upsert Copilot CLI/cloud command hooks without clobbering foreign entries.
 
-    Copilot command hooks cannot inject context at sessionStart (stdout is consumed,
-    not processed); only a "prompt" hook injects text. So Copilot gets a static
-    directive instead of running session-start-context.py. Our entry is identified
-    by the _COPILOT_STARTUP_MARKER prefix and updated in place if the text changes.
+    Older releases installed a sessionStart prompt. Prompt hooks miss resume,
+    non-interactive, and cloud runs, so that owned entry is removed during upgrade
+    and replaced by command hooks for startup, end-of-turn logging, and file-touch
+    decision surfacing. Script filenames are stable upsert identities.
     """
     config_path = target_root / ".github" / "hooks" / "memory-seed.json"
 
@@ -10829,22 +10824,48 @@ def _merge_copilot_startup_hook(target_root: Path) -> bool:
             data = {}
 
     data.setdefault("version", 1)
-    entries = data.setdefault("hooks", {}).setdefault("sessionStart", [])
-    for entry in entries:
-        if entry.get("type") == "prompt" and entry.get("prompt", "").startswith(
-            _COPILOT_STARTUP_MARKER
-        ):
-            if entry.get("prompt") == _COPILOT_STARTUP_PROMPT:
-                return False
-            entry["prompt"] = _COPILOT_STARTUP_PROMPT
-            write_json_file(config_path, data)
-            return True
+    hooks = data.setdefault("hooks", {})
+    changed = False
 
-    entries.append({"type": "prompt", "prompt": _COPILOT_STARTUP_PROMPT})
+    startup_entries = hooks.setdefault("sessionStart", [])
+    kept_startup = [
+        entry
+        for entry in startup_entries
+        if not (
+            isinstance(entry, dict)
+            and entry.get("type") == "prompt"
+            and (entry.get("prompt") or "").startswith(_COPILOT_STARTUP_MARKER)
+        )
+    ]
+    if len(kept_startup) != len(startup_entries):
+        hooks["sessionStart"] = kept_startup
+        changed = True
 
-    write_json_file(config_path, data)
+    expected = (
+        ("sessionStart", _COPILOT_STARTUP_COMMAND, "session-start-context.py"),
+        ("agentStop", _COPILOT_STOP_COMMAND, "session-log-check.py"),
+        ("postToolUse", _COPILOT_FILE_TOUCH_COMMAND, "file-touch-decisions.py"),
+    )
+    for event, command, script_name in expected:
+        entries = hooks.setdefault(event, [])
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            existing_command = entry.get("command") or ""
+            if existing_command == command and entry.get("type") == "command":
+                break
+            if script_name in existing_command:
+                entry.clear()
+                entry.update({"type": "command", "command": command})
+                changed = True
+                break
+        else:
+            entries.append({"type": "command", "command": command})
+            changed = True
 
-    return True
+    if changed:
+        write_json_file(config_path, data)
+    return changed
 
 
 # Header line for our entry in .codex/config.toml. Codex accepts both the bare
@@ -11143,7 +11164,7 @@ def _strip_mcp_entry(path: Path, container_key: str) -> bool:
 
 
 def _strip_copilot_startup(target_root: Path) -> bool:
-    """Remove our sessionStart prompt hook from .github/hooks/memory-seed.json."""
+    """Remove our Copilot prompt/command hooks from .github/hooks/memory-seed.json."""
     path = target_root / ".github" / "hooks" / "memory-seed.json"
     if not path.exists():
         return False
@@ -11151,23 +11172,30 @@ def _strip_copilot_startup(target_root: Path) -> bool:
     if data is None:
         return False
     hooks = data.get("hooks", {})
-    entries = hooks.get("sessionStart")
-    if not isinstance(entries, list):
+    changed = False
+    for event in ("sessionStart", "agentStop", "postToolUse"):
+        entries = hooks.get(event)
+        if not isinstance(entries, list):
+            continue
+        kept = []
+        for entry in entries:
+            ours = isinstance(entry, dict) and (
+                (
+                    entry.get("type") == "prompt"
+                    and (entry.get("prompt") or "").startswith(_COPILOT_STARTUP_MARKER)
+                )
+                or _command_is_ours(entry.get("command"))
+            )
+            if ours:
+                changed = True
+            else:
+                kept.append(entry)
+        if kept:
+            hooks[event] = kept
+        else:
+            hooks.pop(event, None)
+    if not changed:
         return False
-    kept = [
-        e for e in entries
-        if not (
-            isinstance(e, dict)
-            and e.get("type") == "prompt"
-            and (e.get("prompt") or "").startswith(_COPILOT_STARTUP_MARKER)
-        )
-    ]
-    if len(kept) == len(entries):
-        return False
-    if kept:
-        hooks["sessionStart"] = kept
-    else:
-        hooks.pop("sessionStart", None)
     if not hooks:
         data.pop("hooks", None)
     if set(data.keys()) <= {"version"}:

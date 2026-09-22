@@ -18,7 +18,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-WATCHED_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+CLAUDE_WATCHED_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+VSCODE_WATCHED_TOOLS = {
+    "editFiles",
+    "create_file",
+    "replace_string_in_file",
+    "multi_replace_string_in_file",
+}
+COPILOT_WATCHED_TOOLS = {"create", "edit"}
+WATCHED_TOOLS = CLAUDE_WATCHED_TOOLS | VSCODE_WATCHED_TOOLS | COPILOT_WATCHED_TOOLS
 MAX_DECISIONS = 3
 # No character cap: this hook asks the agent to judge whether its edit contradicts a decision, so
 # it shows whole decisions. MAX_DECISIONS is what bounds the payload.
@@ -42,14 +50,8 @@ def norm(path_text):
     return path_text.replace("\\", "/").strip().rstrip(".,;")
 
 
-def touched_path(payload):
-    tool = payload.get("tool_name") or ""
-    if tool not in WATCHED_TOOLS:
-        return None
-    raw = (payload.get("tool_input") or {}).get("file_path") or (
-        payload.get("tool_input") or {}
-    ).get("notebook_path")
-    if not raw:
+def _relative_path(raw):
+    if not isinstance(raw, str) or not raw.strip():
         return None
     candidate = Path(raw)
     try:
@@ -59,6 +61,47 @@ def touched_path(payload):
             return None
         rel = candidate
     return norm(str(rel))
+
+
+def _path_values(tool_input):
+    if not isinstance(tool_input, dict):
+        return []
+    values = []
+    for key in ("file_path", "notebook_path", "filePath", "notebookPath", "path"):
+        if tool_input.get(key):
+            values.append(tool_input[key])
+    for key in ("files", "filePaths", "paths"):
+        items = tool_input.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, str):
+                values.append(item)
+            elif isinstance(item, dict):
+                for nested_key in ("file_path", "filePath", "path"):
+                    if item.get(nested_key):
+                        values.append(item[nested_key])
+                        break
+    return values
+
+
+def touched_paths(payload):
+    tool = payload.get("tool_name") or payload.get("toolName") or ""
+    if tool not in WATCHED_TOOLS:
+        return []
+    tool_input = payload.get("tool_input") or payload.get("toolArgs") or {}
+    found = []
+    for raw in _path_values(tool_input):
+        relative = _relative_path(raw)
+        if relative and relative not in found:
+            found.append(relative)
+    return found
+
+
+def touched_path(payload):
+    """Backward-compatible first path for callers that only handle one file."""
+    paths = touched_paths(payload)
+    return paths[0] if paths else None
 
 
 def entry_file_refs(body):
@@ -181,7 +224,9 @@ def log_surfaced(entry_ids):
 
 
 def emit(message):
-    if agent == "codex":
+    if agent == "copilot":
+        print(json.dumps({"additionalContext": message}))
+    elif agent == "codex":
         print(json.dumps({"systemMessage": message, "continue": True}))
     elif agent == "cursor":
         print(json.dumps({"agentMessage": message}))
@@ -202,14 +247,20 @@ def emit(message):
 
 def main():
     payload = json.loads(sys.stdin.read() or "{}")
-    touched = touched_path(payload)
+    # VS Code loads both .github/hooks and .claude/settings.json. The Copilot
+    # command entries are for Copilot CLI/cloud only; let the Claude-format
+    # workspace hook own VS Code so the same event is not processed twice.
+    if agent == "copilot" and payload.get("hook_event_name"):
+        return
+    touched = touched_paths(payload)
     if not touched:
         return
 
-    session_id = str(payload.get("session_id") or "unknown")
+    session_id = str(payload.get("session_id") or payload.get("sessionId") or "unknown")
     stamp = load_stamp()
     seen = stamp.get(session_id) or {}
-    if touched in seen:
+    touched = [path for path in touched if path not in seen]
+    if not touched:
         return
 
     all_entries = list(iter_entries())
@@ -218,15 +269,16 @@ def main():
         if is_link:
             continue
         refs = entry_file_refs(body)
-        if touched in refs or touched.lower() in [r.lower() for r in refs]:
+        refs_lower = {ref.lower() for ref in refs}
+        if any(path in refs or path.lower() in refs_lower for path in touched):
             matches.append((entry_id, heading, body))
     if not matches:
         return
 
     replaced_by = replaces_map(all_entries)
     lines = [
-        f"RECORDED DECISIONS TOUCH THIS FILE ({touched}) - loaded because your edit changed a "
-        "file these decisions reference:"
+        f"RECORDED DECISIONS TOUCH EDITED FILES ({', '.join(touched)}) - loaded because your "
+        "edit changed files these decisions reference:"
     ]
     surfaced = []
     for entry_id, heading, body in matches[-MAX_DECISIONS:]:
@@ -246,7 +298,9 @@ def main():
         "the store asserting the opposite of the code."
     )
 
-    seen[touched] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for path in touched:
+        seen[path] = now
     stamp[session_id] = seen
     try:
         if len(stamp) > 20:  # keep the stamp bounded; oldest sessions age out

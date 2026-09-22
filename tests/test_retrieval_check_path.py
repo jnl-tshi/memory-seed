@@ -51,3 +51,12 @@ class RetrievalCheckPathTests(unittest.TestCase):
         out = self._run(cwd, extra_env={"PATH": ""})
         self.assertIn("uv tool install", out)
         self.assertNotIn("memory_search MCP tool", out)
+
+    def test_default_output_supports_claude_context_and_vscode_warning(self):
+        import json
+
+        cwd = self.make_project()
+        data = json.loads(self._run(cwd, extra_env={"PATH": ""}))
+        self.assertIn("additionalContext", data["hookSpecificOutput"])
+        self.assertEqual(data["systemMessage"], data["hookSpecificOutput"]["additionalContext"])
+        self.assertTrue(data["continue"])

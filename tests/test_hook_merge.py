@@ -190,7 +190,7 @@ class HookMergeTests(unittest.TestCase):
         self.assertTrue(any("session-start-context.py" in c for c in cursor_cmds))
         self.assertTrue(any("memory-retrieval-check.py" in c for c in cursor_cmds))
 
-    def test_init_installs_copilot_mcp_and_prompt_hook(self):
+    def test_init_installs_copilot_mcp_and_command_hooks(self):
         import json
 
         cwd = self.make_project()
@@ -205,12 +205,59 @@ class HookMergeTests(unittest.TestCase):
 
         hook = json.loads((cwd / ".github" / "hooks" / "memory-seed.json").read_text())
         self.assertEqual(hook["version"], 1)
-        entry = hook["hooks"]["sessionStart"][0]
-        self.assertEqual(entry["type"], "prompt")
-        self.assertIn("AGENTS.md", entry["prompt"])
-        self.assertIn("orientation.md", entry["prompt"])
-        self.assertIn("context_route", entry["prompt"])
-        self.assertIn("Do NOT use memory_search", entry["prompt"])
+        startup = hook["hooks"]["sessionStart"]
+        self.assertEqual(len(startup), 1)
+        self.assertEqual(startup[0]["type"], "command")
+        self.assertIn("session-start-context.py --copilot", startup[0]["command"])
+        self.assertIn("session-log-check.py --copilot", hook["hooks"]["agentStop"][0]["command"])
+        self.assertIn("file-touch-decisions.py --copilot", hook["hooks"]["postToolUse"][0]["command"])
+
+    def test_copilot_hook_upgrade_replaces_our_prompt_and_preserves_foreign_entries(self):
+        import json
+        from memory_seed.core import _merge_copilot_startup_hook
+
+        cwd = self.make_project()
+        path = cwd / ".github" / "hooks" / "memory-seed.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps({
+                "version": 1,
+                "hooks": {
+                    "sessionStart": [
+                        {"type": "prompt", "prompt": "memory-seed: old prompt"},
+                        {"type": "command", "command": "foreign-start"},
+                    ],
+                    "agentStop": [{"type": "command", "command": "foreign-stop"}],
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        self.assertTrue(_merge_copilot_startup_hook(cwd))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        startup_commands = [entry.get("command") for entry in data["hooks"]["sessionStart"]]
+        self.assertIn("foreign-start", startup_commands)
+        self.assertTrue(any("session-start-context.py --copilot" in (cmd or "") for cmd in startup_commands))
+        self.assertFalse(any(entry.get("type") == "prompt" and entry.get("prompt", "").startswith("memory-seed:") for entry in data["hooks"]["sessionStart"]))
+        self.assertTrue(any(entry.get("command") == "foreign-stop" for entry in data["hooks"]["agentStop"]))
+
+    def test_copilot_hook_uninstall_removes_ours_and_preserves_foreign_entries(self):
+        import json
+        from memory_seed.core import _merge_copilot_startup_hook, _strip_copilot_startup
+
+        cwd = self.make_project()
+        self.assertTrue(_merge_copilot_startup_hook(cwd))
+        path = cwd / ".github" / "hooks" / "memory-seed.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["hooks"]["agentStop"].append({"type": "command", "command": "foreign-stop"})
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+        self.assertTrue(_strip_copilot_startup(cwd))
+        remaining = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            remaining,
+            {"version": 1, "hooks": {"agentStop": [{"type": "command", "command": "foreign-stop"}]}},
+        )
 
     def test_copilot_merges_are_idempotent(self):
         from memory_seed.core import _merge_copilot_mcp, _merge_copilot_startup_hook

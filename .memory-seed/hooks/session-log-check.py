@@ -25,6 +25,22 @@ for arg in sys.argv[1:]:
     if arg.startswith("--"):
         agent = arg[2:]
 
+try:
+    hook_payload = json.loads(sys.stdin.read() or "{}")
+except (json.JSONDecodeError, ValueError):
+    hook_payload = {}
+
+# VS Code loads both .github/hooks and .claude/settings.json. Copilot's
+# lower-camel agentStop entry is for CLI/cloud only; skip VS Code's converted
+# replay and let the Claude-format workspace hook own the editor event.
+if agent == "copilot" and hook_payload.get("hook_event_name"):
+    sys.exit(0)
+
+# Every blocking Stop/agentStop host exposes this guard after it has already
+# forced a continuation. Never block again or the hook can loop indefinitely.
+if hook_payload.get("stop_hook_active") or hook_payload.get("stopHookActive"):
+    sys.exit(0)
+
 d = Path(".memory-seed/sessions")
 if not d.exists():
     sys.exit(0)
@@ -319,7 +335,10 @@ if not messages:
 
 reminder = "\n".join(messages)
 
-if agent == "codex":
+if agent == "copilot":
+    # Copilot CLI/cloud agentStop consumes the top-level decision shape.
+    print(json.dumps({"decision": "block", "reason": reminder}))
+elif agent == "codex":
     # Codex CLI: systemMessage shown in UI
     print(json.dumps({"systemMessage": reminder, "continue": True}))
 elif agent == "cursor":
@@ -335,4 +354,12 @@ else:
     # with `reason` as the text fed back. Verified against
     # memory-retrieval-check.py's UserPromptSubmit branch below, which already
     # gets this right for its own event type.
-    print(json.dumps({"decision": "block", "reason": reminder}))
+    print(json.dumps({
+        "decision": "block",
+        "reason": reminder,
+        "hookSpecificOutput": {
+            "hookEventName": "Stop",
+            "decision": "block",
+            "reason": reminder,
+        },
+    }))

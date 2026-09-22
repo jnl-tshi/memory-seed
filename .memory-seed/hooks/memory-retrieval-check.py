@@ -69,8 +69,12 @@ elif agent == "gemini":
     # Gemini CLI BeforeAgent: hookSpecificOutput.additionalContext injects context.
     print(json.dumps({"hookSpecificOutput": {"additionalContext": reminder}}))
 else:
-    # Claude Code UserPromptSubmit: additionalContext is the valid field
+    # Claude Code consumes hookSpecificOutput.additionalContext. VS Code only
+    # accepts the common output shape for UserPromptSubmit, so systemMessage
+    # keeps the reminder visible there while SessionStart carries model context.
     print(json.dumps({
+        "continue": True,
+        "systemMessage": reminder,
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
             "additionalContext": reminder,
