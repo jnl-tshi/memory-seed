@@ -475,6 +475,10 @@ def _print_help(parser: argparse.ArgumentParser) -> None:
     print("  Two separate things stay current, and they are not the same step.")
     print(
         "  1. Upgrade the package (code + bundled seed templates):\n"
+        "       memory-seed upgrade --dry-run\n"
+        "       memory-seed upgrade\n"
+        "     If the package manager cannot be detected, pass --manager uv|pipx|pip.\n"
+        "     Direct package-manager alternatives:\n"
         "       uv tool upgrade memory-seed\n"
         "       python -m pip install --upgrade memory-seed"
     )
@@ -565,7 +569,14 @@ def _print_skill_status(status) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="memory-seed")
+    parser = argparse.ArgumentParser(
+        prog="memory-seed",
+        epilog=(
+            "Upgrade the package: memory-seed upgrade --dry-run, then memory-seed upgrade. "
+            "Refresh project files afterward with memory-seed update. "
+            "Run 'memory-seed help' for details."
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     subparsers.add_parser("help", help="list all commands and how they work")
