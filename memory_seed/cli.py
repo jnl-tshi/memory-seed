@@ -1373,67 +1373,6 @@ def main(argv: list[str] | None = None) -> int:
                 help="allow --output to replace an existing file",
             )
 
-    reflection_parser = subparsers.add_parser(
-        "reflection", help="inspect or append the governed Reflection Board v1 ledger"
-    )
-    reflection_sub = reflection_parser.add_subparsers(dest="reflection_command", required=True)
-    reflection_trust = reflection_sub.add_parser("trust", help="initialize local reflection retention trust")
-    reflection_trust_sub = reflection_trust.add_subparsers(dest="reflection_trust_command", required=True)
-    reflection_trust_init = reflection_trust_sub.add_parser("init", help="preview or apply one-time trust bootstrap on the default branch")
-    reflection_trust_init.add_argument("--apply", action="store_true")
-    reflection_trust_init.add_argument("--json", action="store_true")
-    reflection_ledger = reflection_sub.add_parser("ledger", help="operate on one branch-owned v1 ledger")
-    reflection_ledger_sub = reflection_ledger.add_subparsers(dest="reflection_ledger_command", required=True)
-    reflection_init = reflection_ledger_sub.add_parser("init", help="preview or initialize the current branch ledger")
-    reflection_init.add_argument("--retention-days", type=int, default=7, choices=(7, 14, 30))
-    reflection_init.add_argument("--apply", action="store_true", help="commit the kernel-issued initialization plan")
-    reflection_init.add_argument("--json", action="store_true")
-    reflection_append = reflection_ledger_sub.add_parser("append", help="preview or append one v1 record")
-    reflection_append.add_argument("workstream_id")
-    reflection_append.add_argument("--role", required=True, choices=("planner", "implementer", "reviewer", "orchestrator"))
-    reflection_append.add_argument("--chain-id")
-    reflection_append.add_argument("--relationship", default="refines")
-    reflection_append.add_argument("--parent", action="append", default=[])
-    reflection_append.add_argument("--no-related-thread", action="store_true")
-    reflection_append.add_argument("--conclusion", required=True)
-    reflection_append.add_argument("--reasoning", required=True)
-    reflection_append.add_argument("--source", required=True)
-    reflection_append.add_argument("--confidence", default="high")
-    reflection_append.add_argument("--to-phase")
-    reflection_append.add_argument("--apply", action="store_true", help="commit the kernel-issued append plan")
-    reflection_append.add_argument("--json", action="store_true")
-    reflection_close = reflection_ledger_sub.add_parser("close", help="preview receipt requirements or close a resolved chain")
-    reflection_close.add_argument("workstream_id")
-    reflection_close.add_argument("--chain-id", required=True)
-    reflection_close.add_argument("--receipts", default="[]", help="JSON array of session_path, entry_id, decision_id, disposition and optional record_id mappings")
-    reflection_close.add_argument("--apply", action="store_true")
-    reflection_close.add_argument("--json", action="store_true")
-    reflection_expire = reflection_ledger_sub.add_parser("expire", help="preview or apply signed elapsed-retention chain expiry")
-    reflection_expire.add_argument("workstream_id")
-    reflection_expire.add_argument("--chain-id", required=True)
-    reflection_expire.add_argument("--apply", action="store_true")
-    reflection_expire.add_argument("--json", action="store_true")
-    for command in ("rebind", "prepare", "finalize"):
-        rebind = reflection_ledger_sub.add_parser(command, help=f"preview or apply reflection integration {command}")
-        rebind.add_argument("workstream_id")
-        if command != "prepare":
-            rebind.add_argument("--source", required=True, help="live local source branch name or refs/heads locator")
-            rebind.add_argument("--reason", required=True)
-        rebind.add_argument("--apply", action="store_true")
-        rebind.add_argument("--json", action="store_true")
-    for reflection_write in (reflection_init, reflection_append, reflection_close):
-        reflection_write.add_argument("--expected-head", help="refuse if HEAD differs from the reviewed preview")
-    for reflection_write in (reflection_append, reflection_close):
-        reflection_write.add_argument("--expected-ledger-digest", help="refuse if ledger bytes differ from the reviewed preview")
-    for command in ("check", "view"):
-        reflection_read = reflection_ledger_sub.add_parser(command, help=f"{command} one trusted v1 ledger")
-        reflection_read.add_argument("workstream_id")
-        reflection_read.add_argument("--json", action="store_true")
-    reflection_board = reflection_sub.add_parser("board", help="inspect all active Reflection Board v1 candidates")
-    reflection_board_sub = reflection_board.add_subparsers(dest="reflection_board_command", required=True)
-    reflection_board_view = reflection_board_sub.add_parser("view", help="read the complete active-board projection")
-    reflection_board_view.add_argument("--json", action="store_true")
-
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
@@ -1578,35 +1517,6 @@ def main(argv: list[str] | None = None) -> int:
             }
             sys.stderr.write(canonical_retrieval_json({"ok": False, "error": error}))
             return 2
-
-    if args.command == "reflection":
-        from .reflection_operations import run_reflection_operation
-        operation = ("board_view" if args.reflection_command == "board" else "trust_init"
-                     if args.reflection_command == "trust" else "ledger_" + args.reflection_ledger_command)
-        fields = {key: value for key, value in vars(args).items()
-                  if key not in {"command", "reflection_command", "reflection_ledger_command", "reflection_board_command", "reflection_trust_command", "json"}
-                  and value is not None}
-        if "parent" in fields:
-            fields["parents"] = fields.pop("parent")
-        try:
-            if "receipts" in fields:
-                fields["receipts"] = json.loads(fields["receipts"])
-            payload = run_reflection_operation(operation, fields)
-        except ValueError as exc:
-            payload = {"ok": False, "error": {"code": "invalid_arguments", "path": ".", "message": str(exc), "details": {}}}
-        if payload["ok"] and not args.json and operation in {"ledger_check", "ledger_view"}:
-            # False positive below: CodeQL's sensitive-data heuristic traces WorkstreamRebind's
-            # "detail_digest"/"pre_ledger_digest" fields (rendered via render_trusted_rebind in
-            # memory_seed/reflection_ledger.py) as a "secret" purely on the word "digest". These
-            # are SHA-256 integrity digests over append-only ledger content, meant to be publicly
-            # inspectable like a checksum, not confidential material.
-            print(payload["ledger"], end="")  # lgtm[py/clear-text-logging-sensitive-data]
-        else:
-            # Same false positive as above: payload can carry the same ledger digest fields when
-            # printed as JSON instead of raw ledger text.
-            print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False),  # lgtm[py/clear-text-logging-sensitive-data]
-                  file=sys.stdout if payload["ok"] else sys.stderr)
-        return 0 if payload["ok"] else 1
 
     if args.command == "user":
         target = Path(".").resolve()

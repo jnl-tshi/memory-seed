@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, Literal, Mapping, Sequence
 
-from .reflection_ledger import reflection_verification_operation
 from .text_files import (
     normalize_text,
     read_json_file,
@@ -481,7 +480,6 @@ class SessionFuseResult:
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
-    reflection_admission: Any = field(default=None, repr=False)
 
 
 @dataclass
@@ -538,7 +536,6 @@ class _SessionFusePlan:
     planned_link_sidecars: tuple[str, ...]
     planned_topic_sidecars: tuple[str, ...]
     removed_sources: tuple[str, ...]
-    reflection_admission: Any = None
 
 
 @dataclass
@@ -1528,14 +1525,6 @@ def _activated_packet_base_sha(root: Path) -> str | None:
     # baseline.  Reject a stale or fabricated artifact rather than quietly
     # falling back to main/master and measuring the wrong stack.
     if _git_text(root, ("merge-base", "--is-ancestor", base_sha, "HEAD"))[0] != 0:
-        return None
-    from .reflection_ledger import ReflectionValidationError, measure_reflection_capability, validate_reflection_capability
-    try:
-        capability = validate_reflection_capability(execution)
-        if capability is not None and not isinstance(binding.get("reflection"), dict):
-            return None
-        measure_reflection_capability(root, execution, working_branch=branch, expected=binding.get("reflection"))
-    except (ReflectionValidationError, OSError, ValueError, TypeError):
         return None
     return base_sha.lower()
 
@@ -7824,16 +7813,15 @@ def _plan_session_fuse(
     base_commit = _resolve_commit(root, base_ref)
     if base_commit is None:
         return None, [f"base ref does not resolve to a commit: {base_ref}"]
+    merge_base_code, merge_bases = _git_lines(
+        root, ("merge-base", "--all", base_commit, source_commit)
+    )
+    if merge_base_code != 0 or len(merge_bases) != 1:
+        return None, ["session fuse requires one unique merge base"]
 
     changed_paths = _changed_session_paths(root, base_commit, source_commit)
     if changed_paths is None:
         return None, [f"could not compute changed session files for source {source_label} against base {base_ref}"]
-
-    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=source_ref, base_ref=base_ref)
-    if reflection_issues:
-        return None, reflection_issues
-    if (reflection_admission.source_commit != source_commit or reflection_admission.base_commit != base_commit):
-        return None, ["reflection-binding-stale: integration refs changed while planning"]
 
     issues: list[str] = []
     base_paths = set(_git_ref_paths(root, base_commit))
@@ -8318,7 +8306,6 @@ def _plan_session_fuse(
         planned_link_sidecars=tuple(planned_link_sidecars),
         planned_topic_sidecars=tuple(planned_topic_sidecars),
         removed_sources=tuple(removed_sources),
-        reflection_admission=reflection_admission,
     ), []
 
 
@@ -8331,10 +8318,6 @@ def _apply_session_fuse_plan(
     branch-touched, base-existing session path to base content. It does not change
     any decision - it only lets a refusal name which side's copy it just read.
     """
-
-    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission, merged=True)
-    if reflection_issues:
-        return SessionFuseResult(changed=False, issues=reflection_issues)
 
     def existing_note(target_rel: str) -> str:
         return _fuse_existing_note(root, plan, target_rel, working_tree_is_base=working_tree_is_base)
@@ -8583,27 +8566,6 @@ def _apply_session_fuse_plan(
     )
 
 
-def _preview_session_reflections(root: Path, *, source_ref: str, base_ref: str) -> tuple[Any, list[str]]:
-    """Reflection-only admission; session provenance must use the refreshed base."""
-    from .reflection_ledger import ReflectionValidationError, preview_reflection_integration
-    try:
-        return preview_reflection_integration(root, source_ref=source_ref, base_ref=base_ref), []
-    except (OSError, ValueError) as exc:
-        return None, [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
-
-
-def _recheck_session_reflections(root: Path, admission: Any, *, merged: bool = False) -> list[str]:
-    from .reflection_ledger import ReflectionValidationError, recheck_reflection_integration
-    try:
-        if admission is None:
-            return ["reflection-binding-stale: missing integration preflight"]
-        recheck_reflection_integration(root, admission, merged=merged)
-    except (OSError, ValueError) as exc:
-        return [f"{exc.diagnostic.code}: {exc}" if isinstance(exc, ReflectionValidationError) else str(exc)]
-    return []
-
-
-@reflection_verification_operation
 def session_fuse(
     cwd: str | Path = ".",
     *,
@@ -8612,7 +8574,6 @@ def session_fuse(
     apply: bool = False,
     user_approved: bool = False,
     working_tree_is_base: bool = False,
-    reflection_admission: Any = None,
 ) -> SessionFuseResult:
     """Fuse branch-local session entries into the current working tree.
 
@@ -8626,8 +8587,6 @@ def session_fuse(
     resetting branch-touched session paths to base content, so a refusal can say
     which side's copy it validated. It changes no decision, only wording.
 
-    Reflection-bearing apply requires the original preview's immutable
-    ``reflection_admission``. A fresh internal plan cannot replace that binding.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
@@ -8669,20 +8628,13 @@ def session_fuse(
     if issues:
         return SessionFuseResult(changed=False, issues=issues)
     assert plan is not None
-    if apply and reflection_admission is None and any(
-        getattr(plan.reflection_admission, key) for key in ("source", "base", "ancestor", "proposed")
-    ):
-        return SessionFuseResult(changed=False, issues=[
-            "reflection-binding-required: reflection-bearing apply requires the original immutable preview admission"
-        ])
-    if reflection_admission is not None:
-        reflection_issues = _recheck_session_reflections(root, reflection_admission, merged=apply)
-        if reflection_issues or any(getattr(plan.reflection_admission, key) != getattr(reflection_admission, key)
-                                    for key in ("source_commit", "base_commit", "merge_base", "proposed")):
-            return SessionFuseResult(changed=False, issues=reflection_issues or ["reflection-binding-stale: integration changed after preview"])
-    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission, merged=apply)
-    if reflection_issues:
-        return SessionFuseResult(changed=False, issues=reflection_issues)
+    if (plan.source_commit != branch_commit or plan.base_commit != base_commit
+            or _resolve_commit(root, branch) != branch_commit
+            or _resolve_commit(root, base) != base_commit):
+        return SessionFuseResult(changed=False, issues=["integration refs changed during fuse planning"])
+    if apply and (_resolve_commit(root, "HEAD") != base_commit
+                  or _merge_head_commits(root) != [branch_commit]):
+        return SessionFuseResult(changed=False, issues=["integration parents changed before fuse apply"])
     if not apply:
         return SessionFuseResult(
             changed=False,
@@ -8691,7 +8643,6 @@ def session_fuse(
             planned_link_sidecars=list(plan.planned_link_sidecars),
             planned_topic_sidecars=list(plan.planned_topic_sidecars),
             removed_sources=list(plan.removed_sources),
-            reflection_admission=plan.reflection_admission,
         )
     return _apply_session_fuse_plan(root, plan, working_tree_is_base=working_tree_is_base)
 
@@ -8982,7 +8933,6 @@ def _abort_refused_merge(
     result.issues.append("merge aborted automatically; nothing was committed")
 
 
-@reflection_verification_operation
 def session_merge_branch(
     cwd: str | Path = ".",
     *,
@@ -9052,9 +9002,8 @@ def session_merge_branch(
     preview = session_fuse(root, branch=branch, base="HEAD", apply=False)
     if preview.issues:
         return SessionMergeBranchResult(committed=False, issues=list(preview.issues))
-    if (preview.reflection_admission.source_commit != branch_commit
-            or preview.reflection_admission.base_commit != base_commit):
-        return SessionMergeBranchResult(committed=False, issues=["reflection-binding-stale: integration refs changed before preview"])
+    if _resolve_commit(root, branch) != branch_commit or _resolve_commit(root, "HEAD") != base_commit:
+        return SessionMergeBranchResult(committed=False, issues=["integration refs changed before preview completed"])
 
     source_worktree, source_worktree_issue = _source_branch_worktree(root, branch)
     cadence = commit_cadence(root, base_ref="HEAD", target_ref=branch)
@@ -9075,8 +9024,8 @@ def session_merge_branch(
     if dry_run:
         return result
 
-    result.issues.extend(_recheck_session_reflections(root, preview.reflection_admission))
-    if result.issues:
+    if _resolve_commit(root, branch) != branch_commit or _resolve_commit(root, "HEAD") != base_commit:
+        result.issues.append("integration refs changed before merge")
         return result
     merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", branch))
     # Exit code 1 is ambiguous (conflict vs. real failure); the presence of
@@ -9091,11 +9040,11 @@ def session_merge_branch(
             result.issues.append(f"git merge failed without starting a merge: {merge_out or '(no output)'}")
         # rc 0 with no MERGE_HEAD: branch is already merged into HEAD.
         return result
-
-    result.issues.extend(_recheck_session_reflections(root, preview.reflection_admission, merged=True))
-    if result.issues:
+    if _resolve_commit(root, "HEAD") != base_commit or merge_heads != [branch_commit]:
+        result.issues.append("integration parents changed during merge")
         _abort_refused_merge(root, result)
         return result
+
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
         result.issues.append("could not enumerate conflicted paths")
@@ -9142,7 +9091,6 @@ def session_merge_branch(
         apply=True,
         user_approved=True,
         working_tree_is_base=True,
-        reflection_admission=preview.reflection_admission,
     )
     if applied.issues:
         result.issues.extend(applied.issues)
@@ -9292,10 +9240,16 @@ def session_prepare_pr_branch(
             issues=issues,
         )
     assert plan is not None
+    if (_resolve_commit(root, "HEAD") != plan.source_commit
+            or _resolve_commit(root, branch) != plan.source_commit
+            or _resolve_commit(root, base_ref) != plan.base_commit):
+        return SessionPreparePrBranchResult(
+            ready=False,
+            base_branch=resolved_base_branch,
+            source_branch=branch,
+            issues=["integration refs changed during PR preparation planning"],
+        )
 
-    reflection_issues = _recheck_session_reflections(root, plan.reflection_admission)
-    if reflection_issues:
-        return SessionPreparePrBranchResult(ready=False, issues=reflection_issues)
     result = SessionPreparePrBranchResult(
         ready=False,
         base_branch=resolved_base_branch,
@@ -9311,10 +9265,15 @@ def session_prepare_pr_branch(
         result.branch_head = plan.source_commit
         return result
 
-    result.issues.extend(_recheck_session_reflections(root, plan.reflection_admission))
-    if result.issues:
+    if (_resolve_commit(root, "HEAD") != plan.source_commit
+            or _resolve_commit(root, branch) != plan.source_commit
+            or _resolve_commit(root, base_ref) != plan.base_commit):
+        result.issues.append("integration refs changed before PR preparation merge")
         return result
-    merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", base_ref))
+    merge_code, merge_out = _git_text(
+        root,
+        ("merge", "--no-ff", "--no-commit", "-m", f"Merge branch '{resolved_base_branch}' into {branch}", plan.base_commit),
+    )
     merge_heads = _merge_head_commits(root)
     if merge_heads is None:
         result.merge_in_progress = True
@@ -9329,11 +9288,11 @@ def session_prepare_pr_branch(
         result.changed = False
         result.branch_head = _resolve_commit(root, "HEAD")
         return result
-
-    result.issues.extend(_recheck_session_reflections(root, plan.reflection_admission, merged=True))
-    if result.issues:
+    if _resolve_commit(root, "HEAD") != plan.source_commit or merge_heads != [plan.base_commit]:
+        result.issues.append("integration parents changed during PR preparation merge")
         _abort_refused_merge(root, result)
         return result
+
     code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
     if code != 0:
         result.issues.append("could not enumerate conflicted paths")
@@ -9361,6 +9320,14 @@ def session_prepare_pr_branch(
             result.issues.append(f"could not reset {rel_path} to base content")
             _abort_refused_merge(root, result)
             return result
+
+    if (_resolve_commit(root, "HEAD") != plan.source_commit
+            or _resolve_commit(root, branch) != plan.source_commit
+            or _resolve_commit(root, base_ref) != plan.base_commit
+            or _merge_head_commits(root) != [plan.base_commit]):
+        result.issues.append("integration parents changed before PR preparation fuse")
+        _abort_refused_merge(root, result)
+        return result
 
     applied = _apply_session_fuse_plan(root, plan, working_tree_is_base=True)
     if applied.issues:
@@ -9548,15 +9515,8 @@ def session_open_pr(
             remote_url=remote_url, issues=[base_issue],
         )
     assert resolved_base_branch is not None and _base_ref is not None
-    # Refuse local reserved state before network-capable gh/fetch operations.
-    # Do not classify ordinary inherited sessions against a stale tracking ref;
-    # the complete provenance/fuse plan runs in preparation after refresh.
-    reflection_admission, reflection_issues = _preview_session_reflections(root, source_ref=branch, base_ref=_base_ref)
-    if not reflection_issues:
-        reflection_issues = _recheck_session_reflections(root, reflection_admission)
-    if reflection_issues:
-        return SessionOpenPrResult(opened=False, dry_run=dry_run, source_branch=branch, issues=reflection_issues)
-
+    # Ordinary session provenance is planned after the tracking ref is refreshed
+    # during PR preparation; this preflight only checks the host tooling.
     code, _out, _err = _gh_text(root, ("--version",))
     if code != 0:
         return SessionOpenPrResult(

@@ -146,7 +146,6 @@ class EsrReport:
     corpus_cache: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] = field(default_factory=dict)
     temporal_lineage: dict[str, Any] = field(default_factory=dict)
-    reflection: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -163,7 +162,6 @@ class EsrReport:
             "oldest_topic_attribution_gap": self.oldest_topic_attribution_gap,
             "provenance": self.provenance,
             "temporal_lineage": self.temporal_lineage,
-            "reflection": self.reflection,
             "worktrees": {
                 "available": self.worktrees_available,
                 "entries": [
@@ -1068,12 +1066,6 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         report.worktree_residues = _worktree_residues(root, report.worktrees)
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
 
-    try:
-        from .reflection_operations import run_reflection_operation
-        report.reflection = run_reflection_operation("board_view", {"cwd": str(root)})
-    except Exception as exc:  # ESR must surface reflection faults without hiding other checks.
-        report.reflection = {"ok": False, "items": [], "error": str(exc)}
-
     from .docs_check import check_docs
 
     docs = check_docs(root)
@@ -1191,21 +1183,6 @@ def format_esr_report(report: EsrReport) -> str:
                 f"{classification.get('claimed_timestamp_relation')}; "
                 f"calendar {classification.get('calendar_time')}"
             )
-    lines.append("")
-
-    lines.append("## Reflection Board v1")
-    reflection = report.reflection
-    if reflection.get("error"):
-        lines.append(f"ATTENTION — reflection inspection unavailable: {reflection['error']}")
-    elif not reflection.get("items"):
-        lines.append("No active Reflection Board v1 ledgers.")
-    else:
-        for item in reflection["items"]:
-            detail = item.get("diagnostic") or {}
-            suffix = f" — {detail.get('code')}: {detail.get('message')}" if detail else ""
-            lines.append(f"- {item.get('status')}: {item.get('path')}{suffix}")
-            for receipt in item.get("missing_receipts", []):
-                lines.append(f"  Missing {receipt['kind']} receipt: {receipt.get('record_id', receipt.get('closed_record_id'))} ({receipt['chain_id']})")
     lines.append("")
 
     lines.append("## Semantic ranking")

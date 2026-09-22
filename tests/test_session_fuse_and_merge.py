@@ -6,6 +6,7 @@ import pytest
 from pathlib import Path
 
 from _git_helpers import run_git
+from memory_seed import core as core_module
 from memory_seed.core import (
     MEMORY_DIR_NAME,
     check_session_links,
@@ -360,6 +361,35 @@ class SessionFuseAndMergeTests(unittest.TestCase):
             ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
         )
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
+
+    @pytest.mark.integration
+    def test_session_fuse_refuses_ambiguous_merge_bases(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        (cwd / "base.txt").write_text("base\n", encoding="utf-8")
+        self._commit_all(cwd, "base")
+
+        self._git(cwd, "switch", "-c", "feature-a")
+        (cwd / "a.txt").write_text("a\n", encoding="utf-8")
+        self._commit_all(cwd, "a1")
+        a1 = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "switch", "-c", "feature-b")
+        (cwd / "b.txt").write_text("b\n", encoding="utf-8")
+        self._commit_all(cwd, "b1")
+        b1 = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "merge", "--no-ff", "-m", "merge a1", "feature-a")
+
+        self._git(cwd, "switch", "feature-a")
+        self._git(cwd, "merge", "--no-ff", "-m", "merge b1", b1)
+        bases = self._git(cwd, "merge-base", "--all", "feature-a", "feature-b").stdout.splitlines()
+        self.assertEqual(set(bases), {a1, b1})
+
+        result = session_fuse(cwd=cwd, branch="feature-b", base="feature-a")
+        self.assertFalse(result.changed)
+        self.assertTrue(any("unique merge base" in issue for issue in result.issues), result.issues)
 
     @pytest.mark.integration
     def test_session_fuse_treats_h2_heading_in_body_as_content_not_an_entry(self):
@@ -772,9 +802,8 @@ class SessionFuseAndMergeTests(unittest.TestCase):
 
     @pytest.mark.integration
     def test_session_fuse_blocks_when_diff_fails(self):
-        # Regression: a git diff failure (e.g. unrelated histories / no merge-base) must surface an
-        # issue, not collapse to an empty change set that silently filters out every branch entry
-        # and reports success importing nothing.
+        # Regression: unrelated histories with no merge base must surface an
+        # issue, not collapse to an empty change set and import nothing.
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
         self._init_git_project(cwd)
@@ -788,7 +817,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
 
         self.assertFalse(result.changed)
         self.assertTrue(result.issues)
-        self.assertIn("could not compute changed session files", result.issues[0])
+        self.assertIn("requires one unique merge base", result.issues[0])
 
     @pytest.mark.integration
     def test_session_fuse_blocks_branch_field_mismatch(self):
@@ -2353,6 +2382,61 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         message = self._git(cwd, "log", "-1", "--format=%B").stdout
         self.assertTrue(message.startswith("Merge branch 'main' into feature-pr"))
         self.assertIn("Memory-Entry: mse_cccccccccccccccc", message)
+
+    @pytest.mark.integration
+    def test_session_prepare_pr_branch_refuses_base_ref_movement_during_planning(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-pr")
+        self._commit_all(cwd, "feature session")
+        feature_head = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        original_plan = core_module._plan_session_fuse
+
+        def plan_then_advance_base(*args, **kwargs):
+            plan = original_plan(*args, **kwargs)
+            self._git(cwd, "update-ref", "refs/heads/main", feature_head)
+            return plan
+
+        with mock.patch.object(core_module, "_plan_session_fuse", side_effect=plan_then_advance_base):
+            result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertFalse(result.ready)
+        self.assertIn("integration refs changed during PR preparation planning", result.issues)
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), feature_head)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+
+    @pytest.mark.integration
+    def test_session_prepare_pr_branch_refuses_base_ref_movement_before_fuse(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-pr")
+        self._commit_all(cwd, "feature session")
+        feature_head = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "main")
+        (cwd / "main.txt").write_text("main\n", encoding="utf-8")
+        self._commit_all(cwd, "main change")
+        self._git(cwd, "switch", "feature-pr")
+        original_paths = core_module._git_ref_paths
+
+        def paths_then_advance_base(*args, **kwargs):
+            paths = original_paths(*args, **kwargs)
+            if (cwd / ".git" / "MERGE_HEAD").exists():
+                self._git(cwd, "update-ref", "refs/heads/main", feature_head)
+            return paths
+
+        with mock.patch.object(core_module, "_git_ref_paths", side_effect=paths_then_advance_base):
+            result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertFalse(result.ready)
+        self.assertIn("integration parents changed before PR preparation fuse", result.issues)
+        self.assertEqual(self._git(cwd, "rev-parse", "HEAD").stdout.strip(), feature_head)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
     @pytest.mark.integration
     def test_session_prepare_pr_branch_refuses_dirty_tree_naming_paths(self):

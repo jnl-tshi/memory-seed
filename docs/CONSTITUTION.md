@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 2.0 — **RATIFIED 2026-09-19** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.1 — **RATIFIED 2026-09-22** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -20,7 +20,8 @@ material source artifacts and retrieval lexical matching is capitalization-safe 
 so typed DRAFTS records distinguish decisions from documentation while sharing one searchable structure (§4);
 amended 2026-09-19 to establish separate single-authority editions: Markdown-authoritative OSS/local and
 SQL-authoritative hosted, with Markdown export rather than synchronization (Invariants #1 and #6, §3, §5 and
-§10). **Source:** distilled from demonstrated behaviour
+§10); amended 2026-09-22 to retire standing Reflection Board expiry and permit one conditional,
+identified historical-board cleanup (Invariant #2). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -106,22 +107,16 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    general rewrite facility nor a standing CLI/MCP command. On successful completion this exception is
    exhausted; all future ADR history is append-only under the invariant.
    <!-- constitution-ref: constitution:v1#temporary-reflection-expiry -->
-   **Narrow standing exception — temporary reflection-board expiry (1.12):** reflection blocks explicitly
-   created inside a declared plan-scoped reflection board are temporary coordination material, not durable
-   Memory Seed decisions or ordinary retrieval history. They may be removed only as complete reflection
-   chains through the governed reflection lifecycle. A chain cannot expire until its implementation has been
-   independently validated where validation is required, the orchestrator has synthesized the relevant
-   implementer, reviewer, and orchestrator reflections, and a successful chain-level close records the
-   disposition and complete receipt coverage. The project-configurable retention period defaults to seven days
-   and starts from that chain's `closed_at` time. When it elapses, the next sanctioned cleanup automatically
-   removes that chain; it never performs a general board wipe. Before any
-   removal, a compact receipt for every chain member must already exist in ordinary append-only session
-   memory: promoted chains embed their receipts with the decision or decisions that absorbed them, while
-   unpromoted chains receive an expiry disposition in the ESR closeout entry. Early removal of an unpromoted
-   chain requires the user's live approval and a durable approval/disposition record. An unresolved divergent
-   head prevents chain close and therefore prevents ordinary expiry until it is resolved or explicitly disposed.
-   The exception never permits rewriting or deleting ordinary sessions, decisions, ADRs, policies, or other
-   durable memory; Git may retain historical blobs, so active-tree expiry is not privacy-grade erasure.
+   **Retired exception and one-time historical cleanup (2.1):** the standing Reflection Board chain-expiry
+   permission introduced in 1.12 is withdrawn. Elapsed retention no longer authorizes automatic or repeatable
+   removal. The single tracked ledger at
+   `.memory-seed/reflections/active/rwl_0xf1x07gms0zk0q1fa31/ledger.md` and its separate public trust anchor
+   at `.memory-seed/reflections/trust/retention-approval.yaml` may be removed from the active tree once, only
+   after every ledger record has a durable ordinary-session receipt or explicit reconciliation, the related
+   session entries have validated append-only links, and exact pre-removal file identities are recorded.
+   This permission does not extend to another board or trust file, and it never permits rewriting or deleting
+   ordinary sessions, decisions, ADRs, policies, or other durable memory. Git may retain the historical
+   blobs; active-tree removal is not privacy-grade erasure. The 1.12 version-log row remains historical.
 <!-- constitution-ref: constitution:v1#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
@@ -377,6 +372,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.1 | 2026-09-22 | **Amendment: retire standing Reflection Board expiry; permit one conditional historical cleanup.** Withdraws the 1.12 standing chain-expiry mechanism. Allows removal of only the named ledger and public trust anchor after all seven records have durable session coverage, related session entries have validated append-only links, and exact file identities are preserved. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (explicit live ratification and conditional deletion authorization, 2026-09-22) |
 | 2.0 | 2026-09-19 | **Amendment: explicit local and hosted edition authority.** Changes Invariants #1 and #6 so the complete OSS/local edition remains Markdown-authoritative and network-independent while the separate hosted team edition is SQL-authoritative with complete Markdown export. Forbids hidden dual authority, repository settlement and bidirectional synchronization; shared semantics do not imply shared persistence. Updates the Vision, open-core principle, implementation map and collaboration resolution. | JNL (explicit live authorization, 2026-09-19) |
 | 1.14 | 2026-09-16 | **Evolution: typed DRAFTS decisions and documentation.** Expands `D` to mean Decision or Documentation record under one `### Records` structure. Every new record carries Scope; decisions additionally require Disposition and their own Reason. Documentation records make small work and evidence searchable without granting lifecycle or ADR authority. Historical untyped/singular records remain decisions and are not rewritten. | JNL (approved the design-discovery plan and directed implementation live, 2026-09-16) |
 | 1.13 | 2026-09-14 | **DRAFTS source attribution and capitalization-safe lexical retrieval.** Renames the current decision-record mnemonic from DRAFT to DRAFTS; adds `S:` for a materially informing repository artifact, with mechanical validation whenever supplied while preserving historical DRAFT records unchanged; and requires Unicode NFKC plus case-fold normalization across lexical query/index text. Optional preferred keywords are a bounded positive ranking aid, never a filter. | JNL (approved the implementation plan and directed implementation live, 2026-09-14) |
