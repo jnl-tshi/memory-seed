@@ -90,6 +90,13 @@ The initial SQL model must cover only the required entities:
 Large-object storage is not an MVP assumption. First measure real text, tool-result and model-input sizes. Add a
 separate object store only if measured payloads or retention behavior justify it.
 
+### SQL development tooling
+
+Use DBeaver Community as the local querying and schema-inspection tool for both PostgreSQL and SQL Server during
+hosted substrate design and validation. Its free ER diagrams support inspection; keep schema changes in versioned
+migrations rather than relying on diagram editing. This tooling choice does not select the hosted database engine,
+hosting provider or tenant-isolation model.
+
 ## Branch and applicability contract
 
 A normalized branch registry separates identity, existence and outcome:
