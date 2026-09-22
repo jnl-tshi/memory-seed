@@ -643,7 +643,9 @@ topics:
         empty = Path(tempfile.mkdtemp(prefix="mseed-no-runtime-"))
         self.addCleanup(lambda: shutil.rmtree(empty, ignore_errors=True))
 
-        result = self._append(cwd=str(empty))
+        runtime = core.Runtime(workspace_root=empty, memory_dir=empty / MEMORY_DIR_NAME)
+        with patch.object(mcp_server, "resolve_runtime", return_value=runtime):
+            result = self._append(cwd=str(empty))
 
         self.assertFalse(result["ok"])
         self.assertFalse(result["written"])
