@@ -105,7 +105,6 @@ _EXECUTION_KEYS = frozenset(
         "expected_absent",
         "acceptance_observables",
         "implements",
-        "reflection",
     }
 )
 _RETRIEVAL_KEYS = frozenset({"profile", "profile_version", "overrides"})
@@ -354,22 +353,6 @@ def canonical_json(payload: Mapping[str, Any] | Sequence[Any]) -> str:
     )
 
 
-def _reflection_capability(execution: Mapping[str, Any], *, root: Path | None = None,
-                           binding: Mapping[str, Any] | None = None, recheck: bool = False) -> dict[str, Any] | None:
-    from .reflection_ledger import ReflectionValidationError, measure_reflection_capability, validate_reflection_capability
-    try:
-        capability = validate_reflection_capability(execution)
-        if root is None or binding is None:
-            return capability
-        if capability is not None and recheck and not isinstance(binding.get("reflection"), Mapping):
-            _fail("runtime_binding.reflection", "requires the compiler-measured ledger binding", code="reflection-binding-stale")
-        return measure_reflection_capability(root, execution, working_branch=binding["working_branch"],
-                                             expected=binding.get("reflection") if recheck else None)
-    except ReflectionValidationError as exc:
-        diagnostic = exc.diagnostic
-        _fail(diagnostic.path, diagnostic.message, code=diagnostic.code, stage="reflection_admission", details=diagnostic.details)
-
-
 def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     dispatch = _mapping(dispatch, "$")
     _exact_keys(
@@ -547,12 +530,6 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "acceptance_observables": observables,
         "implements": implements,
     }
-    if "reflection" in execution_in:
-        execution["reflection"] = execution_in["reflection"]
-    capability = _reflection_capability(execution)
-    if capability is not None:
-        execution["reflection"] = capability
-
     retrieval_in = _mapping(dispatch["retrieval"], "retrieval")
     _exact_keys(
         retrieval_in,
@@ -1988,7 +1965,7 @@ def _activation_binding(packet_binding: Mapping[str, Any], cwd: str | Path) -> d
     valid packet binding.
     """
     binding = _mapping(packet_binding, "packet.runtime_binding")
-    _exact_keys(binding, "packet.runtime_binding", _BINDING_KEYS | {"reflection"}, required=_BINDING_KEYS)
+    _exact_keys(binding, "packet.runtime_binding", _BINDING_KEYS, required=_BINDING_KEYS)
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root.resolve()
     measured_root = Path(_git_required(root, ("rev-parse", "--show-toplevel"), label="activation worktree")).resolve()
@@ -2037,8 +2014,6 @@ def _activation_binding(packet_binding: Mapping[str, Any], cwd: str | Path) -> d
         "expected_directory": str(expected),
         "integration_artifact": integration_artifact,
     }
-    if "reflection" in binding:
-        result["reflection"] = dict(_mapping(binding["reflection"], "runtime_binding.reflection"))
     return result
 
 
@@ -2202,7 +2177,6 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
     binding = _activation_binding(_mapping(packet.get("runtime_binding"), "packet.runtime_binding"), cwd)
     if binding != packet["runtime_binding"]:
         _fail("packet.runtime_binding", "is not the strict normalized activation binding", code="binding_mismatch", stage="activation")
-    _reflection_capability(dispatch["execution"], root=Path(binding["worktree"]), binding=binding, recheck=True)
     _validate_compiled_packet_evidence(packet)
     _validate_planning_evidence(dispatch, packet["evidence_pack"]["evidence"], cwd)
     _validate_worker_baseline(packet)
@@ -2262,7 +2236,6 @@ def activate_task_packet(
             "allowed_files": dispatch["execution"]["allowed_files"],
             "forbidden_files": dispatch["execution"]["forbidden_files"],
             "expected_absent": dispatch["execution"]["expected_absent"],
-            "reflection": dispatch["execution"].get("reflection"),
         }
     )
     binding_identity = canonical_json(
@@ -2271,7 +2244,6 @@ def activate_task_packet(
             "base_sha": binding["base_sha"],
             "working_branch": branch,
             "worktree": binding["worktree"],
-            "reflection": binding.get("reflection"),
         }
     )
     reason = (binding_update_reason or "").strip()
@@ -2294,11 +2266,10 @@ def activate_task_packet(
         "allowed_files": previous_dispatch["execution"]["allowed_files"],
         "forbidden_files": previous_dispatch["execution"]["forbidden_files"],
         "expected_absent": previous_dispatch["execution"]["expected_absent"],
-        "reflection": previous_dispatch["execution"].get("reflection"),
     }) if previous_dispatch is not None else None
     previous_binding = canonical_json({
         key: previous_packet["runtime_binding"].get(key)
-        for key in ("base_branch", "base_sha", "working_branch", "worktree", "reflection")
+        for key in ("base_branch", "base_sha", "working_branch", "worktree")
     }) if isinstance(previous_packet, Mapping) else None
     implements = list(dispatch["execution"]["implements"])
     previous_implements = list(previous_dispatch["execution"]["implements"]) if previous_dispatch is not None else None
@@ -2378,10 +2349,6 @@ def compile_task_packet(
     normalized_environment = normalize_environment(environment)
 
     root = Path(normalized_binding["worktree"])
-    if normalized_dispatch["execution"]["write_intent"] == "writing":
-        reflection_binding = _reflection_capability(normalized_dispatch["execution"], root=root, binding=normalized_binding)
-        if reflection_binding is not None:
-            normalized_binding["reflection"] = reflection_binding
     existing_expected_absent = [
         path
         for path in normalized_dispatch["execution"]["expected_absent"]

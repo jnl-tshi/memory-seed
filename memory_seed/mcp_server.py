@@ -66,12 +66,6 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_adr_reviewed",
         "memory_link_retract",
         "memory_decision_provenance_bind",
-        "memory_reflection_ledger_init",
-        "memory_reflection_ledger_append",
-        "memory_reflection_ledger_close",
-        "memory_reflection_ledger_rebind",
-        "memory_reflection_ledger_finalize",
-        "memory_reflection_ledger_expire",
     }
 )
 
@@ -815,76 +809,7 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["branch"],
         },
     },
-    {
-        "name": "memory_reflection_board_view",
-        "description": "Read every active Reflection Board v1 candidate from the current branch's trusted Git history. Read-only; malformed and unsupported reserved candidates remain visible.",
-        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
-    },
-    {
-        "name": "memory_reflection_ledger_view",
-        "description": "Read one committed, history-classified Reflection Board v1 ledger. Read-only; this never reads an uncommitted ledger suffix.",
-        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id"], "additionalProperties": False},
-    },
-    {
-        "name": "memory_reflection_ledger_init",
-        "description": "Preview or apply initialization of the current branch's only Reflection Board v1 ledger through the kernel-owned transaction writer. The server never accepts a caller-supplied ID, ledger bytes, Git commit, or ref.",
-        "inputSchema": {"type": "object", "properties": {"retention_days": {"type": "integer", "enum": [7, 14, 30], "default": 7}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
-    },
-    {
-        "name": "memory_reflection_ledger_append",
-        "description": "Preview or apply one Reflection Board v1 record through the same kernel-owned transaction writer as the CLI. It never accepts raw ledger bytes, Git identities, receipts, or a history override.",
-        "inputSchema": {"type": "object", "properties": {"workstream_id": {"type": "string"}, "role": {"type": "string", "enum": ["planner", "implementer", "reviewer", "orchestrator"]}, "chain_id": {"type": "string"}, "relationship": {"type": "string", "default": "refines"}, "parents": {"type": "array", "items": {"type": "string"}, "default": []}, "no_related_thread": {"type": "boolean", "default": False}, "conclusion": {"type": "string"}, "reasoning": {"type": "string"}, "source": {"type": "string"}, "confidence": {"type": "string", "default": "high"}, "to_phase": {"type": "string"}, "apply": {"type": "boolean", "default": False}, "cwd": {"type": "string", "default": "."}}, "required": ["workstream_id", "role", "conclusion", "reasoning", "source"], "additionalProperties": False},
-    },
 ]
-
-
-TOOLS.extend([
-    {
-        "name": "memory_reflection_ledger_expire",
-        "description": "Preview or apply normal elapsed-retention expiry of one closed, durably receipted chain. The host owns time and signing. Cleanup and its compaction receipt are published by one ref CAS. Working-tree disappearance is not cryptographic erasure; unreachable Git objects may remain until Git garbage collection. Early expiry is unavailable.",
-        "inputSchema": {"type": "object", "properties": {
-            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
-            "chain_id": {"type": "string"}, "apply": {"type": "boolean", "default": False}},
-            "required": ["workstream_id", "chain_id"], "additionalProperties": False},
-    },
-    {
-        "name": "memory_reflection_ledger_check",
-        "description": "Check one committed Reflection Board v1 ledger and report pending close receipts.",
-        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."},
-            "workstream_id": {"type": "string"}}, "required": ["workstream_id"], "additionalProperties": False},
-    },
-    {
-        "name": "memory_reflection_ledger_close",
-        "description": "Preview exact ordinary session receipt mappings or close a resolved, integrated chain. Apply revalidates Git history and receipt coverage through the guarded kernel transaction. A successful close remains closed_receipts_pending until its new member and outcome receipts are committed by the ordinary session writer.",
-        "inputSchema": {"type": "object", "properties": {
-            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
-            "chain_id": {"type": "string"}, "apply": {"type": "boolean", "default": False},
-            "receipts": {"type": "array", "default": [], "items": {"type": "object", "properties": {
-                "session_path": {"type": "string"}, "entry_id": {"type": "string"},
-                "decision_id": {"type": "string"}, "disposition": {"type": "string"},
-                "record_id": {"type": "string"}}, "required": ["session_path", "entry_id", "decision_id", "disposition"],
-                "additionalProperties": False}},
-        }, "required": ["workstream_id", "chain_id"], "additionalProperties": False},
-    },
-])
-for _rebind_operation in ("rebind", "finalize"):
-    TOOLS.append({
-        "name": "memory_reflection_ledger_" + _rebind_operation,
-        "description": "Preview or apply an exact local integration rebind." if _rebind_operation == "rebind" else
-            "Preview or finalize an exact same-repository PR merge using the single-use handoff created by CLI prepare.",
-        "inputSchema": {"type": "object", "properties": {
-            "cwd": {"type": "string", "default": "."}, "workstream_id": {"type": "string"},
-            "source": {"type": "string"}, "reason": {"type": "string"},
-            "apply": {"type": "boolean", "default": False}},
-            "required": ["workstream_id", "source", "reason"], "additionalProperties": False},
-    })
-for _reflection_tool in TOOLS:
-    if _reflection_tool["name"] in {"memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close"}:
-        _reflection_tool["inputSchema"]["properties"]["expected_head"] = {
-            "type": "string", "description": "Refuse a changed branch head after a reviewed preview."}
-        if _reflection_tool["name"] != "memory_reflection_ledger_init":
-            _reflection_tool["inputSchema"]["properties"]["expected_ledger_digest"] = {
-                "type": "string", "description": "Refuse changed ledger bytes after a reviewed preview."}
 
 
 def call_tool(
@@ -996,12 +921,6 @@ def call_tool(
             return {"ok": False, "error": exc.to_dict()}
         except RetrievalProfileValidationError as exc:
             return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
-
-    if name in {"memory_reflection_board_view", "memory_reflection_ledger_view", "memory_reflection_ledger_check",
-                "memory_reflection_ledger_init", "memory_reflection_ledger_append", "memory_reflection_ledger_close",
-                "memory_reflection_ledger_rebind", "memory_reflection_ledger_finalize", "memory_reflection_ledger_expire"}:
-        from .reflection_operations import run_reflection_operation
-        return run_reflection_operation(name.removeprefix("memory_reflection_"), arguments)
 
     if name == "memory_search":
         query = _required_str(args, "query")

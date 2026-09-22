@@ -20,8 +20,7 @@ Git invokes this script through the
 `.git/hooks/prepare-commit-msg` shim that `memory-seed init` (or
 `memory-seed hooks install`) writes. Operational errors fail open, but an
 ordinary commit with more than ten newly authored entries is refused unless the
-message records a durable, live-approved `Memory-Bulk-Reason:` trailer. Reserved
-reflection admission uses the installed shared facade and fails closed.
+message records a durable, live-approved `Memory-Bulk-Reason:` trailer.
 """
 
 import hashlib
@@ -378,29 +377,9 @@ def active_packet_implements() -> list[str]:
     return _valid_activated_packet(payload, Path(root.stdout.strip()), branch.stdout.strip())
 
 
-def reflection_admitted() -> bool:
-    try:
-        # A source checkout uses its own facade; seeded projects use the
-        # installed package selected by the hook's Python interpreter.
-        source_root = Path(__file__).resolve().parents[2]
-        if (source_root / "memory_seed" / "reflection_operations.py").is_file():
-            sys.path.insert(0, str(source_root))
-        from memory_seed.reflection_operations import run_reflection_operation
-        result = run_reflection_operation("commit_admission", {"cwd": str(Path.cwd())})
-        if result.get("ok") is True:
-            return True
-        detail = result.get("error", {}).get("message", "shared admission refused the commit")
-    except Exception as exc:
-        detail = f"shared reflection admission is unavailable: {exc}"
-    print(f"Refusing commit: {detail}", file=sys.stderr)
-    return False
-
-
 def main() -> int:
     if len(sys.argv) < 2:
         return 0
-    if not reflection_admitted():
-        return 1
     msg_path = sys.argv[1]
     records = staged_entry_records()
     ids = list(dict.fromkeys(records))
