@@ -51,6 +51,7 @@ Current Memory Trace provenance:
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
+| [merged-local-branch-tips-2026-09-22.md](merged-local-branch-tips-2026-09-22.md) | — | — | reference |
 | [model-tier-task-packet-budget-assessment.md](model-tier-task-packet-budget-assessment.md) | — | — | reference |
 | [next-steps-history-2026-09-09.md](next-steps-history-2026-09-09.md) | — | — | reference |
 | [openssf-external-settings-checklist.md](openssf-external-settings-checklist.md) | — | — | — |
