@@ -2258,6 +2258,8 @@ class SessionFuseAndMergeTests(unittest.TestCase):
     def test_topic_sidecar_without_parent_entry_is_refused(self):
         cwd = self.make_project()
         (cwd / "README.md").write_text("base\n", encoding="utf-8")
+        (cwd / MEMORY_DIR_NAME).mkdir()
+        (cwd / MEMORY_DIR_NAME / "project.yaml").write_text("schema_version: 1\n", encoding="utf-8")
         self._init_git_project(cwd)
         self._commit_all(cwd, "base")
         self._git(cwd, "switch", "-c", "feature-merge")

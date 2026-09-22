@@ -1365,21 +1365,19 @@ class LinksCheckTests(unittest.TestCase):
         import subprocess
 
         cwd = self.make_project()
-        self._git_repo_with_commit(cwd)
-        # A shallow clone (what CI checkouts default to) genuinely lacks
-        # historical commits: "no such commit" is indistinguishable from
-        # "outside the fetched window", so unknown-commit must not fire.
-        shallow = Path(tempfile.mkdtemp(prefix="mseed-shallow-"))
-        self.addCleanup(lambda: shutil.rmtree(shallow, ignore_errors=True))
-        subprocess.run(
-            ["git", "clone", "--quiet", "--depth", "1",
-             cwd.as_uri().replace("file:///", "file:///"), str(shallow / "clone")],
-            check=True, capture_output=True, timeout=60,
+        head = self._git_repo_with_commit(cwd)
+        # Mark HEAD as the shallow boundary. Git now reports this repository
+        # as shallow without a clone subprocess, which Windows sandboxes may
+        # refuse to start. Missing commits remain outside the fetched window.
+        (cwd / ".git" / "shallow").write_text(f"{head}\n", encoding="ascii")
+        shallow_state = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "--is-shallow-repository"],
+            check=True, capture_output=True, text=True,
         )
-        clone = shallow / "clone"
-        self._flat_session_with_commits(clone, "f" * 40)
+        self.assertEqual(shallow_state.stdout.strip(), "true")
+        self._flat_session_with_commits(cwd, "f" * 40)
 
-        result = check_session_links(cwd=clone)
+        result = check_session_links(cwd=cwd)
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 

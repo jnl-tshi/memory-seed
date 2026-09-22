@@ -15,9 +15,11 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    Runtime,
     apply_link_retract,
     check_session_links,
 )
@@ -448,10 +450,14 @@ class LinkRetractMcpTests(_Fixture, unittest.TestCase):
         empty = Path(tempfile.mkdtemp(prefix="mseed-no-runtime-"))
         self.addCleanup(lambda: shutil.rmtree(empty, ignore_errors=True))
 
-        result = call_tool(
-            "memory_link_retract",
-            {"cwd": str(empty), "from_entry": NEW, "kind": "evolves", "ref": OLD},
-        )
+        # Keep this guard test independent of legacy runtimes in a developer's
+        # home directory (which can be an ancestor of the system temp dir).
+        runtime = Runtime(workspace_root=empty, memory_dir=empty / MEMORY_DIR_NAME)
+        with patch("memory_seed.mcp_server.resolve_runtime", return_value=runtime):
+            result = call_tool(
+                "memory_link_retract",
+                {"cwd": str(empty), "from_entry": NEW, "kind": "evolves", "ref": OLD},
+            )
 
         self.assertFalse(result["ok"])
         self.assertIn("no Memory Seed runtime", result["issues"][0])

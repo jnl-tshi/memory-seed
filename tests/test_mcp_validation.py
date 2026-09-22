@@ -43,6 +43,7 @@ class McpValidationTests(unittest.TestCase):
 
     def test_validation_report_handles_no_results(self):
         cwd = self.make_project()
+        (cwd / ".AGENTS" / "sessions").mkdir(parents=True)
 
         report = build_validation_report("anything", cwd=cwd)
 
