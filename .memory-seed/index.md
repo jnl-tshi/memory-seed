@@ -192,7 +192,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
 - Control-plane version: `2.22`.
-- Package version: `2.22.0` (release preparation; latest published version is `2.21.0`).
+- Package version: `2.22.0` (published on GitHub and PyPI on 2026-09-23).
 
 ## Topology Notes
 
