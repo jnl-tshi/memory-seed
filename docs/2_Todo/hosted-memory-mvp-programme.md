@@ -34,7 +34,9 @@ the working agent the right memory and approval requests without requiring a new
   curated sharing.
 - **No MVP synchronization:** no repository settlement, dual authority, federation, CRDT, custom graph database
   or bidirectional local/hosted sync.
-- **No launch UI dependency:** no hosted chatbot, dashboard or Memory Trace approval surface is required.
+- **No launch UI dependency:** no hosted chatbot, dashboard or Memory Trace approval surface is required. The one
+  permitted exception is a minimal, single-mutation approval page used only as the fallback when the client
+  cannot present a human-confirmed prompt (see [Approval delivery](#approval-delivery)).
 - **Future Trace:** a focused project-intelligence experience may later show decisions, topics, links, branch
   status, conflicts, evidence-linked Q&A and approvals. It consumes the same governed domain and retrieval tools
   but receives no background curator write privilege.
@@ -66,6 +68,7 @@ Every accepted event needs:
 - repository identity plus source branch and commit when available;
 - capture time, service receipt time, monotonic sequence and idempotency key;
 - event kind and content digest;
+- message authorship (user input, agent output, tool result or other) and the client signal that establishes it;
 - explicit unavailable fields rather than inferred identity or hidden reasoning.
 
 The adapter refreshes repository, branch, commit and client context when they change. A transcript saying “the
@@ -73,6 +76,15 @@ user approved” cannot substitute for authenticated identity.
 
 Pause stops new capture and upload. Events already accepted by the service may drain through the queue, after
 which the curator idles. Resuming does not backfill the paused interval without explicit permission.
+
+## Approval delivery
+
+Decided in the 2026-09-23 tranche design discovery. The working agent holds the member's credential, so an
+authenticated service identity alone does not prove that a human approved a mutation. Approval therefore uses a
+human-confirmed interaction that the agent cannot answer: first the client's own confirmation surface (MCP
+elicitation or a Codex App Server approval event). Only when the client lacks one does it fall back to a minimal
+signed page for one mutation, which needs a fresh GitHub sign-in. P0.2 must prove which path Codex supports. An
+approval that the agent could have answered on the member's behalf is never valid.
 
 ## Authoritative hosted entities
 
@@ -91,12 +103,27 @@ The initial SQL model must cover only the required entities:
 Large-object storage is not an MVP assumption. First measure real text, tool-result and model-input sizes. Add a
 separate object store only if measured payloads or retention behavior justify it.
 
+### Engine, tenancy, hosting and identity
+
+Decided in the 2026-09-23 tranche design discovery:
+
+- **Engine:** PostgreSQL is the MVP default. Postgres features such as JSONB, pgvector and RLS policies may be
+  used freely. A SQL Server edition is a later port, not an MVP requirement.
+- **Tenancy:** one shared schema with `tenant_id` on every tenant-owned row, enforced by Postgres row-level
+  security in addition to application-layer filters. Moving a tenant to a dedicated database is a later option,
+  not an MVP feature.
+- **Hosting:** P0.2 through P0.4 run against a local PostgreSQL server, simulating team members with several
+  GitHub identities on one machine. The P1.8 team pilot moves to managed PostgreSQL, the named fallback, when
+  real teammates join.
+- **Identity:** members authenticate with GitHub OAuth. The local capture adapter binds a session to a member
+  through the OAuth device-code flow. Enterprise SSO waits until after the MVP.
+
 ### SQL development tooling
 
 Use DBeaver Community as the local querying and schema-inspection tool for both PostgreSQL and SQL Server during
 hosted substrate design and validation. Its free ER diagrams support inspection; keep schema changes in versioned
-migrations rather than relying on diagram editing. This tooling choice does not select the hosted database engine,
-hosting provider or tenant-isolation model.
+migrations rather than relying on diagram editing. The engine, tenancy and hosting choices are recorded above,
+not implied by this tool.
 
 ## Branch and applicability contract
 
@@ -140,7 +167,9 @@ authority. Fakes and deterministic baselines must exercise the complete pipeline
 - New ordinary records may be autonomous when their evidence, scope, identity and authority pass validation.
 - Ordinary replacement may be autonomous only from clear actual user direction, captured evidence and sufficient
   authority. Ritual approval wording is unnecessary, but an inferred broader goal or an agent claiming user
-  intent is insufficient.
+  intent is insufficient. "User direction" means only events the client emits as user input, with authorship
+  attested by the adapter. Agent text, tool results and content quoted inside them never count as the user. If
+  P0.2 shows that Codex cannot make this distinction, every replacement stays pending until it can.
 - An agent-originated reversal without user evidence stays pending and leaves the existing decision authoritative.
 - Approval binds one exact mutation to one authenticated, authorized identity.
 - The Constitution is project-wide and amendable only by the project lead.
@@ -149,19 +178,31 @@ authority. Fakes and deterministic baselines must exercise the complete pipeline
   Constitution authority.
 - Topic inference and work assignment confer no governance rights.
 
-The supported authored lifecycle vocabulary is `related`, `evolves` and `replaces`. Existing projections may
+The supported authored lifecycle vocabulary is `related`, `evolves` and `replaces`. A reversal or withdrawn
+decision is recorded as `replaces` by a decision that states the reversal; there is no separate kill or
+removal relationship. Existing projections may
 render the historical term `supersedes`; the hosted contract does not invent new relationship kinds.
 
 ## Privacy, retention and sharing
 
-- Raw conversations and tool evidence are private by default. A project lead does not automatically receive
-  access to every member's raw chats.
-- The team-shared default is curated records plus selected evidence excerpts, permission-checked at retrieval and
-  source-link time.
+- A member's raw conversations and tool evidence are visible only to that member, without exception. No project
+  lead, delegate, other member or product-level operator role can read them. The curator processes raw evidence
+  as a machine within its bounded evidence window; that is the only other reader.
+- Curated records are shared with the project by default, with selected evidence excerpts permission-checked at
+  retrieval and source-link time. The member whose evidence produced a record is notified when it is shared.
+- A curated decision is corrected through the lifecycle: `evolves` to refine it, and `replaces` to replace or
+  reverse it, so append-only history is preserved. Removing a curated record is a last resort. It is allowed
+  only for a leaked secret or personal data, misattribution, or a curator fabrication; history cannot fix
+  these because the content would stay visible. An author may remove their own curated record by giving one of
+  those reasons. Removing another member's record needs a lead-granted permission. Every removal leaves a
+  tombstone recording the record id, who removed it, when, the reason category and the affected dependents,
+  but not its title or content. ADRs and approved replacements that relied on it remain, and their evidence
+  is marked as source withdrawn. Purging content from backups is part of the P1.7 retention decisions.
 - Full raw evidence has a 30-day rolling retention window. Curated memory and its permitted evidence persist
   until deliberate deletion.
 - Retrieval is curated-first. Raw fallback is allowed only when curated context is insufficient, the evidence is
-  inside its retention window and the caller has access. It is labelled source evidence, never an approved decision.
+  inside its retention window and the caller is the member who owns that raw evidence. Team retrieval never
+  falls back to another member's raw evidence. It is labelled source evidence, never an approved decision.
 - When original context expires, the curated record states that the source is no longer available.
 
 Backup expiry, secret handling, oversize tool-result rules and cross-user excerpt-sharing defaults are release
@@ -248,25 +289,27 @@ Each decision names the earliest tranche it blocks. Resolve it in that tranche's
 4. **P1.7:** Backup expiry after active raw deletion.
 5. **P1.7:** Secret detection, redaction and oversize payload handling.
 6. **P1.7:** Default policy for sharing selected excerpts across team members.
-7. **P0.2:** Exact delivery contract for pending approvals. If the working agent holds the member's
-   credential, it can call an approval tool itself, so an authenticated service identity alone does not prove
-   a human approved. P0.2 must establish whether a human-confirmed interaction is available inside the working
-   agent. If it is not, an out-of-band approval surface is required and the "no launch UI dependency" boundary
-   must be revised.
-8. **P0.3:** Hosted database engine, tenant-isolation model and hosting provider. The DBeaver tooling choice
-   does not select them.
-9. **P0.3:** Identity provider and how a local capture session binds to an authenticated hosted member.
-10. **P0.4:** Visibility of curated record prose across members. The thin slice returns one member's captured
-    decision to another member, and curated prose is derived from private raw evidence. Decision 6 covers only
-    selected excerpts, so this rule is needed before P0.4, not at P1.7.
-11. **P0.2 (field) / P1.6 (policy):** Message authorship and its trust source. Governance allows ordinary
-    replacement from clear actual user direction, while the
-    [edition contract](../3_Spec/edition-authority-contract.md) says transcript role labels confer no
-    authority. The capture contract must record who authored each message and how that authorship is
-    established, and P1.6 must define which authorship evidence can support autonomous replacement.
-12. **P1.5:** Where the prose writer is evaluated. The Decision/Documentation prose candidate (initially
-    Cerebras Qwen3.8 27B) has no evaluation in the
-    [tournament plan](decision-layer-model-tournament-plan.md), which covers typed judgments only.
+
+### Resolved in the 2026-09-23 design discovery
+
+These were open decisions 7-12. JNL settled them in a design discovery for the review gaps. The linked
+sections hold the binding text.
+
+- **Approval delivery (P0.2):** use the client's human-confirmed prompt first, with a minimal signed page for one
+  mutation as the fallback. See [Approval delivery](#approval-delivery). Still to verify in P0.2: which path
+  Codex supports.
+- **Engine, tenancy and hosting (P0.3):** PostgreSQL, one shared schema with row-level security, a local server
+  through P0.4 and managed PostgreSQL for the pilot. A SQL Server port comes later.
+- **Identity (P0.3):** GitHub OAuth, with the device-code flow binding the local adapter.
+- **Curated prose visibility (P0.4):** shared with the project by default. The member whose evidence produced a
+  record is notified. Decisions change through `evolves` and `replaces`, and removal is a last resort that
+  leaves a tombstone. Raw evidence is visible only to its owner. See
+  [Privacy, retention and sharing](#privacy-retention-and-sharing).
+- **Message authorship (P0.2 field / P1.6 policy):** only user input that the adapter attests counts as the
+  user. Otherwise every replacement stays pending. Still to verify in P0.2: whether Codex separates user
+  input from agent and tool items.
+- **Prose writer evaluation (P1.5):** add a writer track to the
+  [tournament plan](decision-layer-model-tournament-plan.md#prose-writer-track).
 
 ## Consolidated source ownership
 

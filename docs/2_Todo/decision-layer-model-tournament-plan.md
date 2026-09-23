@@ -481,6 +481,24 @@ storyline relevance         → fine-tuned Laya
 governance ambiguity        → LLM escalation
 ```
 
+## Prose Writer Track
+
+Added by the 2026-09-23 hosted design discovery. The typed-judgment tasks above do not cover the separate writer
+that turns grounded evidence into Decision/Documentation prose (initially Cerebras Qwen3.8 27B, per the
+[hosted programme](hosted-memory-mvp-programme.md#curator-pipeline)). It is evaluated as its own track on the
+same sealed, provenance-checked sets and temporal splits:
+
+- **Faithfulness:** every claim is supported by the supplied evidence window. No fabricated rationale, and no
+  attribution of words to the wrong member.
+- **Citation accuracy:** quoted evidence spans exist verbatim and support the sentence they are attached to.
+- **Abstention:** the writer declines when the evidence cannot support a record, instead of padding.
+- **Privacy:** output quotes no raw content beyond the selected-excerpt policy.
+- **Cost and latency:** per record, measured over the full pipeline.
+
+A deterministic template writer is the baseline, and any model writer must beat it on faithfulness and
+citation accuracy before it is used. Writer results are reported separately from classifier results and never
+decide the typed-judgment candidate.
+
 ## Architectural Requirement
 
 The decision engine must remain pluggable.
