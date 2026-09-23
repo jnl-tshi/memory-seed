@@ -116,7 +116,6 @@ were themselves reference material, not undecided captures — moved the same da
 | [agent-interaction-storylines-review.md](agent-interaction-storylines-review.md) | — | — | — |
 | [context-worktree-recovered-document-fragments.md](context-worktree-recovered-document-fragments.md) | P1 | — | assess each fragment with its supporting code before incorporating it into a live skill or spec… |
 | [decision-curator-orchestration-proposal.md](decision-curator-orchestration-proposal.md) | P1 | — | inbox |
-| [hosted-raw-privacy-and-curated-removal-amendment.md](hosted-raw-privacy-and-curated-removal-amendment.md) | P0 | — | Open points resolved 2026-09-23; JNL ratifies Constitution v2.2 as drafted, adjusts it, or reje… |
 | [memory-search-parameter-tuning-and-consistency-plan.md](memory-search-parameter-tuning-and-consistency-plan.md) | proposed | — | Review the experiment scope and adoption gates before promoting to Todo. |
 | [memory-seed-evidence-first-governed-retrieval-plan.md](memory-seed-evidence-first-governed-retrieval-plan.md) | P1 | [] | JNL reviews this evidence-reconciled synthesis and decides whether to promote it to docs/2_Todo. |
 | [memory-seed-first-principles-proposal.md](memory-seed-first-principles-proposal.md) | — | — | — |

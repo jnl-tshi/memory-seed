@@ -10,7 +10,7 @@ tags:
 
 # Edition Authority Contract
 
-Status: **LIVE** under Constitution v2.0.
+Status: **LIVE** under Constitution v2.2.
 
 ## Purpose
 
@@ -63,6 +63,10 @@ one-way migration must be explicitly specified and must transfer authority rathe
 
 Hosted authorization comes from authenticated service identity, project membership and explicit delegation.
 Transcript role labels, agent assertions, topic inference and work assignment do not confer authority.
+A member's raw captured evidence is readable only by that member. No membership, role or delegation, including
+the project lead's, can grant access to it, and team retrieval never falls back to another member's raw
+evidence (Constitution Invariant #1). Curated records are corrected through `evolves` and `replaces`. They are
+removed only under the tombstoned last-resort exception in Constitution Invariant #2.
 Constitution authority remains with the project lead. ADR authority may be delegated only for named decisions
 or defined areas; it does not imply Constitution authority.
 
@@ -85,3 +89,10 @@ or defined areas; it does not imply Constitution authority.
 5. Connecting a local client never changes the authority of existing local files.
 6. Tenant and project identifiers cannot be altered to access another project's records.
 7. Deletion, retention and evidence-expiry states remain explicit in exports and retrieval.
+8. A lead, delegate and other member are each denied another member's raw evidence, including through raw
+   fallback in retrieval.
+9. A curated-record removal leaves a content-free tombstone, notifies the lead when the author removes it,
+   and marks dependents as source withdrawn. A wrong-but-honest record cannot be removed and must be
+   replaced.
+10. A misattributed member can mark a record disputed, which notifies its author and the lead without
+    removing it.

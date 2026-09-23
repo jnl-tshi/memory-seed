@@ -1,13 +1,17 @@
 ---
-priority: P0
-next_action: "Open points resolved 2026-09-23; JNL ratifies Constitution v2.2 as drafted, adjusts it, or rejects it. Nothing is applied until ratification."
+title: "Hosted raw privacy and curated-record removal amendment"
+completed_on: "2026-09-23"
+source: "Maintainer-ratified hosted design discovery (session entries mse_ad2jp0msr78je6zw, mse_9va37shda6vcq85t, mse_bhg24h2901ehjajt)"
+implemented_in:
+  - "docs/CONSTITUTION.md"
+  - "docs/3_Spec/edition-authority-contract.md"
+  - "docs/2_Todo/hosted-memory-mvp-programme.md"
 ---
 
 # Hosted raw privacy and curated-record removal amendment
 
-Status: **DRAFT PROPOSAL — awaiting JNL ratification.** Drafted 2026-09-23 from the hosted design discovery
-recorded in session entry `mse_ad2jp0msr78je6zw` (D4). No Constitution, contract or programme text changes
-until JNL ratifies it.
+Status: **RATIFIED AND APPLIED 2026-09-23 by JNL** as Constitution v2.2. Drafted from the hosted design
+discovery recorded in session entry `mse_ad2jp0msr78je6zw` (D4).
 
 ## Why an amendment is needed
 
@@ -105,4 +109,4 @@ The header's **Version** line and "amended" list gain the matching 2.2 entry.
 
 ## Non-authorizations
 
-This draft changes no ratified text and authorizes no implementation, data collection or hosted deployment.
+This amendment authorizes no implementation, data collection or hosted deployment.

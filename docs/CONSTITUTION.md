@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 2.1 — **RATIFIED 2026-09-22** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.2 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -21,7 +21,9 @@ so typed DRAFTS records distinguish decisions from documentation while sharing o
 amended 2026-09-19 to establish separate single-authority editions: Markdown-authoritative OSS/local and
 SQL-authoritative hosted, with Markdown export rather than synchronization (Invariants #1 and #6, §3, §5 and
 §10); amended 2026-09-22 to retire standing Reflection Board expiry and permit one conditional,
-identified historical-board cleanup (Invariant #2). **Source:** distilled from demonstrated behaviour
+identified historical-board cleanup (Invariant #2); amended 2026-09-23 so hosted raw evidence is readable
+only by its owner and a curated record may be removed only as a tombstoned last resort (Invariants #1 and
+#2). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -55,7 +57,11 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
 1. **Users own and control their memory through an explicit edition boundary.** In the OSS/local edition,
    memory lives as plain files in the user's repository and the core runs with no server, database, account or
    network. In the hosted edition, the service's SQL store is authoritative, while users retain governed access,
-   deliberate deletion and complete human-readable Markdown export. The local core never depends on the hosted
+   deliberate deletion and complete human-readable Markdown export. In the hosted edition, a member's raw captured
+   evidence (conversations, tool calls and tool results) is readable only by that member. No project lead,
+   delegate, other member or product operator role can be granted access to it. The curator may process it as a
+   machine within its bounded evidence window. What the team shares is curated records and their permitted
+   excerpts, never another member's raw evidence (2.2). The local core never depends on the hosted
    service, and the hosted service never silently turns a local repository into a client-side replica. *(Cited:
    the local Markdown+YAML core and `3_Spec/edition-authority-contract.md`.)*
 <!-- constitution-ref: constitution:v1#append-only -->
@@ -117,6 +123,21 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    This permission does not extend to another board or trust file, and it never permits rewriting or deleting
    ordinary sessions, decisions, ADRs, policies, or other durable memory. Git may retain the historical
    blobs; active-tree removal is not privacy-grade erasure. The 1.12 version-log row remains historical.
+   <!-- constitution-ref: constitution:v1#hosted-curated-removal -->
+   **Narrow exception — hosted curated-record removal (2.2):** in the hosted edition, a curated record's
+   content may be removed from active storage only when lifecycle correction cannot remedy it. That is the
+   case when the record exposes a secret or personal data, attributes words or decisions to the wrong member,
+   or states something its evidence does not support (a curator fabrication). A record that is merely wrong
+   or outdated is corrected by `evolves` or `replaces` and stays in history. Its author may remove it by giving
+   one of those reasons, and the project lead is notified. Removing another member's record requires a
+   lead-granted permission. A member to whom a record wrongly attributes words or decisions may report the
+   misattribution directly. The report marks the record as disputed and notifies its author and the lead,
+   but it does not remove the record itself. Every removal leaves a permanent tombstone recording the record
+   id, who removed it, when, the reason category and the affected dependents, but not the removed title or
+   content. Records that relied on it, including ADRs and approved replacements, remain and mark their
+   evidence as source withdrawn. Removal never applies to the local edition, to tombstones, to audit events
+   or to lifecycle edges, and it is never automatic or batched. How long removed content may persist in
+   backups is set by hosted retention policy, not by this exception.
 <!-- constitution-ref: constitution:v1#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
@@ -372,6 +393,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.2 | 2026-09-23 | **Amendment: hosted raw-evidence privacy and last-resort curated-record removal.** Invariant #1 makes a member's hosted raw evidence readable only by that member; no governance role can be granted it, and the curator is the only machine reader. Invariant #2 adds a narrow hosted-only exception: a curated record may be removed only for a secret or personal data, misattribution, or fabrication. The author removes their own record and the lead is notified; another member's needs a lead-granted permission; a misattributed member may report the record as disputed. Each removal leaves a tombstone without content, wrong or outdated decisions are corrected through `evolves`/`replaces`, and backup persistence is left to retention policy. | JNL (explicit live ratification, 2026-09-23) |
 | 2.1 | 2026-09-22 | **Amendment: retire standing Reflection Board expiry; permit one conditional historical cleanup.** Withdraws the 1.12 standing chain-expiry mechanism. Allows removal of only the named ledger and public trust anchor after all seven records have durable session coverage, related session entries have validated append-only links, and exact file identities are preserved. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (explicit live ratification and conditional deletion authorization, 2026-09-22) |
 | 2.0 | 2026-09-19 | **Amendment: explicit local and hosted edition authority.** Changes Invariants #1 and #6 so the complete OSS/local edition remains Markdown-authoritative and network-independent while the separate hosted team edition is SQL-authoritative with complete Markdown export. Forbids hidden dual authority, repository settlement and bidirectional synchronization; shared semantics do not imply shared persistence. Updates the Vision, open-core principle, implementation map and collaboration resolution. | JNL (explicit live authorization, 2026-09-19) |
 | 1.14 | 2026-09-16 | **Evolution: typed DRAFTS decisions and documentation.** Expands `D` to mean Decision or Documentation record under one `### Records` structure. Every new record carries Scope; decisions additionally require Disposition and their own Reason. Documentation records make small work and evidence searchable without granting lifecycle or ADR authority. Historical untyped/singular records remain decisions and are not rewritten. | JNL (approved the design-discovery plan and directed implementation live, 2026-09-16) |

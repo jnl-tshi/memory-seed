@@ -185,7 +185,8 @@ render the historical term `supersedes`; the hosted contract does not invent new
 
 ## Privacy, retention and sharing
 
-- A member's raw conversations and tool evidence are visible only to that member, without exception. No project
+- A member's raw conversations and tool evidence are visible only to that member, without exception
+  (Constitution v2.2, Invariant #1). No project
   lead, delegate, other member or product-level operator role can read them. The curator processes raw evidence
   as a machine within its bounded evidence window; that is the only other reader.
 - Curated records are shared with the project by default, with selected evidence excerpts permission-checked at
@@ -197,7 +198,9 @@ render the historical term `supersedes`; the hosted contract does not invent new
   those reasons. Removing another member's record needs a lead-granted permission. Every removal leaves a
   tombstone recording the record id, who removed it, when, the reason category and the affected dependents,
   but not its title or content. ADRs and approved replacements that relied on it remain, and their evidence
-  is marked as source withdrawn. Purging content from backups is part of the P1.7 retention decisions.
+  is marked as source withdrawn. The lead is notified when an author removes their own record. A
+  misattributed member may report a record as disputed, which does not remove it. Purging content from
+  backups is part of the P1.7 retention decisions. This is the Constitution v2.2 Invariant #2 exception.
 - Full raw evidence has a 30-day rolling retention window. Curated memory and its permitted evidence persist
   until deliberate deletion.
 - Retrieval is curated-first. Raw fallback is allowed only when curated context is insufficient, the evidence is
@@ -269,8 +272,9 @@ task-specific results and measured queue load justify it. The [decision-knowledg
   agent on a defined authenticated interaction; no claim of arbitrary MCP push.
 - **Curator quality:** labelled and sealed sets measure durable-content, topic, relationship, faithfulness,
   citation, abstention and high-risk false positives. Numerical thresholds are selected before autonomous use.
-- **Privacy/security:** tenant/project negative controls, role/delegation tests, raw-access denial, excerpt checks,
-  injection fixtures, deletion and audit pass before private-project release.
+- **Privacy/security:** tenant/project negative controls, role/delegation tests, owner-only raw-access denial
+  (including against the lead and through raw fallback), excerpt checks, injection fixtures, tombstoned
+  removal, dispute reports, deletion and audit pass before private-project release.
 - **Branches:** merge, squash, cherry-pick, deletion-after-merge, reused names, unknown, non-Git and detached HEAD
   fixtures pass. Automatic versus batch merge adoption remains a named open decision.
 - **Retention/export:** active-store deletion, backup-expiry policy, expired-source markers and complete Markdown
