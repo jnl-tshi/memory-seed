@@ -566,13 +566,19 @@ class SessionSchemaTests(unittest.TestCase):
             "git worktree list --porcelain",
             "inherited working-directory handles",
             "Process termination requires separate live approval",
-            "Never terminate `codex.exe`, `ChatGPT.exe`",
+            "minimum verified lock-owning helper subtree",
+            "Never terminate any process outside that subtree",
+            "vendor-specific",
+            "allowlist or denylist",
             "Restart helpers through their owning application or tool surface",
             "Do not index or transmit private repository content",
             "post-removal absence",
             "do not claim success",
         ):
             self.assertIn(phrase, content)
+
+        for vendor_process_name in ("codex.exe", "chatgpt.exe"):
+            self.assertNotIn(vendor_process_name, content.lower())
 
         for registry in (live_registry, seed_registry):
             self.assertIn("skill: worktree_reconciliation.md", registry)

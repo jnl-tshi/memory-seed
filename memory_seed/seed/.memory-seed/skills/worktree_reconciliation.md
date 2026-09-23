@@ -179,10 +179,11 @@ It does not relax any content, identity, path, or approval gate above.
 4. Process termination requires separate live approval. Deletion approval does not authorize interrupting
    helpers or shared tools. Before acting, show the exact verified process group and expected impact.
 5. Immediately before termination, re-read every candidate PID and refuse stale, missing, reused, renamed,
-   or differently parented processes. Stop only the verified helper descendants holding the exact target,
-   children before their helper roots. Never terminate `codex.exe`, `ChatGPT.exe`, an IDE/app server, or an
-   unrelated user process unless the user explicitly authorizes that named process too. Never kill by
-   executable name, wildcard, or an earlier PID inventory.
+   or differently parented processes. Stop only the minimum verified lock-owning helper subtree, children
+   before helper roots. Never terminate any process outside that subtree, including the owning application's
+   user interface, control plane, IDE, editor, or app server, unless the user separately authorizes that exact
+   process after seeing its verified identity and impact. Never kill by executable name, vendor-specific
+   allowlist or denylist, wildcard, or an earlier PID inventory.
 6. After the approved helper stop, re-run every target proof from step 1 and attempt the exact literal-path
    deletion once. If it still fails, retain the residue and report the new error; do not escalate to broader
    termination or deletion.
