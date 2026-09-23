@@ -564,6 +564,11 @@ class SessionSchemaTests(unittest.TestCase):
             "Preserve the branch",
             "resolved absolute target",
             "git worktree list --porcelain",
+            "inherited working-directory handles",
+            "Process termination requires separate live approval",
+            "Never terminate `codex.exe`, `ChatGPT.exe`",
+            "Restart helpers through their owning application or tool surface",
+            "Do not index or transmit private repository content",
             "post-removal absence",
             "do not claim success",
         ):

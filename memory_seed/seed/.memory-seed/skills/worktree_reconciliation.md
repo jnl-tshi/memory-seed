@@ -160,6 +160,42 @@ must be able to understand what the workstream was and what would be lost or ret
 6. If deletion fails or is partial, report it immediately and do not claim success. Retain the exact
    error and residual path for deliberate follow-up; never broaden the target to make the result tidy.
 
+#### Windows directory-handle recovery
+
+Use this recovery only when a previously approved, exact deregistered residue remains proven empty or
+otherwise disposable and native deletion fails because Windows reports that the directory is in use.
+It does not relax any content, identity, path, or approval gate above.
+
+1. Make at most one passive retry after a short wait, re-running the exact registration, resolved-path,
+   path-type, reparse-point, and content checks first. Repeated blind retries are not recovery.
+2. Diagnose the exact path with a read-only OS handle inspector. Record every owning PID, process name,
+   executable or command line when available, creation time, parent chain, and matched path. A common
+   cause is app-managed helper processes that inherited working-directory handles from the removed
+   worktree. Do not infer the owner from a process name alone.
+3. If local handle inspection is unavailable, report that limitation. Do not enable system-wide handle
+   tracking, download or run a diagnostic utility, accept its licence, or install software without the
+   authorization those actions require. Never close an individual foreign handle directly; forced
+   handle closure can destabilize the owning process.
+4. Process termination requires separate live approval. Deletion approval does not authorize interrupting
+   helpers or shared tools. Before acting, show the exact verified process group and expected impact.
+5. Immediately before termination, re-read every candidate PID and refuse stale, missing, reused, renamed,
+   or differently parented processes. Stop only the verified helper descendants holding the exact target,
+   children before their helper roots. Never terminate `codex.exe`, `ChatGPT.exe`, an IDE/app server, or an
+   unrelated user process unless the user explicitly authorizes that named process too. Never kill by
+   executable name, wildcard, or an earlier PID inventory.
+6. After the approved helper stop, re-run every target proof from step 1 and attempt the exact literal-path
+   deletion once. If it still fails, retain the residue and report the new error; do not escalate to broader
+   termination or deletion.
+7. Restart helpers through their owning application or tool surface from the intended surviving workspace,
+   not by launching their raw executables. Stdio-managed MCP and REPL helpers need the owner's connection
+   channel as well as a corrected working directory. Verify each restarted surface with a minimal,
+   non-mutating health check. Do not index or transmit private repository content merely to perform a
+   restart health check; use a disposable non-sensitive fixture when a real request is required, then
+   remove that fixture.
+8. Confirm the exact residue is physically absent, the application/server processes intentionally preserved
+   above remain alive, and each restarted helper surface responds. Report separately which helpers were
+   stopped, which were restarted, and whether any could not be restored.
+
 ### 7. Post-Removal Verification
 
 After each individually approved removal:
