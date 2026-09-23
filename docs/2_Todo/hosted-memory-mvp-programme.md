@@ -118,6 +118,15 @@ Decided in the 2026-09-23 tranche design discovery:
 - **Identity:** members authenticate with GitHub OAuth. The local capture adapter binds a session to a member
   through the OAuth device-code flow. Enterprise SSO waits until after the MVP.
 
+### Repository boundary
+
+Decided by JNL on 2026-09-23. All hosted code lives in a new, self-contained top-level `hosted/` folder in
+this repository, and it is for local development only. It is not part of the published `memory-seed`
+package: `pyproject.toml` lists its packages explicitly (`memory_seed`, `memory_trace`), and `hosted/` must
+never be added. No wheel, sdist, CLI entry point or seed template may ship hosted code. `memory_seed` never
+imports from `hosted/`. Whether hosted may import shared semantics from `memory_seed`, or keeps its own
+adapter, is decided in P0.2 discovery. Revisit publishing only through a later explicit packaging decision.
+
 ### SQL development tooling
 
 Use DBeaver Community as the local querying and schema-inspection tool for both PostgreSQL and SQL Server during
