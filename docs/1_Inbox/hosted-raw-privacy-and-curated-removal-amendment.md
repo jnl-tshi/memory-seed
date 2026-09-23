@@ -1,6 +1,6 @@
 ---
 priority: P0
-next_action: "JNL reviews the proposed clause text and either ratifies Constitution v2.2 as drafted, adjusts it, or rejects it; nothing is applied until ratification."
+next_action: "Open points resolved 2026-09-23; JNL ratifies Constitution v2.2 as drafted, adjusts it, or rejects it. Nothing is applied until ratification."
 ---
 
 # Hosted raw privacy and curated-record removal amendment
@@ -46,11 +46,15 @@ in the same shape as the 1.2 metadata-curation exception. Under §11 precedent, 
 > case when the record exposes a secret or personal data, attributes words or decisions to the wrong member,
 > or states something its evidence does not support (a curator fabrication). A record that is merely wrong
 > or outdated is corrected by `evolves` or `replaces` and stays in history. Its author may remove it by giving
-> one of those reasons; removing another member's record requires a lead-granted permission. Every removal
+> one of those reasons, and the project lead is notified. Removing another member's record requires a
+> lead-granted permission. A member to whom a record wrongly attributes words or decisions may report the
+> misattribution directly. The report marks the record as disputed and notifies its author and the lead, but
+> it does not remove the record itself. Every removal
 > leaves a permanent tombstone recording the record id, who removed it, when, the reason category and the
 > affected dependents, but not the removed title or content. Records that relied on it, including ADRs and
 > approved replacements, remain and mark their evidence as source withdrawn. Removal never applies to the
 > local edition, to tombstones, to audit events or to lifecycle edges, and it is never automatic or batched.
+> How long removed content may persist in backups is set by hosted retention policy, not by this exception.
 
 ### §11 version log row
 
@@ -58,8 +62,9 @@ in the same shape as the 1.2 metadata-curation exception. Under §11 precedent, 
 > Invariant #1 makes a member's hosted raw evidence readable only by that member; no governance role can be
 > granted it, and the curator is the only machine reader. Invariant #2 adds a narrow hosted-only exception:
 > a curated record may be removed only for a secret or personal data, misattribution, or fabrication. The
-> author removes their own record; another member's needs a lead-granted permission. Each removal leaves a
-> tombstone without content, and wrong or outdated decisions are corrected through `evolves`/`replaces`. |
+> author removes their own record and the lead is notified; another member's needs a lead-granted
+> permission; a misattributed member may report the record as disputed. Each removal leaves a tombstone
+> without content, and wrong or outdated decisions are corrected through `evolves`/`replaces`. |
 > JNL |
 
 The header's **Version** line and "amended" list gain the matching 2.2 entry.
@@ -71,10 +76,13 @@ The header's **Version** line and "amended" list gain the matching 2.2 entry.
   - a lead, delegate and other member are each denied another member's raw evidence, including through raw
     fallback in retrieval;
   - a removal leaves a content-free tombstone, and its dependents show source withdrawn;
-  - a wrong-but-honest record cannot be removed and must be replaced.
+  - a wrong-but-honest record cannot be removed and must be replaced;
+  - an author's removal notifies the lead;
+  - a misattributed member can mark a record disputed, which notifies its author and the lead but does not
+    remove it.
 - `docs/2_Todo/hosted-memory-mvp-programme.md`: cite the Invariant #1 and #2 clauses from the Privacy
   section instead of restating them as plan policy.
-- The hosted release gate "Privacy/security" gains the three fixtures above.
+- The hosted release gate "Privacy/security" gains the fixtures above.
 
 ## Alternatives considered
 
@@ -86,14 +94,14 @@ The header's **Version** line and "amended" list gain the matching 2.2 entry.
 - **Require the lead's permission for every removal.** JNL's first proposal. Rejected in discovery so an
   author can retract their own sensitive content without waiting.
 
-## Open points for ratification
+## Resolved ratification points (JNL, 2026-09-23)
 
-1. Should an author-initiated removal also notify the lead? The draft does not require it; the tombstone is
-   visible to the project.
-2. Purging removed content from backups stays in the P1.7 retention decisions. Should the invariant name a
-   maximum backup lag, or leave that to policy?
-3. Does misattribution removal apply only when the author reports it, or can the wronged member report it?
-   The draft allows only the record's author, with others going through a lead-granted permission.
+1. **Lead notification:** an author's removal of their own record also notifies the project lead.
+2. **Backup purge:** the invariant sets no bound. The maximum time removed content may persist in backups is
+   left to the P1.7 retention decisions.
+3. **Misattribution reports:** a member to whom a record wrongly attributes words or decisions may report
+   it directly, without going through the lead. The report marks the record as disputed and notifies its
+   author and the lead. Removal still follows the author or lead-granted path.
 
 ## Non-authorizations
 
