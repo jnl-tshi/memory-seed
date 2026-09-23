@@ -3,8 +3,9 @@ title: "Hosted Memory MVP programme"
 date: "2026-09-19"
 priority: P0
 status: accepted-programme
-next_action: "Run P0.2 Codex capture and approval feasibility spike using synthetic data, then build the authenticated P0.3/P0.4 thin slice."
-blocked_by: []
+next_action: "Complete P0.2 design discovery with JNL, then run the approved synthetic-data Codex capture and approval feasibility spike. Each later tranche repeats the discovery gate."
+blocked_by:
+  - "P0.2 tranche design discovery (docs/2_Todo/codex-capture-feasibility-plan.md)."
 source:
   - "docs/4_Reference/archived/hosted-memory-seed-01-hosted-memory-seed-curator.md"
   - "docs/4_Reference/archived/hosted-memory-seed-02-curator-evaluation-framework.md"
@@ -239,13 +240,33 @@ task-specific results and measured queue load justify it. The [decision-knowledg
 
 ## Open decisions
 
-1. Numerical end-to-end p95 target.
-2. Provider correctness, abstention, cost and privacy thresholds.
-3. Automatic versus batch-approved merge adoption.
-4. Backup expiry after active raw deletion.
-5. Secret detection, redaction and oversize payload handling.
-6. Default policy for sharing selected excerpts across team members.
-7. Exact delivery contract for pending approvals.
+Each decision names the earliest tranche it blocks. Resolve it in that tranche's design discovery.
+
+1. **P1.8:** Numerical end-to-end p95 target.
+2. **P1.5:** Provider correctness, abstention, cost and privacy thresholds.
+3. **P1.6:** Automatic versus batch-approved merge adoption.
+4. **P1.7:** Backup expiry after active raw deletion.
+5. **P1.7:** Secret detection, redaction and oversize payload handling.
+6. **P1.7:** Default policy for sharing selected excerpts across team members.
+7. **P0.2:** Exact delivery contract for pending approvals. If the working agent holds the member's
+   credential, it can call an approval tool itself, so an authenticated service identity alone does not prove
+   a human approved. P0.2 must establish whether a human-confirmed interaction is available inside the working
+   agent. If it is not, an out-of-band approval surface is required and the "no launch UI dependency" boundary
+   must be revised.
+8. **P0.3:** Hosted database engine, tenant-isolation model and hosting provider. The DBeaver tooling choice
+   does not select them.
+9. **P0.3:** Identity provider and how a local capture session binds to an authenticated hosted member.
+10. **P0.4:** Visibility of curated record prose across members. The thin slice returns one member's captured
+    decision to another member, and curated prose is derived from private raw evidence. Decision 6 covers only
+    selected excerpts, so this rule is needed before P0.4, not at P1.7.
+11. **P0.2 (field) / P1.6 (policy):** Message authorship and its trust source. Governance allows ordinary
+    replacement from clear actual user direction, while the
+    [edition contract](../3_Spec/edition-authority-contract.md) says transcript role labels confer no
+    authority. The capture contract must record who authored each message and how that authorship is
+    established, and P1.6 must define which authorship evidence can support autonomous replacement.
+12. **P1.5:** Where the prose writer is evaluated. The Decision/Documentation prose candidate (initially
+    Cerebras Qwen3.8 27B) has no evaluation in the
+    [tournament plan](decision-layer-model-tournament-plan.md), which covers typed judgments only.
 
 ## Consolidated source ownership
 
