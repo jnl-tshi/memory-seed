@@ -101,7 +101,7 @@ entry points matter.
 Precedence is: declared ratified Constitution → current concern-owning control file → accepted ADR
 head → session evidence → derived projection.
 
-- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v2.1 ratified 2026-09-22**.
+- Constitution: [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md), **v2.2 ratified 2026-09-23**.
 - Control-plane ownership: [`adr_control_file_authority`](decisions/adr_control_file_authority.md).
 - Edition authority boundary: [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md) and the
   live [edition authority contract](../docs/3_Spec/edition-authority-contract.md).
@@ -120,8 +120,8 @@ file to direct reading at or below 12,000 characters or economy-worker compressi
 
 Once intent is known, read `.memory-seed/skills/index.md` and only matching runbooks. Read this index's
 relevant sections when topology, authority, inheritance, active state, or priorities matter; read policy
-before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v2.1**, ratified
-2026-09-22) before consequential design, governance, or control-plane changes. It remains the highest
+before writes or constrained behavior. Read `docs/CONSTITUTION.md` (currently **v2.2**, ratified
+2026-09-23) before consequential design, governance, or control-plane changes. It remains the highest
 declared authority even though ordinary startup no longer loads it preemptively.
 
 ## Lazy Skills
@@ -175,7 +175,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   on 2026-09-19: requirements relevant to team capture, evidence, governance, privacy, and retrieval now
   live in the hosted MVP programme; local UX work remains only in the active reference-model plan and matrix.
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
-  several times; the CURRENT ratified version is **v2.1** as of 2026-09-22 — read `docs/CONSTITUTION.md`,
+  several times; the CURRENT ratified version is **v2.2** as of 2026-09-23 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
   the historical semantic-foundation plan is preserved in
   `docs/7_Replaced/memory-seed-semantic-record-and-signal-foundation-plan.md`; its applicable hosted

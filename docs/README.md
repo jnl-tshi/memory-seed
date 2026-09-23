@@ -109,7 +109,7 @@ exceptions. The counts below are generated — hand-edits inside the markers are
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 16 · 2_Todo 9 · 3_Spec 10 · 4_Reference 29 · 5_Completed 88 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 16
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 16 · 2_Todo 9 · 3_Spec 10 · 4_Reference 29 · 5_Completed 89 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 16
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [codex-capture-feasibility-plan.md](2_Todo/codex-capture-feasibility-plan.md) — Complete interactive design discovery with JNL, then approve a bounded synthetic-data implementation plan.

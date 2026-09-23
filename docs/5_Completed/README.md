@@ -66,6 +66,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [grounding-provenance-write-time-links-proposal.md](grounding-provenance-write-time-links-proposal.md) | — | — | — |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P3 | — | ACCEPTED 2026-07-26/27 (JNL, settled inline below) - not a JNL gate any more. Build order steps… |
 | [hosted-edition-authority-amendment.md](hosted-edition-authority-amendment.md) | — | — | — |
+| [hosted-raw-privacy-and-curated-removal-amendment.md](hosted-raw-privacy-and-curated-removal-amendment.md) | — | — | — |
 | [interaction-frequency-ranking-plan.md](interaction-frequency-ranking-plan.md) | — | — | — |
 | [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |
 | [link-sidecar-placement-review.md](link-sidecar-placement-review.md) | — | — | — |
