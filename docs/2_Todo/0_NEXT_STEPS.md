@@ -75,6 +75,9 @@ Settled in the 2026-09-23 hosted design discovery
 
 - [Memory quality metrics v0](memory-quality-metrics-v0-proposal.md): maintainer review of the existing
   baseline remains the next gate.
+- [Task Packet source following and orientation lite](task-packet-sources-and-orientation-lite-plan.md):
+  proposed 2026-09-23. It makes packets follow `S:` sources, replaces embedded full rules with a subagent
+  orientation-lite skill, enforces session-write safety, and instruments usage. It awaits JNL approval.
 - [Task Packet hardening](task-packet-hardening-progressive-provenance-plan.md) and
   [calibration](task-packet-calibration-harness-plan.md): finish independent review, dogfooding, and the
   representative/holdout design.
