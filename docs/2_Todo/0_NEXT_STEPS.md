@@ -52,20 +52,22 @@ Each tranche's design discovery must settle these open decisions before its impl
 [programme's open decisions](hosted-memory-mvp-programme.md#open-decisions) hold the full wording.
 
 - **P0.2:** the Codex capture discovery choices in the
-  [tranche plan](codex-capture-feasibility-plan.md#design-discovery-decisions-for-jnl), plus two more. First,
-  the delivery contract for pending approvals: an agent holding the member's credential could approve on its
-  own, so establish whether a human-confirmed interaction exists or whether an out-of-band approval surface is
-  needed. Second, a capture field recording who authored each message and how that authorship is established.
-- **P0.3:** hosted database engine, tenant-isolation model, hosting provider, and identity provider/session
-  binding.
-- **P0.4:** visibility of curated record prose across members. It is derived from private raw evidence, and
-  the thin slice returns it to a second member.
-- **P1.5:** provider thresholds, and where the Decision/Documentation prose writer is evaluated (the
-  tournament covers typed judgments only).
-- **P1.6:** automatic versus batch-approved merge adoption, and which authorship evidence can support
-  autonomous replacement.
-- **P1.7:** backup expiry, secret/oversize handling, and the default for sharing excerpts.
+  [tranche plan](codex-capture-feasibility-plan.md#design-discovery-decisions-for-jnl). The spike must also
+  verify two policies settled on 2026-09-23: that Codex can show a human-confirmed approval prompt (otherwise
+  use the signed-page fallback), and that it separates user input from agent and tool items (otherwise every
+  replacement stays pending).
+- **P1.5:** provider thresholds.
+- **P1.6:** automatic versus batch-approved merge adoption.
+- **P1.7:** backup expiry and content purge, secret/oversize handling, and the default for sharing excerpts.
 - **P1.8:** the numerical end-to-end p95 target, chosen from measured workloads.
+
+Settled in the 2026-09-23 hosted design discovery
+([summary](hosted-memory-mvp-programme.md#resolved-in-the-2026-09-23-design-discovery)):
+- P0.3: PostgreSQL, one shared schema with row-level security, a local server through P0.4 and managed
+  PostgreSQL for the pilot, and GitHub OAuth device flow.
+- P0.4: curated records are shared by default, raw evidence is visible only to its owner, decisions change
+  through the lifecycle, and removal is a last resort that leaves a tombstone.
+- P1.5: the prose writer is evaluated in a writer track of the tournament.
 
 ## Local OSS obligations that remain active
 
