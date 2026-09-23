@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-22
+Updated: 2026-09-23
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
@@ -45,6 +45,27 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
 
 No hosted service, provider call, upload, paid trial, release, or remote-setting change is authorized by
 the documentation amendment alone.
+
+## Open decisions by tranche
+
+Each tranche's design discovery must settle these open decisions before its implementation starts. The
+[programme's open decisions](hosted-memory-mvp-programme.md#open-decisions) hold the full wording.
+
+- **P0.2:** the Codex capture discovery choices in the
+  [tranche plan](codex-capture-feasibility-plan.md#design-discovery-decisions-for-jnl), plus two more. First,
+  the delivery contract for pending approvals: an agent holding the member's credential could approve on its
+  own, so establish whether a human-confirmed interaction exists or whether an out-of-band approval surface is
+  needed. Second, a capture field recording who authored each message and how that authorship is established.
+- **P0.3:** hosted database engine, tenant-isolation model, hosting provider, and identity provider/session
+  binding.
+- **P0.4:** visibility of curated record prose across members. It is derived from private raw evidence, and
+  the thin slice returns it to a second member.
+- **P1.5:** provider thresholds, and where the Decision/Documentation prose writer is evaluated (the
+  tournament covers typed judgments only).
+- **P1.6:** automatic versus batch-approved merge adoption, and which authorship evidence can support
+  autonomous replacement.
+- **P1.7:** backup expiry, secret/oversize handling, and the default for sharing excerpts.
+- **P1.8:** the numerical end-to-end p95 target, chosen from measured workloads.
 
 ## Local OSS obligations that remain active
 

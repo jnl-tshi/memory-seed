@@ -113,7 +113,7 @@ Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbo
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [codex-capture-feasibility-plan.md](2_Todo/codex-capture-feasibility-plan.md) — Complete interactive design discovery with JNL, then approve a bounded synthetic-data implementation plan.
-- **P0** [hosted-memory-mvp-programme.md](2_Todo/hosted-memory-mvp-programme.md) — Run P0.2 Codex capture and approval feasibility spike using synthetic data, then build the authenticated P0.3/P0.4 thin slice.
+- **P0** [hosted-memory-mvp-programme.md](2_Todo/hosted-memory-mvp-programme.md) — Complete P0.2 design discovery with JNL, then run the approved synthetic-data Codex capture and approval feasibility spike. Each later tran…
 - **P0** [task-packet-hardening-progressive-provenance-plan.md](2_Todo/task-packet-hardening-progressive-provenance-plan.md) — Harden and independently review Task Packet compilation, then dogfood the improved packets while implementing progressive hunk provenance.
 - **P1** [decision-layer-model-tournament-plan.md](2_Todo/decision-layer-model-tournament-plan.md) — After the P0 thin slice, begin a dedicated design discovery with JNL; settle the evaluation design before dataset assembly or benchmarking.
 - **P1** [memory-quality-metrics-v0-proposal.md](2_Todo/memory-quality-metrics-v0-proposal.md) — JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surfacing, further metrics, or §8 graduation.
