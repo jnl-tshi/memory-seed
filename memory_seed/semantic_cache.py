@@ -2194,7 +2194,7 @@ _LEXICAL_TERMS_ENABLED: contextvars.ContextVar[bool] = contextvars.ContextVar(
 
 def _chunk_lexical_terms(payload: str) -> tuple[str, ...]:
     """Chunk-construction twin of ``_extract_lexical_terms`` that honours the
-    ``extract_memory_chunks(lexical_terms=False)`` opt-out."""
+    chunk extractor's ``lexical_terms=False`` opt-out."""
     return _extract_lexical_terms(payload) if _LEXICAL_TERMS_ENABLED.get() else ()
 
 
