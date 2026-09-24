@@ -76,6 +76,20 @@ class AlignmentTests(unittest.TestCase):
         second = alignment.deterministic_sample(list(reversed(records)), 5, 42)
         self.assertEqual([row.decision_id for row in first], [row.decision_id for row in second])
 
+    def test_agent_filter_limits_population_before_sampling(self) -> None:
+        records = [
+            alignment.DecisionRecord(
+                decision_id=f"mse_{index}:d1", entry_id=f"mse_{index}", ordinal="d1", title="T",
+                text=f"Decision {index}", entry_title=None, source_path="x.md", start_line=1,
+                end_line=2, session_date="2026-09-24", decision_timestamp="2026-09-24T00:00:00+00:00",
+                agent_type=agent, project_path=".", branch=None, commits=(), source_refs=(),
+            )
+            for index, agent in enumerate(("codex", "claude", "CoDeX", None))
+        ]
+        filtered = alignment.filter_decisions(records, "codex")
+        self.assertEqual([row.decision_id for row in filtered], ["mse_0:d1", "mse_2:d1"])
+        self.assertTrue(all((row.agent_type or "").casefold() == "codex" for row in filtered))
+
     def test_confidence_negative_control_abstains(self) -> None:
         weak = {
             "score": 0.08,

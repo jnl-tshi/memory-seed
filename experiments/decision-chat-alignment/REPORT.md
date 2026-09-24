@@ -22,6 +22,10 @@ The immediate research direction should be a prospective, first-hand provenance 
 a recall-first deterministic detector evaluation. A learned classifier is premature because the
 present positive set is too small and unlinked conversation is not a trustworthy negative class.
 
+**Follow-up:** a second independently seeded sample restricted to Codex-authored decisions produced
+2 Medium, 21 Low, and 27 No-match results. See `REPORT-CODEX-ONLY.md`. The follow-up confirms that
+cross-agent source coverage was important, but not the only alignment limitation.
+
 ## 1. Design discovery summary
 
 The architecture under investigation remains:
