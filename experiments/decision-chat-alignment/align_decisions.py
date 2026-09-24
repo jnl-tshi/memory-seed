@@ -15,6 +15,7 @@ import os
 import random
 import re
 import subprocess
+import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
@@ -22,6 +23,12 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 from zoneinfo import ZoneInfo
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+import memory_seed
+
+if not Path(memory_seed.__file__).resolve().is_relative_to(REPO_ROOT):
+    raise RuntimeError("Decision alignment must load Memory Seed from this checkout")
 from memory_seed.retrieval import load_corpus
 
 
