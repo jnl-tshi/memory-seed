@@ -36,6 +36,7 @@ CODEX_ONLY_SAMPLE_SHA256 = "73b2dc2de7967859c9b138a6fbd56b9b10774a453bc5d3ba7b76
 LOCAL_TIMEZONE = ZoneInfo("Europe/London")
 TOKEN_RE = re.compile(r"[A-Za-z0-9_./\\:-]{2,}")
 IDENTIFIER_RE = re.compile(r"(?:[A-Za-z0-9_-]+[./\\:][A-Za-z0-9_./\\:-]+|[A-Za-z]+_[A-Za-z0-9_]+)")
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 STOPWORDS = {
     "about", "after", "again", "also", "because", "before", "being", "between", "both",
     "could", "decision", "from", "have", "into", "more", "only", "other", "should", "than",
@@ -76,7 +77,9 @@ class DecisionRecord:
 
 @dataclass(frozen=True)
 class SessionMeta:
+    rollout_id: str
     session_id: str
+    legacy_session_id: str | None
     timestamp: str
     timestamp_utc: datetime
     cwd: str
@@ -90,6 +93,8 @@ class SessionMeta:
     thread_source: str | None
     parent_thread_id: str | None
     agent_nickname: str | None
+    agent_path: str | None
+    agent_depth: int | None
 
 
 @dataclass(frozen=True)
@@ -262,14 +267,33 @@ def read_session_meta(path: Path) -> SessionMeta | None:
         return None
     payload = row["payload"]
     stamp = parse_iso_timestamp(str(payload.get("timestamp") or row.get("timestamp") or ""))
-    session_id = str(payload.get("session_id") or payload.get("id") or "")
-    if not stamp or not session_id:
+    # ``id`` is the logical task identity. Continuation files can repeat it, while
+    # spawned-agent ``session_id`` values can point back to the parent task. The
+    # last UUID in the rollout filename is the storage identity of this file.
+    session_id = str(payload.get("id") or "")
+    filename_ids = UUID_RE.findall(path.stem)
+    rollout_id = filename_ids[-1].lower() if filename_ids else session_id
+    if not stamp or not session_id or not rollout_id:
         return None
     git = payload.get("git") if isinstance(payload.get("git"), dict) else {}
     source = payload.get("source")
     source_text = json.dumps(source, sort_keys=True) if isinstance(source, dict) else str(source or "")
+    subagent = source.get("subagent") if isinstance(source, dict) else None
+    thread_spawn = subagent.get("thread_spawn") if isinstance(subagent, dict) else None
+    if not isinstance(thread_spawn, dict):
+        thread_spawn = {}
+    parent_thread_id = thread_spawn.get("parent_thread_id") or payload.get("parent_thread_id")
+    agent_nickname = thread_spawn.get("agent_nickname") or payload.get("agent_nickname")
+    agent_path = thread_spawn.get("agent_path")
+    raw_depth = thread_spawn.get("depth")
+    try:
+        agent_depth = int(raw_depth) if raw_depth is not None else None
+    except (TypeError, ValueError):
+        agent_depth = None
     return SessionMeta(
+        rollout_id=rollout_id,
         session_id=session_id,
+        legacy_session_id=str(payload.get("session_id")) if payload.get("session_id") else None,
         timestamp=stamp.isoformat(),
         timestamp_utc=stamp,
         cwd=str(payload.get("cwd") or ""),
@@ -281,8 +305,10 @@ def read_session_meta(path: Path) -> SessionMeta | None:
         git_branch=str(git.get("branch")) if git.get("branch") else None,
         git_commit=str(git.get("commit_hash")) if git.get("commit_hash") else None,
         thread_source=str(payload.get("thread_source")) if payload.get("thread_source") else None,
-        parent_thread_id=str(payload.get("parent_thread_id")) if payload.get("parent_thread_id") else None,
-        agent_nickname=str(payload.get("agent_nickname")) if payload.get("agent_nickname") else None,
+        parent_thread_id=str(parent_thread_id) if parent_thread_id else None,
+        agent_nickname=str(agent_nickname) if agent_nickname else None,
+        agent_path=str(agent_path) if agent_path else None,
+        agent_depth=agent_depth,
     )
 
 
@@ -292,6 +318,50 @@ def session_belongs_to_repo(meta: SessionMeta, repo_roots: Sequence[Path], remot
     cwd_match = any(cwd == root or cwd.startswith(root + os.sep) for root in normalized_roots)
     remote_match = bool(remote and meta.repository_url and normalize_remote(meta.repository_url) == remote)
     return cwd_match or remote_match
+
+
+def repository_rollout_ids(
+    metas: Sequence[SessionMeta], repo_roots: Sequence[Path], remote: str | None
+) -> set[str]:
+    """Return direct repository rollouts plus descendants linked through parent lineage."""
+    eligible = {
+        meta.rollout_id for meta in metas if session_belongs_to_repo(meta, repo_roots, remote)
+    }
+    changed = True
+    while changed:
+        changed = False
+        eligible_task_ids = {
+            meta.session_id for meta in metas if meta.rollout_id in eligible
+        }
+        for meta in metas:
+            if (
+                meta.rollout_id not in eligible
+                and meta.parent_thread_id
+                and meta.parent_thread_id in eligible_task_ids
+            ):
+                eligible.add(meta.rollout_id)
+                changed = True
+    return eligible
+
+
+def validate_unique_rollouts(metas: Sequence[SessionMeta]) -> None:
+    rollout_ids = [meta.rollout_id for meta in metas]
+    source_paths = [meta.source_path for meta in metas]
+    if len(rollout_ids) != len(set(rollout_ids)):
+        raise RuntimeError("Rollout IDs are not unique; parent/child identities were collapsed")
+    if len(source_paths) != len(set(source_paths)):
+        raise RuntimeError("Rollout source paths are not unique")
+
+
+def validate_unique_candidate_items(blocks: Sequence[TurnBlock]) -> None:
+    coordinates = [
+        (item.source_path, item.source_ordinal)
+        for block in blocks
+        for item in block.items
+        if item.source_ordinal is not None
+    ]
+    if len(coordinates) != len(set(coordinates)):
+        raise RuntimeError("Candidate corpus contains duplicate source path/ordinal coordinates")
 
 
 def is_derived_review_session(meta: SessionMeta) -> bool:
@@ -737,7 +807,8 @@ def align(
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 
-    all_blocks = [block for session in sessions for block in blocks_by_session.get(session.session_id, [])]
+    all_blocks = [block for session in sessions for block in blocks_by_session.get(session.rollout_id, [])]
+    validate_unique_candidate_items(all_blocks)
     if not all_blocks:
         return []
     decision_texts = [decision.match_text for decision in decisions]
@@ -758,18 +829,19 @@ def align(
     summary_similarities = cosine_similarity(decision_matrix, vectorizer.transform(summary_texts))
     session_blocks: dict[str, list[tuple[int, TurnBlock]]] = defaultdict(list)
     for index, block in enumerate(all_blocks):
-        session_blocks[block.session.session_id].append((index, block))
+        session_blocks[block.session.rollout_id].append((index, block))
 
     output: list[dict[str, Any]] = []
     for decision_index, decision in enumerate(decisions):
         decision_time = parse_iso_timestamp(decision.decision_timestamp)
         eligible_session_ids: set[str] = set()
+        eligible_rollout_ids: set[str] = set()
         scored_candidates: list[dict[str, Any]] = []
         if decision_time:
             for session in sessions:
                 if not actor_compatible(decision, session):
                     continue
-                indexed_blocks = session_blocks.get(session.session_id, [])
+                indexed_blocks = session_blocks.get(session.rollout_id, [])
                 blocks = [block for _global_index, block in indexed_blocks]
                 anchor = anchor_turn(blocks, decision_time)
                 if not anchor or not anchor.start_utc:
@@ -778,6 +850,7 @@ def align(
                 if not -POSITIVE_CLOCK_DRIFT_HOURS <= anchor_delta_hours <= TIME_WINDOW_HOURS:
                     continue
                 eligible_session_ids.add(session.session_id)
+                eligible_rollout_ids.add(session.rollout_id)
                 anchor_index = blocks.index(anchor)
                 predecessor_rows: list[tuple[int, int, TurnBlock]] = []
                 for local_index, (global_index, candidate) in enumerate(indexed_blocks[: anchor_index + 1]):
@@ -890,7 +963,7 @@ def align(
         def candidate_identity(candidate: dict[str, Any] | None) -> tuple[str, int] | None:
             if not candidate:
                 return None
-            return candidate["session"].session_id, candidate["best_block"].turn_number
+            return candidate["session"].rollout_id, candidate["best_block"].turn_number
 
         def candidate_payload(candidate: dict[str, Any] | None, private: bool = False) -> dict[str, Any] | None:
             if not candidate:
@@ -901,6 +974,7 @@ def align(
             summary_text = block.reasoning_summary_text
             payload = {
                 "session_id": session.session_id,
+                "rollout_id": session.rollout_id,
                 "conversation_timestamp": session.timestamp,
                 "source_path": session.source_path if private else public_session_path(session.source_path),
                 "cwd": session.cwd if private else "repository checkout/worktree",
@@ -937,6 +1011,7 @@ def align(
         public = {
             "decision": asdict(decision),
             "candidate_session_count": len(eligible_session_ids),
+            "candidate_rollout_count": len(eligible_rollout_ids),
             "best_candidate": candidate_payload(best),
             "second_best_candidate": candidate_payload(second),
             "confidence": confidence,
@@ -1205,9 +1280,11 @@ def main() -> int:
 
     all_paths = list(iter_rollout_paths(args.codex_home.resolve()))
     metas = [meta for path in all_paths if (meta := read_session_meta(path)) is not None]
+    validate_unique_rollouts(metas)
+    eligible_rollout_ids = repository_rollout_ids(metas, repo_roots, remote)
     repo_metas = [
         meta for meta in metas
-        if session_belongs_to_repo(meta, repo_roots, remote) and not is_derived_review_session(meta)
+        if meta.rollout_id in eligible_rollout_ids and not is_derived_review_session(meta)
     ]
     # Turn timestamps, not session starts, determine temporal eligibility. Parse
     # every actor-compatible repository rollout so long-running sessions are not
@@ -1217,7 +1294,7 @@ def main() -> int:
     ]
     blocks_by_session: dict[str, list[TurnBlock]] = {}
     for index, meta in enumerate(selected_metas, 1):
-        blocks_by_session[meta.session_id] = parse_rollout(Path(meta.source_path), meta)
+        blocks_by_session[meta.rollout_id] = parse_rollout(Path(meta.source_path), meta)
         if index % 100 == 0:
             print(f"parsed {index}/{len(selected_metas)} candidate rollouts", flush=True)
 
@@ -1247,6 +1324,10 @@ def main() -> int:
         "rollout_files_discovered": len(all_paths),
         "rollout_metadata_parsed": len(metas),
         "repository_rollouts": len(repo_metas),
+        "lineage_inherited_repository_rollouts": sum(
+            1 for meta in repo_metas
+            if not session_belongs_to_repo(meta, repo_roots, remote)
+        ),
         "temporal_candidate_rollouts": len(selected_metas),
         "normalized_turn_blocks": sum(len(blocks) for blocks in blocks_by_session.values()),
         "time_window_hours": TIME_WINDOW_HOURS,

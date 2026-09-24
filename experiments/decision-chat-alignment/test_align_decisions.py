@@ -18,6 +18,63 @@ SPEC.loader.exec_module(alignment)
 
 
 class AlignmentTests(unittest.TestCase):
+    def test_subagent_rollout_keeps_unique_id_and_nested_lineage(self) -> None:
+        row = {
+            "timestamp": "2026-09-24T01:00:00Z",
+            "ordinal": 0,
+            "type": "session_meta",
+            "payload": {
+                "id": "child-rollout",
+                "session_id": "parent-rollout",
+                "timestamp": "2026-09-24T01:00:00Z",
+                "cwd": "C:/elsewhere",
+                "source": {
+                    "subagent": {
+                        "thread_spawn": {
+                            "parent_thread_id": "parent-rollout",
+                            "depth": 1,
+                            "agent_path": "/root/reviewer",
+                            "agent_nickname": "Hume",
+                        }
+                    }
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+            meta = alignment.read_session_meta(path)
+        self.assertIsNotNone(meta)
+        self.assertEqual(meta.rollout_id, "child-rollout")
+        self.assertEqual(meta.session_id, "child-rollout")
+        self.assertEqual(meta.legacy_session_id, "parent-rollout")
+        self.assertEqual(meta.parent_thread_id, "parent-rollout")
+        self.assertEqual(meta.agent_path, "/root/reviewer")
+        self.assertEqual(meta.agent_nickname, "Hume")
+        self.assertEqual(meta.agent_depth, 1)
+
+    def test_repository_membership_flows_to_subagent_descendants(self) -> None:
+        parent = self._meta()
+        child = alignment.SessionMeta(
+            rollout_id="child", session_id="child", legacy_session_id="s",
+            timestamp=parent.timestamp, timestamp_utc=parent.timestamp_utc,
+            cwd="C:/elsewhere", source_path="child.jsonl", originator="Codex Desktop",
+            source="subagent", cli_version="x", repository_url=None, git_branch=None,
+            git_commit=None, thread_source=None, parent_thread_id="s", agent_nickname="Hume",
+            agent_path="/root/reviewer", agent_depth=1,
+        )
+        eligible = alignment.repository_rollout_ids(
+            [parent, child], (Path("C:/repo"),), None
+        )
+        self.assertEqual(eligible, {"s", "child"})
+
+    def test_duplicate_rollout_ids_fail_closed(self) -> None:
+        duplicate = alignment.SessionMeta(
+            **{**self._meta().__dict__, "source_path": "other.jsonl"}
+        )
+        with self.assertRaisesRegex(RuntimeError, "not unique"):
+            alignment.validate_unique_rollouts([self._meta(), duplicate])
+
     def test_parse_rollout_normalizes_messages_turns_and_tool_calls(self) -> None:
         rows = [
             {
@@ -242,7 +299,9 @@ class AlignmentTests(unittest.TestCase):
     @staticmethod
     def _meta() -> alignment.SessionMeta:
         return alignment.SessionMeta(
+            rollout_id="s",
             session_id="s",
+            legacy_session_id=None,
             timestamp="2026-09-24T00:00:00+00:00",
             timestamp_utc=datetime(2026, 9, 24, tzinfo=timezone.utc),
             cwd="C:/repo",
@@ -256,6 +315,8 @@ class AlignmentTests(unittest.TestCase):
             thread_source="user",
             parent_thread_id=None,
             agent_nickname=None,
+            agent_path=None,
+            agent_depth=None,
         )
 
     def test_sampling_is_reproducible_and_order_independent(self) -> None:
@@ -320,11 +381,12 @@ class AlignmentTests(unittest.TestCase):
 
     def test_repo_membership_accepts_matching_remote_for_external_worktree(self) -> None:
         meta = alignment.SessionMeta(
-            session_id="s", timestamp="2026-09-24T00:00:00+00:00",
+            rollout_id="s", session_id="s", legacy_session_id=None, timestamp="2026-09-24T00:00:00+00:00",
             timestamp_utc=datetime(2026, 9, 24, tzinfo=timezone.utc), cwd="C:/elsewhere/worktree",
             source_path="rollout.jsonl", originator="Codex Desktop", source="vscode", cli_version="x",
             repository_url="https://github.com/example/repo", git_branch="main", git_commit="abc",
             thread_source="user", parent_thread_id=None, agent_nickname=None,
+            agent_path=None, agent_depth=None,
         )
         self.assertTrue(
             alignment.session_belongs_to_repo(
