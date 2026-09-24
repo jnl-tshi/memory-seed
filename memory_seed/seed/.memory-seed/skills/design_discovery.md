@@ -22,6 +22,26 @@ constraints, and evidence still cover the work. Do not load this skill merely to
 If the work creates a new consequential choice, changes the assessed scope, or makes the earlier evidence
 stale, load it regardless of code size.
 
+## Native Plan Mode Gate
+
+When this skill triggers on a Codex surface that exposes native collaboration mode, check the active
+mode before beginning substantive discovery:
+
+- If native Plan mode is already active, continue with the procedure below.
+- If native Plan mode is available but not active, tell the user:
+
+  > This task triggers Design Discovery. Please switch to Plan mode with `/plan`; I’ll continue once it is active.
+
+  Stop after this prompt. Do not claim to have changed the collaboration mode, emulate the switch, begin
+  the discovery procedure, or mutate project state in the same turn.
+- If the current surface does not expose native Plan mode, state that the native tag is unavailable and
+  continue with the discovery procedure as a bounded, read-only planning conversation. Do not mutate
+  project state until the selected option and trial are approved through the existing authority and
+  consent path.
+
+This gate selects the native collaboration context. It is distinct from `update_plan`, the optional
+implementation Plan Gate, and the Task Packet compiler.
+
 ## Roadmap tranche entry
 
 When a project's next-steps roadmap declares a discovery gate for a new tranche, the first session
