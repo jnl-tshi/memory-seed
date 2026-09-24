@@ -57,9 +57,15 @@ Findings:
    - The compiler and ADR validation resolve `vK#slug` to the current name, so the 54 historical ADR bindings
      still validate.
    - `adr promote` and `adr revise` refuse a legacy name in a new event, so bindings migrate as ADRs change.
-2. **Open: real-corpus resolution takes about 4.8 s against a 5 s deadline.** Packets over this repository can
-   fail by chance with `timeout`. The harness lifts the deadline for measurement only. This needs its own fix,
-   whether a caller-set deadline or faster session extraction.
+2. **Fixed: real-corpus resolution took about 4.8 s against a 5 s deadline**, so packets over this repository
+   failed by chance with `timeout`. It now takes about 1.0-1.9 s, from three changes:
+   - Resolution skips the per-chunk lexical-term scan, which only search ranking reads.
+   - Runtime confinement resolves only symlinks and junctions instead of every file.
+   - The end-of-resolution stability check compares a stat signature instead of re-hashing the corpus.
+
+   Corpus revisions are byte-identical to the previous implementation, and a junction escape is still refused
+   (`tests/test_retrieval_deadline.py`). The harness no longer lifts the deadline: T7 passed 3 of 3 runs under
+   the production 5 s limit.
 3. **Open: ranked clause projection is weak on real text.** A generic dispatch selected 26 of 30 clauses. The
    saving from clause projection depends on explicit or ADR-bound refs.
 4. **The 4,000-token cap cuts real sources.** Two of the five sources worth following exceeded it. Citing

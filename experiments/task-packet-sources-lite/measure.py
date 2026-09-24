@@ -174,12 +174,6 @@ def main() -> int:
     )
     args = parser.parse_args()
     if args.repo:
-        # Real-corpus resolution takes ~4.8 s against the 5 s production
-        # deadline (measured 2026-09-24), so a measurement run would fail by
-        # chance. Lift the deadline for measurement only; see RESULTS.md.
-        import memory_seed.retrieval as retrieval
-
-        retrieval.resolve_retrieval_spec.__kwdefaults__["_timeout_ms"] = 120_000
         env = worker_environment()
         result = {
             "label": args.label,
