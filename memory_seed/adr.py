@@ -730,6 +730,37 @@ def _constitution_anchors(cwd: str | Path) -> set[str]:
     return set(CONSTITUTION_ANCHOR_RE.findall(text))
 
 
+def constitution_legacy_aliases(anchors: set[str]) -> dict[str, str]:
+    """Map each older-namespace anchor name to its current anchor.
+
+    Anchors are named ``constitution:vN#slug`` where N is the ratified major
+    that last re-namespaced them. When the Constitution moves to a new major,
+    its anchors are renamed and every earlier ``vK#slug`` (K < N) stays
+    resolvable as a legacy alias, so historical ADR bindings keep validating.
+    New ADR events must write the current name (see
+    ``legacy_constitution_ref_issues``).
+    """
+    aliases: dict[str, str] = {}
+    for anchor in anchors:
+        match = re.fullmatch(r"constitution:v(\d+)#([a-z0-9-]+)", anchor)
+        if not match:
+            continue
+        major, slug = int(match.group(1)), match.group(2)
+        for older in range(1, major):
+            aliases.setdefault(f"constitution:v{older}#{slug}", anchor)
+    return aliases
+
+
+def legacy_constitution_ref_issues(refs: Sequence[ConstitutionRef], cwd: str | Path) -> list[str]:
+    """Refuse legacy anchor names in a NEW ADR event; name the current one."""
+    aliases = constitution_legacy_aliases(_constitution_anchors(cwd))
+    return [
+        f"constitution ref '{item.ref}' is a legacy anchor name; write '{aliases[item.ref]}'"
+        for item in refs
+        if item.ref in aliases
+    ]
+
+
 def _binding_issues(event: AdrEvent, label: str, anchors: set[str]) -> list[str]:
     issues: list[str] = []
     seen: set[str] = set()
@@ -788,7 +819,9 @@ def adr_membership(record: AdrRecord) -> set[str]:
 
 def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions: Sequence[str] = (), pending_entries: Sequence[str] = ()) -> list[str]:
     known, ordinals = _entry_decisions(cwd)
-    anchors = _constitution_anchors(cwd)
+    current_anchors = _constitution_anchors(cwd)
+    # Historical events may bind a legacy anchor name; it still resolves.
+    anchors = current_anchors | set(constitution_legacy_aliases(current_anchors))
     pending, pending_entry_ids = set(pending_decisions), set(pending_entries)
     issues: list[str] = []
     if record.schema_version not in ADR_SCHEMA_VERSIONS:
@@ -1210,6 +1243,9 @@ def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR already exists",))
+    legacy_issues = legacy_constitution_ref_issues(constitution_refs, cwd)
+    if legacy_issues:
+        return AdrOperationResult(False, path, adr_id, issues=tuple(legacy_issues))
     stamp = timestamp or _now()
     reason = reason or why or "See the authoritative session decision rationale."
     impact = impact or evolution or "The decision is expected to govern this architectural concern; contrary evidence requires a successor revision."
@@ -1229,6 +1265,9 @@ def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decisio
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if not path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
+    legacy_issues = legacy_constitution_ref_issues(constitution_refs, cwd)
+    if legacy_issues:
+        return AdrOperationResult(False, path, adr_id, issues=tuple(legacy_issues))
     record, existing_issues = load_adr_for_write(path, cwd)
     if record is None:
         return AdrOperationResult(False, path, adr_id, issues=existing_issues)

@@ -1,0 +1,122 @@
+{
+  "label": "T7",
+  "profile_v1": {
+    "baseline_tokens": {
+      "agent_rules": 5093,
+      "session_logging": null
+    },
+    "constitution": {
+      "clauses": [
+        "constitution:v2#ownership",
+        "constitution:v2#markdown-authority",
+        "constitution:v2#hosted-curated-removal",
+        "constitution:v2#provenance",
+        "constitution:v2#draft-format",
+        "constitution:v2#minimal-context",
+        "constitution:v2#adr-ledger-v2-migration",
+        "constitution:v2#open-core",
+        "constitution:v2#temporary-reflection-expiry",
+        "constitution:v2#control-plane-precedence",
+        "constitution:v2#path-of-least-resistance",
+        "constitution:v2#evidence-first",
+        "constitution:v2#single-source",
+        "constitution:v2#write-surface-parity",
+        "constitution:v2#append-only",
+        "constitution:v2#lexical-normalization",
+        "constitution:v2#authority",
+        "constitution:v2#immediate-value",
+        "constitution:v2#metadata-curation",
+        "constitution:v2#model-independence",
+        "constitution:v2#retrieval-transparency",
+        "constitution:v2#trust-first",
+        "constitution:v2#explainability",
+        "constitution:v2#expose-before-rank",
+        "constitution:v2#prove-automation",
+        "constitution:v2#topic-vocabulary"
+      ],
+      "content_tokens": 4424,
+      "mode": "anchored_clauses",
+      "selection_mode": "ranked_whole_clauses"
+    },
+    "followed_sources": {},
+    "input_ledger": {
+      "fixed_instruction_tokens": 447,
+      "materialized_agent_rules_tokens": 5093,
+      "materialized_session_logging_tokens": 0,
+      "output_reasoning_reserve_tokens": 2500,
+      "serialized_packet_input_tokens": 17773,
+      "supplemental_input_reserve_tokens": 1000,
+      "tool_schema_input_tokens": 124,
+      "total_context_envelope_tokens": 21844,
+      "total_input_tokens": 19344
+    },
+    "packet_fingerprint": "sha256:31df6e4221b2ad05b8e2dc793278fcd60b039a3430f9b9bc4708e2e1b0b71980",
+    "serialized_packet_tokens": 17773,
+    "source_warnings": []
+  },
+  "profile_v2": {
+    "baseline_tokens": {
+      "agent_rules": 5093,
+      "session_logging": null
+    },
+    "constitution": {
+      "clauses": [
+        "constitution:v2#ownership",
+        "constitution:v2#markdown-authority",
+        "constitution:v2#hosted-curated-removal",
+        "constitution:v2#provenance",
+        "constitution:v2#draft-format",
+        "constitution:v2#minimal-context",
+        "constitution:v2#adr-ledger-v2-migration",
+        "constitution:v2#open-core",
+        "constitution:v2#temporary-reflection-expiry",
+        "constitution:v2#control-plane-precedence",
+        "constitution:v2#path-of-least-resistance",
+        "constitution:v2#evidence-first",
+        "constitution:v2#single-source",
+        "constitution:v2#write-surface-parity",
+        "constitution:v2#append-only",
+        "constitution:v2#lexical-normalization",
+        "constitution:v2#authority",
+        "constitution:v2#immediate-value",
+        "constitution:v2#metadata-curation",
+        "constitution:v2#model-independence",
+        "constitution:v2#retrieval-transparency",
+        "constitution:v2#trust-first",
+        "constitution:v2#explainability",
+        "constitution:v2#expose-before-rank",
+        "constitution:v2#prove-automation",
+        "constitution:v2#topic-vocabulary"
+      ],
+      "content_tokens": 4424,
+      "mode": "anchored_clauses",
+      "selection_mode": "ranked_whole_clauses"
+    },
+    "followed_sources": {
+      ".memory-seed/skills/end_of_turn.md": 2766,
+      "docs/8_Deferred/decision-storyline-retrieval-proposal.md": 1952,
+      "docs/8_Deferred/laya-local-decision-worker-proposal.md": 1868
+    },
+    "input_ledger": {
+      "fixed_instruction_tokens": 447,
+      "materialized_agent_rules_tokens": 5093,
+      "materialized_session_logging_tokens": 0,
+      "output_reasoning_reserve_tokens": 2500,
+      "serialized_packet_input_tokens": 25604,
+      "supplemental_input_reserve_tokens": 1000,
+      "tool_schema_input_tokens": 124,
+      "total_context_envelope_tokens": 29675,
+      "total_input_tokens": 27175
+    },
+    "packet_fingerprint": "sha256:ae83594dfc4074bc088dcd48888dfafe5d88d46cb5821cc07d9ef5f109d5654f",
+    "serialized_packet_tokens": 25604,
+    "source_warnings": [
+      "source_ref_over_cap: mse_nw47r0vpcj5tr2pj:d1 -> .memory-seed/skills/agent_collaboration.md: 13813 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
+      "source_ref_over_cap: mse_v048edjgmvk5mqsx:d1 -> docs/2_Todo/decision-layer-model-tournament-plan.md: 4368 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-governance-architecture-report.md: replaced or archived document; follow its successor pointer",
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-intelligence-reference-architecture-report.md: replaced or archived document; follow its successor pointer",
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decisions-first-class-knowledge-report.md: replaced or archived document; follow its successor pointer"
+    ]
+  },
+  "repo_head": "8858b276fce105308ebfe40b261c78d283e0b1bd"
+}

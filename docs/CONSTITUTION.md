@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 2.2 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.3 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -23,7 +23,7 @@ SQL-authoritative hosted, with Markdown export rather than synchronization (Inva
 §10); amended 2026-09-22 to retire standing Reflection Board expiry and permit one conditional,
 identified historical-board cleanup (Invariant #2); amended 2026-09-23 so hosted raw evidence is readable
 only by its owner and a curated record may be removed only as a tombstoned last resort (Invariants #1 and
-#2). **Source:** distilled from demonstrated behaviour
+#2); **corrected** 2026-09-24 (2.3, evolution-class) to re-namespace clause anchors to the ratified v2 major. **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -53,7 +53,7 @@ the Git-history layer: decision and reasoning provenance. *(Ref: `../business/ma
 
 The sacred properties. Changing one is a [constitutional amendment](#11-governance).
 
-<!-- constitution-ref: constitution:v1#ownership -->
+<!-- constitution-ref: constitution:v2#ownership -->
 1. **Users own and control their memory through an explicit edition boundary.** In the OSS/local edition,
    memory lives as plain files in the user's repository and the core runs with no server, database, account or
    network. In the hosted edition, the service's SQL store is authoritative, while users retain governed access,
@@ -64,12 +64,12 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    excerpts, never another member's raw evidence (2.2). The local core never depends on the hosted
    service, and the hosted service never silently turns a local repository into a client-side replica. *(Cited:
    the local Markdown+YAML core and `3_Spec/edition-authority-contract.md`.)*
-<!-- constitution-ref: constitution:v1#append-only -->
+<!-- constitution-ref: constitution:v2#append-only -->
 2. **The past is append-only — extend and supersede, never rewrite or delete.** History is evidence;
    corrections are new entries that point back. *(Cited: append-only session logs; `links check`
    forward-only/acyclic guards; supersede-don't-delete in `.memory-seed/skills/proposal_lifecycle.md` and
    the memory graph.)*
-   <!-- constitution-ref: constitution:v1#metadata-curation -->
+   <!-- constitution-ref: constitution:v2#metadata-curation -->
    **Narrow exception — human-gated metadata curation (1.2):** an existing entry's **untyped
    `related_entries` metadata** may be curated after the fact, under all of these conditions at once:
    it is a **one-off procedure, never core functionality** — no standing command, no automation, no
@@ -80,7 +80,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    condition fails, the invariant applies unchanged. The exception exists because an untyped "these two
    relate" pointer is a navigational aid rather than a claim about what was decided or why; it does not
    license editing the record of a decision.
-   <!-- constitution-ref: constitution:v1#write-surface-parity -->
+   <!-- constitution-ref: constitution:v2#write-surface-parity -->
    **Write-surface parity (1.3):** every write to memory passes the same validation, whatever surface
    performs it. No tool may author or integrate an entry by a path that skips the guards another
    surface enforces — chronology, ref existence, forward-only lifecycle edges, topic vocabulary, id
@@ -101,7 +101,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    capability is a standing invitation to edit history. Invariant #2 applies to diagram sidecars
    without exception. *(The 1.4 row stays in the amendment log: the exception was real while it
    existed, and one repair landed under it.)*
-   <!-- constitution-ref: constitution:v1#adr-ledger-v2-migration -->
+   <!-- constitution-ref: constitution:v2#adr-ledger-v2-migration -->
    **Narrow, one-time exception — ADR-ledger v2 canonicalization (1.10):** the historical ADR corpus
    may be rewritten **once**, solely to replace the v1 mixed `Why`/`Evolution` prose with the v2
    `Decision`/`Reason`/`Impact` shape. Before any source byte changes, the procedure must archive a
@@ -112,7 +112,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    it verifies the known preimage digests, refuses unfamiliar input and any second run, and is neither a
    general rewrite facility nor a standing CLI/MCP command. On successful completion this exception is
    exhausted; all future ADR history is append-only under the invariant.
-   <!-- constitution-ref: constitution:v1#temporary-reflection-expiry -->
+   <!-- constitution-ref: constitution:v2#temporary-reflection-expiry -->
    **Retired exception and one-time historical cleanup (2.1):** the standing Reflection Board chain-expiry
    permission introduced in 1.12 is withdrawn. Elapsed retention no longer authorizes automatic or repeatable
    removal. The single tracked ledger at
@@ -123,7 +123,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    This permission does not extend to another board or trust file, and it never permits rewriting or deleting
    ordinary sessions, decisions, ADRs, policies, or other durable memory. Git may retain the historical
    blobs; active-tree removal is not privacy-grade erasure. The 1.12 version-log row remains historical.
-   <!-- constitution-ref: constitution:v1#hosted-curated-removal -->
+   <!-- constitution-ref: constitution:v2#hosted-curated-removal -->
    **Narrow exception — hosted curated-record removal (2.2):** in the hosted edition, a curated record's
    content may be removed from active storage only when lifecycle correction cannot remedy it. That is the
    case when the record exposes a secret or personal data, attributes words or decisions to the wrong member,
@@ -138,14 +138,14 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    evidence as source withdrawn. Removal never applies to the local edition, to tombstones, to audit events
    or to lifecycle edges, and it is never automatic or batched. How long removed content may persist in
    backups is set by hosted retention policy, not by this exception.
-<!-- constitution-ref: constitution:v1#explainability -->
+<!-- constitution-ref: constitution:v2#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
    `3_Spec/graph-edge-contract.md`; `3_Spec/memory-trace-derived-artifact-provenance-contract.md`.)*
-<!-- constitution-ref: constitution:v1#authority -->
+<!-- constitution-ref: constitution:v2#authority -->
 4. **Files are the authority for what is true *now*; memory is the authority for *why*.** Neither
    substitutes for the other. *(Cited: `.memory-seed/agent-rules.md` Working Principles.)*
-   <!-- constitution-ref: constitution:v1#provenance -->
+   <!-- constitution-ref: constitution:v2#provenance -->
    **Provenance is first-hand vs reconstructed, not human vs machine (1.6):** a value recorded when
    the work was done — by whoever or whatever did it — is **first-hand**; a value derived afterwards
    by reading the finished record is **reconstructed**. Both are legitimate; they are not equal
@@ -157,11 +157,11 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    topics from finished prose scored 0.583 and 0.613 macro-recall against the first-hand values
    (topic-swarm pilot, 2026-07-26). A reconstructed value is therefore sound as a **gap-filler where
    nothing was recorded**, and weak as a replacement for a first-hand one.
-<!-- constitution-ref: constitution:v1#model-independence -->
+<!-- constitution-ref: constitution:v2#model-independence -->
 5. **Memory is model-independent.** No entry's meaning depends on the agent or model that wrote it; it
    serves any agent and any human. *(Cited: `agent-rules.md` `vendor_neutral: true`; the seed ships for
    Claude, Codex, Gemini, Cursor, and Copilot alike.)*
-<!-- constitution-ref: constitution:v1#markdown-authority -->
+<!-- constitution-ref: constitution:v2#markdown-authority -->
 6. **Each edition has exactly one authoritative memory substrate.** In the OSS/local edition, Markdown is
    authoritative: authority may be partitioned across append-only primary entries and narrowly scoped Markdown
    sidecars, while caches, indexes, databases, embeddings and computed snapshots are derived and rebuildable.
@@ -171,7 +171,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    settlement, bidirectional synchronization or dual-authority conflict resolution between them. Moving memory
    between editions requires an explicit transfer or migration contract. *(Cited: the local sidecar architecture;
    `3_Spec/edition-authority-contract.md`; the 2026-09-19 hosted edition amendment.)*
-<!-- constitution-ref: constitution:v1#retrieval-transparency -->
+<!-- constitution-ref: constitution:v2#retrieval-transparency -->
 7. **Retrieval never hides live history to flatter a ranking.** A superseded entry is down-ranked, never
    removed from results. *(Cited: `SUPERSEDED_RANK_DAMPING` down-rank-only rule in `graph-edge-contract.md`;
    `exclude_superseded` is a separate opt-in filter, never the default.)*
@@ -182,28 +182,28 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
 
 How we decide. Amending these is heavier than a normal proposal but lighter than an invariant.
 
-<!-- constitution-ref: constitution:v1#evidence-first -->
+<!-- constitution-ref: constitution:v2#evidence-first -->
 - **Evidence before opinion.** Ground decisions in what the code and corpus demonstrate; retrieve prior
   reasoning before re-deciding. *(Cited: `agent-rules.md` "retrieve the why"; this document's own method.)*
-<!-- constitution-ref: constitution:v1#expose-before-rank -->
+<!-- constitution-ref: constitution:v2#expose-before-rank -->
 - **Expose before you rank.** A new signal is shown as inspectable metadata and proven on real data before
   it changes default retrieval order. *(Cited: `graph-edge-contract.md` "Standing rules".)*
-<!-- constitution-ref: constitution:v1#single-source -->
+<!-- constitution-ref: constitution:v2#single-source -->
 - **Integrate, don't duplicate.** One canonical reader/service per concern; new surfaces consume it rather
   than fork logic. *(Cited: the single `build_related_entry_graph` reader + shared retrieval service; the
   "integrate with GitLens, don't rebuild it" stance.)*
-<!-- constitution-ref: constitution:v1#immediate-value -->
+<!-- constitution-ref: constitution:v2#immediate-value -->
 - **Immediate value before future value.** Ship the smallest useful increment on the proven path before the
   ambitious rebuild. *(Cited: vanilla-first Trace with the versioned `/api/v1` contract held for the future
   React client; retired gate `3_Spec/deprecated/memory-trace-vanilla-parity-checklist.md`.)*
-<!-- constitution-ref: constitution:v1#prove-automation -->
+<!-- constitution-ref: constitution:v2#prove-automation -->
 - **Prove risky automation on a small case; don't remove guards you don't understand.** *(Cited:
   `agent-rules.md` Working Principles; `.memory-seed/skills/risk_signaling.md`.)*
-<!-- constitution-ref: constitution:v1#trust-first -->
+<!-- constitution-ref: constitution:v2#trust-first -->
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
-<!-- constitution-ref: constitution:v1#minimal-context -->
+<!-- constitution-ref: constitution:v2#minimal-context -->
 - **Minimal but sufficient context.** Retrieval aims to provide the smallest context that preserves the
   ability to decide — maximise information per token; material that does not change the answer is
   omission, not loss. **[candidate]** — aspirational; no retrieval surface enforces or measures this yet.
@@ -213,7 +213,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   *Provenance note:* first written into §3 on 2026-07-25 **without** an amendment, which §11 requires
   for a core principle. Ratified retroactively as part of v1.5 rather than left as an unratified clause
   — a principle nobody approved is exactly the kind of silent override §11 forbids.
-<!-- constitution-ref: constitution:v1#path-of-least-resistance -->
+<!-- constitution-ref: constitution:v2#path-of-least-resistance -->
 - **Make the correct path the easiest path.** Memory Seed composes mechanically determined steps behind
   outcome-level operations so humans and agents do not spend attention or model tokens reconstructing
   deterministic workflows. It stops where relevance, authority, risk, scope, or intent requires judgment,
@@ -221,7 +221,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   as its underlying steps. The result exposes what was selected, what was omitted, why execution continued
   or stopped, and which governing guards were applied. *(Cited: `1_Inbox/agent-interaction-storylines-review.md`;
   `8_Deferred/agent-skill-workflow-architecture-proposal.md`; `mse_d1h4mf4z40epm8jz:d1` and `:d2`.)*
-<!-- constitution-ref: constitution:v1#open-core -->
+<!-- constitution-ref: constitution:v2#open-core -->
 - **Open-core, explicit edition authority.** The local Markdown edition is free and complete on its own. The
   hosted team edition is a separate SQL-authoritative product with Markdown export. Shared semantics and clients
   must make the active edition and authority explicit; neither edition becomes a hidden cache, replica or second
@@ -234,17 +234,17 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 The current, deliberately-changeable *rules* through which the invariants are realised. Changing these is
 ordinary proposal work.
 
-<!-- constitution-ref: constitution:v1#folder-lifecycle -->
+<!-- constitution-ref: constitution:v2#folder-lifecycle -->
 - **The folder a document lives in is its lifecycle state** (`docs/README.md` front door).
-<!-- constitution-ref: constitution:v1#edge-kinds -->
+<!-- constitution-ref: constitution:v2#edge-kinds -->
 - **Four independent, never-merged edge kinds**; forward-only and acyclic (`graph-edge-contract.md`).
-<!-- constitution-ref: constitution:v1#link-corrections -->
+<!-- constitution-ref: constitution:v2#link-corrections -->
 - **Link-edge corrections are append-only.** A published `replaces`/`evolves`/`related_entries` edge is
   downgraded or removed only through a **new-block `retracts:` correction** (the fuse refuses in-place
   edits to a published link sidecar), realizing Invariant #2 for lifecycle edges — the sanctioned path
   the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
   optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
-<!-- constitution-ref: constitution:v1#draft-format -->
+<!-- constitution-ref: constitution:v2#draft-format -->
 - **Typed DRAFTS session-entry format** and append-only chronology (`session_logging.md`). The `D`
   denotes either a **Decision** or **Documentation** record under `### Records`; every record states
   its `Scope`, while a Decision additionally states its `Disposition` and its own `R:`. Documentation
@@ -253,14 +253,14 @@ ordinary proposal work.
   member/head. `A/F/T/S` remain optional when applicable; `S:` names a materially informing
   repository-relative source artifact. Historical untyped and singular decision records remain valid,
   readable as decisions, and append-only.
-<!-- constitution-ref: constitution:v1#lexical-normalization -->
+<!-- constitution-ref: constitution:v2#lexical-normalization -->
 - **Lexical matching is capitalization-safe.** Retrieval normalizes query text, preferred keywords,
   and indexed lexical fields with Unicode NFKC plus case folding before matching. Optional preferred
   keywords may add a bounded positive ranking signal, but never exclude otherwise matching history.
-<!-- constitution-ref: constitution:v1#topic-vocabulary -->
+<!-- constitution-ref: constitution:v2#topic-vocabulary -->
 - **Controlled topic vocabulary** in `.memory-seed/topics.yaml`; **seed/live twin parity** for shipped
   skills; **schema, API (`/api/v1`), and CLI surfaces** are versioned and may grow.
-<!-- constitution-ref: constitution:v1#integration-mode -->
+<!-- constitution-ref: constitution:v2#integration-mode -->
 - **`integration_mode`** (local-merge vs PR); agent-namespaced branches/worktrees.
 
 ---
@@ -378,7 +378,7 @@ A proposal that conflicts with a live invariant is rejected or must first amend 
 silently override it. "[candidate]" clauses graduate to cited/established only when a shipped artifact
 demonstrates them.
 
-<!-- constitution-ref: constitution:v1#control-plane-precedence -->
+<!-- constitution-ref: constitution:v2#control-plane-precedence -->
 A runtime that declares this Constitution ratified applies the following authority order:
 **Constitution → current concern-owning control file → accepted ADR head → session evidence → derived
 projection**. The index is a thin router, policy states executable constraints, and ADRs own durable
@@ -393,6 +393,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.3 | 2026-09-24 | **Correction (evolution-class, not an amendment): clause anchors re-namespaced to v2.** The 30 `constitution-ref` markers change from `constitution:v1#slug` to `constitution:v2#slug` to match the ratified v2 major; no clause text changes. Since v2.0 the Task Packet compiler had refused every packet because anchor and ratified majors disagreed. Earlier `constitution:vK#slug` names remain resolvable legacy aliases, so existing ADR bindings and dispatches keep validating; new ADR events must write the current name. | JNL (explicit live instruction, 2026-09-24) |
 | 2.2 | 2026-09-23 | **Amendment: hosted raw-evidence privacy and last-resort curated-record removal.** Invariant #1 makes a member's hosted raw evidence readable only by that member; no governance role can be granted it, and the curator is the only machine reader. Invariant #2 adds a narrow hosted-only exception: a curated record may be removed only for a secret or personal data, misattribution, or fabrication. The author removes their own record and the lead is notified; another member's needs a lead-granted permission; a misattributed member may report the record as disputed. Each removal leaves a tombstone without content, wrong or outdated decisions are corrected through `evolves`/`replaces`, and backup persistence is left to retention policy. | JNL (explicit live ratification, 2026-09-23) |
 | 2.1 | 2026-09-22 | **Amendment: retire standing Reflection Board expiry; permit one conditional historical cleanup.** Withdraws the 1.12 standing chain-expiry mechanism. Allows removal of only the named ledger and public trust anchor after all seven records have durable session coverage, related session entries have validated append-only links, and exact file identities are preserved. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (explicit live ratification and conditional deletion authorization, 2026-09-22) |
 | 2.0 | 2026-09-19 | **Amendment: explicit local and hosted edition authority.** Changes Invariants #1 and #6 so the complete OSS/local edition remains Markdown-authoritative and network-independent while the separate hosted team edition is SQL-authoritative with complete Markdown export. Forbids hidden dual authority, repository settlement and bidirectional synchronization; shared semantics do not imply shared persistence. Updates the Vision, open-core principle, implementation map and collaboration resolution. | JNL (explicit live authorization, 2026-09-19) |
