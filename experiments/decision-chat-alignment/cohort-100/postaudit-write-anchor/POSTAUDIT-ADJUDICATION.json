@@ -1,0 +1,161 @@
+{
+  "original_counts": {
+    "child_result": 2,
+    "partial_multi_turn": 3,
+    "unresolved": 5,
+    "verified_source": 43
+  },
+  "post_audit_counts": {
+    "child_result": 2,
+    "partial_multi_turn": 3,
+    "unresolved": 1,
+    "verified_source": 47
+  },
+  "rows": [
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d1",
+      "evidence_refs": [
+        {
+          "ordinal": 7704,
+          "role": "assistant",
+          "rollout_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          "timestamp": "2026-09-05T23:30:16.841Z",
+          "turn": 77
+        },
+        {
+          "ordinal": 351,
+          "role": "reasoning_summary",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:31:20.102Z",
+          "turn": 2
+        },
+        {
+          "ordinal": 352,
+          "role": "tool",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:31:38.105Z",
+          "turn": 2
+        },
+        {
+          "ordinal": 509,
+          "role": "assistant",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:39:50.756Z",
+          "turn": 2
+        }
+      ],
+      "original_label": "unresolved",
+      "post_audit_label": "verified_source",
+      "rationale": "The parent review identified forged pod ownership as an integrity gap; the child then described measured nested-runtime checks and implemented the topology/ownership change before the record write.",
+      "write_event_timestamp": "2026-09-05T23:44:24.839Z"
+    },
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d2",
+      "evidence_refs": [
+        {
+          "ordinal": 7704,
+          "role": "assistant",
+          "rollout_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          "timestamp": "2026-09-05T23:30:16.841Z",
+          "turn": 77
+        },
+        {
+          "ordinal": 351,
+          "role": "reasoning_summary",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:31:20.102Z",
+          "turn": 2
+        },
+        {
+          "ordinal": 364,
+          "role": "tool",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:32:11.928Z",
+          "turn": 2
+        },
+        {
+          "ordinal": 509,
+          "role": "assistant",
+          "rollout_id": "01a073d9-6778-7111-8307-7a400894b51d",
+          "timestamp": "2026-09-05T23:39:50.756Z",
+          "turn": 2
+        }
+      ],
+      "original_label": "unresolved",
+      "post_audit_label": "verified_source",
+      "rationale": "The parent review identified deleted or reordered sidecar material being accepted as append-only; the child described and implemented Git-prefix and committed-history checks before recording the decision.",
+      "write_event_timestamp": "2026-09-05T23:44:24.839Z"
+    },
+    {
+      "decision_id": "mse_djnwts4msn5r296n:d1",
+      "evidence_refs": [],
+      "original_label": "unresolved",
+      "post_audit_label": "unresolved",
+      "rationale": "The correct session has an inbox-triage request immediately before the record write, but the visible pre-write turns inspected do not independently establish the record's particular promotion and disposition choices.",
+      "write_event_timestamp": "2026-07-07T12:04:01.555Z"
+    },
+    {
+      "decision_id": "mse_k6xq3f1d9n7v2hba:d1",
+      "evidence_refs": [
+        {
+          "ordinal": 3964,
+          "role": "user",
+          "rollout_id": "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          "timestamp": "2026-06-30T21:29:50.661Z",
+          "turn": 45
+        },
+        {
+          "ordinal": 4025,
+          "role": "assistant",
+          "rollout_id": "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          "timestamp": "2026-06-30T21:31:36.075Z",
+          "turn": 45
+        }
+      ],
+      "original_label": "unresolved",
+      "post_audit_label": "verified_source",
+      "rationale": "The user requested branching and agent research; the assistant then explicitly combined Git branch/worktree isolation, task-specialized subagents, and PR/merge-queue/CI integration before the record was written.",
+      "write_event_timestamp": "2026-06-30T21:31:51.851Z"
+    },
+    {
+      "decision_id": "mse_38b7jfjbwy8dfdtt:d1",
+      "evidence_refs": [
+        {
+          "ordinal": 5672,
+          "role": "user",
+          "rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          "timestamp": "2026-09-24T12:42:11.318Z",
+          "turn": 29
+        },
+        {
+          "ordinal": 5734,
+          "role": "assistant",
+          "rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          "timestamp": "2026-09-24T12:43:18.748Z",
+          "turn": 29
+        },
+        {
+          "ordinal": 5843,
+          "role": "assistant",
+          "rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          "timestamp": "2026-09-24T12:48:23.313Z",
+          "turn": 29
+        },
+        {
+          "ordinal": 6449,
+          "role": "assistant",
+          "rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          "timestamp": "2026-09-24T13:36:29.316Z",
+          "turn": 29
+        }
+      ],
+      "original_label": "unresolved",
+      "post_audit_label": "verified_source",
+      "rationale": "Earlier turns in this same live task called for a gold set and distinguished selected-turn precision, broader backward evidence recovery, and lineage traversal. They predate the record write; excluding the entire live task had discarded valid evidence.",
+      "write_event_timestamp": "2026-09-24T13:38:50.612Z"
+    }
+  ],
+  "schema_version": "decision-source-postaudit/1.0",
+  "sealed_gold_mutated": false,
+  "status": "post_hoc_exploratory_not_heldout_performance"
+}

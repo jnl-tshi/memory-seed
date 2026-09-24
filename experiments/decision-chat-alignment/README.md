@@ -156,8 +156,14 @@ coverage and token measurements with `evaluate_nearby_session_fallback.py`
 followed by `measure_fallback_tokens.py`; see each script's `--help` for the
 exact read-only inputs and explicit output path. The "conditional" cost is a
 gold-oracle calculation, not an automatic decision that the evidence is enough.
-Held-out outputs are under `cohort-100/heldout-evaluation/`. The final
-`measure_cited_messages.py` run takes the historical, development, and held-out
+Held-out outputs are under `cohort-100/heldout-evaluation/`.
+
+The post-hoc [write-event re-audit](cohort-100/postaudit-write-anchor/POSTAUDIT-REPORT.md)
+has a separate script, reviewed selections, and provenance-only outputs under
+`cohort-100/postaudit-write-anchor/`. It corrects five unresolved source
+judgments without modifying sealed gold or re-scoring the frozen retriever.
+
+The final `measure_cited_messages.py` run takes the historical, development, and held-out
 gold files together, excludes the three Documentation controls from strict
 totals, and counts exact cited raw ordinals without saving transcript text.
 `check_source_leakage.py` groups sources through parent-agent lineage and

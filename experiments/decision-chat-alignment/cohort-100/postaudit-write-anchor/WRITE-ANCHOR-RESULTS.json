@@ -1,0 +1,563 @@
+{
+  "generated_at": "2026-09-24T22:50:57.432360+00:00",
+  "method": "completed record write in selected logical task or descendant; 20-turn lineage scope clipped before write event",
+  "rows": [
+    {
+      "backward_20_lineage_coordinates": [
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          54
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          55
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          56
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          57
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          58
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          59
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          60
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          61
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          62
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          63
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          64
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          65
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          66
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          67
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          68
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          69
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          70
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          71
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          72
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          73
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          74
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          75
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          76
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          77
+        ],
+        [
+          "01a073d9-6778-7111-8307-7a400894b51d",
+          1
+        ],
+        [
+          "01a073d9-6778-7111-8307-7a400894b51d",
+          2
+        ]
+      ],
+      "decision_id": "mse_7yrpnx76kdd71ts4:d1",
+      "excluded_same_turn_or_later_item_count": 60,
+      "heading_skew_minutes": -735.586,
+      "original_gold_label": "unresolved",
+      "original_winning_turn": 77,
+      "prewrite_normalized_item_count": 1091,
+      "record_heading_timestamp": "2026-09-06T12:00:00+00:00",
+      "status": "write_event_found",
+      "write_anchor_turn": 2,
+      "write_event_kind": "file_change",
+      "write_event_ordinal": 585,
+      "write_event_timestamp": "2026-09-05T23:44:24.839Z",
+      "writer_in_selected_lineage": true,
+      "writer_parent_task_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+      "writer_rollout_id": "01a073d9-6778-7111-8307-7a400894b51d"
+    },
+    {
+      "backward_20_lineage_coordinates": [
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          54
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          55
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          56
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          57
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          58
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          59
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          60
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          61
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          62
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          63
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          64
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          65
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          66
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          67
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          68
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          69
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          70
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          71
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          72
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          73
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          74
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          75
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          76
+        ],
+        [
+          "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+          77
+        ],
+        [
+          "01a073d9-6778-7111-8307-7a400894b51d",
+          1
+        ],
+        [
+          "01a073d9-6778-7111-8307-7a400894b51d",
+          2
+        ]
+      ],
+      "decision_id": "mse_7yrpnx76kdd71ts4:d2",
+      "excluded_same_turn_or_later_item_count": 60,
+      "heading_skew_minutes": -735.586,
+      "original_gold_label": "unresolved",
+      "original_winning_turn": 77,
+      "prewrite_normalized_item_count": 1091,
+      "record_heading_timestamp": "2026-09-06T12:00:00+00:00",
+      "status": "write_event_found",
+      "write_anchor_turn": 2,
+      "write_event_kind": "file_change",
+      "write_event_ordinal": 585,
+      "write_event_timestamp": "2026-09-05T23:44:24.839Z",
+      "writer_in_selected_lineage": true,
+      "writer_parent_task_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+      "writer_rollout_id": "01a073d9-6778-7111-8307-7a400894b51d"
+    },
+    {
+      "backward_20_lineage_coordinates": [
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          46
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          47
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          48
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          49
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          50
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          51
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          52
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          53
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          54
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          55
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          56
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          57
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          58
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          59
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          60
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          61
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          62
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          63
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          64
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          65
+        ],
+        [
+          "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+          66
+        ]
+      ],
+      "decision_id": "mse_djnwts4msn5r296n:d1",
+      "excluded_same_turn_or_later_item_count": 1,
+      "heading_skew_minutes": 1.026,
+      "original_gold_label": "unresolved",
+      "original_winning_turn": 42,
+      "prewrite_normalized_item_count": 704,
+      "record_heading_timestamp": "2026-07-07T12:03:00+00:00",
+      "status": "write_event_found",
+      "write_anchor_turn": 66,
+      "write_event_kind": "file_change",
+      "write_event_ordinal": 6155,
+      "write_event_timestamp": "2026-07-07T12:04:01.555Z",
+      "writer_in_selected_lineage": true,
+      "writer_parent_task_id": null,
+      "writer_rollout_id": "019f26b2-9813-7101-ac1c-baa49a3c8ad2"
+    },
+    {
+      "backward_20_lineage_coordinates": [
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          25
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          26
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          27
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          28
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          29
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          30
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          31
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          32
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          33
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          34
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          35
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          36
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          37
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          38
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          39
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          40
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          41
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          42
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          43
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          44
+        ],
+        [
+          "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+          45
+        ]
+      ],
+      "decision_id": "mse_k6xq3f1d9n7v2hba:d1",
+      "excluded_same_turn_or_later_item_count": 1,
+      "heading_skew_minutes": 0.864,
+      "original_gold_label": "unresolved",
+      "original_winning_turn": 45,
+      "prewrite_normalized_item_count": 679,
+      "record_heading_timestamp": "2026-06-30T21:31:00+00:00",
+      "status": "write_event_found",
+      "write_anchor_turn": 45,
+      "write_event_kind": "file_change",
+      "write_event_ordinal": 4035,
+      "write_event_timestamp": "2026-06-30T21:31:51.851Z",
+      "writer_in_selected_lineage": true,
+      "writer_parent_task_id": null,
+      "writer_rollout_id": "019f0b5e-267a-7263-8c5c-0f6fb130fe4b"
+    },
+    {
+      "backward_20_lineage_coordinates": [
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          9
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          10
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          11
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          12
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          13
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          14
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          15
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          16
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          17
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          18
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          19
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          20
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          21
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          22
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          23
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          24
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          25
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          26
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          27
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          28
+        ],
+        [
+          "01a0d10b-a924-7553-8f57-124c18a01a2a",
+          29
+        ]
+      ],
+      "decision_id": "mse_38b7jfjbwy8dfdtt:d1",
+      "excluded_same_turn_or_later_item_count": 7,
+      "heading_skew_minutes": 0.844,
+      "original_gold_label": "unresolved",
+      "original_winning_turn": 29,
+      "prewrite_normalized_item_count": 773,
+      "record_heading_timestamp": "2026-09-24T13:38:00+00:00",
+      "status": "write_event_found",
+      "write_anchor_turn": 29,
+      "write_event_kind": "append_receipt",
+      "write_event_ordinal": 6500,
+      "write_event_timestamp": "2026-09-24T13:38:50.612Z",
+      "writer_in_selected_lineage": true,
+      "writer_parent_task_id": null,
+      "writer_rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a"
+    }
+  ],
+  "schema_version": "decision-write-anchor-reaudit/1.0",
+  "sealed_gold_mutated": false
+}

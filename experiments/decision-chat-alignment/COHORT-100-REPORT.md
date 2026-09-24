@@ -1,5 +1,7 @@
 # Codex decision-to-chat alignment: strict 100-decision extension
 
+Post-audit note (2026-09-24): a separate [write-event re-audit](cohort-100/postaudit-write-anchor/POSTAUDIT-REPORT.md) revisited the five unresolved source labels. It found pre-write evidence for four and left one unresolved. That exploratory amendment does **not** change this report's frozen retrieval or held-out measurements.
+
 Status: read-only research experiment, isolated branch. No decision records,
 Codex rollouts, production Memory Seed pipeline, hosted retention rule, or
 classifier were changed. The retrieval setting was selected on development
