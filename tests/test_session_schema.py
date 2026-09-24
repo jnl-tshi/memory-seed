@@ -392,7 +392,10 @@ class SessionSchemaTests(unittest.TestCase):
             "consequential new product, architectural, data, safety, or workflow",
             "Native Plan Mode Gate",
             "Please switch to Plan mode with `/plan`",
-            "Stop after this prompt",
+            "Evaluate this gate only once per conversation",
+            "Pause for that reminder turn only",
+            "treat the gate as satisfied",
+            "Do not recheck native mode, repeat the prompt, or challenge the user's stated mode status",
             "Capability and reuse inventory",
             "Relevant authority and evidence",
             "Realistic alternatives",
@@ -402,6 +405,10 @@ class SessionSchemaTests(unittest.TestCase):
             "Routine, already assessed work follows a decision whose scope and evidence remain current.",
         ):
             self.assertIn(phrase, content)
+        self.assertNotIn(
+            "check the active\nmode before beginning substantive discovery",
+            content,
+        )
         for registry in (live_registry, seed_registry):
             self.assertIn("skill: design_discovery.md", registry)
             self.assertIn(
