@@ -303,6 +303,23 @@ Each decision names the earliest tranche it blocks. Resolve it in that tranche's
 5. **P1.7:** Secret detection, redaction and oversize payload handling.
 6. **P1.7:** Default policy for sharing selected excerpts across team members.
 
+### Carry into tranche discovery: atomic facts and decisions
+
+The [atomic facts and decisions report](../4_Reference/atomic-facts-and-decisions-report.md) (2026-09-24)
+adds no tranche and changes no record kind. Each discovery below should weigh its named elements:
+
+- **P0.2:** keep each decision's agreement span and user/agent attribution in the synthetic golden sessions.
+  This also covers the prospective first-hand capture that the decision-to-chat alignment study recommended.
+- **P0.4:** treat decision atomicity (one issue, one chosen option, one scope, with an agreement quote) and
+  40–120 character verbatim grounding quotes as candidate curator acceptance rules. Keep Decision and
+  Documentation as the only record kinds.
+- **P1.5:** consider record-kind (fact / decision / documentation / none), decision-split and
+  premise-extraction tasks. Treat the tournament's `supports` label as a field on the record rather than a
+  new relationship kind.
+
+The Fact kind and `rests_on` premise tracking are parked in
+[`8_Deferred`](../8_Deferred/fact-items-and-premise-tracking-proposal.md).
+
 ### Resolved in the 2026-09-23 design discovery
 
 These were open decisions 7-12. JNL settled them in a design discovery for the review gaps. The linked

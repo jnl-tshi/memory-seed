@@ -59,6 +59,10 @@ Each tranche's design discovery must settle these open decisions before its impl
   use the signed-page fallback), and that it separates user input from agent and tool items (otherwise every
   replacement stays pending).
 - **P1.5:** provider thresholds.
+- **P0.2, P0.4, P1.5:** weigh the carried elements of the
+  [atomic facts and decisions report](../4_Reference/atomic-facts-and-decisions-report.md), listed in the
+  [programme](hosted-memory-mvp-programme.md#carry-into-tranche-discovery-atomic-facts-and-decisions).
+  The Fact kind and premise tracking are [deferred](../8_Deferred/fact-items-and-premise-tracking-proposal.md).
 - **P1.6:** automatic versus batch-approved merge adoption.
 - **P1.7:** backup expiry and content purge, secret/oversize handling, and the default for sharing excerpts.
 - **P1.8:** the numerical end-to-end p95 target, chosen from measured workloads.

@@ -21,6 +21,7 @@ return.
 | [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [decision-storyline-retrieval-proposal.md](decision-storyline-retrieval-proposal.md) | — | — | deferred |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
+| [fact-items-and-premise-tracking-proposal.md](fact-items-and-premise-tracking-proposal.md) | P2 | — | Deferred until the P0.4 loop and P1.5 tournament evidence exist; see revisit_when. |
 | [laya-local-decision-worker-proposal.md](laya-local-decision-worker-proposal.md) | — | — | deferred |
 | [local-memory-optional-followups.md](local-memory-optional-followups.md) | — | — | — |
 | [memory-seed-publishability-check-evaluation.md](memory-seed-publishability-check-evaluation.md) | P3 | — | deferred |
