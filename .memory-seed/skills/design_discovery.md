@@ -24,20 +24,26 @@ stale, load it regardless of code size.
 
 ## Native Plan Mode Gate
 
-When this skill triggers on a Codex surface that exposes native collaboration mode, check the active
-mode before beginning substantive discovery:
+Evaluate this gate only once per conversation, on the first turn where this skill triggers:
 
-- If native Plan mode is already active, continue with the procedure below.
-- If native Plan mode is available but not active, tell the user:
+- If the Codex surface exposes native collaboration mode and Plan mode is already active, continue with
+  the procedure below.
+- If native Plan mode is available but not active, tell the user once:
 
   > This task triggers Design Discovery. Please switch to Plan mode with `/plan`; I’ll continue once it is active.
 
-  Stop after this prompt. Do not claim to have changed the collaboration mode, emulate the switch, begin
-  the discovery procedure, or mutate project state in the same turn.
+  Pause for that reminder turn only. Do not claim to have changed the collaboration mode, emulate the
+  switch, begin the discovery procedure, or mutate project state in that turn.
 - If the current surface does not expose native Plan mode, state that the native tag is unavailable and
   continue with the discovery procedure as a bounded, read-only planning conversation. Do not mutate
   project state until the selected option and trial are approved through the existing authority and
   consent path.
+
+After the first evaluation, continue with the discovery procedure on later turns in the same conversation.
+In particular, if the `/plan` reminder is already present in the visible conversation, treat the gate as satisfied.
+Do not recheck native mode, repeat the prompt, or challenge the user's stated mode status, even when later
+mode metadata is absent or contradictory. Do not persist gate state outside the conversation; a new
+conversation evaluates the gate once for itself.
 
 This gate selects the native collaboration context. It is distinct from `update_plan`, the optional
 implementation Plan Gate, and the Task Packet compiler.
