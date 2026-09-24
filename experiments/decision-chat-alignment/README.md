@@ -1,8 +1,8 @@
 # Decision-to-chat alignment experiment
 
 This directory contains a bounded, read-only experiment for aligning structured Memory Seed
-decisions with local Codex rollout windows. Start with `REPORT-CODEX-TURN-AWARE.md` for the latest
-paired results and limitations.
+decisions with local Codex rollout windows. Start with `REPORT-CODEX-LINEAGE-CAUSAL.md` for the
+latest fact-finding result, structural repair, causal controls, and limitations.
 
 The matcher never edits Memory Seed records or Codex rollouts. Public results contain source
 coordinates and hashes; raw conversation windows are written only to the explicitly supplied private

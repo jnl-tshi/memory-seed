@@ -280,6 +280,12 @@ class AlignmentTests(unittest.TestCase):
             reasoning_summaries=["SQLite is the selected durable local store."],
             reasoning_summary_ordinals=[3],
             reasoning_summary_timestamps=["2026-09-24T00:00:03Z"],
+            reasoning_summary_items=[
+                alignment.NormalizedItem(
+                    "s", "2026-09-24T00:00:03Z", 1, "turn-1", "reasoning_summary",
+                    "SQLite is the selected durable local store.", "rollout.jsonl", 3,
+                )
+            ],
         )
         decision = alignment.DecisionRecord(
             decision_id="mse_test:d1", entry_id="mse_test", ordinal="d1", title="Choose SQLite",
@@ -399,6 +405,39 @@ class AlignmentTests(unittest.TestCase):
             alignment.is_replayed_transcript(
                 "The following is the Codex agent history whose request action you are assessing."
             )
+        )
+        self.assertTrue(
+            alignment.is_replayed_transcript(
+                "Assessment wrapper: The following is the Codex agent history whose request action you are assessing."
+            )
+        )
+
+    def test_causal_text_stops_at_same_minute_session_append(self) -> None:
+        meta = self._meta()
+        block = alignment.TurnBlock(meta, 1, "turn")
+        block.items = [
+            alignment.NormalizedItem("s", "2026-09-24T11:59:59Z", 1, "turn", "user", "Choose SQLite", "x", 1),
+            alignment.NormalizedItem("s", "2026-09-24T12:00:10Z", 1, "turn", "assistant", "SQLite is selected", "x", 2),
+            alignment.NormalizedItem("s", "2026-09-24T12:00:30Z", 1, "turn", "tool", "memory_session_append", "x", 3),
+            alignment.NormalizedItem("s", "2026-09-24T12:00:40Z", 1, "turn", "assistant", "D: Choose SQLite", "x", 4),
+        ]
+        cutoff = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            alignment.causal_block_text(block, cutoff),
+            "user: Choose SQLite\nassistant: SQLite is selected",
+        )
+
+    def test_causal_summary_excludes_future_summary(self) -> None:
+        meta = self._meta()
+        block = alignment.TurnBlock(meta, 1, "turn")
+        block.reasoning_summary_items = [
+            alignment.NormalizedItem("s", "2026-09-24T11:59:00Z", 1, "turn", "reasoning_summary", "Early rationale", "x", 1),
+            alignment.NormalizedItem("s", "2026-09-24T12:01:01Z", 1, "turn", "reasoning_summary", "Late copy", "x", 2),
+        ]
+        cutoff = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            alignment.causal_reasoning_summary_text(block, cutoff),
+            "reasoning_summary: Early rationale",
         )
 
     def test_tool_payload_keeps_paths_but_drops_decision_ids(self) -> None:

@@ -123,6 +123,7 @@ class TurnBlock:
     reasoning_summaries: list[str] = field(default_factory=list, repr=False)
     reasoning_summary_ordinals: list[int] = field(default_factory=list)
     reasoning_summary_timestamps: list[str] = field(default_factory=list)
+    reasoning_summary_items: list[NormalizedItem] = field(default_factory=list, repr=False)
 
     @property
     def text(self) -> str:
@@ -371,7 +372,43 @@ def is_derived_review_session(meta: SessionMeta) -> bool:
 
 def is_replayed_transcript(text: str) -> bool:
     folded = " ".join(text.casefold().split())
-    return folded.startswith("the following is the codex agent history")
+    return "the following is the codex agent history" in folded
+
+
+def is_session_authoring_item(item: NormalizedItem) -> bool:
+    folded = " ".join(item.text.casefold().split())
+    return item.role == "tool" and folded.startswith("memory_session_append")
+
+
+def causal_cutoff(block: TurnBlock, decision_time: datetime) -> datetime:
+    """Bound evidence to the decision minute, stopping earlier at session authoring."""
+    cutoff = decision_time + timedelta(minutes=1)
+    authoring_times = [
+        item_time
+        for item in block.items
+        if is_session_authoring_item(item)
+        and (item_time := parse_iso_timestamp(item.timestamp)) is not None
+        and decision_time <= item_time < cutoff
+    ]
+    return min(authoring_times, default=cutoff)
+
+
+def causal_item_text(items: Sequence[NormalizedItem], cutoff: datetime) -> str:
+    """Return only evidence recorded before the supplied causal cutoff."""
+    retained = []
+    for item in items:
+        item_time = parse_iso_timestamp(item.timestamp)
+        if item_time is not None and item_time < cutoff and item.text.strip():
+            retained.append(f"{item.role}: {item.text}")
+    return "\n".join(retained)
+
+
+def causal_block_text(block: TurnBlock, decision_time: datetime) -> str:
+    return causal_item_text(block.items, causal_cutoff(block, decision_time))
+
+
+def causal_reasoning_summary_text(block: TurnBlock, decision_time: datetime) -> str:
+    return causal_item_text(block.reasoning_summary_items, causal_cutoff(block, decision_time))
 
 
 def compact_tool_text(name: str, raw_input: str) -> str:
@@ -459,6 +496,20 @@ def parse_rollout(path: Path, meta: SessionMeta) -> list[TurnBlock]:
                         current.reasoning_summary_ordinals.append(int(row["ordinal"]))
                     if row_timestamp:
                         current.reasoning_summary_timestamps.append(row_timestamp)
+                    current.reasoning_summary_items.append(
+                        NormalizedItem(
+                            session_id=meta.session_id,
+                            timestamp=row_timestamp,
+                            turn_number=turn_number,
+                            turn_id=current_turn_id,
+                            role="reasoning_summary",
+                            text="\n".join(summaries),
+                            source_path=meta.source_path,
+                            source_ordinal=(
+                                int(row["ordinal"]) if isinstance(row.get("ordinal"), int) else None
+                            ),
+                        )
+                    )
                 continue
             role: str | None = None
             text = ""
@@ -825,8 +876,6 @@ def align(
     )
     vectorizer.fit([*decision_texts, *visible_texts, *summary_texts])
     decision_matrix = vectorizer.transform(decision_texts)
-    visible_similarities = cosine_similarity(decision_matrix, vectorizer.transform(visible_texts))
-    summary_similarities = cosine_similarity(decision_matrix, vectorizer.transform(summary_texts))
     session_blocks: dict[str, list[tuple[int, TurnBlock]]] = defaultdict(list)
     for index, block in enumerate(all_blocks):
         session_blocks[block.session.rollout_id].append((index, block))
@@ -838,6 +887,16 @@ def align(
         eligible_rollout_ids: set[str] = set()
         scored_candidates: list[dict[str, Any]] = []
         if decision_time:
+            causal_visible_texts = [causal_block_text(block, decision_time) for block in all_blocks]
+            causal_summary_texts = [
+                causal_reasoning_summary_text(block, decision_time) for block in all_blocks
+            ]
+            visible_similarities = cosine_similarity(
+                decision_matrix[decision_index], vectorizer.transform(causal_visible_texts)
+            ).ravel()
+            summary_similarities = cosine_similarity(
+                decision_matrix[decision_index], vectorizer.transform(causal_summary_texts)
+            ).ravel()
             for session in sessions:
                 if not actor_compatible(decision, session):
                     continue
@@ -861,7 +920,7 @@ def align(
                     ).total_seconds() / 3600.0
                     if not -POSITIVE_CLOCK_DRIFT_HOURS <= candidate_delta_hours <= TIME_WINDOW_HOURS:
                         continue
-                    source_text = candidate.text + "\n" + candidate.reasoning_summary_text
+                    source_text = causal_visible_texts[global_index] + "\n" + causal_summary_texts[global_index]
                     if decision.entry_id.casefold() in source_text.casefold():
                         continue
                     predecessor_rows.append((local_index, global_index, candidate))
@@ -869,7 +928,7 @@ def align(
                     global_index
                     for _local_index, global_index, _candidate in sorted(
                         predecessor_rows,
-                        key=lambda row: float(visible_similarities[decision_index, row[1]]),
+                        key=lambda row: float(visible_similarities[row[1]]),
                         reverse=True,
                     )[:3]
                 }
@@ -879,14 +938,29 @@ def align(
                     for _local_index, global_index, candidate in predecessor_rows
                     if candidate is anchor
                     or candidate.collaboration_mode == "plan"
-                    or float(summary_similarities[decision_index, global_index]) > 0.0
+                    or float(summary_similarities[global_index]) > 0.0
                 )
                 for local_index, global_index, candidate in predecessor_rows:
                     if global_index not in selected_indices:
                         continue
-                    cosine = float(visible_similarities[decision_index, global_index])
-                    summary_cosine = float(summary_similarities[decision_index, global_index])
-                    signals = signal_score(decision, candidate, cosine)
+                    cosine = float(visible_similarities[global_index])
+                    summary_cosine = float(summary_similarities[global_index])
+                    causal_candidate = TurnBlock(
+                        candidate.session,
+                        candidate.turn_number,
+                        candidate.turn_id,
+                        start_timestamp=candidate.start_timestamp,
+                        end_timestamp=candidate.end_timestamp,
+                        collaboration_mode=candidate.collaboration_mode,
+                        mode_source=candidate.mode_source,
+                        mode_conflict=candidate.mode_conflict,
+                        items=[
+                            item for item in candidate.items
+                            if (parse_iso_timestamp(item.timestamp) or decision_time)
+                            < causal_cutoff(candidate, decision_time)
+                        ],
+                    )
+                    signals = signal_score(decision, causal_candidate, cosine)
                     visible_supported = bool(
                         cosine >= 0.08
                         or signals["token_overlap"] >= 0.10
@@ -929,6 +1003,7 @@ def align(
                             "window": bounded_window(blocks, local_index),
                             "candidate_sources": sources,
                             "predecessor_turns_searched": len(predecessor_rows),
+                            "causal_cutoff": decision_time.isoformat(),
                         }
                     )
         scored_candidates.sort(key=lambda item: item["signals"]["ranking_score"], reverse=True)
@@ -995,6 +1070,7 @@ def align(
                 "mode_source": block.mode_source,
                 "mode_conflict": block.mode_conflict,
                 "predecessor_turns_searched": candidate["predecessor_turns_searched"],
+                "causal_cutoff": candidate["causal_cutoff"],
                 "candidate_sources": candidate["candidate_sources"],
                 "reasoning_summary": {
                     "used": candidate["signals"]["reasoning_summary_used"],
