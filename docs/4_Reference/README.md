@@ -33,6 +33,7 @@ Current Memory Trace provenance:
 |---|---|---|---|
 | [21st-dev-components.md](21st-dev-components.md) | — | — | — |
 | [agent-memory-product-functionality-report.md](agent-memory-product-functionality-report.md) | — | — | source-only |
+| [atomic-facts-and-decisions-report.md](atomic-facts-and-decisions-report.md) | — | — | research |
 | [clean-session-high-signal-task-packet-pilot.md](clean-session-high-signal-task-packet-pilot.md) | — | — | — |
 | [context-worktree-recovered-session-records.md](context-worktree-recovered-session-records.md) | — | — | reference |
 | [designing-user-interfaces-source-learnings.md](designing-user-interfaces-source-learnings.md) | — | — | source-learnings |
