@@ -28,8 +28,8 @@ remain separately labeled and should not be silently promoted to equivalent posi
 - All cited evidence is inside the returned window for 42 of 50 rows (84%).
 - Among the 42 fully verified decisions, 39 contain all cited evidence inside the returned window;
   three require deeper backward traversal.
-- The only row with no cited evidence in the returned window is partial rather than absent: related
-  evidence exists elsewhere in the same retained task.
+- Eight rows lack at least one cited evidence turn in the returned window. Every row still contains
+  some cited evidence; the distinction is incomplete context, not an empty candidate window.
 
 Confidence is directionally useful but not a correctness boundary:
 

@@ -3,7 +3,8 @@
 This directory contains a bounded, read-only experiment for aligning structured Memory Seed
 decisions with local Codex rollout windows. Start with `REPORT-CODEX-LINEAGE-CAUSAL.md` for the
 structural repair and causal controls, then `GOLD-SET-REPORT.md` for the manually adjudicated fixed
-50-decision cohort and candidate-window findings.
+50-decision cohort and candidate-window findings. `WINDOW-STRATEGY-REPORT.md` measures the recall and
+conversation reduction of fixed, backward, Plan-aware, continuation-aware, and parent-lineage windows.
 
 The matcher never edits Memory Seed records or Codex rollouts. Public results contain source
 coordinates and hashes; raw conversation windows are written only to the explicitly supplied private
@@ -44,3 +45,15 @@ python -X utf8 experiments/decision-chat-alignment/align_decisions.py `
   --output experiments/decision-chat-alignment/results-codex-turn-aware `
   --private-output "$env:TEMP/memory-seed-decision-alignment-third-pass-private"
 ```
+
+After assembling `GOLD-SET.jsonl`, reproduce the structural window ablation with:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/evaluate_window_strategies.py `
+  --repo . `
+  --output experiments/decision-chat-alignment
+```
+
+The evaluator reads retained Codex logs but writes only aggregate counts and source coordinates to
+`WINDOW-STRATEGY-RESULTS.json`, `WINDOW-STRATEGY-ROWS.csv`, and
+`WINDOW-STRATEGY-REPORT.md`. It does not serialize raw chat or reasoning-summary text.
