@@ -14,3 +14,16 @@ python -X utf8 experiments/decision-chat-alignment/align_decisions.py `
   --output experiments/decision-chat-alignment/results `
   --private-output "$env:TEMP/memory-seed-decision-alignment-20260924"
 ```
+
+To restrict the eligible decision population before sampling, pass an exact agent tag. The tracked
+Codex-only follow-up used:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/align_decisions.py `
+  --repo . `
+  --decision-agent codex `
+  --sample-size 50 `
+  --seed 20260924 `
+  --output experiments/decision-chat-alignment/results-codex-only `
+  --private-output "$env:TEMP/memory-seed-decision-alignment-codex-only-20260924"
+```

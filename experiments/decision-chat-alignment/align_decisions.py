@@ -393,6 +393,19 @@ def deterministic_sample(records: Sequence[DecisionRecord], size: int, seed: int
     return sorted(rng.sample(population, size), key=lambda record: record.decision_id)
 
 
+def filter_decisions(
+    records: Sequence[DecisionRecord], agent_type: str | None
+) -> list[DecisionRecord]:
+    """Apply an exact, case-insensitive author tag filter before sampling."""
+    if not agent_type:
+        return sorted(records, key=lambda record: record.decision_id)
+    expected = agent_type.casefold()
+    return sorted(
+        (record for record in records if (record.agent_type or "").casefold() == expected),
+        key=lambda record: record.decision_id,
+    )
+
+
 def tokens(text: str) -> list[str]:
     return [token.casefold() for token in TOKEN_RE.findall(text)]
 
@@ -843,12 +856,17 @@ def main() -> int:
     parser.add_argument("--private-output", type=Path, required=True)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument(
+        "--decision-agent",
+        help="sample only decisions whose agent_type exactly matches this value (case-insensitive)",
+    )
     args = parser.parse_args()
 
     repo_root = args.repo.resolve()
     remote = repository_remote(repo_root)
     repo_roots = repository_worktree_roots(repo_root)
-    population = load_decisions(repo_root)
+    unfiltered_population = load_decisions(repo_root)
+    population = filter_decisions(unfiltered_population, args.decision_agent)
     sample = deterministic_sample(population, args.sample_size, args.seed)
     sample_times = [parse_iso_timestamp(decision.decision_timestamp) for decision in sample]
     sample_times = [value for value in sample_times if value is not None]
@@ -883,10 +901,15 @@ def main() -> int:
         "repository_worktree_roots": [str(root) for root in repo_roots],
         "repository_remote": remote,
         "codex_home": str(args.codex_home.resolve()),
+        "unfiltered_population_size": len(unfiltered_population),
         "population_size": len(population),
+        "decision_agent_filter": args.decision_agent,
         "sample_size": len(sample),
         "sample_seed": args.seed,
-        "sample_method": "uniform without replacement from decision_id-sorted canonical Decision chunks",
+        "sample_method": (
+            "uniform without replacement from decision_id-sorted canonical Decision chunks"
+            + (f" filtered to agent_type={args.decision_agent!r}" if args.decision_agent else "")
+        ),
         "sample_ids": [decision.decision_id for decision in sample],
         "sample_ids_sha256": sha256_text("\n".join(decision.decision_id for decision in sample)),
         "rollout_files_discovered": len(all_paths),
