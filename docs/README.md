@@ -109,7 +109,7 @@ exceptions. The counts below are generated — hand-edits inside the markers are
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 16 · 2_Todo 10 · 3_Spec 10 · 4_Reference 30 · 5_Completed 89 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 17
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 16 · 2_Todo 9 · 3_Spec 10 · 4_Reference 30 · 5_Completed 90 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 17
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [codex-capture-feasibility-plan.md](2_Todo/codex-capture-feasibility-plan.md) — Complete interactive design discovery with JNL, then approve a bounded synthetic-data implementation plan.
@@ -120,5 +120,4 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [task-packet-calibration-harness-plan.md](2_Todo/task-packet-calibration-harness-plan.md) — Freeze the representative development population and sealed holdout design now that the Qwen3.5 9B M0 plumbing gate has passed.
-- **P1** [task-packet-sources-and-orientation-lite-plan.md](2_Todo/task-packet-sources-and-orientation-lite-plan.md) — JNL reviews revision 2 (after the 2026-09-23 independent review) and confirms D1-D4; implementation starts only after approval.
 <!-- docs-index:end -->

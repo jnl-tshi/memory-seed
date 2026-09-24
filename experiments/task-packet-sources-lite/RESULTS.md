@@ -1,6 +1,6 @@
 # Task Packet sources and orientation-lite measurements
 
-Plan: [`docs/2_Todo/task-packet-sources-and-orientation-lite-plan.md`](../../docs/2_Todo/task-packet-sources-and-orientation-lite-plan.md).
+Plan: [`docs/5_Completed/task-packet-sources-and-orientation-lite-plan.md`](../../docs/5_Completed/task-packet-sources-and-orientation-lite-plan.md).
 Harness: [`measure.py`](measure.py).
 
 - The harness compiles the offline pilot fixture with this repository's real `agent-rules.md` and
