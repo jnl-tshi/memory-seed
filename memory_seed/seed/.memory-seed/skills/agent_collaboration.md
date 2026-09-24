@@ -544,13 +544,58 @@ Before a branch can land, the orchestrator must:
 6. On a live user go-ahead, integrate through `session merge-branch`, `session integrate`, or
    `session open-pr` as the configured mode permits — never a raw merge workaround.
 7. Validate the **integrated tree**, not just the branch head.
-8. Only after integrated validation passes, run the existing fail-closed cleanup classifier. Branch
-   deletion remains a separate decision.
+8. Only after integrated validation passes, leave the worktree and remove it (see **Leave The Worktree
+   Before Cleanup** below). Branch deletion remains a separate decision.
 9. Append the handoff record with branch, worktree, merge commit, validation, review result, and
    retained risks.
 
 Under `merge_trigger: manual`, step 5 is a hold. A dry-run is always allowed; a failed integrated-tree
 validation leaves the branch and worktree intact.
+
+## Leave The Worktree Before Cleanup
+
+When the agent is done with a worktree, it must move the session to the primary checkout first, and
+only then deregister and delete the worktree. A worktree is never removed by a session or process still
+running inside it.
+
+**Why.** A session launched in a worktree runs its tools from there. The Memory Seed MCP server started
+with `uv run` uses that worktree's `.venv`, and that `.venv\Scripts` sits first on the server's `PATH`.
+Integration cleanup then removes the worktree while the server is still running from it. On Windows,
+the running `python.exe` is locked, so cleanup deletes everything else and leaves a half-deleted
+`.venv`. When Git for Windows runs the `prepare-commit-msg` hook, it looks up the shebang's `python.exe` on
+`PATH` (reproduced on 2026-09-24), and that is now the broken interpreter. From then on, every commit from that
+server fails with `No pyvenv.cfg file`, and every later `memory_session_integrate` from the session
+aborts its merge. The session also loses `.memory-seed/`, so its Claude hooks stop resolving.
+
+**Order of operations:**
+
+1. **Land from the primary checkout.** Run `session merge-branch` / `memory_session_integrate` with the
+   primary checkout as the working directory, never from inside the worktree being removed. Confirm the
+   merge commit exists and the primary checkout is clean.
+2. **Move the session to the primary checkout.** Use the harness's own mechanism:
+   - *Claude Code:* `ExitWorktree` with `action: keep` when the worktree was entered with
+     `EnterWorktree`. When the session was launched in the worktree, use the desktop app's
+     change-directory tool if one is available.
+   - *Other harnesses:* their change-directory facility.
+
+   If the session cannot leave, go to step 5.
+3. **Verify it is safe to delete.** From the primary checkout:
+   - the branch is merged: `git merge-base --is-ancestor <branch> main` exits 0;
+   - the worktree has no uncommitted or untracked work (`git -C <worktree> status --short` is empty).
+
+   A dirty or unmerged worktree is kept and reported. Use `worktree_reconciliation.md` for anything
+   uncertain.
+4. **Deregister and delete the worktree.** Run `git worktree remove <path>` from the primary checkout.
+   If Windows refuses (a known `git worktree remove/prune` quirk), run `git worktree prune` and then
+   delete only the exact verified path. Confirm it no longer appears in `git worktree list`.
+5. **If the session cannot leave its launch worktree,** do not gut it. Leave the directory in place,
+   report `cleanup-pending` with the exact path, and hand the delete command to the user to run after
+   the session ends. Never delete a worktree whose `.venv` or files are held by a running process: a
+   locked-file error during removal means stop, not retry.
+
+Do not route around a failed commit in a session whose worktree was already partly removed. Run the
+equivalent `python -m memory_seed.cli session merge-branch --branch <branch>` from the primary
+checkout. That runs in a fresh process with a sane `PATH`.
 
 ## Branch History Preservation
 
