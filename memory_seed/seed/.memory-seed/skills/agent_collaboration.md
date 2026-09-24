@@ -606,6 +606,11 @@ aborts its merge. The session also loses `.memory-seed/`, so its Claude hooks st
    the session ends. Never delete a worktree whose `.venv` or files are held by a running process: a
    locked-file error during removal means stop, not retry.
 
+The integration command enforces two backstops. It reports `cleanup-pending` instead of removing a
+worktree that holds the caller's working directory or interpreter. Its git subprocesses also remove a
+broken venv's `Scripts` directory (one with no `pyvenv.cfg`) from `PATH`. Neither replaces leaving the
+worktree first.
+
 Do not route around a failed commit in a session whose worktree was already partly removed. Run the
 equivalent `python -m memory_seed.cli session merge-branch --branch <branch>` from the primary
 checkout. That runs in a fresh process with a sane `PATH`.

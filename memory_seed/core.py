@@ -1382,7 +1382,36 @@ def commit_reference_ids(root: Path, entry_id: str, commits_field: Sequence[str]
     return ids
 
 
+def _git_subprocess_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return an environment whose PATH cannot resolve a broken venv interpreter.
+
+    Git for Windows resolves a hook shebang's ``python.exe`` through PATH, so a
+    ``Scripts`` directory whose venv lost ``pyvenv.cfg`` (a half-removed worktree
+    still hosting the calling process) makes every hook - and so every commit -
+    fail with "No pyvenv.cfg file" (2026-09-24). Such entries can never run
+    Python, so dropping them only removes a guaranteed failure.
+    """
+    env = dict(os.environ if base is None else base)
+    if os.name != "nt":
+        return env
+    kept: list[str] = []
+    for entry in env.get("PATH", "").split(os.pathsep):
+        folder = Path(entry) if entry else None
+        if (
+            folder is not None
+            and folder.name.lower() == "scripts"
+            and (folder / "python.exe").is_file()
+            and not (folder.parent / "pyvenv.cfg").is_file()
+            and not (folder.parent / "python.exe").is_file()
+        ):
+            continue
+        kept.append(entry)
+    env["PATH"] = os.pathsep.join(kept)
+    return env
+
+
 def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
+    """Run git in ``root``; on failure the output carries stderr so errors are never silent."""
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), *args],
@@ -1390,9 +1419,14 @@ def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
             text=True,
             encoding="utf-8",
             timeout=30,
+            env=_git_subprocess_env(),
         )
-    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
-        return 1, ""
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        return 1, f"{type(exc).__name__}: {exc}"
+    if proc.returncode != 0:
+        return proc.returncode, "\n".join(
+            part for part in (proc.stdout.strip(), (proc.stderr or "").strip()) if part
+        )
     return proc.returncode, proc.stdout.strip()
 
 
@@ -8882,6 +8916,36 @@ def _remove_deregistered_worktree_residue(
     return True, "removed verified directory residue after Git deregistration"
 
 
+def _process_host_paths() -> list[Path]:
+    """Paths the current process depends on: its working directory and interpreter."""
+    paths: list[Path] = []
+    for candidate in (lambda: Path.cwd(), lambda: Path(sys.executable), lambda: Path(sys.prefix)):
+        try:
+            value = candidate()
+        except (OSError, ValueError):
+            continue
+        if str(value):
+            paths.append(value)
+    return paths
+
+
+def _worktree_hosting_paths(worktree: Path) -> list[str]:
+    """Return which of this process's host paths live inside ``worktree``."""
+    try:
+        target = worktree.resolve()
+    except OSError:
+        return []
+    hosted: list[str] = []
+    for host in _process_host_paths():
+        try:
+            resolved = host.resolve()
+        except OSError:
+            continue
+        if resolved == target or target in resolved.parents:
+            hosted.append(str(host))
+    return hosted
+
+
 def _cleanup_merged_source_worktree(
     root: Path, branch: str
 ) -> tuple[str | None, str | None, str | None, int]:
@@ -8912,6 +8976,20 @@ def _cleanup_merged_source_worktree(
     merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
     if merged_code != 0:
         return str(path), "retained", "source branch is not confirmed merged into HEAD", 0
+
+    # Never remove the checkout the caller itself runs from. On Windows the
+    # running interpreter stays locked while everything around it is deleted,
+    # leaving a venv that breaks every later git hook for that process.
+    hosted = _worktree_hosting_paths(path)
+    if hosted:
+        return (
+            str(path),
+            "cleanup-pending",
+            "the calling process runs from this worktree ("
+            + ", ".join(hosted)
+            + "); leave the worktree, then remove it from the primary checkout",
+            0,
+        )
 
     # Keep the ordinary lock-aware Git remover in one place.  The fallback below
     # is available only after this exact checkout has been deregistered.

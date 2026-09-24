@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 import unittest
@@ -1232,6 +1233,63 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertIn("still locked", result.worktree_cleanup_detail or "")
         self.assertTrue(source.exists())
         shutil.rmtree(source)
+
+    @pytest.mark.integration
+    def test_session_merge_branch_never_removes_the_worktree_hosting_the_caller(self):
+        """A caller running from the source worktree must not gut its own tooling."""
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+
+        remover = mock.Mock(side_effect=AssertionError("must not attempt removal"))
+        with mock.patch("memory_seed.worktree_gc._remove_one_worktree", remover), mock.patch(
+            "memory_seed.core._process_host_paths", return_value=[source / ".venv" / "Scripts" / "python.exe"]
+        ):
+            result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "cleanup-pending")
+        self.assertIn("runs from this worktree", result.worktree_cleanup_detail or "")
+        self.assertTrue(source.exists())
+        remover.assert_not_called()
+        self._git(cwd, "worktree", "remove", "--force", str(source))
+
+    def test_git_text_reports_stderr_when_git_fails(self):
+        from memory_seed.core import _git_text
+
+        cwd = self.make_project()
+        self._init_git_project(cwd)
+        code, output = _git_text(cwd, ("rev-parse", "--verify", "no-such-ref-anywhere"))
+
+        self.assertNotEqual(code, 0)
+        self.assertTrue(output, "a failed git call must surface its error text")
+
+    def test_git_subprocess_env_drops_broken_windows_venv_scripts_from_path(self):
+        from memory_seed.core import _git_subprocess_env
+
+        base = self.make_project()
+        broken = base / "gutted" / ".venv" / "Scripts"
+        broken.mkdir(parents=True)
+        (broken / "python.exe").write_bytes(b"")
+        healthy = base / "ok" / ".venv" / "Scripts"
+        healthy.mkdir(parents=True)
+        (healthy / "python.exe").write_bytes(b"")
+        (healthy.parent / "pyvenv.cfg").write_text("home = x\n", encoding="utf-8")
+        other = base / "tools"
+        other.mkdir()
+        path_value = os.pathsep.join([str(broken), str(healthy), str(other)])
+
+        with mock.patch("memory_seed.core.os.name", "nt"):
+            env = _git_subprocess_env({"PATH": path_value})
+
+        entries = env["PATH"].split(os.pathsep)
+        self.assertNotIn(str(broken), entries)
+        self.assertEqual(entries, [str(healthy), str(other)])
 
     @pytest.mark.integration
     def test_session_merge_branch_refuses_a_directory_replaced_during_residue_cleanup(self):
