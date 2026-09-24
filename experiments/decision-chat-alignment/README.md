@@ -1,7 +1,8 @@
 # Decision-to-chat alignment experiment
 
 This directory contains a bounded, read-only experiment for aligning structured Memory Seed
-decisions with local Codex rollout windows. Start with `REPORT.md` for results and limitations.
+decisions with local Codex rollout windows. Start with `REPORT-CODEX-TURN-AWARE.md` for the latest
+paired results and limitations.
 
 The matcher never edits Memory Seed records or Codex rollouts. Public results contain source
 coordinates and hashes; raw conversation windows are written only to the explicitly supplied private
@@ -26,4 +27,19 @@ python -X utf8 experiments/decision-chat-alignment/align_decisions.py `
   --seed 20260924 `
   --output experiments/decision-chat-alignment/results-codex-only `
   --private-output "$env:TEMP/memory-seed-decision-alignment-codex-only-20260924"
+```
+
+The third pass reuses those exact 50 decision IDs, anchors on individual turn timestamps, searches
+backward within each session, and uses Plan mode plus readable reasoning summaries as ranking-only
+signals:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/align_decisions.py `
+  --repo . `
+  --decision-agent codex `
+  --sample-size 50 `
+  --seed 20260924 `
+  --sample-ids-from experiments/decision-chat-alignment/results-codex-only/alignments.json `
+  --output experiments/decision-chat-alignment/results-codex-turn-aware `
+  --private-output "$env:TEMP/memory-seed-decision-alignment-third-pass-private"
 ```
