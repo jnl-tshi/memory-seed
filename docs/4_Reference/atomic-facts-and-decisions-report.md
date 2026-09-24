@@ -83,7 +83,7 @@ self-contained form.
   propositions (the FactoidWiki corpus). Indexing propositions outperformed passage and sentence
   indexing under a fixed word budget.
 - **Proposition segmentation.** PropSegmEnt (Chen et al., 2023) provides a 45k-proposition human
-  corpus. Abstractive proposition segmentation (Hosseini et al., 2024) provides scalable, open
+  corpus. Abstractive proposition segmentation (2024) provides scalable, open
   segmenters. The Sub-Sentence Encoder (Chen et al., 2023/NAACL 2024) embeds each proposition
   *in context*, as a separate vector.
 - **Decontextualization** (Choi et al., 2021). Rewrite a sentence so it is interpretable on its own
@@ -124,8 +124,8 @@ schema. TextRunner is the canonical example.
   with natural logic.
 - **MinIE** (Gashteovski et al., 2017) minimizes extractions and moves polarity, modality, attribution
   and quantities into **annotations** instead of the triple text.
-- OpenIE6 and neural taggers followed. Since 2023, generative LLM-based IE has dominated (see the Pai
-  et al. OpenIE survey and the Xu et al. generative-IE survey).
+- OpenIE6 and neural taggers followed. Since 2023, generative LLM-based IE has dominated (see the OpenIE
+  survey from rule-based models to LLMs, 2024, and the generative-IE survey, 2023).
 
 **Failure modes.**
 - **Conditions and context are lost.** "We'll adopt FAISS *if* the corpus passes 50k items" becomes
@@ -373,8 +373,8 @@ Proposal. The option in Q1 needs a decision.
 - **Path:** `.memory-seed/sessions/items/YYYY-MM/YYYY-MM-DD.md`, one block per source entry.
 - **Keying:** `(entry_id, heading timestamp)`, the same as link and diagram sidecars. A correction is
   an appended block that supersedes the earlier one. Nothing is edited in place.
-- **Validation:** `links check` / `items check` enforce chronology, ref existence, topic vocabulary,
-  quote grounding, and id collision on every write surface (Invariant 2, 1.3).
+- **Validation:** `links check` and a *proposed* `items check` would enforce chronology, ref existence, topic vocabulary,
+  quote grounding, and id collision on every write surface (Invariant 2's write-surface parity rule, added in v1.3).
 
 Sketch:
 
@@ -460,8 +460,10 @@ If only logged records are allowed, fact yield will be limited to what R/A/T/S h
    Supersede/evolve candidates between decisions become `classify_pending` stubs for human
    classification, as today.
 7. **Stabilize structure-changing labels.** Run steps 2 (split), 5 (conflict), and 6 twice,
-   independently, and keep only the intersection. Measured agreement on the subtle `refines` label was
-   about 53%, so single-run structural labels aren't trustworthy.
+   independently, and keep only the intersection. In a 2026-08-09 two-run classification of 405
+   lifecycle edges (project working notes, not in the repo corpus), the runs agreed 81% overall, but
+   nearly half of one run's `refines` calls were the other run's `builds-on`. Single-run structural
+   labels aren't trustworthy.
 8. **Receipt.** Return items, dropped candidates with reasons, proposed splits, stubs, and
    `premise_changed` impacts. Use the orchestration proposal's receipt format. The orchestrator
    accepts, pushes back, or escalates to JNL.
@@ -571,7 +573,7 @@ count, rather than entry count, the thing to watch.
 > **Claude:** Just the claim plus scope. If rejected alternatives are in the vector, a query about
 > FAISS matches the decision that *rejected* FAISS as if it endorsed it.
 > **JNL:** Makes sense, do that. Keep the rationale searchable, though.
-> **Claude:** Also, I *think* Dense X gains may not transfer to static embeddings. Unmeasured.
+> **Claude:** Also, I think Dense X gains may not transfer to static embeddings. Unmeasured.
 
 **Logged DRAFTS record (what the orchestrator writes):**
 
@@ -641,7 +643,9 @@ items:
     fact_type: measurement
     subject: "model2vec cold load"
     claim: "Loading the model2vec model cold took 6.7 seconds on a Windows development machine."
+    observed_at: 2026-07-26
     volatility: drifts
+    method: "first link audit with semantic ranking enabled, cold process"
     evidence: {source: "docs/3_Spec/lifecycle-edge-linking-sidecars.md", quote: "measured 6.7 s cold on a Windows dev box"}
 
   - id: mse_example0000001:f3
@@ -663,7 +667,7 @@ items:
 
   - id: mse_example0000001:f5
     kind: fact
-    fact_type: observation
+    fact_type: assumption
     subject: "embedding rejected alternatives"
     claim: "Including a decision's rejected alternatives in its vector makes queries about an alternative match the decision that rejected it."
     qualifiers: {modality: predicted, attribution: agent}
@@ -697,7 +701,7 @@ whether D1 still holds.
   quote.
 - **Invariant 4 (files = now, memory = why).** Facts about code describe the code at `observed_at`.
   They record why a decision was made, not what the code is now. `volatility` makes that visible.
-- **Invariant 1.6 (provenance).** `provenance` is required and declared, never inferred.
+- **Invariant 4, provenance clarification (added in v1.6).** `provenance` is required and declared, never inferred.
 - **Invariant 6 (Markdown authority).** Items live in a scoped Markdown sidecar. Vectors are derived.
 - **Invariant 7 (never hide).** Damping only; `exclude_replaced` stays opt-in.
 - **Principles.**
@@ -745,7 +749,7 @@ whether D1 still holds.
 - Wei et al., 2024. *Long-form factuality in large language models* (SAFE, LongFact). https://arxiv.org/abs/2403.18802v4
 - Chen et al., 2023. *Dense X Retrieval: What Retrieval Granularity Should We Use?* https://arxiv.org/abs/2312.06648
 - Chen et al., 2023. *PropSegmEnt: A Large-Scale Corpus for Proposition-Level Segmentation and Entailment Recognition.* Findings of ACL. https://aclanthology.org/2023.findings-acl.565/ · dataset https://huggingface.co/datasets/sihaochen/propsegment
-- Hosseini et al., 2024. *Scalable and Domain-General Abstractive Proposition Segmentation.* https://arxiv.org/pdf/2406.19803
+- 2024. *Scalable and Domain-General Abstractive Proposition Segmentation.* https://arxiv.org/pdf/2406.19803
 - Chen et al., 2023/2024. *Sub-Sentence Encoder: Contrastive Learning of Propositional Semantic Representations.* NAACL. https://arxiv.org/abs/2311.04335 · https://aclanthology.org/2024.naacl-long.89/
 - Choi et al., 2021. *Decontextualization: Making Sentences Stand-Alone.* TACL. https://aclanthology.org/2021.tacl-1.27/ · https://arxiv.org/abs/2102.05169
 - Wanner et al., 2024. *A Closer Look at Claim Decomposition.* https://arxiv.org/abs/2403.11903
@@ -759,17 +763,18 @@ whether D1 still holds.
 - Banko et al., 2007. *Open Information Extraction from the Web.* IJCAI. https://my.eng.utah.edu/~cs6961/papers/banko-ijca07.pdf · TextRunner demo https://aclanthology.org/N07-4013/
 - Angeli, Premkumar & Manning, 2015. *Leveraging Linguistic Structure For Open Domain Information Extraction.* ACL. https://nlp.stanford.edu/pubs/2015angeli-openie.pdf
 - Gashteovski, Gemulla & del Corro, 2017. *MinIE: Minimizing Facts in Open Information Extraction.* EMNLP. https://aclanthology.org/D17-1278/
-- Pai et al. *A Survey on Open Information Extraction from Rule-based Model to Large Language Model.* Findings of EMNLP 2024. https://arxiv.org/abs/2208.08690
-- Xu et al. *Large Language Models for Generative Information Extraction: A Survey.* https://arxiv.org/abs/2312.17617
+- *A Survey on Open Information Extraction from Rule-based Model to Large Language Model.* Findings of EMNLP 2024. https://arxiv.org/abs/2208.08690
+- *Large Language Models for Generative Information Extraction: A Survey.* https://arxiv.org/abs/2312.17617
 
 **Argumentation / claim mining**
 - Lawrence & Reed, 2019. *Argument Mining: A Survey.* Computational Linguistics 45(4). https://aclanthology.org/J19-4006/
-- Stab & Gurevych, 2017. *Parsing Argumentation Structures in Persuasive Essays.* Computational Linguistics 43(3). (Corpus summary via) https://direct.mit.edu/coli/article/45/4/765/93362/Argument-Mining-A-Survey
+- Stab & Gurevych, 2017. *Parsing Argumentation Structures in Persuasive Essays.* Computational Linguistics 43(3). https://aclanthology.org/J17-3005/ · https://arxiv.org/abs/1604.07370
 - *Can Large Language Models perform Relation-based Argument Mining?*, 2024. https://arxiv.org/pdf/2402.11243
 - *Large Language Models in Argument Mining: A Survey*, 2025. https://arxiv.org/html/2506.16383v1
 - *LLMs for Argument Mining: Detection, Extraction, and Relationship Classification of pre-defined Arguments in Online Comments*, 2025. https://arxiv.org/abs/2505.22956
 - *Limited Generalizability in Argument Mining: State-Of-The-Art Models Learn Datasets, Not Arguments*, 2025. https://arxiv.org/pdf/2505.22137
 - Toulmin model overview (claim, data, warrant, backing, qualifier, rebuttal). https://www.sjsu.edu/writingcenter/docs/handouts/Toulmin%20Model%20of%20Argumentative%20Writing.pdf
+- Chesñevar et al., 2006. *Towards an Argument Interchange Format.* Knowledge Engineering Review 21(4). https://dl.acm.org/doi/10.1017/S0269888906001044
 - Chang & Chang, 2026. *TRACE: An Operational Reasoning Schema for Auditable Agentic Commitments* (discusses AIF, Chesñevar et al. 2006). https://arxiv.org/abs/2607.12480
 
 **Decision detection in dialogue**
@@ -795,9 +800,9 @@ whether D1 still holds.
 - *Can LLMs Extract Architectural Design Decisions from Source Code Commits? — A Preliminary Exploratory Study*, 2026. https://arxiv.org/pdf/2609.03721
 
 **Agent memory (adjacent)**
-- Chhikara et al., 2025. *Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory.* https://arxiv.org/abs/2504.19413 · code https://github.com/mem0ai/mem0
-- Rasmussen et al., 2025. *Zep: A Temporal Knowledge Graph Architecture for Agent Memory* (Graphiti). https://arxiv.org/abs/2501.13956
-- Xu et al., 2025. *A-MEM: Agentic Memory for LLM Agents.* https://arxiv.org/abs/2502.12110 · code https://github.com/agiresearch/a-mem
+- 2025. *Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory.* https://arxiv.org/abs/2504.19413 · code https://github.com/mem0ai/mem0
+- 2025. *Zep: A Temporal Knowledge Graph Architecture for Agent Memory* (Graphiti). https://arxiv.org/abs/2501.13956
+- 2025. *A-MEM: Agentic Memory for LLM Agents.* https://arxiv.org/abs/2502.12110 · code https://github.com/agiresearch/a-mem
 - Zheng et al., 2026. *ROAM: Robust Organization of Atomic Memories for Agents through Semantic Relations.* https://arxiv.org/abs/2609.09778
 
 **Repository sources**
