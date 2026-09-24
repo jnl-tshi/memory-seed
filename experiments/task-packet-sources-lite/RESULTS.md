@@ -78,6 +78,23 @@ Findings:
 
 Raw output: [`t7.json`](t7.json).
 
+## T8 — packet v2 (repo `b79bc210` plus T8, 2026-09-24)
+
+`measure.py --packet-version 2` compiles the same pilot fixture with the real control-plane files. The only
+change is that the dispatch asks for `"packet_version": 2`.
+
+| Packet | v1 serialized / envelope | v2 serialized / envelope | Change | Loadable on demand |
+|---|---:|---:|---:|---|
+| Read-only | 9,415 / 13,486 | 5,330 / 9,401 | −43% | `agent-rules.md` 5,093 |
+| Session-writing | 21,161 / 25,232 | 5,473 / 9,544 | −74% | plus `session_logging.md` 11,476 |
+
+- v2 embeds `subagent_orientation.md` (1,030 tokens) and pins the full rules by digest.
+- A worker that needs a full file loads it through `load_task_packet_governance`. The load is refused if the
+  file has changed since compile, and it never spends the supplemental reserve.
+- v1 packets are unchanged, including the pilot fixture's pinned fingerprints.
+
+Raw output: [`t10.json`](t10.json). It was produced at T8, and T10 re-runs it after T9.
+
 ## T3 — mechanical session-write backstop
 
 

@@ -1504,7 +1504,7 @@ def _activated_packet_base_sha(root: Path) -> str | None:
     if (
         not isinstance(packet, dict)
         or packet.get("packet_schema") != "memory-seed/task-packet"
-        or packet.get("packet_version") != 1
+        or packet.get("packet_version") not in (1, 2)
         or not _packet_fingerprint_is_valid(packet)
     ):
         return None

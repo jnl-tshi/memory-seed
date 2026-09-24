@@ -44,7 +44,11 @@ def _git(root: Path, *args: str) -> None:
 
 def _runtime(tmp: Path) -> Path:
     root = build_fixture_runtime(tmp / "runtime")
-    for rel in (".memory-seed/agent-rules.md", ".memory-seed/skills/session_logging.md"):
+    for rel in (
+        ".memory-seed/agent-rules.md",
+        ".memory-seed/skills/session_logging.md",
+        ".memory-seed/skills/subagent_orientation.md",
+    ):
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO / rel, target)
@@ -84,7 +88,12 @@ def _measure(packet: dict) -> dict:
     ledger = packet["input_ledger"]
     baseline = packet.get("worker_baseline") or {}
     sources = baseline.get("sources") or {}
+    orientation = packet.get("worker_orientation") or {}
     return {
+        "orientation_tokens": orientation.get("token_estimate"),
+        "on_demand_governance_tokens": {
+            name: ref["token_estimate"] for name, ref in (packet.get("governance_references") or {}).items()
+        },
         "packet_fingerprint": packet.get("packet_fingerprint") or packet.get("fingerprint"),
         "serialized_packet_tokens": estimate_tokens(canonical_task_packet_json(packet)),
         "baseline_tokens": {
@@ -167,6 +176,7 @@ def _measure_repo(packet: dict) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", default="measurement")
+    parser.add_argument("--packet-version", type=int, choices=(1, 2), default=1)
     parser.add_argument(
         "--repo",
         action="store_true",
@@ -186,10 +196,14 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="tp-measure-") as tmp:
         root = _runtime(Path(tmp))
         env = worker_environment()
-        read_only = compile_task_packet(semantic_dispatch(), runtime_binding(root), root, environment=env)
-        writing = compile_task_packet(_writing_dispatch(), _writing_binding(root), root, environment=env)
+        read_only_dispatch, writing_dispatch = semantic_dispatch(), _writing_dispatch()
+        if args.packet_version == 2:
+            read_only_dispatch["packet_version"] = writing_dispatch["packet_version"] = 2
+        read_only = compile_task_packet(read_only_dispatch, runtime_binding(root), root, environment=env)
+        writing = compile_task_packet(writing_dispatch, _writing_binding(root), root, environment=env)
         result = {
             "label": args.label,
+            "packet_version": args.packet_version,
             "repo_head": subprocess.run(
                 ["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True
             ).stdout.strip(),

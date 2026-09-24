@@ -407,6 +407,83 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
             load_task_packet_governance(lazy, "session_logging", root)
 
+    def v2_project(self):
+        root = self.make_project()
+        orientation = root / ".memory-seed" / "skills" / "subagent_orientation.md"
+        orientation.write_text("# Subagent Orientation (Lite)\n\nVerify scope first.\n", encoding="utf-8")
+        self.git(root, "add", ".")
+        self.git(root, "commit", "-m", "orientation lite")
+        return root
+
+    def test_packet_v2_embeds_lite_and_pins_full_rules_by_digest(self):
+        from memory_seed.task_packet import load_task_packet_governance, validate_task_packet_supplemental_fetch
+        root = self.v2_project()
+        v1 = compile_task_packet(self.dispatch(), self.binding(root), root)
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 2
+        v2 = compile_task_packet(dispatch, self.binding(root), root)
+
+        self.assertEqual(v1["packet_version"], 1)
+        self.assertNotIn("packet_version", v1["dispatch"])
+        self.assertEqual(v2["packet_version"], 2)
+        self.assertEqual(v2["dispatch"]["packet_version"], 2)
+        self.assertNotIn("worker_baseline", v2)
+        orientation_bytes = (root / ".memory-seed" / "skills" / "subagent_orientation.md").read_bytes()
+        self.assertEqual(v2["worker_orientation"]["content"].encode("utf-8"), orientation_bytes)
+        self.assertEqual(
+            v2["worker_orientation"]["content_digest"], "sha256:" + hashlib.sha256(orientation_bytes).hexdigest())
+        self.assertEqual(set(v2["governance_references"]), {"agent_rules"})
+        self.assertNotIn("content", v2["governance_references"]["agent_rules"])
+        self.assertEqual(v2["input_ledger"]["materialized_agent_rules_tokens"], 0)
+        canonical_task_packet_json(v2)
+
+        loaded = load_task_packet_governance(v2, "agent_rules", root)
+        self.assertEqual(loaded["supplemental_debit"], 0)
+        with self.assertRaisesRegex(TaskPacketValidationError, "governance_reference"):
+            validate_task_packet_supplemental_fetch(v2, ".memory-seed/agent-rules.md", [1, 3], token_estimate=10)
+
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Changed rules\n", encoding="utf-8")
+        changed = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertNotEqual(changed["fingerprint"], v2["fingerprint"])
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
+            load_task_packet_governance(v2, "agent_rules", root)
+
+    def test_packet_v2_session_writing_pins_session_logging_and_activates(self):
+        root = self.v2_project()
+        self.git(root, "checkout", "-b", "codex/v2-activation")
+        session_path = ".memory-seed/sessions/2026-09/2026-09-06.md"
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["packet_version"] = 2
+        dispatch["memory_update_policy"] = "worker_checkpoint"
+        dispatch["memory_checkpoints"] = {
+            "names": ["implementation-complete"],
+            "session_paths": [session_path],
+            "branch_local_only": True,
+            "guarded_append": True,
+        }
+        dispatch["execution"]["allowed_files"].append(session_path)
+        dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        self.assertEqual(set(packet["governance_references"]), {"agent_rules", "session_logging"})
+        self.assertIn("omit timestamp", packet["execution_defaults"]["session_logging"]["clock_ownership"])
+
+        activated = activate_task_packet(packet, root)
+        self.assertTrue(activated["activated"])
+
+        tampered = copy.deepcopy(packet)
+        tampered["governance_references"].pop("session_logging")
+        tampered["fingerprint"] = "sha256:" + hashlib.sha256(json.dumps(
+            {key: value for key, value in tampered.items() if key != "fingerprint"},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        with self.assertRaises(TaskPacketValidationError):
+            activate_task_packet(tampered, root)
+
+    def test_packet_version_must_be_one_or_two(self):
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 3
+        with self.assertRaisesRegex(TaskPacketValidationError, "packet_version"):
+            normalize_task_dispatch(dispatch)
+
     def test_planning_rejects_duplicated_materialized_evidence(self):
         root = self.make_project()
         dispatch = self.planning_dispatch(root)
