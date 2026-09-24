@@ -24,3 +24,15 @@ to about 4.3k tokens, and the session-writing one to about 4.6k. This confirms t
 2026-09-06 baseline decision outweighs the 2026-09-05 clause-projection saving.
 
 Raw output: [`t0.json`](t0.json).
+
+## T3 — mechanical session-write backstop
+
+- `entry_future_timestamp_issue` (`memory_seed/core.py`) refuses a heading more than 10 minutes in the
+  future. It applies at CLI and MCP append, including dry runs, and when `session fuse`, `merge-branch` or MCP
+  integrate import a branch entry.
+- Past stamps stay legal, which covers the dry-run echo and labelled backfill. Published history is never
+  re-judged, so the corpus-wide check stays advisory.
+- **Stated limit:** hand-authored entries are not detected. A session entry is plain Markdown with no
+  writer-only marker, so any such check would either be forgeable or reject legitimate backfill. Instead, the
+  tooling blocks the concrete Ada symptom, a future-dated stamp. Entry structure is enforced at append, and
+  `links check` covers it at integration.

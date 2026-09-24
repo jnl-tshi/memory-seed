@@ -952,6 +952,31 @@ topics:
         self.assertEqual(flagged[0][0], "mse_aaaaaaaaaaaaaaaa")
         self.assertIn("in the future", flagged[0][1])
 
+    def test_append_refuses_future_timestamp_but_accepts_past_and_grace(self):
+        from datetime import datetime, timedelta
+
+        future = (datetime.now() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
+        refused = self._append(timestamp=future)
+        self.assertFalse(refused.ok)
+        self.assertTrue(any("in the future" in issue for issue in refused.issues), refused.issues)
+        dry = self._append(timestamp=future, dry_run=True)
+        self.assertFalse(dry.ok)
+
+        # Past backfill and a stamp inside the grace window both stay legal.
+        self.assertTrue(self._append(timestamp="2026-06-13 09:00", dry_run=True).ok)
+        near = (datetime.now() + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M")
+        self.assertTrue(self._append(timestamp=near, dry_run=True).ok)
+
+    def test_future_timestamp_issue_boundary(self):
+        from datetime import datetime
+
+        from memory_seed.core import entry_future_timestamp_issue
+
+        now = datetime(2026, 7, 18, 22, 0)
+        self.assertIsNone(entry_future_timestamp_issue("2026-07-18 22:10", now=now))
+        self.assertIsNone(entry_future_timestamp_issue("2026-07-18 09:00", now=now))
+        self.assertIn("in the future", entry_future_timestamp_issue("2026-07-18 22:11", now=now))
+
     def test_future_timestamp_advisory_flags_only_the_drifted_entry(self):
         from datetime import datetime, timedelta
 

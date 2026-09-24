@@ -778,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
     session_append_parser.add_argument("--branch", default=None, help="branch field (default: auto-captured from git)")
     session_append_parser.add_argument("--no-branch", action="store_true", help="omit the branch field entirely")
-    session_append_parser.add_argument("--timestamp", default=None, help="override heading timestamp 'YYYY-MM-DD HH:MM' (default: now)")
+    session_append_parser.add_argument("--timestamp", default=None, help="override heading timestamp 'YYYY-MM-DD HH:MM' (default: now; future values are refused)")
     session_append_parser.add_argument("--user", default=None, help="override the active user slug")
     session_append_parser.add_argument("--body-file", default=None, help="file containing the entry body (default: read stdin)")
     session_append_parser.add_argument(
