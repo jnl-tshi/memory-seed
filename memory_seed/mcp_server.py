@@ -291,6 +291,19 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_task_packet_governance_load",
+        "description": "Return one full governance file (agent_rules or session_logging) pinned by a packet-v2 Task Packet, only if its bytes still match the pin. Read-only; never spends the packet's supplemental reserve.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "packet": {"type": "object"},
+                "name": {"type": "string", "enum": ["agent_rules", "session_logging"]},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["packet", "name"], "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_search",
         "description": "Search local Memory Seed session logs and return ranked, source-linked context chunks.",
         "inputSchema": {
@@ -921,6 +934,19 @@ def call_tool(
             return {"ok": False, "error": exc.to_dict()}
         except RetrievalProfileValidationError as exc:
             return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
+
+    if name == "memory_task_packet_governance_load":
+        from .task_packet import TaskPacketValidationError, load_task_packet_governance
+
+        if not isinstance(args, dict) or not isinstance(args.get("packet"), dict) or not isinstance(args.get("name"), str):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "packet must be an object and name a string", "stage": "validation", "completed_stages": [], "details": {}}}
+        unsupported = sorted(set(args) - {"packet", "name", "cwd"})
+        if unsupported:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported governance-load argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
+        try:
+            return {"ok": True, "governance": load_task_packet_governance(args["packet"], args["name"], args.get("cwd", "."))}
+        except TaskPacketValidationError as exc:
+            return {"ok": False, "error": exc.to_dict()}
 
     if name == "memory_search":
         query = _required_str(args, "query")
@@ -1649,6 +1675,7 @@ def handle_jsonrpc_message(
                     "memory_retrieval_spec_resolve",
                     "memory_task_packet_preview",
                     "memory_task_packet_compile",
+                    "memory_task_packet_governance_load",
                 }
                 else json.dumps(
                     tool_result,

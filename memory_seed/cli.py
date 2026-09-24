@@ -1384,6 +1384,14 @@ def main(argv: list[str] | None = None) -> int:
                 help="allow --output to replace an existing file",
             )
 
+    governance_load = task_packet_sub.add_parser(
+        "governance-load",
+        help="print one digest-verified governance file pinned by a packet-v2 Task Packet",
+    )
+    governance_load.add_argument("--packet-file", required=True, help="UTF-8 JSON compiled Task Packet; use - for stdin")
+    governance_load.add_argument("--name", required=True, choices=("agent_rules", "session_logging"))
+    governance_load.add_argument("--cwd", default=".", help="project path used for runtime discovery")
+
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
@@ -1485,7 +1493,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task-packet":
         from .retrieval import RetrievalSpecResolutionError, canonical_retrieval_json
         from .retrieval_profiles import RetrievalProfileValidationError
-        from .task_packet import TaskPacketValidationError, canonical_task_packet_json, compile_task_packet
+        from .task_packet import (
+            TaskPacketValidationError,
+            canonical_task_packet_json,
+            compile_task_packet,
+            load_task_packet_governance,
+        )
+
+        if args.task_packet_command == "governance-load":
+            try:
+                packet = _read_json_object(args.packet_file, label="packet")
+                loaded = load_task_packet_governance(packet, args.name, args.cwd)
+                sys.stdout.write(canonical_retrieval_json({"ok": True, "governance": loaded}))
+                return 0
+            except TaskPacketValidationError as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+                return 1
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                    "code": "invalid_input", "message": str(exc), "stage": "input", "details": {},
+                }}))
+                return 1
 
         try:
             dispatch = _read_json_object(args.dispatch_file, label="dispatch")

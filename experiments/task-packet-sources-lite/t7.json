@@ -1,5 +1,5 @@
 {
-  "label": "T7",
+  "label": "T10",
   "profile_v1": {
     "baseline_tokens": {
       "agent_rules": 5093,
@@ -38,14 +38,16 @@
       "materialized_agent_rules_tokens": 5093,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 16408,
+      "serialized_packet_input_tokens": 16459,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 20479,
-      "total_input_tokens": 17979
+      "total_context_envelope_tokens": 20530,
+      "total_input_tokens": 18030
     },
-    "packet_fingerprint": "sha256:80a1421708e77fc3082e6585ca6b6e375258b4165a40b2df0f484df63bef84b5",
-    "serialized_packet_tokens": 16408,
+    "on_demand_governance_tokens": {},
+    "orientation_tokens": null,
+    "packet_fingerprint": "sha256:8527e945a14f725a715f56678ef9520385134771ee67e1eeb2278e9db13b5557",
+    "serialized_packet_tokens": 16459,
     "source_warnings": []
   },
   "profile_v2": {
@@ -93,21 +95,23 @@
       "materialized_agent_rules_tokens": 5093,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 24918,
+      "serialized_packet_input_tokens": 24978,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 28989,
-      "total_input_tokens": 26489
+      "total_context_envelope_tokens": 29049,
+      "total_input_tokens": 26549
     },
-    "packet_fingerprint": "sha256:e1178d4348d4725fd27692620b55bcdc63a00db2822f8101061d0288a4e3c8a2",
-    "serialized_packet_tokens": 24918,
+    "on_demand_governance_tokens": {},
+    "orientation_tokens": null,
+    "packet_fingerprint": "sha256:03662d8ac02e0b8120c8bda86a97119316a2c99da18cde2c42e9ff0238d159da",
+    "serialized_packet_tokens": 24978,
     "source_warnings": [
-      "source_ref_over_cap: mse_nw47r0vpcj5tr2pj:d1 -> .memory-seed/skills/agent_collaboration.md: 13813 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
+      "source_ref_over_cap: mse_nw47r0vpcj5tr2pj:d1 -> .memory-seed/skills/agent_collaboration.md: 14056 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
       "source_ref_over_cap: mse_v048edjgmvk5mqsx:d1 -> docs/2_Todo/decision-layer-model-tournament-plan.md: 4368 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
-      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-governance-architecture-report.md: replaced or archived document; follow its successor pointer",
-      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-intelligence-reference-architecture-report.md: replaced or archived document; follow its successor pointer",
-      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decisions-first-class-knowledge-report.md: replaced or archived document; follow its successor pointer"
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-governance-architecture-report.md: retired document; successor: docs/2_Todo/hosted-memory-mvp-programme.md",
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decision-intelligence-reference-architecture-report.md: retired document; successor: docs/2_Todo/hosted-memory-mvp-programme.md",
+      "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decisions-first-class-knowledge-report.md: retired document; successor: docs/2_Todo/hosted-memory-mvp-programme.md"
     ]
   },
-  "repo_head": "f33acbbbb4504fdb08f33b865e5c8e1a41080472"
+  "repo_head": "5b5c5168d2af539b2026ea16e13e86b2fc5c9029"
 }

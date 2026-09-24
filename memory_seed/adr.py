@@ -741,13 +741,21 @@ def constitution_legacy_aliases(anchors: set[str]) -> dict[str, str]:
     ``legacy_constitution_ref_issues``).
     """
     aliases: dict[str, str] = {}
-    for anchor in anchors:
-        match = re.fullmatch(r"constitution:v(\d+)#([a-z0-9-]+)", anchor)
-        if not match:
-            continue
-        major, slug = int(match.group(1)), match.group(2)
+    # Newest major first, so if two majors ever coexist the alias resolves to
+    # the newest anchor deterministically; a real anchor is never an alias.
+    ordered = sorted(
+        (
+            (int(match.group(1)), match.group(2), anchor)
+            for anchor in anchors
+            if (match := re.fullmatch(r"constitution:v(\d+)#([a-z0-9-]+)", anchor))
+        ),
+        reverse=True,
+    )
+    for major, slug, anchor in ordered:
         for older in range(1, major):
-            aliases.setdefault(f"constitution:v{older}#{slug}", anchor)
+            name = f"constitution:v{older}#{slug}"
+            if name not in anchors:
+                aliases.setdefault(name, anchor)
     return aliases
 
 

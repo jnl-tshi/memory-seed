@@ -832,6 +832,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/security_triage.md",
                 ".memory-seed/skills/session_logging.md",
                 ".memory-seed/skills/skill_architecture.md",
+                ".memory-seed/skills/subagent_orientation.md",
                 ".memory-seed/skills/subproject_runtime.md",
                 ".memory-seed/skills/superpowers_integration.md",
                 ".memory-seed/skills/systematic_debugging.md",

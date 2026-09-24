@@ -383,29 +383,123 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
             validate_task_packet_supplemental_fetch(packet, ".memory-seed/agent-rules.md", [1, 3], token_estimate=10)
 
+        # A hand-built lazy packet is not compiler output: the loader verifies
+        # the packet before trusting any pin it carries.
         lazy = copy.deepcopy(packet)
         lazy.pop("worker_baseline")
-        memory_dir = root / ".memory-seed"
         lazy["governance_references"] = {
-            "session_logging": governance_reference(memory_dir, ".memory-seed/skills/session_logging.md"),
+            "agent_rules": governance_reference(root / ".memory-seed", ".memory-seed/agent-rules.md"),
         }
-        before = copy.deepcopy(lazy)
-        loaded = load_task_packet_governance(lazy, "session_logging", root)
-        self.assertEqual(
-            loaded["content"],
-            (memory_dir / "skills" / "session_logging.md").read_bytes().decode("utf-8"),
-        )
-        self.assertEqual(loaded["supplemental_debit"], 0)
-        self.assertEqual(lazy, before)
-        # The supplemental path's refusal of referenced governance needs a
-        # canonical v2 packet (the fetch check verifies the fingerprint first);
-        # it is covered with the v2 compiler in T8.
-        with self.assertRaisesRegex(TaskPacketValidationError, "missing_governance_reference"):
+        with self.assertRaisesRegex(TaskPacketValidationError, "fingerprint_mismatch"):
             load_task_packet_governance(lazy, "agent_rules", root)
 
-        (memory_dir / "skills" / "session_logging.md").write_text("# Edited after compile\n", encoding="utf-8")
+    def test_governance_load_refuses_repinned_and_foreign_sources(self):
+        from memory_seed.task_packet import _packet_fingerprint, load_task_packet_governance
+        root = self.v2_project()
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 2
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+
+        # Re-pinning to new bytes with a recomputed fingerprint still cannot
+        # make changed rules load: the live bytes must match the pin.
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Rewritten\n", encoding="utf-8")
         with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
-            load_task_packet_governance(lazy, "session_logging", root)
+            load_task_packet_governance(packet, "agent_rules", root)
+
+        # A pin may never point anywhere but its fixed control file.
+        foreign = copy.deepcopy(packet)
+        foreign["governance_references"]["agent_rules"]["source"] = "docs/evidence.md"
+        foreign["fingerprint"] = _packet_fingerprint(foreign)
+        with self.assertRaisesRegex(TaskPacketValidationError, "invalid_packet"):
+            load_task_packet_governance(foreign, "agent_rules", root)
+        with self.assertRaisesRegex(TaskPacketValidationError, "missing_governance_reference"):
+            load_task_packet_governance(packet, "policy", root)
+
+        # The embedded lite skill is never a supplemental read either.
+        from memory_seed.task_packet import validate_task_packet_supplemental_fetch
+        with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
+            validate_task_packet_supplemental_fetch(
+                packet, ".memory-seed/skills/subagent_orientation.md", [1, 3], token_estimate=10)
+        self.assertIn("governance_load", packet["execution_defaults"])
+        self.assertEqual(packet["execution_defaults"]["governance_load"]["mcp_tool"],
+                         "memory_task_packet_governance_load")
+
+    def v2_project(self):
+        root = self.make_project()
+        orientation = root / ".memory-seed" / "skills" / "subagent_orientation.md"
+        orientation.write_text("# Subagent Orientation (Lite)\n\nVerify scope first.\n", encoding="utf-8")
+        self.git(root, "add", ".")
+        self.git(root, "commit", "-m", "orientation lite")
+        return root
+
+    def test_packet_v2_embeds_lite_and_pins_full_rules_by_digest(self):
+        from memory_seed.task_packet import load_task_packet_governance, validate_task_packet_supplemental_fetch
+        root = self.v2_project()
+        v1 = compile_task_packet(self.dispatch(), self.binding(root), root)
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 2
+        v2 = compile_task_packet(dispatch, self.binding(root), root)
+
+        self.assertEqual(v1["packet_version"], 1)
+        self.assertNotIn("packet_version", v1["dispatch"])
+        self.assertEqual(v2["packet_version"], 2)
+        self.assertEqual(v2["dispatch"]["packet_version"], 2)
+        self.assertNotIn("worker_baseline", v2)
+        orientation_bytes = (root / ".memory-seed" / "skills" / "subagent_orientation.md").read_bytes()
+        self.assertEqual(v2["worker_orientation"]["content"].encode("utf-8"), orientation_bytes)
+        self.assertEqual(
+            v2["worker_orientation"]["content_digest"], "sha256:" + hashlib.sha256(orientation_bytes).hexdigest())
+        self.assertEqual(set(v2["governance_references"]), {"agent_rules"})
+        self.assertNotIn("content", v2["governance_references"]["agent_rules"])
+        self.assertEqual(v2["input_ledger"]["materialized_agent_rules_tokens"], 0)
+        canonical_task_packet_json(v2)
+
+        loaded = load_task_packet_governance(v2, "agent_rules", root)
+        self.assertEqual(loaded["supplemental_debit"], 0)
+        with self.assertRaisesRegex(TaskPacketValidationError, "governance_reference"):
+            validate_task_packet_supplemental_fetch(v2, ".memory-seed/agent-rules.md", [1, 3], token_estimate=10)
+
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Changed rules\n", encoding="utf-8")
+        changed = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertNotEqual(changed["fingerprint"], v2["fingerprint"])
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
+            load_task_packet_governance(v2, "agent_rules", root)
+
+    def test_packet_v2_session_writing_pins_session_logging_and_activates(self):
+        root = self.v2_project()
+        self.git(root, "checkout", "-b", "codex/v2-activation")
+        session_path = ".memory-seed/sessions/2026-09/2026-09-06.md"
+        dispatch = self.dispatch(write_intent="writing")
+        dispatch["packet_version"] = 2
+        dispatch["memory_update_policy"] = "worker_checkpoint"
+        dispatch["memory_checkpoints"] = {
+            "names": ["implementation-complete"],
+            "session_paths": [session_path],
+            "branch_local_only": True,
+            "guarded_append": True,
+        }
+        dispatch["execution"]["allowed_files"].append(session_path)
+        dispatch["execution"]["implements"] = ["mse_packet0001:d1"]
+        packet = compile_task_packet(dispatch, self.binding(root, writing=True), root)
+        self.assertEqual(set(packet["governance_references"]), {"agent_rules", "session_logging"})
+        self.assertIn("omit timestamp", packet["execution_defaults"]["session_logging"]["clock_ownership"])
+
+        activated = activate_task_packet(packet, root)
+        self.assertTrue(activated["activated"])
+
+        tampered = copy.deepcopy(packet)
+        tampered["governance_references"].pop("session_logging")
+        tampered["fingerprint"] = "sha256:" + hashlib.sha256(json.dumps(
+            {key: value for key, value in tampered.items() if key != "fingerprint"},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        with self.assertRaises(TaskPacketValidationError):
+            activate_task_packet(tampered, root)
+
+    def test_packet_version_must_be_one_or_two(self):
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 3
+        with self.assertRaisesRegex(TaskPacketValidationError, "packet_version"):
+            normalize_task_dispatch(dispatch)
 
     def test_planning_rejects_duplicated_materialized_evidence(self):
         root = self.make_project()

@@ -50,10 +50,17 @@ _TASK_PACKET_KEYS = {
     "materialized_evidence", "worker_baseline", "constitution_projection", "execution_defaults",
     "input_ledger", "cost_ledger", "fingerprint",
 }
+# Packet v2 carries the embedded orientation-lite skill and digest pins for
+# the full rules instead of the embedded full worker baseline.
+_TASK_PACKET_V2_KEYS = (_TASK_PACKET_KEYS - {"worker_baseline"}) | {
+    "worker_orientation", "governance_references",
+}
 _DISPATCH_KEYS = {
     "schema", "version", "objective", "constitution_refs", "project_context",
     "execution", "retrieval", "budget", "memory_update_policy", "memory_checkpoints",
 }
+# Keys the compiler writes only when used; a dispatch may carry any of them.
+_OPTIONAL_DISPATCH_KEYS = {"planning_evidence", "packet_version"}
 _EXECUTION_KEYS = {
     "role", "persona", "capability_tier", "write_intent", "allowed_files",
     "forbidden_files", "validation", "output_contract", "expected_absent",
@@ -204,6 +211,45 @@ def _valid_worker_baseline(baseline: object, dispatch: dict) -> bool:
     return isinstance(expected, str) and secrets.compare_digest(baseline.get("fingerprint", ""), expected)
 
 
+def _session_logging_required(dispatch: dict) -> bool:
+    return dispatch.get("memory_update_policy") == "worker_checkpoint" or any(
+        isinstance(path, str)
+        and path.replace("\\", "/").casefold().startswith(".memory-seed/sessions/")
+        for path in dispatch.get("execution", {}).get("allowed_files", [])
+    )
+
+
+def _valid_worker_orientation(orientation: object, references: object, dispatch: dict) -> bool:
+    """Mirror the packet-v2 lite and governance-pin checks without rereads."""
+    fields = {"source", "byte_count", "token_estimate", "content_digest", "content"}
+    if not isinstance(orientation, dict) or set(orientation) != fields:
+        return False
+    content = orientation.get("content")
+    if orientation.get("source") != ".memory-seed/skills/subagent_orientation.md" or not isinstance(content, str):
+        return False
+    payload = content.encode("utf-8")
+    if orientation.get("byte_count") != len(payload) or orientation.get("token_estimate") != (len(payload) + 3) // 4:
+        return False
+    if orientation.get("content_digest") != "sha256:" + hashlib.sha256(payload).hexdigest():
+        return False
+    expected = {"agent_rules": ".memory-seed/agent-rules.md"}
+    if _session_logging_required(dispatch):
+        expected["session_logging"] = ".memory-seed/skills/session_logging.md"
+    if not isinstance(references, dict) or set(references) != set(expected):
+        return False
+    for name, source in expected.items():
+        reference = references.get(name)
+        if not isinstance(reference, dict) or set(reference) != {"source", "byte_count", "content_digest", "token_estimate"}:
+            return False
+        if reference.get("source") != source:
+            return False
+        if not isinstance(reference.get("byte_count"), int) or not isinstance(reference.get("token_estimate"), int):
+            return False
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", str(reference.get("content_digest"))) is None:
+            return False
+    return True
+
+
 def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str], list[str]] | None:
     """Return packet refs/scope only for a full compiler activation receipt.
 
@@ -212,9 +258,10 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     normal hook trailer is traceable to the same complete Memory Seed packet
     validation path, never to arbitrary Git config or skeletal JSON.
     """
-    if not isinstance(packet, dict) or set(packet) != _TASK_PACKET_KEYS:
+    if not isinstance(packet, dict) or packet.get("packet_schema") != "memory-seed/task-packet":
         return None
-    if packet.get("packet_schema") != "memory-seed/task-packet" or packet.get("packet_version") != 1:
+    packet_version = packet.get("packet_version")
+    if packet_version not in (1, 2) or set(packet) != (_TASK_PACKET_V2_KEYS if packet_version == 2 else _TASK_PACKET_KEYS):
         return None
     fingerprint = packet.get("fingerprint")
     identity = dict(packet)
@@ -226,16 +273,23 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     binding = packet.get("runtime_binding")
     evidence_pack = packet.get("evidence_pack")
     evidence = packet.get("materialized_evidence")
-    worker_baseline = packet.get("worker_baseline")
     if (
         not isinstance(dispatch, dict)
-        or set(dispatch) != _DISPATCH_KEYS
+        or not _DISPATCH_KEYS <= set(dispatch) <= _DISPATCH_KEYS | _OPTIONAL_DISPATCH_KEYS
+        # The compiler writes packet_version only for v2; an explicit 1 is
+        # not compiler output, so it is refused exactly as activation would.
+        or ("packet_version" in dispatch) != (packet_version == 2)
+        or dispatch.get("packet_version", 1) != packet_version
         or not isinstance(binding, dict)
         or set(binding) != _BINDING_KEYS
         or not isinstance(evidence_pack, dict)
         or not isinstance(evidence, list)
-        or not _valid_worker_baseline(worker_baseline, dispatch)
     ):
+        return None
+    if packet_version == 2:
+        if not _valid_worker_orientation(packet.get("worker_orientation"), packet.get("governance_references"), dispatch):
+            return None
+    elif not _valid_worker_baseline(packet.get("worker_baseline"), dispatch):
         return None
     if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") != 1:
         return None

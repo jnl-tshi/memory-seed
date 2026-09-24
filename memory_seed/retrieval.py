@@ -430,6 +430,9 @@ class _RetrievalCandidate:
     reasons: set[str]
     model_selection_reasons: set[str] = field(default_factory=set)
     pinned_required: bool = False
+    # Decisions whose S: lines cited this source (source following only).  A
+    # followed source survives the limits only while one of them does.
+    cited_by: set[str] = field(default_factory=set)
 
     @property
     def token_estimate(self) -> int:
@@ -483,8 +486,10 @@ def _retrieval_corpus_inputs(
             )
         )
     sessions = runtime.memory_dir / "sessions"
+    session_files: list[Path] = []
     if sessions.is_dir():
-        inputs.update(_walk_confined_tree(root, sessions, stage="corpus_revision", suffix=".md"))
+        session_files = _walk_confined_tree(root, sessions, stage="corpus_revision", suffix=".md")
+        inputs.update(session_files)
     if (
         normalized_spec.get("version") == 2
         and any(
@@ -511,43 +516,39 @@ def _retrieval_corpus_inputs(
         # revision of every pre-existing spec is unchanged.
         from .semantic_cache import _extract_source_references, _normalize_file_ref
 
-        for path in sessions.rglob("*.md"):
+        for path in session_files:
             try:
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             for ref in _extract_source_references(text):
-                relative = _normalize_file_ref(ref.path)
-                if (
-                    Path(relative).suffix.lower() != ".md"
-                    or any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in Path(relative).parts)
-                ):
-                    continue
-                try:
-                    candidate = _runtime_scoped_candidate_path(
-                        root, root / relative, stage="corpus_revision", details={"path": relative})
-                except RetrievalSpecResolutionError:
-                    continue
-                if candidate.is_file():
-                    inputs.add(candidate)
+                target, _code = _source_reference_target(root, _normalize_file_ref(ref.path))
+                if target is not None:
+                    inputs.add(target)
 
     return root, inputs
 
 
-def _retrieval_corpus_signature(root: Path, inputs: set[Path]) -> tuple[tuple[str, int, int], ...]:
-    """Cheap change detector over the revision's inputs: path, size, mtime.
+def _retrieval_corpus_signature(root: Path, inputs: set[Path]) -> tuple[Any, ...]:
+    """Cheap change detector over the revision's inputs.
 
-    Used only to confirm that nothing moved DURING one resolution; the
-    content-addressed revision itself is still computed from bytes.
+    Git HEAD (part of the revision string) plus each input's size, mtime,
+    ctime and inode.  Used only to confirm that nothing moved DURING one
+    resolution; the content-addressed revision is still computed from bytes.
     """
-    signature: list[tuple[str, int, int]] = []
+    from .core import _git_text
+
+    code, head = _git_text(root, ("rev-parse", "HEAD"))
+    signature: list[Any] = [head if code == 0 else None]
     for path in sorted(inputs, key=lambda item: item.as_posix()):
         try:
             stat = path.stat()
         except OSError:
-            signature.append((path.as_posix(), -1, -1))
+            signature.append((path.as_posix(), -1, -1, -1, -1))
             continue
-        signature.append((path.as_posix(), stat.st_size, stat.st_mtime_ns))
+        signature.append(
+            (path.as_posix(), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
+        )
     return tuple(signature)
 
 
@@ -643,8 +644,10 @@ def _walk_confined_tree(
     for ``resolve()``: a plain entry beneath an already-confined directory
     cannot leave it, so its path is the directory's resolved path plus its
     name.  Resolving each of hundreds of session files dominated retrieval
-    time on large corpora.  Symlinked and junction directories are confined,
-    then walked, as ``rglob`` would.  ``suffix`` filters the returned files.
+    time on large corpora.  Every link-like entry is confined.  Like Python
+    3.11 ``rglob``, junctions are descended but symlinked directories are
+    not, so corpus revisions match the per-file implementation this replaced.
+    ``suffix`` filters the returned files.
     """
     base = _runtime_scoped_candidate_path(
         root, directory, stage=stage, details={"path": directory.as_posix()}
@@ -669,6 +672,8 @@ def _walk_confined_tree(
                 path = _runtime_scoped_candidate_path(
                     root, path, stage=stage, details={"path": path.as_posix()}
                 )
+                if entry.is_symlink() and path.is_dir():
+                    continue  # confined, but rglob does not descend symlinks
                 is_dir, is_file = path.is_dir(), path.is_file()
             else:
                 is_dir = entry.is_dir(follow_symlinks=False)
@@ -708,6 +713,7 @@ def _merge_candidate(
     existing.reasons.update(candidate.reasons)
     existing.model_selection_reasons.update(candidate.model_selection_reasons)
     existing.pinned_required = existing.pinned_required or candidate.pinned_required
+    existing.cited_by.update(candidate.cited_by)
     if existing.graph_distance is None:
         existing.graph_distance = candidate.graph_distance
     elif candidate.graph_distance is not None:
@@ -1074,17 +1080,79 @@ def _source_reference_warning(code: str, decision_id: str, ref: str, detail: str
     }
 
 
+def _source_reference_gate(relative: str) -> str | None:
+    """The refusal code for one runtime-relative path, or None when followable."""
+    if relative.casefold() in {item.casefold() for item in _SOURCE_REFERENCE_EXCLUDED}:
+        return "source_ref_excluded"
+    if any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in Path(relative).parts):
+        return "source_ref_forbidden"
+    if relative.startswith(_SOURCE_REFERENCE_RETIRED_PREFIXES):
+        return "source_ref_retired"
+    if Path(relative).suffix.lower() != ".md":
+        return "source_ref_non_markdown"
+    return None
+
+
+def _source_reference_target(root: Path, authored: str) -> tuple[Path | None, str | None]:
+    """Resolve one authored S: path and gate BOTH the authored and resolved path.
+
+    Checking only the authored spelling let an in-root symlink (for example
+    ``docs/x.md -> ../.memory-seed/agent-rules.md``) steer source following
+    into excluded, forbidden or non-Markdown files.  Constitution paths are
+    handled by the caller before this gate.
+    """
+    code = _source_reference_gate(authored)
+    if code is not None:
+        return None, code
+    try:
+        target = _runtime_scoped_candidate_path(
+            root, root / authored, stage="source_references", details={"path": authored})
+    except RetrievalSpecResolutionError:
+        return None, "source_ref_forbidden"
+    resolved = target.relative_to(root).as_posix()
+    if resolved in _SOURCE_REFERENCE_CONSTITUTIONS:
+        return None, "source_ref_excluded"
+    code = _source_reference_gate(resolved)
+    if code is not None:
+        return None, code
+    if not target.is_file():
+        return None, "source_ref_missing"
+    return target, None
+
+
+def _successor_pointer(root: Path, relative: str) -> str:
+    """The retired document's declared successor, from its frontmatter."""
+    try:
+        text = (root / relative).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if not text.startswith("---"):
+        return ""
+    head = text.split("\n---", 1)[0]
+    match = re.search(
+        r"^(?:replaced_by|superseded_by|extracted_into|successor):\s*[\"']?([^\"'\n]+?)[\"']?\s*$",
+        head,
+        re.MULTILINE,
+    )
+    return match.group(1).strip() if match else ""
+
+
 def _follow_source_references(
     root: Path,
     runtime: Any,
     chunks: Sequence[MemoryChunk],
     candidates: dict[str, _RetrievalCandidate],
     warnings: list[dict[str, str]],
-) -> tuple[int, list[str]]:
-    """Add each selected decision's cited sources as optional evidence.
+) -> tuple[int, dict[str, set[str]]]:
+    """Add candidate decisions' cited sources as optional evidence.
 
-    Returns ``(followed_count, constitution_anchors)``.  Every ref that is not
-    followed is reported by one warning naming the decision and the reason.
+    Returns ``(followed_count, constitution_anchor_citers)``.  Every ref that
+    is not followed is reported by one warning naming the decision and the
+    reason.  Each followed source records the decisions citing it, so the
+    limiter can drop it when none of them survives; Constitution anchors are
+    likewise kept only for surviving decisions.  One source never appears
+    twice: a section inside an already-followed range merges into it, and a
+    whole-file citation absorbs any sections of that file.
     """
     from .semantic_cache import (
         _continuity_alias_map,
@@ -1093,8 +1161,9 @@ def _follow_source_references(
     )
 
     aliases = _continuity_alias_map(list(chunks))
-    constitution_anchors: set[str] = set()
+    constitution_anchors: dict[str, set[str]] = {}
     followed = 0
+    decisions_dir = (runtime.memory_dir / "decisions").resolve()
     decisions = sorted(
         (candidate for candidate in candidates.values() if candidate.kind == "decision"),
         key=lambda candidate: (
@@ -1103,46 +1172,37 @@ def _follow_source_references(
         ),
     )
     for decision in decisions:
+        citation = f"cited by {decision.evidence_id} S: source"
         for ref in _extract_source_references(decision.text):
             authored = _normalize_file_ref(ref.path)
             label = authored + (f"#{ref.anchor}" if ref.anchor else "")
             if authored in _SOURCE_REFERENCE_CONSTITUTIONS:
                 if ref.anchor:
-                    constitution_anchors.add(ref.anchor)
-                continue
-            if authored in _SOURCE_REFERENCE_EXCLUDED:
-                warnings.append(_source_reference_warning(
-                    "source_ref_excluded", decision.evidence_id, label,
-                    "governance control file; load it on demand"))
-                continue
-            if any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in Path(authored).parts):
-                warnings.append(_source_reference_warning(
-                    "source_ref_forbidden", decision.evidence_id, label))
+                    constitution_anchors.setdefault(ref.anchor, set()).add(decision.evidence_id)
                 continue
             current = aliases.get(authored, authored)
             if current != authored:
                 warnings.append(_source_reference_warning(
                     "source_ref_moved", decision.evidence_id, label, f"now {current}; not followed"))
                 continue
-            if authored.startswith(_SOURCE_REFERENCE_RETIRED_PREFIXES):
-                warnings.append(_source_reference_warning(
-                    "source_ref_retired", decision.evidence_id, label,
-                    "replaced or archived document; follow its successor pointer"))
-                continue
-            if Path(authored).suffix.lower() != ".md":
-                warnings.append(_source_reference_warning(
-                    "source_ref_non_markdown", decision.evidence_id, label))
+            target, code = _source_reference_target(root, authored)
+            if target is None:
+                detail = {
+                    "source_ref_excluded": "governance control file; load it on demand",
+                    "source_ref_retired": (
+                        f"retired document; successor: {_successor_pointer(root, authored) or 'not declared'}"
+                    ),
+                }.get(code or "", "")
+                warnings.append(_source_reference_warning(code or "source_ref_forbidden", decision.evidence_id, label, detail))
                 continue
             try:
-                target = _runtime_scoped_candidate_path(
-                    root, root / authored, stage="source_references", details={"path": authored})
-            except RetrievalSpecResolutionError:
+                target.relative_to(decisions_dir)
+            except ValueError:
+                pass
+            else:
                 warnings.append(_source_reference_warning(
-                    "source_ref_forbidden", decision.evidence_id, label))
-                continue
-            if not target.is_file():
-                warnings.append(_source_reference_warning(
-                    "source_ref_missing", decision.evidence_id, label))
+                    "source_ref_adr", decision.evidence_id, label,
+                    "ADRs are selected by pinned or path selectors, not followed"))
                 continue
             try:
                 lines = target.read_text(encoding="utf-8").splitlines()
@@ -1159,32 +1219,30 @@ def _follow_source_references(
                         "source_ref_anchor_missing", decision.evidence_id, label,
                         "heading not found; whole file considered"))
             start, end = span if span is not None else (0, len(lines))
-            evidence_id = f"{source}#{ref.anchor}" if span is not None else source
-            if source in candidates or evidence_id in candidates:
-                existing = candidates.get(evidence_id) or candidates[source]
-                existing.reasons.add(f"cited by {decision.evidence_id} S: source")
-                continue
-            try:
-                target.relative_to((runtime.memory_dir / "decisions").resolve())
-            except ValueError:
-                kind = "markdown"
-            else:
-                warnings.append(_source_reference_warning(
-                    "source_ref_adr", decision.evidence_id, label,
-                    "ADRs are selected by pinned or path selectors, not followed"))
+            line_range = (start + 1, max(start + 1, end))
+            same_source = [item for item in candidates.values() if item.source == source]
+            covering = next(
+                (item for item in same_source
+                 if item.line_range[0] <= line_range[0] and line_range[1] <= item.line_range[1]),
+                None,
+            )
+            if covering is not None:
+                covering.reasons.add(citation)
+                covering.cited_by.add(decision.evidence_id)
                 continue
             text = "\n".join(lines[start:end])
             candidate = _RetrievalCandidate(
-                evidence_id=evidence_id,
-                kind=kind,
+                evidence_id=f"{source}#{ref.anchor}" if span is not None else source,
+                kind="markdown",
                 source=source,
-                line_range=(start + 1, max(start + 1, end)),
+                line_range=line_range,
                 chunk_id=None,
                 session_date=None,
                 graph_distance=(decision.graph_distance or 0) + 1,
                 text=text,
                 selected_by={"optional.source_references"},
-                reasons={f"cited by {decision.evidence_id} S: source"},
+                reasons={citation},
+                cited_by={decision.evidence_id},
             )
             if candidate.token_estimate > SOURCE_REFERENCE_MAX_TOKENS:
                 warnings.append(_source_reference_warning(
@@ -1192,9 +1250,20 @@ def _follow_source_references(
                     f"{candidate.token_estimate} tokens exceeds the {SOURCE_REFERENCE_MAX_TOKENS}-token "
                     "per-source cap; cite a heading anchor"))
                 continue
+            # A wider citation absorbs narrower followed sections of the file.
+            for item in same_source:
+                if (
+                    "optional.source_references" in item.selected_by
+                    and line_range[0] <= item.line_range[0]
+                    and item.line_range[1] <= line_range[1]
+                ):
+                    candidate.reasons.update(item.reasons)
+                    candidate.cited_by.update(item.cited_by)
+                    del candidates[item.evidence_id]
+                    followed -= 1
             _merge_candidate(candidates, candidate)
             followed += 1
-    return followed, sorted(constitution_anchors)
+    return followed, constitution_anchors
 
 
 def _build_retrieval_plan(
@@ -1720,12 +1789,12 @@ def _build_retrieval_plan(
         }
     )
     follow_sources = bool(normalized.get("selectors", {}).get("source_references", False))
-    constitution_anchors: list[str] = []
+    constitution_anchor_citers: dict[str, set[str]] = {}
     if follow_sources:
         _check_retrieval_timeout(
             clock, started, timeout_ms, stage="source_references", completed_stages=completed
         )
-        followed_count, constitution_anchors = _follow_source_references(
+        followed_count, constitution_anchor_citers = _follow_source_references(
             root, runtime, chunks, candidates, warnings
         )
         completed.append("source_references")
@@ -1734,7 +1803,7 @@ def _build_retrieval_plan(
                 "stage": "source_references",
                 "reader": "decision S: source reader (one hop, runtime-bounded Markdown)",
                 "candidate_count": followed_count,
-                "constitution_anchors": constitution_anchors,
+                "constitution_anchors": sorted(constitution_anchor_citers),
             }
         )
     _check_retrieval_timeout(
@@ -1829,7 +1898,15 @@ def _build_retrieval_plan(
     tokens = 0
     max_entries = normalized["limits"]["max_entries"]
     max_tokens = normalized["limits"]["max_tokens"]
+    selected_ids: set[str] = set()
+    uncited = 0
     for candidate in ordered:
+        # A followed source is optional and sorts after every required
+        # decision, so its citers have already been kept or omitted.
+        if candidate.cited_by and not candidate.cited_by & selected_ids:
+            omitted.append(candidate)
+            uncited += 1
+            continue
         if (
             len(selected) >= max_entries
             or tokens + candidate.token_estimate > max_tokens
@@ -1837,6 +1914,7 @@ def _build_retrieval_plan(
             omitted.append(candidate)
             continue
         selected.append(candidate)
+        selected_ids.add(candidate.evidence_id)
         tokens += candidate.token_estimate
     covered = {
         clause
@@ -1869,12 +1947,20 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details=details,
         )
-    if omitted:
+    if uncited:
+        warnings.append(
+            {
+                "code": "source_ref_citer_omitted",
+                "clause": "selectors.source_references",
+                "detail": f"{uncited} followed source(s) dropped because their citing decisions were omitted",
+            }
+        )
+    if len(omitted) > uncited:
         warnings.append(
             {
                 "code": "truncated",
                 "clause": "limits",
-                "detail": f"{len(omitted)} candidate(s) omitted",
+                "detail": f"{len(omitted) - uncited} candidate(s) omitted",
             }
         )
     completed.append("limits")
@@ -1898,7 +1984,9 @@ def _build_retrieval_plan(
         "completed_stages": completed,
     }
     if follow_sources:
-        plan["source_reference_constitution_anchors"] = constitution_anchors
+        plan["source_reference_constitution_anchors"] = sorted(
+            anchor for anchor, citers in constitution_anchor_citers.items() if citers & selected_ids
+        )
     return plan
 
 
@@ -2250,6 +2338,17 @@ def validate_evidence_pack(
         raise RetrievalSpecResolutionError(
             "fingerprint_mismatch",
             "effective_spec does not match its fingerprint",
+            stage="pack_validation",
+        )
+    follows_sources = bool((effective_spec.get("selectors") or {}).get("source_references"))
+    anchors = pack.get("source_reference_constitution_anchors")
+    if ("source_reference_constitution_anchors" in pack) != follows_sources or (
+        follows_sources
+        and (not isinstance(anchors, list) or not all(isinstance(item, str) for item in anchors))
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "source_reference_constitution_anchors must be present exactly when source following is on",
             stage="pack_validation",
         )
     current_revision = _revision_reader(cwd, effective_spec)

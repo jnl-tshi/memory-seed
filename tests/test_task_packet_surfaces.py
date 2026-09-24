@@ -50,6 +50,35 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "planning_fingerprint_mismatch")
 
+    def test_governance_load_has_cli_mcp_parity_and_is_read_only(self):
+        root = self.make_project()
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Rules\n\nGovern workers.\n", encoding="utf-8")
+        (root / ".memory-seed" / "skills" / "subagent_orientation.md").write_text(
+            "# Subagent Orientation (Lite)\n", encoding="utf-8")
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 2
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        packet_file = root / "packet.json"
+        packet_file.write_text(json.dumps(packet), encoding="utf-8")
+        before = self.snapshot(root)
+
+        code, stdout, stderr = self.cli(["task-packet", "governance-load", "--packet-file", str(packet_file),
+                                        "--name", "agent_rules", "--cwd", str(root)])
+        self.assertEqual((code, stderr), (0, ""))
+        response = call_tool("memory_task_packet_governance_load",
+                             {"packet": packet, "name": "agent_rules", "cwd": str(root)})
+        self.assertTrue(response["ok"])
+        self.assertEqual(json.loads(stdout), response)
+        self.assertEqual(response["governance"]["supplemental_debit"], 0)
+        self.assertEqual(self.snapshot(root), before)
+        self.assertNotIn("memory_task_packet_governance_load", MUTATING_TOOL_NAMES)
+
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Changed\n", encoding="utf-8")
+        stale = call_tool("memory_task_packet_governance_load",
+                          {"packet": packet, "name": "agent_rules", "cwd": str(root)})
+        self.assertFalse(stale["ok"])
+        self.assertEqual(stale["error"]["code"], "stale_governance")
+
     def make_project(self) -> Path:
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-surfaces-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))

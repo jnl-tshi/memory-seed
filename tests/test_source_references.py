@@ -1,7 +1,9 @@
 """Decision S: source following (selectors.source_references)."""
 
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,7 +35,7 @@ subproject_path: null
 - R: Cited plans carry the decision's context.
 - S: `docs/plan.md#rollout-steps`
 - S: `docs/whole.md`
-- S: `docs/plan.md#no-such-heading`
+- S: `docs/whole.md#no-such-heading`
 - S: `.memory-seed/agent-rules.md`
 - S: `docs/CONSTITUTION.md#2-invariants`
 - S: `docs/7_Replaced/old-plan.md`
@@ -124,11 +126,10 @@ class SourceReferenceFollowingTests(unittest.TestCase):
         self.assertEqual(section["line_range"], [7, 15])  # through "### Detail", stops at "## Later"
         self.assertIn(f"cited by {DECISION} S: source", section["reasons"])
         self.assertTrue(section["content_digest"].startswith("sha256:"))
-        self.assertIn("docs/whole.md", by_id)
-        # The missing slug falls back to the whole file, which the anchored
-        # section does not duplicate because they are different identities.
-        self.assertIn("docs/plan.md", by_id)
-        self.assertEqual(sum(1 for item in pack["evidence"] if item["id"] == "docs/whole.md"), 1)
+        # docs/whole.md is cited whole and through a missing anchor that falls
+        # back to the whole file: it still appears exactly once.
+        self.assertEqual(sum(1 for item in pack["evidence"] if item["source"] == "docs/whole.md"), 1)
+        self.assertNotIn("docs/plan.md", by_id)
 
         self.assertEqual(pack["source_reference_constitution_anchors"], ["2-invariants"])
         self.assertFalse(any(item["id"].startswith("docs/CONSTITUTION.md#") for item in pack["evidence"]))
@@ -136,7 +137,7 @@ class SourceReferenceFollowingTests(unittest.TestCase):
     def test_every_unfollowed_reference_is_reported(self):
         pack = resolve_retrieval_spec(self.spec(), self.root)
         codes = self.warning_codes(pack)
-        self.assertIn(("source_ref_anchor_missing", "docs/plan.md#no-such-heading"), codes)
+        self.assertIn(("source_ref_anchor_missing", "docs/whole.md#no-such-heading"), codes)
         self.assertIn(("source_ref_excluded", ".memory-seed/agent-rules.md"), codes)
         self.assertIn(("source_ref_retired", "docs/7_Replaced/old-plan.md"), codes)
         self.assertIn(("source_ref_non_markdown", "docs/diagram.png"), codes)
@@ -145,6 +146,36 @@ class SourceReferenceFollowingTests(unittest.TestCase):
         ids = {item["id"] for item in pack["evidence"]}
         for excluded in (".memory-seed/agent-rules.md", "docs/7_Replaced/old-plan.md", "docs/huge.md"):
             self.assertNotIn(excluded, ids)
+
+    def test_whole_file_citation_absorbs_a_followed_section(self):
+        session = self.root / ".memory-seed" / "sessions" / "2026-08-01.md"
+        text = SESSION.replace("- S: `docs/whole.md`\n", "- S: `docs/whole.md`\n- S: `docs/plan.md`\n")
+        session.write_text(text, encoding="utf-8", newline="\n")
+        pack = resolve_retrieval_spec(self.spec(), self.root)
+        plan_items = [item for item in pack["evidence"] if item["source"] == "docs/plan.md"]
+        self.assertEqual([item["id"] for item in plan_items], ["docs/plan.md"])
+
+    def test_retired_reference_names_its_successor(self):
+        (self.root / "docs" / "7_Replaced" / "old-plan.md").write_text(
+            "---\nreplaced_by: \"../2_Todo/new-plan.md\"\n---\n\n# Old\n", encoding="utf-8")
+        pack = resolve_retrieval_spec(self.spec(), self.root)
+        details = [item["detail"] for item in pack["warnings"] if item["code"] == "source_ref_retired"]
+        self.assertEqual(len(details), 1)
+        self.assertIn("successor: ../2_Todo/new-plan.md", details[0])
+
+    @unittest.skipUnless(sys.platform == "win32", "directory junctions are Windows-only")
+    def test_link_cannot_steer_following_into_an_excluded_file(self):
+        link = self.root / "docs" / "linked"
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(self.root / ".memory-seed")],
+                              capture_output=True)
+        if made.returncode != 0:
+            self.skipTest("could not create a junction")
+        self.addCleanup(lambda: os.rmdir(link))
+        session = self.root / ".memory-seed" / "sessions" / "2026-08-01.md"
+        session.write_text(SESSION + "- S: `docs/linked/agent-rules.md`\n", encoding="utf-8", newline="\n")
+        pack = resolve_retrieval_spec(self.spec(), self.root)
+        self.assertFalse(any(item["source"].endswith("agent-rules.md") for item in pack["evidence"]))
+        self.assertIn(("source_ref_excluded", "docs/linked/agent-rules.md"), self.warning_codes(pack))
 
     def test_resolution_is_deterministic(self):
         first = resolve_retrieval_spec(self.spec(), self.root)

@@ -78,6 +78,41 @@ Findings:
 
 Raw output: [`t7.json`](t7.json).
 
+## T8 — packet v2 (repo `b79bc210` plus T8, 2026-09-24)
+
+`measure.py --packet-version 2` compiles the same pilot fixture with the real control-plane files. The only
+change is that the dispatch asks for `"packet_version": 2`.
+
+| Packet | v1 serialized / envelope | v2 serialized / envelope | Change | Loadable on demand |
+|---|---:|---:|---:|---|
+| Read-only | 9,415 / 13,486 | 5,330 / 9,401 | −43% | `agent-rules.md` 5,093 |
+| Session-writing | 21,161 / 25,232 | 5,473 / 9,544 | −74% | plus `session_logging.md` 11,476 |
+
+- v2 embeds `subagent_orientation.md` (1,030 tokens) and pins the full rules by digest.
+- A worker that needs a full file loads it through `load_task_packet_governance`. The load is refused if the
+  file has changed since compile, and it never spends the supplemental reserve.
+- v1 packets are unchanged, including the pilot fixture's pinned fingerprints.
+
+## T10 — final measurement after review fixes (2026-09-24)
+
+| Packet | T0 v1 | T10 v2 | Change |
+|---|---:|---:|---:|
+| Read-only (pilot, production rules) | 9,415 | 5,433 | −42% |
+| Session-writing (pilot, production rules) | 21,161 | 5,576 | −74% |
+
+- Real corpus, `implementation` v1: 16,459 serialized tokens.
+- Real corpus, `implementation` v2 (source following on): 24,978 tokens, with 3 sources followed and 5 reported
+  and not followed.
+- The lite skill is now 1,040 tokens; it names the governance-load tool.
+- The v2 packet also declares `execution_defaults.governance_load`.
+- The worker pays for `agent-rules.md` (5,093) and `session_logging.md` (11,476) only when a lite trigger fires.
+- Full test suite: 1,992 passed, 1 skipped (the privileged-symlink test).
+
+The independent review found 12 issues; it returned REVISE. Fixes and dispositions are in session entry
+`mse_yz25a19sdq9akxmh`.
+
+Raw output: [`t10.json`](t10.json) and [`t7.json`](t7.json), both regenerated at T10.
+
 ## T3 — mechanical session-write backstop
 
 

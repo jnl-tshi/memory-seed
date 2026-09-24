@@ -80,7 +80,9 @@ class CommitHookTests(unittest.TestCase):
     def last_message(self) -> str:
         return self.git("log", "-1", "--format=%B").stdout
 
-    def activate_compiled_packet(self, *, allowed_files: list[str], implements: list[str]) -> dict:
+    def activate_compiled_packet(
+        self, *, allowed_files: list[str], implements: list[str], packet_version: int = 1
+    ) -> dict:
         base = self.git("rev-parse", "HEAD").stdout.strip()
         context = " ".join(["grounded"] * 15)
         dispatch = {
@@ -128,6 +130,11 @@ class CommitHookTests(unittest.TestCase):
             "expected_directory": str(self.root),
             "integration_artifact": "branch",
         }
+        if packet_version == 2:
+            dispatch["packet_version"] = 2
+            orientation = self.root / MEMORY_DIR_NAME / "skills" / "subagent_orientation.md"
+            orientation.parent.mkdir(parents=True, exist_ok=True)
+            orientation.write_text("# Subagent Orientation (Lite)\n\nVerify scope.\n", encoding="utf-8")
         packet = compile_task_packet(dispatch, binding, self.root)
         return activate_task_packet(packet, self.root)
 
@@ -161,6 +168,55 @@ class CommitHookTests(unittest.TestCase):
         self.git("commit", "-m", "feat: packet implementation")
 
         self.assertIn(f"Memory-Implements: {reference}", self.last_message())
+
+    def test_packet_v2_activation_stamps_exact_implements(self) -> None:
+        reference = "mse_aaaaaaaaaaaaaaaa:d1"
+        self.activate_compiled_packet(allowed_files=["change.txt"], implements=[reference], packet_version=2)
+        (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "feat: packet v2 implementation")
+
+        self.assertIn(f"Memory-Implements: {reference}", self.last_message())
+
+    def test_explicit_packet_version_one_in_dispatch_cannot_stamp_implements(self) -> None:
+        reference = "mse_aaaaaaaaaaaaaaaa:d1"
+        activation = self.activate_compiled_packet(allowed_files=["change.txt"], implements=[reference])
+        artifact = Path(activation["activation_artifact"])
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+        packet = payload["packet"]
+        packet["dispatch"]["packet_version"] = 1
+        packet["dispatch_fingerprint"] = "sha256:" + hashlib.sha256(json.dumps(
+            packet["dispatch"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        identity = {key: value for key, value in packet.items() if key != "fingerprint"}
+        packet["fingerprint"] = "sha256:" + hashlib.sha256(json.dumps(
+            identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        payload["receipt"]["packet_fingerprint"] = packet["fingerprint"]
+        payload["receipt"]["dispatch_fingerprint"] = packet["dispatch_fingerprint"]
+        artifact.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+        (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "feat: explicit v1 dispatch")
+
+        self.assertNotIn("Memory-Implements:", self.last_message())
+
+    def test_packet_v2_with_tampered_orientation_cannot_stamp_implements(self) -> None:
+        reference = "mse_aaaaaaaaaaaaaaaa:d1"
+        activation = self.activate_compiled_packet(
+            allowed_files=["change.txt"], implements=[reference], packet_version=2)
+        artifact = Path(activation["activation_artifact"])
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+        packet = payload["packet"]
+        packet["worker_orientation"]["content"] = "# Rewritten rules\n"
+        identity = {key: value for key, value in packet.items() if key != "fingerprint"}
+        packet["fingerprint"] = "sha256:" + hashlib.sha256(json.dumps(
+            identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        payload["receipt"]["packet_fingerprint"] = packet["fingerprint"]
+        artifact.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+        (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "feat: tampered orientation")
+
+        self.assertNotIn("Memory-Implements:", self.last_message())
 
     def test_skeletal_self_hashed_artifact_cannot_stamp_implements(self) -> None:
         reference = "mse_aaaaaaaaaaaaaaaa:d1"

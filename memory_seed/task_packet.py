@@ -51,6 +51,10 @@ TASK_DISPATCH_SCHEMA = "memory-seed/task-dispatch"
 TASK_DISPATCH_VERSION = 1
 TASK_PACKET_SCHEMA = "memory-seed/task-packet"
 TASK_PACKET_VERSION = 1
+# v2 replaces the embedded full worker baselines with the digest-pinned
+# orientation-lite skill plus lazily loaded, digest-referenced full rules.
+TASK_PACKET_V2 = 2
+TASK_PACKET_VERSIONS = frozenset({TASK_PACKET_VERSION, TASK_PACKET_V2})
 TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
 TASK_PACKET_ACTIVATION_VERSION = 1
 TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
@@ -81,6 +85,7 @@ _DISPATCH_KEYS = frozenset(
         "memory_update_policy",
         "memory_checkpoints",
         "planning_evidence",
+        "packet_version",
     }
 )
 _PROJECT_CONTEXT_KEYS = frozenset(
@@ -121,6 +126,7 @@ _CHECKPOINT_KEYS = frozenset(
 )
 _WORKER_BASELINE_AGENT_RULES = ".memory-seed/agent-rules.md"
 _WORKER_BASELINE_SESSION_LOGGING = ".memory-seed/skills/session_logging.md"
+_WORKER_ORIENTATION = ".memory-seed/skills/subagent_orientation.md"
 _BINDING_KEYS = frozenset(
     {
         "owner",
@@ -151,6 +157,10 @@ _COMPILED_PACKET_KEYS = frozenset(
         "fingerprint",
     }
 )
+_COMPILED_PACKET_V2_KEYS = (_COMPILED_PACKET_KEYS - {"worker_baseline"}) | {
+    "worker_orientation",
+    "governance_references",
+}
 _ENVIRONMENT_KEYS = frozenset(
     {"fixed_instructions", "tool_schemas", "cached_input_tokens"}
 )
@@ -665,6 +675,12 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     }
     if "planning_evidence" in dispatch:
         normalized["planning_evidence"] = _normalize_planning_evidence(dispatch["planning_evidence"])
+    packet_version = dispatch.get("packet_version", TASK_PACKET_VERSION)
+    if type(packet_version) is not int or packet_version not in TASK_PACKET_VERSIONS:
+        _fail("packet_version", "must be integer 1 or 2")
+    # Written only for v2 so every existing dispatch keeps its exact bytes.
+    if packet_version == TASK_PACKET_V2:
+        normalized["packet_version"] = TASK_PACKET_V2
     return normalized
 
 
@@ -993,6 +1009,17 @@ def governance_reference(memory_dir: Path, relative_source: str) -> dict[str, An
     return {key: record[key] for key in ("source", "byte_count", "content_digest", "token_estimate")}
 
 
+GOVERNANCE_LOAD_MCP_TOOL = "memory_task_packet_governance_load"
+GOVERNANCE_LOAD_CLI = (
+    "python -X utf8 -m memory_seed.cli task-packet governance-load "
+    "--packet-file <packet.json> --name <agent_rules|session_logging>"
+)
+_GOVERNANCE_SOURCES = {
+    "agent_rules": _WORKER_BASELINE_AGENT_RULES,
+    "session_logging": _WORKER_BASELINE_SESSION_LOGGING,
+}
+
+
 def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str | Path) -> dict[str, Any]:
     """Load one lazily referenced governance file, verified against its pin.
 
@@ -1000,43 +1027,49 @@ def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str |
     reads the full ``session_logging.md`` or ``agent-rules.md`` only when a
     lite trigger fires. They are deliberately NOT supplemental gap reads -
     they never debit ``supplemental_input_reserve_tokens``, so a budget can
-    never starve a worker of the rules it is required to consult. Bytes that
-    no longer match the compiled digest are refused as stale governance.
+    never starve a worker of the rules it is required to consult.
+
+    The packet itself is verified first (identity, fingerprint, orientation
+    and pin shape), each name maps to exactly one control file, and the file
+    is resolved through the active runtime exactly as the compiler read it.
+    Bytes that no longer match the compiled digest are refused as stale.
     """
-    references = packet.get("governance_references")
-    if not isinstance(references, Mapping):
-        if isinstance(packet.get("worker_baseline"), Mapping):
-            _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
-                  code="governance_embedded", stage="governance_load")
-        _fail("governance", "packet declares no governance references",
-              code="missing_governance_reference", stage="governance_load")
-    reference = references.get(name)
-    if not isinstance(reference, Mapping):
+    packet = _mapping(packet, "packet")
+    canonical_task_packet_json(packet)
+    if packet.get("packet_version") != TASK_PACKET_V2:
+        _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
+              code="governance_embedded", stage="governance_load")
+    _validate_worker_orientation(packet)
+    references = packet["governance_references"]
+    if name not in _GOVERNANCE_SOURCES or name not in references:
         _fail(f"governance.{name}", "packet declares no governance reference with this name",
               code="missing_governance_reference", stage="governance_load",
               details={"available": sorted(references)})
-    root = Path(cwd).resolve()
-    source = (root / str(reference["source"])).resolve()
+    reference = references[name]
+    relative = _GOVERNANCE_SOURCES[name]
+    runtime = resolve_runtime(cwd)
+    workspace = runtime.memory_dir.parent.resolve()
+    source = (runtime.memory_dir.parent / relative).resolve()
     try:
-        source.relative_to(root)
+        source.relative_to(workspace)
     except ValueError:
-        _fail(f"governance.{name}", "governance source resolved outside the bound checkout",
+        _fail(f"governance.{name}", "governance source resolved outside the active runtime",
               code="invalid_governance_reference", stage="governance_load",
-              details={"source": reference["source"]})
+              details={"source": relative})
     try:
         payload = source.read_bytes()
     except OSError as exc:
         _fail(f"governance.{name}", "governance source is missing or unreadable",
               code="stale_governance", stage="governance_load",
-              details={"source": reference["source"], "error": exc.__class__.__name__})
+              details={"source": relative, "error": exc.__class__.__name__})
     digest = "sha256:" + hashlib.sha256(payload).hexdigest()
-    if digest != reference["content_digest"]:
+    if digest != reference["content_digest"] or len(payload) != reference["byte_count"]:
         _fail(f"governance.{name}", "governance source changed since the packet was compiled",
               code="stale_governance", stage="governance_load",
-              details={"source": reference["source"], "expected": reference["content_digest"], "actual": digest})
+              details={"source": relative, "expected": reference["content_digest"], "actual": digest})
     return {
         "name": name,
-        "source": reference["source"],
+        "source": relative,
         "content": payload.decode("utf-8"),
         "content_digest": digest,
         "token_estimate": reference["token_estimate"],
@@ -1061,6 +1094,11 @@ def validate_task_packet_supplemental_fetch(packet: Mapping[str, Any], source: s
     for record in ((packet.get("worker_baseline") or {}).get("sources") or {}).values():
         if record is not None and _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
             _fail("supplemental.source", "requested governance is already materialized", code="duplicate_evidence_content")
+    orientation = packet.get("worker_orientation")
+    if isinstance(orientation, Mapping) and _canonical_scope_identity(source) == _canonical_scope_identity(
+        str(orientation.get("source", ""))
+    ):
+        _fail("supplemental.source", "requested orientation is already materialized", code="duplicate_evidence_content")
     for record in (packet.get("governance_references") or {}).values():
         if _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
             _fail("supplemental.source", "referenced governance loads through load_task_packet_governance, not the reserve",
@@ -1655,6 +1693,31 @@ def materialize_worker_baseline(
     }
 
 
+def materialize_worker_orientation(
+    dispatch: Mapping[str, Any], cwd: str | Path = "."
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """v2 worker governance: embedded orientation lite plus pinned references.
+
+    The lite skill is the always-on worker contract and is embedded byte for
+    byte.  The full ``agent-rules.md`` - and ``session_logging.md`` whenever
+    the dispatch delegates a session write - are referenced by path and digest
+    only; a worker loads them on demand through ``load_task_packet_governance``,
+    which refuses bytes that no longer match the pin.  The digests are part of
+    the packet fingerprint, so a rules change still changes the packet.
+    """
+    runtime = resolve_runtime(cwd)
+    orientation = _materialize_worker_baseline_document(
+        runtime.memory_dir, _WORKER_ORIENTATION, required=True
+    )
+    assert orientation is not None
+    references = {"agent_rules": governance_reference(runtime.memory_dir, _WORKER_BASELINE_AGENT_RULES)}
+    if dispatch["memory_update_policy"] == "worker_checkpoint" or _session_log_paths_are_writable(dispatch):
+        references["session_logging"] = governance_reference(
+            runtime.memory_dir, _WORKER_BASELINE_SESSION_LOGGING
+        )
+    return orientation, references
+
+
 def _content_digest(content: str) -> str:
     return "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -1761,10 +1824,10 @@ def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
 
 
 def _heading_anchor_slug(heading: str) -> str:
-    """GitHub-style anchor slug; mirrors ``retrieval._heading_slug``."""
-    text = heading.strip().lstrip("#").strip().lower()
-    text = re.sub(r"[^\w\- ]", "", text)
-    return text.replace(" ", "-")
+    """GitHub-style anchor slug - the resolver's, so S: anchors match exactly."""
+    from .retrieval import _heading_slug
+
+    return _heading_slug(heading)
 
 
 def project_constitution(
@@ -1972,7 +2035,22 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "python -X utf8 -m memory_seed.cli worktree guard "
             f"--agent {binding['agent_type']} --write-intent",
         )
+    governance = (
+        {
+            "governance_load": {
+                "mcp_tool": GOVERNANCE_LOAD_MCP_TOOL,
+                "cli": GOVERNANCE_LOAD_CLI,
+                "rule": (
+                    "Load a pinned full rules file only through this path, when an orientation-lite "
+                    "trigger fires. It refuses changed bytes and never spends the supplemental reserve."
+                ),
+            }
+        }
+        if dispatch.get("packet_version") == TASK_PACKET_V2
+        else {}
+    )
     return {
+        **governance,
         "safety": {
             # Execution/write authority only. Retrieval scope is governed by
             # the Retrieval Specification and resolver's runtime-local bounds;
@@ -2061,7 +2139,7 @@ def _packet_fingerprint(packet: Mapping[str, Any]) -> str:
 
 
 def canonical_task_packet_json(packet: Mapping[str, Any]) -> str:
-    if packet.get("packet_schema") != TASK_PACKET_SCHEMA or packet.get("packet_version") != TASK_PACKET_VERSION:
+    if packet.get("packet_schema") != TASK_PACKET_SCHEMA or packet.get("packet_version") not in TASK_PACKET_VERSIONS:
         _fail(
             "packet",
             "unsupported Task Packet identity",
@@ -2269,6 +2347,41 @@ def _validate_worker_baseline(packet: Mapping[str, Any]) -> None:
         )
 
 
+def _validate_worker_orientation(packet: Mapping[str, Any]) -> None:
+    """v2 twin of ``_validate_worker_baseline``: embedded lite bytes plus
+    well-formed governance references.  Referenced files are not reread here;
+    their bytes are verified when a worker loads them."""
+    orientation = _mapping(packet.get("worker_orientation"), "packet.worker_orientation")
+    fields = frozenset({"source", "byte_count", "token_estimate", "content_digest", "content"})
+    _exact_keys(orientation, "packet.worker_orientation", fields, required=fields)
+    if orientation.get("source") != _WORKER_ORIENTATION or not isinstance(orientation.get("content"), str):
+        _fail("packet.worker_orientation", "does not carry the complete orientation-lite skill",
+              code="invalid_packet", stage="activation")
+    payload = str(orientation["content"]).encode("utf-8")
+    if (orientation.get("byte_count") != len(payload)
+            or orientation.get("token_estimate") != estimate_tokens(payload)
+            or orientation.get("content_digest") != "sha256:" + hashlib.sha256(payload).hexdigest()):
+        _fail("packet.worker_orientation", "does not match its embedded bytes",
+              code="fingerprint_mismatch", stage="activation")
+
+    references = _mapping(packet.get("governance_references"), "packet.governance_references")
+    dispatch = _mapping(packet.get("dispatch"), "packet.dispatch")
+    expected = {"agent_rules": _WORKER_BASELINE_AGENT_RULES}
+    if dispatch.get("memory_update_policy") == "worker_checkpoint" or _session_log_paths_are_writable(dispatch):
+        expected["session_logging"] = _WORKER_BASELINE_SESSION_LOGGING
+    _exact_keys(references, "packet.governance_references", frozenset(expected), required=frozenset(expected))
+    reference_fields = frozenset({"source", "byte_count", "content_digest", "token_estimate"})
+    for name, source in expected.items():
+        reference = _mapping(references[name], f"packet.governance_references.{name}")
+        _exact_keys(reference, f"packet.governance_references.{name}", reference_fields, required=reference_fields)
+        if (reference.get("source") != source
+                or type(reference.get("byte_count")) is not int
+                or type(reference.get("token_estimate")) is not int
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", str(reference.get("content_digest"))) is None):
+            _fail(f"packet.governance_references.{name}", "is not a well-formed governance pin",
+                  code="invalid_packet", stage="activation")
+
+
 def _activation_receipt(
     packet: Mapping[str, Any], dispatch: Mapping[str, Any], binding: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -2290,7 +2403,8 @@ def _activation_receipt(
 def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Return fully checked dispatch, binding, and receipt for artifact use."""
     packet = _mapping(packet, "packet")
-    _exact_keys(packet, "packet", _COMPILED_PACKET_KEYS, required=_COMPILED_PACKET_KEYS)
+    packet_keys = _COMPILED_PACKET_V2_KEYS if packet.get("packet_version") == TASK_PACKET_V2 else _COMPILED_PACKET_KEYS
+    _exact_keys(packet, "packet", packet_keys, required=packet_keys)
     canonical_task_packet_json(packet)
     dispatch = normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
     if dispatch != packet["dispatch"]:
@@ -2304,7 +2418,13 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
         _fail("packet.runtime_binding", "is not the strict normalized activation binding", code="binding_mismatch", stage="activation")
     _validate_compiled_packet_evidence(packet)
     _validate_planning_evidence(dispatch, packet["evidence_pack"]["evidence"], cwd)
-    _validate_worker_baseline(packet)
+    if dispatch.get("packet_version", TASK_PACKET_VERSION) != packet["packet_version"]:
+        _fail("packet.packet_version", "does not match the dispatch's requested packet version",
+              code="invalid_packet", stage="activation")
+    if packet["packet_version"] == TASK_PACKET_V2:
+        _validate_worker_orientation(packet)
+    else:
+        _validate_worker_baseline(packet)
     selected_decisions = {
         item["id"]
         for item in packet["materialized_evidence"]
@@ -2555,21 +2675,30 @@ def compile_task_packet(
     materialized = [
         item for item in materialized_all if item.get("kind") != "constitution"
     ]
-    worker_baseline = materialize_worker_baseline(normalized_dispatch, cwd)
-    baseline_sources = worker_baseline["sources"]
-    agent_rules_tokens = int(baseline_sources["agent_rules"]["token_estimate"])
-    session_logging_tokens = (
-        int(baseline_sources["session_logging"]["token_estimate"])
-        if baseline_sources["session_logging"] is not None
-        else 0
-    )
+    packet_version = normalized_dispatch.get("packet_version", TASK_PACKET_VERSION)
+    if packet_version == TASK_PACKET_V2:
+        # Full rules are referenced, not embedded: nothing is materialized for
+        # them, and the lite skill is counted within the serialized packet.
+        worker_orientation, governance_references = materialize_worker_orientation(
+            normalized_dispatch, cwd
+        )
+        agent_rules_tokens = session_logging_tokens = 0
+    else:
+        worker_baseline = materialize_worker_baseline(normalized_dispatch, cwd)
+        baseline_sources = worker_baseline["sources"]
+        agent_rules_tokens = int(baseline_sources["agent_rules"]["token_estimate"])
+        session_logging_tokens = (
+            int(baseline_sources["session_logging"]["token_estimate"])
+            if baseline_sources["session_logging"] is not None
+            else 0
+        )
 
     fixed_tokens = estimate_tokens("\n".join(normalized_environment["fixed_instructions"]))
     tool_tokens = estimate_tokens(normalized_environment["tool_schemas"])
     budget = normalized_dispatch["budget"]
     packet: dict[str, Any] = {
         "packet_schema": TASK_PACKET_SCHEMA,
-        "packet_version": TASK_PACKET_VERSION,
+        "packet_version": packet_version,
         "dispatch": normalized_dispatch,
         "dispatch_fingerprint": task_dispatch_fingerprint(dispatch),
         "runtime_binding": normalized_binding,
@@ -2581,7 +2710,11 @@ def compile_task_packet(
         },
         "evidence_pack": evidence_pack,
         "materialized_evidence": materialized,
-        "worker_baseline": worker_baseline,
+        **(
+            {"worker_orientation": worker_orientation, "governance_references": governance_references}
+            if packet_version == TASK_PACKET_V2
+            else {"worker_baseline": worker_baseline}
+        ),
         "constitution_projection": constitution_projection,
         "execution_defaults": _execution_defaults(normalized_dispatch, normalized_binding),
         "input_ledger": {},

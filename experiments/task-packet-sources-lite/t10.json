@@ -1,0 +1,46 @@
+{
+  "label": "T10",
+  "packet_version": 2,
+  "read_only": {
+    "baseline_tokens": {},
+    "input_ledger": {
+      "fixed_instruction_tokens": 447,
+      "materialized_agent_rules_tokens": 0,
+      "materialized_session_logging_tokens": 0,
+      "output_reasoning_reserve_tokens": 2500,
+      "serialized_packet_input_tokens": 5433,
+      "supplemental_input_reserve_tokens": 1000,
+      "tool_schema_input_tokens": 124,
+      "total_context_envelope_tokens": 9504,
+      "total_input_tokens": 7004
+    },
+    "on_demand_governance_tokens": {
+      "agent_rules": 5093
+    },
+    "orientation_tokens": 1040,
+    "packet_fingerprint": "sha256:292e7cff853b066d8ee0518a9f63d1b7cfad67a32bbea96d7b344ad2845c9a74",
+    "serialized_packet_tokens": 5433
+  },
+  "repo_head": "5b5c5168d2af539b2026ea16e13e86b2fc5c9029",
+  "session_writing": {
+    "baseline_tokens": {},
+    "input_ledger": {
+      "fixed_instruction_tokens": 447,
+      "materialized_agent_rules_tokens": 0,
+      "materialized_session_logging_tokens": 0,
+      "output_reasoning_reserve_tokens": 2500,
+      "serialized_packet_input_tokens": 5576,
+      "supplemental_input_reserve_tokens": 1000,
+      "tool_schema_input_tokens": 124,
+      "total_context_envelope_tokens": 9647,
+      "total_input_tokens": 7147
+    },
+    "on_demand_governance_tokens": {
+      "agent_rules": 5093,
+      "session_logging": 11476
+    },
+    "orientation_tokens": 1040,
+    "packet_fingerprint": "sha256:a04f8b55e8a80d2362d22cef480019a2bace75cfc2b3743dc22363f65df57913",
+    "serialized_packet_tokens": 5576
+  }
+}

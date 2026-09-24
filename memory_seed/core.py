@@ -1504,7 +1504,7 @@ def _activated_packet_base_sha(root: Path) -> str | None:
     if (
         not isinstance(packet, dict)
         or packet.get("packet_schema") != "memory-seed/task-packet"
-        or packet.get("packet_version") != 1
+        or packet.get("packet_version") not in (1, 2)
         or not _packet_fingerprint_is_valid(packet)
     ):
         return None
@@ -9886,6 +9886,10 @@ SEED_FILES = [
         ".memory-seed/skills/risk_signaling.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subagent_orientation.md",
+        ".memory-seed/skills/subagent_orientation.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "skill_architecture.md",
         ".memory-seed/skills/skill_architecture.md",
     ),
@@ -10194,6 +10198,7 @@ CORE_SKILL_NAMES = (
     "adr_sweep.md",
     "memory_hygiene.md",
     "risk_signaling.md",
+    "subagent_orientation.md",
     "memory_doctor.md",
     "memory_consolidation.md",
     "subproject_runtime.md",
