@@ -1787,13 +1787,26 @@ def project_constitution(
     full_digest = _content_digest(content)
     target = CONSTITUTION_PROJECTION_TARGETS[dispatch["execution"]["capability_tier"]]
     clauses_by_ref = {clause["ref"]: clause for clause in clauses}
-    explicit_refs = list(dispatch["constitution_refs"])
+    current_major = int(ratified_version.split(".", 1)[0])
+
+    def current_ref(reference: str) -> str:
+        # A legacy anchor name (``vK#slug``, K below the ratified major) is an
+        # alias of the renamed current anchor, so older dispatches and ADR
+        # bindings keep resolving after the Constitution is re-namespaced.
+        match = re.fullmatch(r"constitution:v(\d+)#([a-z0-9-]+)", reference)
+        if match and int(match.group(1)) < current_major:
+            renamed = f"constitution:v{current_major}#{match.group(2)}"
+            if renamed in clauses_by_ref:
+                return renamed
+        return reference
+
+    explicit_refs = list(dict.fromkeys(current_ref(ref) for ref in dispatch["constitution_refs"]))
     adr_refs: list[tuple[str, str, str]] = []
     for item in materialized:
         if item.get("kind") != "adr":
             continue
         for reference, role in _CONSTITUTION_BINDING_RE.findall(str(item["content"])):
-            adr_refs.append((reference, str(item["id"]), role))
+            adr_refs.append((current_ref(reference), str(item["id"]), role))
 
     selected: list[dict[str, Any]] = []
     if explicit_refs:

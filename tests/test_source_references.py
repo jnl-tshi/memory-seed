@@ -225,5 +225,59 @@ class ConstitutionSourceAnchorProjectionTests(unittest.TestCase):
         self.assertNotIn("unmatched_source_anchors", projection)
 
 
+class ConstitutionAnchorNamespaceTests(unittest.TestCase):
+    """Anchors carry the ratified major; older names stay legacy aliases."""
+
+    REPO = Path(__file__).resolve().parents[1]
+
+    def test_repository_constitution_projects_without_refusal(self):
+        from memory_seed.task_packet import _constitution_clauses
+
+        text = (self.REPO / "docs" / "CONSTITUTION.md").read_text(encoding="utf-8")
+        _content, version, clauses = _constitution_clauses(
+            {"source": "docs/CONSTITUTION.md", "content": text})
+        major = version.split(".", 1)[0]
+        self.assertGreaterEqual(len(clauses), 30)
+        self.assertTrue(all(clause["ref"].startswith(f"constitution:v{major}#") for clause in clauses))
+
+    def test_legacy_dispatch_and_adr_refs_resolve_to_current_clauses(self):
+        constitution = ConstitutionSourceAnchorProjectionTests.CONSTITUTION
+        materialized = [
+            {"kind": "constitution", "id": "docs/CONSTITUTION.md", "source": "docs/CONSTITUTION.md",
+             "content": constitution},
+        ]
+        dispatch = ConstitutionSourceAnchorProjectionTests().dispatch()
+        dispatch["constitution_refs"] = ["constitution:v1#append-only"]
+        projection = project_constitution(dispatch, materialized)
+        self.assertEqual([clause["ref"] for clause in projection["clauses"]], ["constitution:v2#append-only"])
+
+        dispatch["constitution_refs"] = []
+        materialized.append({"kind": "adr", "id": "adr_x", "source": ".memory-seed/decisions/adr_x.md",
+                             "content": "- `constitution:v1#ownership` (governing)\n"})
+        projection = project_constitution(dispatch, materialized)
+        self.assertEqual([clause["ref"] for clause in projection["clauses"]], ["constitution:v2#ownership"])
+
+    def test_adr_aliases_accept_history_but_new_events_need_the_current_name(self):
+        from memory_seed.adr import ConstitutionRef, constitution_legacy_aliases
+
+        aliases = constitution_legacy_aliases({"constitution:v3#ownership", "constitution:v1#legacy"})
+        self.assertEqual(aliases, {
+            "constitution:v1#ownership": "constitution:v3#ownership",
+            "constitution:v2#ownership": "constitution:v3#ownership",
+        })
+        self.assertTrue(ConstitutionRef("constitution:v3#ownership", "governing"))
+
+    def test_repository_adr_write_refuses_legacy_names(self):
+        from memory_seed.adr import ConstitutionRef, legacy_constitution_ref_issues
+
+        issues = legacy_constitution_ref_issues(
+            [ConstitutionRef("constitution:v1#append-only", "governing"),
+             ConstitutionRef("constitution:v2#append-only", "supporting")],
+            self.REPO,
+        )
+        self.assertEqual(len(issues), 1)
+        self.assertIn("write 'constitution:v2#append-only'", issues[0])
+
+
 if __name__ == "__main__":
     unittest.main()
