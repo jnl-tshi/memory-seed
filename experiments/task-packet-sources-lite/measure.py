@@ -96,10 +96,93 @@ def _measure(packet: dict) -> dict:
     }
 
 
+# Real decisions whose S: lines exercise every source-following path: a
+# Constitution anchor, followed Todo/Deferred plans, and retired (archived)
+# reports that must be listed rather than followed.
+REPO_PINS = (
+    ("mse_v048edjgmvk5mqsx:d1", "Integrates the decision proposal pack; cites Todo, Deferred and archived sources."),
+    ("mse_nw47r0vpcj5tr2pj:d1", "Designs the worktree-reconciliation skill; cites skills and a Constitution heading anchor."),
+)
+
+
+def _repo_dispatch(profile_version: int) -> dict:
+    dispatch = copy.deepcopy(semantic_dispatch())
+    dispatch["retrieval"] = {
+        "profile": "implementation",
+        "profile_version": profile_version,
+        "overrides": {
+            "selectors": {
+                "pinned": [
+                    {"kind": "decision", "id": ref, "reason": reason, "required": True}
+                    for ref, reason in REPO_PINS
+                ]
+            },
+            "limits": {"max_entries": 60, "max_tokens": 20000},
+        },
+    }
+    dispatch["budget"]["over_soft_cap"] = "allow"
+    dispatch["budget"]["over_soft_cap_reason"] = "Measurement run over the real corpus."
+    return dispatch
+
+
+def _repo_binding() -> dict:
+    head = subprocess.run(
+        ["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    branch = subprocess.run(
+        ["git", "-C", str(REPO), "branch", "--show-current"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    return {
+        "owner": "frontier-orchestrator",
+        "agent_type": "claude",
+        "base_branch": branch,
+        "base_sha": head,
+        "working_branch": None,
+        "worktree": None,
+        "expected_directory": str(REPO),
+        "integration_artifact": "handoff",
+    }
+
+
+def _measure_repo(packet: dict) -> dict:
+    result = _measure(packet)
+    evidence = packet["evidence_pack"]["evidence"]
+    followed = [item for item in evidence if "optional.source_references" in item["selected_by"]]
+    result["followed_sources"] = {item["id"]: item["token_estimate"] for item in followed}
+    result["source_warnings"] = sorted(
+        f"{item['code']}: {item['detail']}"
+        for item in packet["evidence_pack"]["warnings"]
+        if item["code"].startswith("source_ref_")
+    )
+    projection = packet["constitution_projection"]
+    result["constitution"] = {
+        "mode": projection["mode"],
+        "selection_mode": projection.get("selection_mode"),
+        "content_tokens": projection["content_tokens"],
+        "clauses": [clause["ref"] for clause in projection.get("clauses", [])],
+    }
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", default="measurement")
+    parser.add_argument(
+        "--repo",
+        action="store_true",
+        help="compile read-only packets over this repository's real corpus with v1 and v2 profiles",
+    )
     args = parser.parse_args()
+    if args.repo:
+        env = worker_environment()
+        result = {
+            "label": args.label,
+            "repo_head": _repo_binding()["base_sha"],
+            "profile_v1": _measure_repo(compile_task_packet(_repo_dispatch(1), _repo_binding(), REPO, environment=env)),
+            "profile_v2": _measure_repo(compile_task_packet(_repo_dispatch(2), _repo_binding(), REPO, environment=env)),
+        }
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     with tempfile.TemporaryDirectory(prefix="tp-measure-") as tmp:
         root = _runtime(Path(tmp))
         env = worker_environment()
