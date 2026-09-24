@@ -2687,9 +2687,9 @@ def _declared_entry_ids(text: str) -> list[str]:
     """The ``entry_id`` each entry in ``text`` declares in its own metadata
     fence - one per entry heading, not one per ``entry_id:`` line in the file.
 
-    A workstream receipt block (Reflection Board) cites the session entry it
-    attaches to with its own ``entry_id:`` line, once per record - a chain
-    with five records under one entry legitimately repeats it five times.
+    Any block inside an entry's body may cite another entry with its own
+    ``entry_id:`` line - historical session files still carry receipt blocks
+    from the retired Reflection Board that repeat one id per record.
     Scanning the whole file for that key, as a plain ``_ENTRY_ID_RE.findall``
     does, counts every citation as a second declaration and reports the
     entry as duplicated within its own file, alongside any real cross-file
