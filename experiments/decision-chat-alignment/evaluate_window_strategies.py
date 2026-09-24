@@ -286,8 +286,8 @@ def summarize_results(rows: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any
 
 def read_gold(path: Path) -> list[dict[str, Any]]:
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if len(rows) != 50 or len({row["decision"]["id"] for row in rows}) != 50:
-        raise RuntimeError("Gold set must contain exactly 50 unique decision rows")
+    if not rows or len({row["decision"]["id"] for row in rows}) != len(rows):
+        raise RuntimeError("Gold set must contain nonempty unique decision rows")
     return rows
 
 
@@ -567,6 +567,7 @@ def serializable_row(row: dict[str, Any]) -> dict[str, Any]:
         "evidence_turns": sorted([list(value) for value in row["evidence"]]),
         "search_universe_turns": len(row["universe"]),
         "source_scope_turns": len(row["source_scope"]),
+        "source_scope_coordinates": sorted([list(value) for value in row["source_scope"]]),
         "strategies": {
             name: {
                 "retained_turns": len(coordinates),

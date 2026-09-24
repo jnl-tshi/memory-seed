@@ -83,3 +83,90 @@ python -X utf8 experiments/decision-chat-alignment/evaluate_ranked_decision_span
 
 See `RANKED-SPAN-REPORT.md` for the results and limitations. The evaluator writes only counts and
 source coordinates to `RANKED-SPAN-RESULTS.json`; it does not serialize conversation text.
+
+## Strict 100-decision extension (in progress)
+
+`COHORT-100-STATUS.md` is the execution record. The original 50 tagged records
+contain 47 typed Decisions and three Documentation controls, so the frozen
+seeded extension samples **53** unseen typed Codex Decisions to reach 100
+strict decisions. Do not redraw the sample while comparing retrieval changes.
+The development/held-out split and source coordinates are in
+`cohort-100/verification-split.json`; held-out candidate coordinates and raw
+review packets stay in the explicitly supplied private directory.
+
+The private review workflow is: two independent source checks, exact ordinal
+and timestamp validation, explicit adjudicator selections, and only then the
+fail-closed gold assembler. An automatic candidate is a search hint, never a
+positive label. Blank or unresolved reviews do not become negatives.
+
+```powershell
+$reviewDir = Join-Path $env:TEMP 'memory-seed-cohort100-verification'
+python -X utf8 experiments/decision-chat-alignment/validate_review_progress.py `
+  --packet (Join-Path $reviewDir 'verifier-a-development-reviewed.json') `
+  --codex-home (Join-Path $env:USERPROFILE '.codex')
+python -X utf8 experiments/decision-chat-alignment/adjudicate_extended_reviews.py `
+  --verifier-a (Join-Path $reviewDir 'verifier-a-development-reviewed.json') `
+  --verifier-b (Join-Path $reviewDir 'verifier-b-development-reviewed.json') `
+  --selections experiments/decision-chat-alignment/cohort-100/adjudication-selections.json `
+  --output (Join-Path $reviewDir 'development-adjudication-draft.json')
+```
+
+The development selection file now records an explicit disposition for every
+development case. `assemble_extended_gold.py` rejects incomplete packets and checks
+causal source ordinals, including raw tool outputs absent from normalized chat.
+Keep held-out reviews sealed until settings are frozen, and reassess grouping
+by *actual source session* once those coordinates are known.
+
+Once all development rows are reviewed and adjudicated, assemble and evaluate
+them without touching the held-out packet:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/assemble_extended_gold.py `
+  --split experiments/decision-chat-alignment/cohort-100/verification-split.json `
+  --split-name development `
+  --alignments experiments/decision-chat-alignment/cohort-100/alignments/alignments.json `
+  --verifier-a (Join-Path $reviewDir 'verifier-a-development-reviewed.json') `
+  --verifier-b (Join-Path $reviewDir 'verifier-b-development-reviewed.json') `
+  --adjudication (Join-Path $reviewDir 'development-adjudication-draft.json') `
+  --codex-home (Join-Path $env:USERPROFILE '.codex') `
+  --output experiments/decision-chat-alignment/cohort-100/development-gold.jsonl
+python -X utf8 experiments/decision-chat-alignment/evaluate_window_strategies.py `
+  --repo . --gold experiments/decision-chat-alignment/cohort-100/development-gold.jsonl `
+  --alignments experiments/decision-chat-alignment/cohort-100/alignments/alignments.json `
+  --output experiments/decision-chat-alignment/cohort-100/development-evaluation
+python -X utf8 experiments/decision-chat-alignment/evaluate_ranked_decision_spans.py `
+  --repo . --gold experiments/decision-chat-alignment/cohort-100/development-gold.jsonl `
+  --window-results experiments/decision-chat-alignment/cohort-100/development-evaluation/WINDOW-STRATEGY-RESULTS.json `
+  --output experiments/decision-chat-alignment/cohort-100/development-evaluation
+```
+
+The new window output includes source-scope coordinates, so staged coverage
+can be scored before the slower local-tokenizer pass. `iteration_gate.py`
+checks measured, frozen-development iterations; it never chooses a retrieval
+change or evaluates sealed labels on its own.
+
+The development-selected fallback also checks neighboring sessions without a
+repository-only filter. Its one-recent-plus-one-text session rule is frozen in
+`cohort-100/frozen-retrieval-setting.json`. Reproduce the development-only
+coverage and token measurements with `evaluate_nearby_session_fallback.py`
+followed by `measure_fallback_tokens.py`; see each script's `--help` for the
+exact read-only inputs and explicit output path. The "conditional" cost is a
+gold-oracle calculation, not an automatic decision that the evidence is enough.
+
+For the original 50, `evaluate_staged_retrieval.py` measures the requested read
+order using frozen window/ranker outputs: top three short spans **inside** the
+20-turn lineage envelope, then the full envelope, then source-lineage
+expansion. It reports an oracle stage from gold citations, not an automatic
+semantic sufficiency detector. Token measurement uses a caller-supplied local
+`tokenizer.json` and reports whole logical session, envelope, ranked spans,
+and adjudicated useful content as **proxy tokens**, not Codex billing tokens.
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/evaluate_staged_retrieval.py `
+  --gold experiments/decision-chat-alignment/GOLD-SET.jsonl `
+  --window-results experiments/decision-chat-alignment/WINDOW-STRATEGY-RESULTS.json `
+  --ranked-results experiments/decision-chat-alignment/RANKED-SPAN-RESULTS.json `
+  --token-results experiments/decision-chat-alignment/TOKEN-EFFICIENCY-RESULTS.json `
+  --cohort-manifest experiments/decision-chat-alignment/cohort-100/manifest.json `
+  --output experiments/decision-chat-alignment/STAGED-RETRIEVAL-RESULTS.json
+```

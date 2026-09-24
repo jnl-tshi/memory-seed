@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import copy
+import json
+import tempfile
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
 
 import assemble_extended_gold as assembly
 
@@ -18,6 +21,7 @@ class Item:
 @dataclass
 class Session:
     rollout_id: str
+    source_path: str = ""
 
 
 @dataclass
@@ -79,6 +83,37 @@ class ExtendedGoldTests(unittest.TestCase):
         values[2]["reviews"].append(copy.deepcopy(values[2]["reviews"][0]))
         with self.assertRaisesRegex(ValueError, "duplicate"):
             assembly.assemble(*values, split_name="development")
+
+    def test_atomic_source_ordinal_reference_shape(self):
+        values = list(fixture())
+        atomic = {"rollout_id": "roll", "turn": 1, "source_ordinal": 3,
+                  "timestamp": "2026-09-24T11:57:00Z", "actor": "user"}
+        for packet in (values[2], values[3]):
+            packet["reviews"][0]["review"]["evidence_refs"] = [atomic]
+            packet["reviews"][0]["review"]["minimal_useful_refs"] = [atomic]
+        values[4]["reviews"][0]["final_adjudication"]["evidence_refs"] = [atomic]
+        values[4]["reviews"][0]["final_adjudication"]["minimal_useful_refs"] = [atomic]
+        rows = assembly.assemble(*values, split_name="development")
+        self.assertEqual(rows[0]["adjudication"]["evidence_refs"][0]["source_ordinal"], 3)
+
+    def test_raw_tool_output_ref_is_checked_even_when_normalizer_omits_it(self):
+        values = list(fixture())
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "rollout.jsonl"
+            source.write_text("\n".join(json.dumps(row) for row in [
+                {"ordinal": 1, "timestamp": "2026-09-24T11:56:00Z", "type": "event_msg", "payload": {"type": "task_started"}},
+                {"ordinal": 4, "timestamp": "2026-09-24T11:58:00Z", "type": "response_item", "payload": {"type": "function_call_output", "output": "private output"}},
+            ]) + "\n", encoding="utf-8")
+            values[5]["roll"][0].session.source_path = str(source)
+            atomic = {"rollout_id": "roll", "turn": 1, "source_ordinal": 4,
+                      "timestamp": "2026-09-24T11:58:00Z", "actor": "tool"}
+            for packet in (values[2], values[3]):
+                packet["reviews"][0]["review"]["evidence_refs"] = [atomic]
+                packet["reviews"][0]["review"]["minimal_useful_refs"] = [atomic]
+            values[4]["reviews"][0]["final_adjudication"]["evidence_refs"] = [atomic]
+            values[4]["reviews"][0]["final_adjudication"]["minimal_useful_refs"] = [atomic]
+            rows = assembly.assemble(*values, split_name="development")
+            self.assertEqual(rows[0]["adjudication"]["evidence_refs"][0]["source_ordinal"], 4)
 
 
 if __name__ == "__main__":

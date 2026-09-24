@@ -154,8 +154,8 @@ def evidence_actors(row: dict[str, Any]) -> set[str]:
 
 def read_gold(path: Path) -> list[dict[str, Any]]:
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if len(rows) != 50:
-        raise RuntimeError(f"Expected 50 gold rows, found {len(rows)}")
+    if not rows or len({row["decision"]["id"] for row in rows}) != len(rows):
+        raise RuntimeError("Gold set must contain nonempty unique decision rows")
     return rows
 
 

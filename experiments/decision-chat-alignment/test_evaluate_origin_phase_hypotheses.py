@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -18,6 +19,12 @@ SPEC.loader.exec_module(phase)
 
 
 class OriginPhaseHypothesisTests(unittest.TestCase):
+    def test_read_gold_accepts_unique_development_subset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "gold.jsonl"
+            path.write_text("\n".join(json.dumps({"decision": {"id": item}}) for item in ("a", "b")), encoding="utf-8")
+            self.assertEqual(len(phase.read_gold(path)), 2)
+
     def test_reads_decision_specific_origin(self) -> None:
         text = """## 2026-09-24 10:00 - Example
 

@@ -12,6 +12,7 @@ import importlib.util
 import json
 import sys
 from datetime import timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,48 @@ def _alignment_module():
 
 
 alignment = _alignment_module()
+
+
+def _ref_ordinals(ref: dict[str, Any]) -> list[int]:
+    if isinstance(ref.get("ordinals"), list):
+        return ref["ordinals"]
+    ordinal = ref.get("source_ordinal", ref.get("ordinal"))
+    return [ordinal] if isinstance(ordinal, int) else []
+
+
+@lru_cache(maxsize=256)
+def _raw_reference_index(source_path: str) -> dict[int, tuple[int, str | None, str]]:
+    """Map raw JSONL ordinals to turn/time/actor, including omitted tool outputs."""
+    indexed: dict[int, tuple[int, str | None, str]] = {}
+    turn = 0
+    with Path(source_path).open("r", encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+            if row.get("type") == "event_msg" and payload.get("type") == "task_started":
+                turn += 1
+                continue
+            if row.get("type") != "response_item" or not isinstance(row.get("ordinal"), int):
+                continue
+            payload_type = payload.get("type")
+            role = None
+            if payload_type == "message":
+                role = payload.get("role")
+                if role == "user" and alignment.is_replayed_transcript(alignment.extract_text(payload.get("content"))):
+                    continue
+            elif payload_type == "agent_message":
+                role = "assistant"
+            elif payload_type in {"function_call", "custom_tool_call", "function_call_output", "custom_tool_call_output"}:
+                role = "tool"
+            elif payload_type == "reasoning" and alignment.extract_reasoning_summaries(payload.get("summary")):
+                role = "reasoning_summary"
+            if role not in {"user", "assistant", "tool", "reasoning_summary"}:
+                continue
+            indexed[row["ordinal"]] = (turn or 1, row.get("timestamp"), role)
+    return indexed
 
 
 def _index(rows: list[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:
@@ -60,7 +103,7 @@ def _validate_refs(
     for ref in review.get("evidence_refs", []):
         rollout_id = ref.get("rollout_id")
         turn = ref.get("turn")
-        ordinals = ref.get("ordinals")
+        ordinals = _ref_ordinals(ref)
         if not isinstance(rollout_id, str) or not isinstance(turn, int) or not isinstance(ordinals, list) or not ordinals:
             raise ValueError(f"{decision_id}: evidence ref lacks rollout, turn, or source ordinals")
         blocks = blocks_by_rollout.get(rollout_id, [])
@@ -70,7 +113,11 @@ def _validate_refs(
         items = [*matching[0].items, *matching[0].reasoning_summary_items]
         by_ordinal = {item.source_ordinal: item for item in items}
         expected_timestamps = ref.get("timestamps")
+        if expected_timestamps is None and isinstance(ref.get("timestamp"), str):
+            expected_timestamps = [ref["timestamp"]]
         expected_actors = ref.get("actors")
+        if expected_actors is None and isinstance(ref.get("actor"), str):
+            expected_actors = [ref["actor"]]
         if expected_timestamps is not None and len(expected_timestamps) != len(ordinals):
             raise ValueError(f"{decision_id}: timestamp/ordinal length mismatch")
         if expected_actors is not None and len(expected_actors) != len(ordinals):
@@ -78,22 +125,28 @@ def _validate_refs(
         for index, ordinal in enumerate(ordinals):
             item = by_ordinal.get(ordinal)
             if item is None:
-                raise ValueError(f"{decision_id}: source ordinal {ordinal} absent from cited turn")
-            stamp = alignment.parse_iso_timestamp(item.timestamp)
+                source_path = getattr(matching[0].session, "source_path", "")
+                raw = _raw_reference_index(source_path).get(ordinal) if source_path else None
+                if raw is None or raw[0] != turn:
+                    raise ValueError(f"{decision_id}: source ordinal {ordinal} absent from cited turn")
+                item_timestamp, item_role = raw[1], raw[2]
+            else:
+                item_timestamp, item_role = item.timestamp, item.role
+            stamp = alignment.parse_iso_timestamp(item_timestamp)
             if stamp is None or stamp >= cutoff + timedelta(minutes=1):
                 raise ValueError(f"{decision_id}: evidence is not causally prior")
-            if expected_timestamps is not None and expected_timestamps[index] != item.timestamp:
+            if expected_timestamps is not None and expected_timestamps[index] != item_timestamp:
                 raise ValueError(f"{decision_id}: evidence timestamp does not match raw item")
-            if expected_actors is not None and expected_actors[index] != item.role:
+            if expected_actors is not None and expected_actors[index] != item_role:
                 raise ValueError(f"{decision_id}: evidence actor does not match raw item")
     evidence_ordinals = {
         (ref["rollout_id"], ordinal)
         for ref in review.get("evidence_refs", [])
-        for ordinal in ref["ordinals"]
+        for ordinal in _ref_ordinals(ref)
     }
     for ref in review.get("minimal_useful_refs", []):
         rollout_id = ref.get("rollout_id")
-        ordinals = ref.get("ordinals")
+        ordinals = _ref_ordinals(ref)
         if not isinstance(rollout_id, str) or not isinstance(ordinals, list) or not ordinals:
             raise ValueError(f"{decision_id}: minimal-useful ref lacks message ordinals")
         if any((rollout_id, ordinal) not in evidence_ordinals for ordinal in ordinals):

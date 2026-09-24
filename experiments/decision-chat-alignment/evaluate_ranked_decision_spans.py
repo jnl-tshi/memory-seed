@@ -166,9 +166,12 @@ def summarize(rows: list[dict[str, Any]], key: str) -> dict[str, Any]:
     }
 
 
-def evaluate(repo: Path, codex_home: Path) -> dict[str, Any]:
-    gold = phase.read_gold(BASE / "GOLD-SET.jsonl")
-    control = json.loads((BASE / "WINDOW-STRATEGY-RESULTS.json").read_text(encoding="utf-8"))
+def evaluate(
+    repo: Path, codex_home: Path, *,
+    gold_path: Path | None = None, window_path: Path | None = None,
+) -> dict[str, Any]:
+    gold = phase.read_gold(gold_path or BASE / "GOLD-SET.jsonl")
+    control = json.loads((window_path or BASE / "WINDOW-STRATEGY-RESULTS.json").read_text(encoding="utf-8"))
     controls = {row["decision_id"]: row for row in control["rows"]}
     if set(controls) != {row["decision"]["id"] for row in gold}:
         raise RuntimeError("Gold and safety envelope cohorts differ")
@@ -319,9 +322,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--codex-home", type=Path, default=Path.home() / ".codex")
+    parser.add_argument("--gold", type=Path, default=BASE / "GOLD-SET.jsonl")
+    parser.add_argument("--window-results", type=Path, default=BASE / "WINDOW-STRATEGY-RESULTS.json")
     parser.add_argument("--output", type=Path, default=BASE)
     args = parser.parse_args()
-    result = evaluate(args.repo.resolve(), args.codex_home.resolve())
+    result = evaluate(
+        args.repo.resolve(), args.codex_home.resolve(),
+        gold_path=args.gold.resolve(), window_path=args.window_results.resolve(),
+    )
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     (output / "RANKED-SPAN-RESULTS.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

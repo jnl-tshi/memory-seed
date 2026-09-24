@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +26,19 @@ window_eval = load_module("evaluate_window_strategies", "evaluate_window_strateg
 
 
 class WindowStrategyTests(unittest.TestCase):
+    def test_read_gold_accepts_a_unique_development_subset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "gold.jsonl"
+            path.write_text("\n".join(json.dumps({"decision": {"id": item}}) for item in ("a", "b")), encoding="utf-8")
+            self.assertEqual(len(window_eval.read_gold(path)), 2)
+
+    def test_read_gold_rejects_duplicate_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "gold.jsonl"
+            path.write_text("\n".join(json.dumps({"decision": {"id": "a"}}) for _ in range(2)), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "unique"):
+                window_eval.read_gold(path)
+
     def test_fixed_window_matches_existing_radius_two_contract(self) -> None:
         blocks = self._blocks(self._meta("child", "child-task"), range(1, 9))
         coordinates = window_eval.fixed_window_coordinates(blocks, winning_turn=5, radius=2)
@@ -114,6 +129,17 @@ class WindowStrategyTests(unittest.TestCase):
         self.assertEqual(summary["small"]["retained_turns"], 2)
         self.assertEqual(summary["small"]["search_universe_turns"], 6)
         self.assertAlmostEqual(summary["small"]["search_turn_reduction"], 2 / 3)
+
+    def test_serialized_source_scope_preserves_coordinates_for_staged_fallback(self) -> None:
+        row = {
+            "decision_id": "d", "gold_label": "verified_source",
+            "evidence": {("r", 2)}, "universe": {("r", 1), ("r", 2)},
+            "source_scope": {("r", 1), ("r", 2)},
+            "strategies": {"lineage_backward_20": {("r", 2)}},
+        }
+        serial = window_eval.serializable_row(row)
+        self.assertEqual(serial["source_scope_turns"], 2)
+        self.assertEqual(serial["source_scope_coordinates"], [["r", 1], ["r", 2]])
 
     @staticmethod
     def _meta(
