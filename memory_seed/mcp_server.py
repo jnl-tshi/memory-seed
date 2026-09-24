@@ -720,7 +720,7 @@ TOOLS: list[dict[str, Any]] = [
                 "auto_branch": {"type": "boolean", "default": True, "description": "Set false to omit the branch field entirely."},
                 "timestamp": {
                     "type": "string",
-                    "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and backfill. Values far from the server clock earn a drift warning.",
+                    "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and past backfill. Values far from the server clock earn a drift warning; a value more than 10 minutes in the future is refused.",
                 },
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
                 "consulted": {

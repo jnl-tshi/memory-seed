@@ -2535,6 +2535,29 @@ def check_entry_advisories(text: str) -> list[tuple[str, str]]:
 ENTRY_FUTURE_TIMESTAMP_GRACE_MINUTES = 10
 
 
+def entry_future_timestamp_issue(stamp: str, now: datetime | None = None) -> str | None:
+    """Blocking twin of the advisory below, for NEW writes only.
+
+    A heading beyond ``now`` plus the grace window is refused wherever a new
+    entry enters memory: at append (CLI and MCP) and when merge-branch/fuse
+    imports a branch's entries. Past stamps stay legal - the dry-run echo and
+    labelled backfill both carry them - and published history is never
+    re-judged, which is why the corpus-wide check stays advisory.
+    """
+    try:
+        stamped = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None  # format errors are reported by the caller's own parser
+    moment = now if now is not None else datetime.now()
+    if stamped <= moment + timedelta(minutes=ENTRY_FUTURE_TIMESTAMP_GRACE_MINUTES):
+        return None
+    return (
+        f"heading timestamp {stamp} is in the future (clock reads {moment:%Y-%m-%d %H:%M}, "
+        f"grace {ENTRY_FUTURE_TIMESTAMP_GRACE_MINUTES} min) - omit the timestamp so the "
+        "writer stamps from the clock; only a dry-run echo or a past backfill may be explicit"
+    )
+
+
 def check_entry_timestamp_advisories(
     text: str, now: datetime | None = None
 ) -> list[tuple[str, str]]:
@@ -2687,9 +2710,9 @@ def _declared_entry_ids(text: str) -> list[str]:
     """The ``entry_id`` each entry in ``text`` declares in its own metadata
     fence - one per entry heading, not one per ``entry_id:`` line in the file.
 
-    A workstream receipt block (Reflection Board) cites the session entry it
-    attaches to with its own ``entry_id:`` line, once per record - a chain
-    with five records under one entry legitimately repeats it five times.
+    Any block inside an entry's body may cite another entry with its own
+    ``entry_id:`` line - historical session files still carry receipt blocks
+    from the retired Reflection Board that repeat one id per record.
     Scanning the whole file for that key, as a plain ``_ENTRY_ID_RE.findall``
     does, counts every citation as a second declaration and reports the
     entry as duplicated within its own file, alongside any real cross-file
@@ -5059,6 +5082,9 @@ def session_append_entry(
     date_part = ts[:10]
     if not _valid_session_date(date_part):
         return SessionAppendResult(ok=False, issues=(f"invalid session date '{date_part}'",))
+    future_issue = entry_future_timestamp_issue(ts)
+    if future_issue:
+        return SessionAppendResult(ok=False, issues=(future_issue,))
 
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=False)
     runtime = resolve_runtime(cwd)
@@ -8013,6 +8039,10 @@ def _plan_session_fuse(
                 f"{source_entry.source_path}: entry_id {entry_id} heading date {source_entry.timestamp[:10]} "
                 f"does not match session date {source_entry.session_date}"
             )
+            continue
+        future_issue = entry_future_timestamp_issue(source_entry.timestamp)
+        if future_issue:
+            issues.append(f"{source_entry.source_path}: entry_id {entry_id} {future_issue}")
             continue
         proof_issue = (
             _transitive_entry_proof_issue(

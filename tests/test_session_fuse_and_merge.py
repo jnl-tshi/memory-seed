@@ -836,6 +836,30 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("expected feature-fuse", result.issues[0])
 
+    def test_session_fuse_refuses_a_future_dated_branch_entry(self):
+        from datetime import datetime, timedelta
+
+        future = datetime.now() + timedelta(days=2)
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_grouped_session(
+            cwd,
+            f"{future:%Y-%m-%d}",
+            "mse_2222222222222222",
+            branch="feature-fuse",
+            time=f"{future:%H:%M}",
+        )
+        self._commit_all(cwd, "future-dated session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(any("in the future" in issue for issue in result.issues), result.issues)
+
     @pytest.mark.integration
     def test_session_fuse_accepts_a_uniquely_receipted_child_entry_on_an_aggregate_branch(self):
         cwd = self.make_project()

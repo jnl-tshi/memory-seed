@@ -34,6 +34,10 @@ Transcript evidence from a targeted diagnostic replay showed two distinct failur
 
 Builds on the git-diff trigger (adr_session_log_trigger_enforcement) and its wording revisions, which addressed sessions that DID read the rules but reasoned around them. This ADR addresses a distinct, earlier-stage failure: sessions that never reach the rules at all.
 
+### Awaiting review
+
+- `mse_wgssyj0541btgke4:d2` - The orientation chain (AGENTS.md -> agent-rules.md) remains a mandatory gate before any task action for...
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -88,3 +92,33 @@ JNL reviewed and approved directly, ahead of a validation run.
 #### Impact
 
 mse_936gt0xp5hqjv55y:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### revision-proposed - 2026-09-24T14:02:00
+
+```json
+{
+  "decision_ref": "mse_wgssyj0541btgke4:d2",
+  "event_id": "adre_598638c29dc55cecb01e",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "mse_936gt0xp5hqjv55y:d1",
+      "relation_assertion": "link:mse_wgssyj0541btgke4:d2:evolves:mse_936gt0xp5hqjv55y:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_wgssyj0541btgke4"
+}
+```
+
+#### Decision
+
+The orientation chain (AGENTS.md -> agent-rules.md) remains a mandatory gate before any task action for primary sessions. Delegated workers and subagents instead complete the orientation-lite gate: a digest-pinned subagent orientation skill, embedded in their Task Packet or read first when spawned without one, with full rules loaded on demand through a digest-verified path.
+
+#### Reason
+
+Measured on 2026-09-24, embedded full baselines are 54-78% of every Task Packet. Workers receive project state from their orchestrator under the Worker Context Contract, and T3 moves session-write safety into the append tooling.
+
+#### Impact
+
+Refines the gate by role without weakening it for primary sessions; the worker gate becomes a digest-verified lite skill instead of the full chain.
