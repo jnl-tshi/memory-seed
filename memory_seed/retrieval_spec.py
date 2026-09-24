@@ -254,7 +254,7 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
     base = normalize_retrieval_spec(v1_input)
 
     selectors_in = _mapping(spec.get("selectors", {}), "selectors")
-    _known_keys(selectors_in, "selectors", {"pinned", "path_references"})
+    _known_keys(selectors_in, "selectors", {"pinned", "path_references", "source_references"})
     pinned_in = selectors_in.get("pinned", [])
     if not isinstance(pinned_in, list):
         _error("selectors.pinned", "must be a list")
@@ -313,6 +313,12 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
         # default and cannot silently widen to every session mentioning it.
         "path_references": path_references,
     }
+    # Selected decisions' DRAFTS ``S:`` sources, followed one hop. The key is
+    # written ONLY when on: an absent key is the canonical "off", so every
+    # spec that predates it - including the six immutable v1 profiles -
+    # normalizes to the same bytes and fingerprint as before.
+    if _bool(selectors_in.get("source_references", False), "selectors.source_references"):
+        base["selectors"]["source_references"] = True
     return base
 
 

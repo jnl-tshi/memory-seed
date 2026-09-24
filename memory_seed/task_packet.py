@@ -1760,8 +1760,17 @@ def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
     return {word for word in re.findall(r"[a-z][a-z0-9_-]*", text) if len(word) >= 4}
 
 
+def _heading_anchor_slug(heading: str) -> str:
+    """GitHub-style anchor slug; mirrors ``retrieval._heading_slug``."""
+    text = heading.strip().lstrip("#").strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text)
+    return text.replace(" ", "-")
+
+
 def project_constitution(
-    dispatch: Mapping[str, Any], materialized: Sequence[Mapping[str, Any]]
+    dispatch: Mapping[str, Any],
+    materialized: Sequence[Mapping[str, Any]],
+    source_anchors: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Return bounded, complete governing evidence or an explicit full fallback."""
     constitution_items = [item for item in materialized if item.get("kind") == "constitution"]
@@ -1844,9 +1853,31 @@ def project_constitution(
             selected.append(selected_clause)
         selection_mode = "ranked_whole_clauses"
 
+    # Constitution anchors cited by selected decisions' S: sources (only
+    # present when source following is on).  An anchor is a heading slug or a
+    # clause ref suffix; each selects every whole clause under it, never the
+    # full document, so a cited section cannot reinstate the fallback.
+    unmatched_source_anchors: list[str] = []
+    for anchor in source_anchors:
+        matches = [
+            clause
+            for clause in clauses
+            if _heading_anchor_slug(clause["heading"]) == anchor
+            or clause["ref"].split("#", 1)[-1] == anchor
+        ]
+        if not matches:
+            unmatched_source_anchors.append(anchor)
+            continue
+        for clause in matches:
+            if any(existing["ref"] == clause["ref"] for existing in selected):
+                continue
+            selected_clause = dict(clause)
+            selected_clause["selection_reason"] = f"decision S: Constitution anchor #{anchor}"
+            selected.append(selected_clause)
+
     if selected:
         content_tokens = sum(estimate_tokens(item["content"]) for item in selected)
-        return {
+        projection = {
             "mode": "anchored_clauses",
             "selection_mode": selection_mode,
             "target_tokens": target,
@@ -1858,6 +1889,9 @@ def project_constitution(
             },
             "clauses": selected,
         }
+        if unmatched_source_anchors:
+            projection["unmatched_source_anchors"] = unmatched_source_anchors
+        return projection
 
     return {
         "mode": "full_document_fallback",
@@ -2489,7 +2523,11 @@ def compile_task_packet(
             stage="materialization",
             details={"missing_decisions": missing_implements},
         )
-    constitution_projection = project_constitution(normalized_dispatch, materialized_all)
+    constitution_projection = project_constitution(
+        normalized_dispatch,
+        materialized_all,
+        evidence_pack.get("source_reference_constitution_anchors", ()),
+    )
     materialized = [
         item for item in materialized_all if item.get("kind") != "constitution"
     ]
