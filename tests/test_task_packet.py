@@ -383,29 +383,46 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
             validate_task_packet_supplemental_fetch(packet, ".memory-seed/agent-rules.md", [1, 3], token_estimate=10)
 
+        # A hand-built lazy packet is not compiler output: the loader verifies
+        # the packet before trusting any pin it carries.
         lazy = copy.deepcopy(packet)
         lazy.pop("worker_baseline")
-        memory_dir = root / ".memory-seed"
         lazy["governance_references"] = {
-            "session_logging": governance_reference(memory_dir, ".memory-seed/skills/session_logging.md"),
+            "agent_rules": governance_reference(root / ".memory-seed", ".memory-seed/agent-rules.md"),
         }
-        before = copy.deepcopy(lazy)
-        loaded = load_task_packet_governance(lazy, "session_logging", root)
-        self.assertEqual(
-            loaded["content"],
-            (memory_dir / "skills" / "session_logging.md").read_bytes().decode("utf-8"),
-        )
-        self.assertEqual(loaded["supplemental_debit"], 0)
-        self.assertEqual(lazy, before)
-        # The supplemental path's refusal of referenced governance needs a
-        # canonical v2 packet (the fetch check verifies the fingerprint first);
-        # it is covered with the v2 compiler in T8.
-        with self.assertRaisesRegex(TaskPacketValidationError, "missing_governance_reference"):
+        with self.assertRaisesRegex(TaskPacketValidationError, "fingerprint_mismatch"):
             load_task_packet_governance(lazy, "agent_rules", root)
 
-        (memory_dir / "skills" / "session_logging.md").write_text("# Edited after compile\n", encoding="utf-8")
+    def test_governance_load_refuses_repinned_and_foreign_sources(self):
+        from memory_seed.task_packet import _packet_fingerprint, load_task_packet_governance
+        root = self.v2_project()
+        dispatch = self.dispatch()
+        dispatch["packet_version"] = 2
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+
+        # Re-pinning to new bytes with a recomputed fingerprint still cannot
+        # make changed rules load: the live bytes must match the pin.
+        (root / ".memory-seed" / "agent-rules.md").write_text("# Rewritten\n", encoding="utf-8")
         with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
-            load_task_packet_governance(lazy, "session_logging", root)
+            load_task_packet_governance(packet, "agent_rules", root)
+
+        # A pin may never point anywhere but its fixed control file.
+        foreign = copy.deepcopy(packet)
+        foreign["governance_references"]["agent_rules"]["source"] = "docs/evidence.md"
+        foreign["fingerprint"] = _packet_fingerprint(foreign)
+        with self.assertRaisesRegex(TaskPacketValidationError, "invalid_packet"):
+            load_task_packet_governance(foreign, "agent_rules", root)
+        with self.assertRaisesRegex(TaskPacketValidationError, "missing_governance_reference"):
+            load_task_packet_governance(packet, "policy", root)
+
+        # The embedded lite skill is never a supplemental read either.
+        from memory_seed.task_packet import validate_task_packet_supplemental_fetch
+        with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
+            validate_task_packet_supplemental_fetch(
+                packet, ".memory-seed/skills/subagent_orientation.md", [1, 3], token_estimate=10)
+        self.assertIn("governance_load", packet["execution_defaults"])
+        self.assertEqual(packet["execution_defaults"]["governance_load"]["mcp_tool"],
+                         "memory_task_packet_governance_load")
 
     def v2_project(self):
         root = self.make_project()

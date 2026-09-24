@@ -186,7 +186,12 @@ Dependencies are listed per task. The orchestrator owns shared contracts, contro
 ## Acceptance
 
 - An existing v1 dispatch, under each of the six v1 profiles, recompiles byte-identical with an unchanged
-  fingerprint.
+  fingerprint. *Scope note (2026-09-24):*
+  - This criterion covers the new switches: source following and packet v2.
+  - Two fixes that JNL separately approved change v1 packet bytes on purpose:
+    - the Constitution anchor rename (correction 2.3);
+    - the ranked-clause cap, which replaces the 2026-09-05 keep-every-ranked-clause rule.
+  - v1 packets were already corpus-dependent through their corpus revision.
 - For ordinary work, a v2 session-writing packet is smaller than its T0 baseline. Measured totals, including
   any on-demand governance load a worker makes, are reported per component, not assumed.
 - Append and integration refuse a heading timestamp beyond the grace window, except for a dry-run echo and a

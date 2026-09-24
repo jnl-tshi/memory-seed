@@ -79,6 +79,28 @@ class RetrievalDeadlineTests(unittest.TestCase):
         normalized = normalize_retrieval_spec_v2(pinned("mse_deadline001:d1"))
         self.assertEqual(pack["corpus_revision"], retrieval._retrieval_corpus_revision(self.root, normalized))
 
+    def test_default_reader_detects_a_same_size_touch_during_resolution(self):
+        session = self.root / ".memory-seed" / "sessions" / "2026-08-01.md"
+        original = retrieval._build_retrieval_plan
+        calls = {"n": 0}
+
+        def touch_during_first_attempt(*args, **kwargs):
+            plan = original(*args, **kwargs)
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Same length, different bytes, and an explicit mtime bump.
+                text = session.read_text(encoding="utf-8").replace("quickly", "swiftly")
+                session.write_text(text, encoding="utf-8")
+                stat = session.stat()
+                os.utime(session, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+            return plan
+
+        with mock.patch.object(retrieval, "_build_retrieval_plan", touch_during_first_attempt):
+            pack = resolve_retrieval_spec(pinned("mse_deadline001:d1"), self.root)
+        self.assertEqual(calls["n"], 2)
+        normalized = normalize_retrieval_spec_v2(pinned("mse_deadline001:d1"))
+        self.assertEqual(pack["corpus_revision"], retrieval._retrieval_corpus_revision(self.root, normalized))
+
     @unittest.skipUnless(sys.platform == "win32", "directory junctions are Windows-only")
     def test_junction_escaping_the_runtime_is_refused(self):
         outside = Path(tempfile.mkdtemp(prefix="memory-seed-deadline-outside-"))

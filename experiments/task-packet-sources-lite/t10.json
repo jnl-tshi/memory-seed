@@ -8,20 +8,20 @@
       "materialized_agent_rules_tokens": 0,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 5330,
+      "serialized_packet_input_tokens": 5433,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 9401,
-      "total_input_tokens": 6901
+      "total_context_envelope_tokens": 9504,
+      "total_input_tokens": 7004
     },
     "on_demand_governance_tokens": {
       "agent_rules": 5093
     },
-    "orientation_tokens": 1030,
-    "packet_fingerprint": "sha256:ac2670d2b1f4c0b9d9eb0d2c313458ff432c89c93586b5cb64a4bb1afdac4d2f",
-    "serialized_packet_tokens": 5330
+    "orientation_tokens": 1040,
+    "packet_fingerprint": "sha256:292e7cff853b066d8ee0518a9f63d1b7cfad67a32bbea96d7b344ad2845c9a74",
+    "serialized_packet_tokens": 5433
   },
-  "repo_head": "b79bc21068d7e531bcc57f802a46caa0e3fedba3",
+  "repo_head": "5b5c5168d2af539b2026ea16e13e86b2fc5c9029",
   "session_writing": {
     "baseline_tokens": {},
     "input_ledger": {
@@ -29,18 +29,18 @@
       "materialized_agent_rules_tokens": 0,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 5473,
+      "serialized_packet_input_tokens": 5576,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 9544,
-      "total_input_tokens": 7044
+      "total_context_envelope_tokens": 9647,
+      "total_input_tokens": 7147
     },
     "on_demand_governance_tokens": {
       "agent_rules": 5093,
       "session_logging": 11476
     },
-    "orientation_tokens": 1030,
-    "packet_fingerprint": "sha256:cebbeb26d97b9481db6fee8b549c49b7d50a3eb29d3af2036befd2da8ae75bec",
-    "serialized_packet_tokens": 5473
+    "orientation_tokens": 1040,
+    "packet_fingerprint": "sha256:a04f8b55e8a80d2362d22cef480019a2bace75cfc2b3743dc22363f65df57913",
+    "serialized_packet_tokens": 5576
   }
 }

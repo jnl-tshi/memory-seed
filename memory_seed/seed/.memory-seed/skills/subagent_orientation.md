@@ -63,8 +63,8 @@ End with exactly this shape:
 
 ## Load on demand
 
-Load a full rules file only when its trigger applies. When your Task Packet lists the file with a digest, load
-it through the packet's governance-load path so the bytes are verified.
+Load a full rules file only when its trigger applies. When your Task Packet pins it (packet v2), load it with
+the `memory_task_packet_governance_load` MCP tool or `task-packet governance-load`; both refuse changed bytes.
 
 | Trigger | Load |
 |---|---|

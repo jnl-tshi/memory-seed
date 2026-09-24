@@ -93,7 +93,25 @@ change is that the dispatch asks for `"packet_version": 2`.
   file has changed since compile, and it never spends the supplemental reserve.
 - v1 packets are unchanged, including the pilot fixture's pinned fingerprints.
 
-Raw output: [`t10.json`](t10.json). It was produced at T8, and T10 re-runs it after T9.
+## T10 — final measurement after review fixes (2026-09-24)
+
+| Packet | T0 v1 | T10 v2 | Change |
+|---|---:|---:|---:|
+| Read-only (pilot, production rules) | 9,415 | 5,433 | −42% |
+| Session-writing (pilot, production rules) | 21,161 | 5,576 | −74% |
+
+- Real corpus, `implementation` v1: 16,459 serialized tokens.
+- Real corpus, `implementation` v2 (source following on): 24,978 tokens, with 3 sources followed and 5 reported
+  and not followed.
+- The lite skill is now 1,040 tokens; it names the governance-load tool.
+- The v2 packet also declares `execution_defaults.governance_load`.
+- The worker pays for `agent-rules.md` (5,093) and `session_logging.md` (11,476) only when a lite trigger fires.
+- Full test suite: 1,992 passed, 1 skipped (the privileged-symlink test).
+
+The independent review found 12 issues; it returned REVISE. Fixes and dispositions are in session entry
+`mse_yz25a19sdq9akxmh`.
+
+Raw output: [`t10.json`](t10.json) and [`t7.json`](t7.json), both regenerated at T10.
 
 ## T3 — mechanical session-write backstop
 

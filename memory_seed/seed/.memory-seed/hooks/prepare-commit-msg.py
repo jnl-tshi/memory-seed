@@ -276,6 +276,9 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     if (
         not isinstance(dispatch, dict)
         or not _DISPATCH_KEYS <= set(dispatch) <= _DISPATCH_KEYS | _OPTIONAL_DISPATCH_KEYS
+        # The compiler writes packet_version only for v2; an explicit 1 is
+        # not compiler output, so it is refused exactly as activation would.
+        or ("packet_version" in dispatch) != (packet_version == 2)
         or dispatch.get("packet_version", 1) != packet_version
         or not isinstance(binding, dict)
         or set(binding) != _BINDING_KEYS

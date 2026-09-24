@@ -1009,6 +1009,17 @@ def governance_reference(memory_dir: Path, relative_source: str) -> dict[str, An
     return {key: record[key] for key in ("source", "byte_count", "content_digest", "token_estimate")}
 
 
+GOVERNANCE_LOAD_MCP_TOOL = "memory_task_packet_governance_load"
+GOVERNANCE_LOAD_CLI = (
+    "python -X utf8 -m memory_seed.cli task-packet governance-load "
+    "--packet-file <packet.json> --name <agent_rules|session_logging>"
+)
+_GOVERNANCE_SOURCES = {
+    "agent_rules": _WORKER_BASELINE_AGENT_RULES,
+    "session_logging": _WORKER_BASELINE_SESSION_LOGGING,
+}
+
+
 def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str | Path) -> dict[str, Any]:
     """Load one lazily referenced governance file, verified against its pin.
 
@@ -1016,43 +1027,49 @@ def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str |
     reads the full ``session_logging.md`` or ``agent-rules.md`` only when a
     lite trigger fires. They are deliberately NOT supplemental gap reads -
     they never debit ``supplemental_input_reserve_tokens``, so a budget can
-    never starve a worker of the rules it is required to consult. Bytes that
-    no longer match the compiled digest are refused as stale governance.
+    never starve a worker of the rules it is required to consult.
+
+    The packet itself is verified first (identity, fingerprint, orientation
+    and pin shape), each name maps to exactly one control file, and the file
+    is resolved through the active runtime exactly as the compiler read it.
+    Bytes that no longer match the compiled digest are refused as stale.
     """
-    references = packet.get("governance_references")
-    if not isinstance(references, Mapping):
-        if isinstance(packet.get("worker_baseline"), Mapping):
-            _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
-                  code="governance_embedded", stage="governance_load")
-        _fail("governance", "packet declares no governance references",
-              code="missing_governance_reference", stage="governance_load")
-    reference = references.get(name)
-    if not isinstance(reference, Mapping):
+    packet = _mapping(packet, "packet")
+    canonical_task_packet_json(packet)
+    if packet.get("packet_version") != TASK_PACKET_V2:
+        _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
+              code="governance_embedded", stage="governance_load")
+    _validate_worker_orientation(packet)
+    references = packet["governance_references"]
+    if name not in _GOVERNANCE_SOURCES or name not in references:
         _fail(f"governance.{name}", "packet declares no governance reference with this name",
               code="missing_governance_reference", stage="governance_load",
               details={"available": sorted(references)})
-    root = Path(cwd).resolve()
-    source = (root / str(reference["source"])).resolve()
+    reference = references[name]
+    relative = _GOVERNANCE_SOURCES[name]
+    runtime = resolve_runtime(cwd)
+    workspace = runtime.memory_dir.parent.resolve()
+    source = (runtime.memory_dir.parent / relative).resolve()
     try:
-        source.relative_to(root)
+        source.relative_to(workspace)
     except ValueError:
-        _fail(f"governance.{name}", "governance source resolved outside the bound checkout",
+        _fail(f"governance.{name}", "governance source resolved outside the active runtime",
               code="invalid_governance_reference", stage="governance_load",
-              details={"source": reference["source"]})
+              details={"source": relative})
     try:
         payload = source.read_bytes()
     except OSError as exc:
         _fail(f"governance.{name}", "governance source is missing or unreadable",
               code="stale_governance", stage="governance_load",
-              details={"source": reference["source"], "error": exc.__class__.__name__})
+              details={"source": relative, "error": exc.__class__.__name__})
     digest = "sha256:" + hashlib.sha256(payload).hexdigest()
-    if digest != reference["content_digest"]:
+    if digest != reference["content_digest"] or len(payload) != reference["byte_count"]:
         _fail(f"governance.{name}", "governance source changed since the packet was compiled",
               code="stale_governance", stage="governance_load",
-              details={"source": reference["source"], "expected": reference["content_digest"], "actual": digest})
+              details={"source": relative, "expected": reference["content_digest"], "actual": digest})
     return {
         "name": name,
-        "source": reference["source"],
+        "source": relative,
         "content": payload.decode("utf-8"),
         "content_digest": digest,
         "token_estimate": reference["token_estimate"],
@@ -1077,6 +1094,11 @@ def validate_task_packet_supplemental_fetch(packet: Mapping[str, Any], source: s
     for record in ((packet.get("worker_baseline") or {}).get("sources") or {}).values():
         if record is not None and _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
             _fail("supplemental.source", "requested governance is already materialized", code="duplicate_evidence_content")
+    orientation = packet.get("worker_orientation")
+    if isinstance(orientation, Mapping) and _canonical_scope_identity(source) == _canonical_scope_identity(
+        str(orientation.get("source", ""))
+    ):
+        _fail("supplemental.source", "requested orientation is already materialized", code="duplicate_evidence_content")
     for record in (packet.get("governance_references") or {}).values():
         if _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
             _fail("supplemental.source", "referenced governance loads through load_task_packet_governance, not the reserve",
@@ -1802,10 +1824,10 @@ def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
 
 
 def _heading_anchor_slug(heading: str) -> str:
-    """GitHub-style anchor slug; mirrors ``retrieval._heading_slug``."""
-    text = heading.strip().lstrip("#").strip().lower()
-    text = re.sub(r"[^\w\- ]", "", text)
-    return text.replace(" ", "-")
+    """GitHub-style anchor slug - the resolver's, so S: anchors match exactly."""
+    from .retrieval import _heading_slug
+
+    return _heading_slug(heading)
 
 
 def project_constitution(
@@ -2013,7 +2035,22 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
             "python -X utf8 -m memory_seed.cli worktree guard "
             f"--agent {binding['agent_type']} --write-intent",
         )
+    governance = (
+        {
+            "governance_load": {
+                "mcp_tool": GOVERNANCE_LOAD_MCP_TOOL,
+                "cli": GOVERNANCE_LOAD_CLI,
+                "rule": (
+                    "Load a pinned full rules file only through this path, when an orientation-lite "
+                    "trigger fires. It refuses changed bytes and never spends the supplemental reserve."
+                ),
+            }
+        }
+        if dispatch.get("packet_version") == TASK_PACKET_V2
+        else {}
+    )
     return {
+        **governance,
         "safety": {
             # Execution/write authority only. Retrieval scope is governed by
             # the Retrieval Specification and resolver's runtime-local bounds;
