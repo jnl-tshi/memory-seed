@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import csv
+import os
 import io
 import json
 import re
@@ -445,12 +446,12 @@ def canonical_retrieval_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def _retrieval_corpus_revision(
+def _retrieval_corpus_inputs(
     cwd: str | Path,
     normalized_spec: Mapping[str, Any],
-) -> str:
-    """Content-address the exact local Markdown families this resolver reads."""
-    from .core import _git_text, resolve_runtime
+) -> tuple[Path, set[Path]]:
+    """The exact local Markdown files this resolver reads, runtime-confined."""
+    from .core import resolve_runtime
 
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root.resolve()
@@ -483,17 +484,7 @@ def _retrieval_corpus_revision(
         )
     sessions = runtime.memory_dir / "sessions"
     if sessions.is_dir():
-        _assert_runtime_tree_confined(root, sessions, stage="corpus_revision")
-        inputs.update(
-            _runtime_scoped_candidate_path(
-                root,
-                path,
-                stage="corpus_revision",
-                details={"path": path.as_posix()},
-            )
-            for path in sessions.rglob("*.md")
-            if path.is_file()
-        )
+        inputs.update(_walk_confined_tree(root, sessions, stage="corpus_revision", suffix=".md"))
     if (
         normalized_spec.get("version") == 2
         and any(
@@ -503,17 +494,7 @@ def _retrieval_corpus_revision(
     ):
         decisions = runtime.memory_dir / "decisions"
         if decisions.is_dir():
-            _assert_runtime_tree_confined(root, decisions, stage="corpus_revision")
-            for path in decisions.rglob("*.md"):
-                if path.is_file():
-                    inputs.add(
-                        _runtime_scoped_candidate_path(
-                            root,
-                            path,
-                            stage="corpus_revision",
-                            details={"path": path.as_posix()},
-                        )
-                    )
+            inputs.update(_walk_confined_tree(root, decisions, stage="corpus_revision", suffix=".md"))
     for relative in normalized_spec["filters"]["paths"]:
         if any(
             part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS
@@ -549,6 +530,38 @@ def _retrieval_corpus_revision(
                     continue
                 if candidate.is_file():
                     inputs.add(candidate)
+
+    return root, inputs
+
+
+def _retrieval_corpus_signature(root: Path, inputs: set[Path]) -> tuple[tuple[str, int, int], ...]:
+    """Cheap change detector over the revision's inputs: path, size, mtime.
+
+    Used only to confirm that nothing moved DURING one resolution; the
+    content-addressed revision itself is still computed from bytes.
+    """
+    signature: list[tuple[str, int, int]] = []
+    for path in sorted(inputs, key=lambda item: item.as_posix()):
+        try:
+            stat = path.stat()
+        except OSError:
+            signature.append((path.as_posix(), -1, -1))
+            continue
+        signature.append((path.as_posix(), stat.st_size, stat.st_mtime_ns))
+    return tuple(signature)
+
+
+def _retrieval_corpus_revision(
+    cwd: str | Path,
+    normalized_spec: Mapping[str, Any],
+) -> str:
+    """Content-address the exact local Markdown families this resolver reads."""
+    root, inputs = _retrieval_corpus_inputs(cwd, normalized_spec)
+    return _digest_corpus_inputs(root, inputs)
+
+
+def _digest_corpus_inputs(root: Path, inputs: set[Path]) -> str:
+    from .core import _git_text
 
     digest = hashlib.sha256()
     digest.update(b"memory-seed-retrieval-corpus-v1\0")
@@ -607,23 +620,69 @@ def _runtime_scoped_candidate_path(
     return target
 
 
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def _is_reparse_entry(entry: os.DirEntry) -> bool:
+    """A symlink, or on Windows any reparse point (junctions included)."""
+    if entry.is_symlink():
+        return True
+    try:
+        attributes = getattr(entry.stat(follow_symlinks=False), "st_file_attributes", 0)
+    except OSError:
+        return True  # unknown: make the caller resolve and confine it
+    return bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _walk_confined_tree(
+    root: Path, directory: Path, *, stage: str, suffix: str | None = None
+) -> list[Path]:
+    """Confine a whole tree to ``root`` and return its resolved files.
+
+    Equivalent to resolving every descendant, but only link-like entries pay
+    for ``resolve()``: a plain entry beneath an already-confined directory
+    cannot leave it, so its path is the directory's resolved path plus its
+    name.  Resolving each of hundreds of session files dominated retrieval
+    time on large corpora.  Symlinked and junction directories are confined,
+    then walked, as ``rglob`` would.  ``suffix`` filters the returned files.
+    """
+    base = _runtime_scoped_candidate_path(
+        root, directory, stage=stage, details={"path": directory.as_posix()}
+    )
+    files: list[Path] = []
+    if not base.is_dir():
+        return files
+    pending = [base]
+    seen: set[Path] = set()
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        try:
+            entries = list(os.scandir(current))
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            if _is_reparse_entry(entry):
+                path = _runtime_scoped_candidate_path(
+                    root, path, stage=stage, details={"path": path.as_posix()}
+                )
+                is_dir, is_file = path.is_dir(), path.is_file()
+            else:
+                is_dir = entry.is_dir(follow_symlinks=False)
+                is_file = entry.is_file(follow_symlinks=False)
+            if is_dir:
+                pending.append(path)
+            elif is_file and (suffix is None or path.suffix.lower() == suffix):
+                files.append(path)
+    return files
+
+
 def _assert_runtime_tree_confined(root: Path, directory: Path, *, stage: str) -> None:
     """Preflight every retrieval-visible source path before a reader opens it."""
-    _runtime_scoped_candidate_path(
-        root,
-        directory,
-        stage=stage,
-        details={"path": directory.as_posix()},
-    )
-    if not directory.is_dir():
-        return
-    for candidate in directory.rglob("*"):
-        _runtime_scoped_candidate_path(
-            root,
-            candidate,
-            stage=stage,
-            details={"path": candidate.as_posix()},
-        )
+    _walk_confined_tree(root, directory, stage=stage)
 
 
 def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
@@ -1256,7 +1315,7 @@ def _build_retrieval_plan(
         )
     chunks = augment_chunks_with_topic_sidecars(
         augment_chunks_with_link_sidecars(
-            extract_memory_chunks(root, granularity="entry"),
+            extract_memory_chunks(root, granularity="entry", lexical_terms=False),
             root,
         ),
         root,
@@ -1981,8 +2040,19 @@ def _stable_retrieval_plan(
     normalized = normalize_any_retrieval_spec(spec)
     started = clock()
     seen: list[tuple[str, str]] = []
+    # The default reader content-addresses every input file.  Reading the whole
+    # corpus twice per attempt dominated resolution time on large projects, so
+    # the default path hashes once and confirms stability with a stat
+    # signature (path, size, mtime) of the same inputs; only a moved signature
+    # pays for a second full read.  Injected readers keep the two-read contract.
+    default_reader = revision_reader is _retrieval_corpus_revision
     for attempt in (1, 2):
-        start_revision = revision_reader(cwd, normalized)
+        if default_reader:
+            root, inputs = _retrieval_corpus_inputs(cwd, normalized)
+            start_signature = _retrieval_corpus_signature(root, inputs)
+            start_revision = _digest_corpus_inputs(root, inputs)
+        else:
+            start_revision = revision_reader(cwd, normalized)
         plan = _build_retrieval_plan(
             normalized,
             cwd,
@@ -1991,7 +2061,15 @@ def _stable_retrieval_plan(
             timeout_ms=timeout_ms,
             pinned=normalized.get("selectors", {}).get("pinned", ()),
         )
-        end_revision = revision_reader(cwd, normalized)
+        if default_reader:
+            end_root, end_inputs = _retrieval_corpus_inputs(cwd, normalized)
+            end_revision = (
+                start_revision
+                if end_inputs == inputs and _retrieval_corpus_signature(end_root, end_inputs) == start_signature
+                else _digest_corpus_inputs(end_root, end_inputs)
+            )
+        else:
+            end_revision = revision_reader(cwd, normalized)
         _check_retrieval_timeout(
             clock,
             started,

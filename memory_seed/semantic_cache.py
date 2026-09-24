@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextvars
+
 import hashlib
 import math
 from collections import Counter
@@ -283,8 +285,14 @@ def extract_memory_chunks(
     *,
     granularity: str = "entry",
     paths: Sequence[str | Path] | None = None,
+    lexical_terms: bool = True,
 ) -> list[MemoryChunk]:
     """Extract chunks from the session tree.
+
+    ``lexical_terms=False`` leaves every chunk's ``lexical_terms`` empty. The
+    identifier scan is the single most expensive per-chunk step and only
+    search ranking reads it; Retrieval Specification resolution does not, so
+    it opts out to stay inside its local deadline on large corpora.
 
     ``paths`` optionally restricts extraction to specific session documents
     (matched by resolved absolute path), so an incremental consumer can
@@ -304,14 +312,18 @@ def extract_memory_chunks(
         wanted = {Path(path).resolve() for path in paths}
 
     chunks: list[MemoryChunk] = []
-    for doc in iter_session_documents(sessions_dir):
-        if wanted is not None and doc.path.resolve() not in wanted:
-            continue
-        try:
-            session_date = datetime.strptime(doc.session_date, "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        chunks.extend(_extract_chunks_from_file(target_root, doc, session_date, granularity=granularity))
+    token = _LEXICAL_TERMS_ENABLED.set(lexical_terms)
+    try:
+        for doc in iter_session_documents(sessions_dir):
+            if wanted is not None and doc.path.resolve() not in wanted:
+                continue
+            try:
+                session_date = datetime.strptime(doc.session_date, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            chunks.extend(_extract_chunks_from_file(target_root, doc, session_date, granularity=granularity))
+    finally:
+        _LEXICAL_TERMS_ENABLED.reset(token)
     return _resolve_chunk_source_refs(target_root, _resolve_chunk_users(target_root, chunks))
 
 
@@ -1282,7 +1294,7 @@ def suggest_related_for_draft(
         text=body.strip(),
         tags=_extract_tags(body_lines),
         contexts=_extract_contexts((heading,)),
-        lexical_terms=_extract_lexical_terms(payload),
+        lexical_terms=_chunk_lexical_terms(payload),
         start_line=0,
         end_line=len(body_lines),
         entry_id=entry_id,
@@ -1678,7 +1690,7 @@ def _extract_entry_chunks_from_file(
                             text=text,
                             tags=_extract_tags(d_lines),
                             contexts=_extract_contexts(d_heading_path),
-                            lexical_terms=_extract_lexical_terms(payload),
+                            lexical_terms=_chunk_lexical_terms(payload),
                             start_line=d_start,
                             end_line=d_end,
                             entry_id=entry_id,
@@ -1729,7 +1741,7 @@ def _extract_entry_chunks_from_file(
                     text=text,
                     tags=_extract_tags(entry_lines),
                     contexts=_extract_contexts(heading_path),
-                    lexical_terms=_extract_lexical_terms(payload),
+                    lexical_terms=_chunk_lexical_terms(payload),
                     start_line=start_line,
                     end_line=end_line,
                     entry_id=entry_id,
@@ -1773,7 +1785,7 @@ def _extract_entry_chunks_from_file(
                     text=text,
                     tags=_extract_tags(entry_lines),
                     contexts=_extract_contexts(heading_path),
-                    lexical_terms=_extract_lexical_terms(payload),
+                    lexical_terms=_chunk_lexical_terms(payload),
                     start_line=start_line,
                     end_line=end_line,
                     entry_id=entry_id,
@@ -1819,7 +1831,7 @@ def _extract_entry_chunks_from_file(
                     text=text,
                     tags=_extract_tags(section_lines),
                     contexts=_extract_contexts(heading_path),
-                    lexical_terms=_extract_lexical_terms(payload),
+                    lexical_terms=_chunk_lexical_terms(payload),
                     start_line=section_start,
                     end_line=section_end,
                     entry_id=entry_id,
@@ -1883,7 +1895,7 @@ def _extract_legacy_chunks_from_file(
                 text=text,
                 tags=_extract_tags(current_lines),
                 contexts=_extract_contexts(title_path),
-                lexical_terms=_extract_lexical_terms(payload),
+                lexical_terms=_chunk_lexical_terms(payload),
                 start_line=current_start,
                 end_line=end_line,
                 user=user,
@@ -2173,6 +2185,17 @@ def _extract_contexts(heading_path: Sequence[str]) -> tuple[str, ...]:
             if value:
                 contexts.append(value)
     return tuple(contexts)
+
+
+_LEXICAL_TERMS_ENABLED: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "memory_seed_chunk_lexical_terms", default=True
+)
+
+
+def _chunk_lexical_terms(payload: str) -> tuple[str, ...]:
+    """Chunk-construction twin of ``_extract_lexical_terms`` that honours the
+    ``extract_memory_chunks(lexical_terms=False)`` opt-out."""
+    return _extract_lexical_terms(payload) if _LEXICAL_TERMS_ENABLED.get() else ()
 
 
 def _extract_lexical_terms(text: str) -> tuple[str, ...]:
