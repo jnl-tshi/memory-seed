@@ -120,5 +120,5 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [task-packet-calibration-harness-plan.md](2_Todo/task-packet-calibration-harness-plan.md) — Freeze the representative development population and sealed holdout design now that the Qwen3.5 9B M0 plumbing gate has passed.
-- **P1** [task-packet-sources-and-orientation-lite-plan.md](2_Todo/task-packet-sources-and-orientation-lite-plan.md) — JNL reviews this plan and confirms the D1-D4 readings; implementation starts only after approval.
+- **P1** [task-packet-sources-and-orientation-lite-plan.md](2_Todo/task-packet-sources-and-orientation-lite-plan.md) — JNL reviews revision 2 (after the 2026-09-23 independent review) and confirms D1-D4; implementation starts only after approval.
 <!-- docs-index:end -->
