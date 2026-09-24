@@ -1189,7 +1189,11 @@ class TaskPacketTests(unittest.TestCase):
         self.assertEqual(fallback["mode"], "full_document_fallback")
         self.assertIn("No stable anchors", fallback["full_document"]["content"])
 
-    def test_constitution_projection_keeps_all_ranked_clauses_above_target(self):
+    def test_constitution_projection_caps_ranked_clauses_at_target(self):
+        # Replaces the 2026-09-05 keep-every-ranked-clause rule (JNL,
+        # 2026-09-24): ranked clauses are relevance guesses, so they stop at
+        # the tier target; the best clause is always kept, whole, even alone
+        # over target.  Explicit and ADR-bound clauses keep full overage.
         dispatch = normalize_task_dispatch(self.dispatch(tier="economy"))
         body = "grounded " * 500
         constitution = {
@@ -1205,14 +1209,21 @@ class TaskPacketTests(unittest.TestCase):
         }
         projection = project_constitution(dispatch, [constitution])
         self.assertEqual(projection["selection_mode"], "ranked_whole_clauses")
-        self.assertEqual([item["ref"] for item in projection["clauses"]], [
-            "constitution:v1#first",
-            "constitution:v1#second",
-            "constitution:v1#third",
-        ])
-        self.assertTrue(projection["over_target"])
-        self.assertEqual(projection["governing_overage"]["status"], "over_target")
-        self.assertGreater(projection["governing_overage"]["tokens"], 0)
+        selected = [item["ref"] for item in projection["clauses"]]
+        self.assertEqual(selected[0], "constitution:v1#first")
+        self.assertLess(len(selected), 3)
+        self.assertLessEqual(
+            projection["content_tokens"],
+            max(projection["target_tokens"], estimate_tokens(projection["clauses"][0]["content"])),
+        )
+
+        explicit = normalize_task_dispatch(self.dispatch(tier="economy"))
+        explicit["constitution_refs"] = [
+            "constitution:v1#first", "constitution:v1#second", "constitution:v1#third"]
+        governed = project_constitution(explicit, [constitution])
+        self.assertEqual(len(governed["clauses"]), 3)
+        self.assertTrue(governed["over_target"])
+        self.assertEqual(governed["governing_overage"]["status"], "over_target")
 
     def test_constitution_projection_refuses_missing_adr_bindings_and_unratified_documents(self):
         dispatch = normalize_task_dispatch(self.dispatch())

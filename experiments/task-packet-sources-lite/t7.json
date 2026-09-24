@@ -26,15 +26,9 @@
         "constitution:v2#authority",
         "constitution:v2#immediate-value",
         "constitution:v2#metadata-curation",
-        "constitution:v2#model-independence",
-        "constitution:v2#retrieval-transparency",
-        "constitution:v2#trust-first",
-        "constitution:v2#explainability",
-        "constitution:v2#expose-before-rank",
-        "constitution:v2#prove-automation",
-        "constitution:v2#topic-vocabulary"
+        "constitution:v2#model-independence"
       ],
-      "content_tokens": 4424,
+      "content_tokens": 3972,
       "mode": "anchored_clauses",
       "selection_mode": "ranked_whole_clauses"
     },
@@ -44,14 +38,14 @@
       "materialized_agent_rules_tokens": 5093,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 17773,
+      "serialized_packet_input_tokens": 16408,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 21844,
-      "total_input_tokens": 19344
+      "total_context_envelope_tokens": 20479,
+      "total_input_tokens": 17979
     },
-    "packet_fingerprint": "sha256:31df6e4221b2ad05b8e2dc793278fcd60b039a3430f9b9bc4708e2e1b0b71980",
-    "serialized_packet_tokens": 17773,
+    "packet_fingerprint": "sha256:80a1421708e77fc3082e6585ca6b6e375258b4165a40b2df0f484df63bef84b5",
+    "serialized_packet_tokens": 16408,
     "source_warnings": []
   },
   "profile_v2": {
@@ -81,14 +75,11 @@
         "constitution:v2#immediate-value",
         "constitution:v2#metadata-curation",
         "constitution:v2#model-independence",
-        "constitution:v2#retrieval-transparency",
-        "constitution:v2#trust-first",
-        "constitution:v2#explainability",
         "constitution:v2#expose-before-rank",
         "constitution:v2#prove-automation",
-        "constitution:v2#topic-vocabulary"
+        "constitution:v2#trust-first"
       ],
-      "content_tokens": 4424,
+      "content_tokens": 4183,
       "mode": "anchored_clauses",
       "selection_mode": "ranked_whole_clauses"
     },
@@ -102,14 +93,14 @@
       "materialized_agent_rules_tokens": 5093,
       "materialized_session_logging_tokens": 0,
       "output_reasoning_reserve_tokens": 2500,
-      "serialized_packet_input_tokens": 25604,
+      "serialized_packet_input_tokens": 24918,
       "supplemental_input_reserve_tokens": 1000,
       "tool_schema_input_tokens": 124,
-      "total_context_envelope_tokens": 29675,
-      "total_input_tokens": 27175
+      "total_context_envelope_tokens": 28989,
+      "total_input_tokens": 26489
     },
-    "packet_fingerprint": "sha256:ae83594dfc4074bc088dcd48888dfafe5d88d46cb5821cc07d9ef5f109d5654f",
-    "serialized_packet_tokens": 25604,
+    "packet_fingerprint": "sha256:e1178d4348d4725fd27692620b55bcdc63a00db2822f8101061d0288a4e3c8a2",
+    "serialized_packet_tokens": 24918,
     "source_warnings": [
       "source_ref_over_cap: mse_nw47r0vpcj5tr2pj:d1 -> .memory-seed/skills/agent_collaboration.md: 13813 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
       "source_ref_over_cap: mse_v048edjgmvk5mqsx:d1 -> docs/2_Todo/decision-layer-model-tournament-plan.md: 4368 tokens exceeds the 4000-token per-source cap; cite a heading anchor",
@@ -118,5 +109,5 @@
       "source_ref_retired: mse_v048edjgmvk5mqsx:d1 -> docs/4_Reference/archived/decisions-first-class-knowledge-report.md: replaced or archived document; follow its successor pointer"
     ]
   },
-  "repo_head": "8858b276fce105308ebfe40b261c78d283e0b1bd"
+  "repo_head": "f33acbbbb4504fdb08f33b865e5c8e1a41080472"
 }

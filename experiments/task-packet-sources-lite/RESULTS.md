@@ -25,7 +25,7 @@ to about 4.3k tokens, and the session-writing one to about 4.6k. This confirms t
 
 Raw output: [`t0.json`](t0.json).
 
-## T7 — source following on the real corpus (repo `8858b276`, 2026-09-24)
+## T7 — source following on the real corpus (repo `f33acbbb`, 2026-09-24)
 
 `measure.py --repo` compiles read-only packets over this repository with two pinned real decisions,
 `mse_v048edjgmvk5mqsx:d1` and `mse_nw47r0vpcj5tr2pj:d1`, under `implementation` v1 (source following off)
@@ -33,8 +33,10 @@ and v2 (on).
 
 | Profile | Serialized | Envelope | Followed sources | Constitution projection |
 |---|---:|---:|---|---|
-| v1 | 17,773 | 21,844 | — | 26 ranked clauses, 4,424 tokens |
-| v2 | 25,604 | 29,675 | 3 (6,586 tokens) | the same |
+| v1 | 16,408 | 20,479 | — | 20 ranked clauses, 3,972 tokens (capped at the 4,000 target) |
+| v2 | 24,918 | 28,989 | 3 (6,586 tokens) | 23 clauses, 4,183 tokens (adds clauses under the decision-cited `#3-principles--design-guidance`) |
+
+Before the finding-3 fix, v1 was 17,773 serialized tokens with 26 clauses (4,424 tokens).
 
 Followed sources:
 - `.memory-seed/skills/end_of_turn.md` (2,766 tokens)
@@ -66,8 +68,11 @@ Findings:
    Corpus revisions are byte-identical to the previous implementation, and a junction escape is still refused
    (`tests/test_retrieval_deadline.py`). The harness no longer lifts the deadline: T7 passed 3 of 3 runs under
    the production 5 s limit.
-3. **Open: ranked clause projection is weak on real text.** A generic dispatch selected 26 of 30 clauses. The
-   saving from clause projection depends on explicit or ADR-bound refs.
+3. **Fixed: ranked clause projection ignored its tier target.** Any single shared word admitted a clause:
+   26 of 30 for a generic dispatch. Ranked clauses now stop at the tier target (2k/4k/8k), highest score
+   first, whole clauses only, and the best clause is always kept. Explicit, ADR-bound and decision-cited
+   clauses remain complete over target. This replaces the 2026-09-05 keep-every-ranked-clause rule, on JNL's
+   decision of 2026-09-24.
 4. **The 4,000-token cap cuts real sources.** Two of the five sources worth following exceeded it. Citing
    heading anchors avoids this; raising the cap is a calibration question for M3.
 

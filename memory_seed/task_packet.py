@@ -1858,12 +1858,23 @@ def project_constitution(
             ),
             key=lambda item: (-item[0], item[1]["ref"]),
         )
+        # Ranked clauses are relevance guesses, not governing bindings, so they
+        # stop at the tier's projection target: highest scores first, whole
+        # clauses only, and always at least the best clause.  Explicit and
+        # ADR-bound clauses stay complete even over target; that overage is
+        # reported, never truncated.  Uncapped, any single shared word
+        # admitted a clause - 26 of 30 on a generic real-corpus dispatch.
+        ranked_tokens = 0
         for score, clause in ranked:
             if score == 0:
                 break
+            clause_tokens = estimate_tokens(clause["content"])
+            if selected and ranked_tokens + clause_tokens > target:
+                continue
             selected_clause = dict(clause)
             selected_clause["selection_reason"] = f"ranked whole-clause lexical score {score}"
             selected.append(selected_clause)
+            ranked_tokens += clause_tokens
         selection_mode = "ranked_whole_clauses"
 
     # Constitution anchors cited by selected decisions' S: sources (only
