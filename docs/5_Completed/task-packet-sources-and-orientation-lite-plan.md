@@ -2,9 +2,10 @@
 title: "Task Packet source following and subagent orientation lite"
 date: "2026-09-23"
 project: "memory-seed"
-status: "proposed"
+status: "completed"
+shipped: "2026-09-24"
 priority: "P1"
-next_action: "JNL reviews revision 2 (after the 2026-09-23 independent review) and confirms D1-D4; implementation starts only after approval."
+next_action: "Completed 2026-09-24 (T0-T10). Deferred follow-ups are carried in docs/2_Todo/0_NEXT_STEPS.md."
 source:
   - "docs/2_Todo/task-packet-hardening-progressive-provenance-plan.md"
   - "experiments/seed-pod-task-packet-evaluation/REFLECTION_LOG.md"
@@ -19,7 +20,7 @@ non_goals:
 
 # Task Packet source following and subagent orientation lite
 
-Status: **PROPOSED, REVISION 2 — awaiting JNL approval.** Written from the 2026-09-23 design discovery with
+Status: **COMPLETED 2026-09-24 (T0-T10)**; evidence in [`experiments/task-packet-sources-lite/RESULTS.md`](../../experiments/task-packet-sources-lite/RESULTS.md). Final independent review: session entry `mse_yz25a19sdq9akxmh`. Previously: revision 2, approved by JNL. Written from the 2026-09-23 design discovery with
 JNL. Revised after an independent review returned REVISE with three blocking, four major and three minor
 findings. Every finding is addressed below.
 

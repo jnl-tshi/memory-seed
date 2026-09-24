@@ -112,6 +112,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [superpowers-delivery-quality-uplift-plan.md](superpowers-delivery-quality-uplift-plan.md) | P1 | — | Use the behavioral evaluation corpus and real-work trials to measure future uplift without trea… |
 | [supersession-edges-plan.md](supersession-edges-plan.md) | — | — | — |
 | [supersession-successor-surfacing-proposal.md](supersession-successor-surfacing-proposal.md) | — | — | — |
+| [task-packet-sources-and-orientation-lite-plan.md](task-packet-sources-and-orientation-lite-plan.md) | P1 | — | Completed 2026-09-24 (T0-T10). Deferred follow-ups are carried in docs/2_Todo/0_NEXT_STEPS.md. |
 | [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
 | [transitive-session-fusion-refinement-plan.md](transitive-session-fusion-refinement-plan.md) | P0 | [] | None. The reviewed transitive fuse evidence contract shipped on 2026-09-06. |
 | [user-interface-deep-research-report.md](user-interface-deep-research-report.md) | — | — | — |

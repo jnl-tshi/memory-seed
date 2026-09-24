@@ -79,12 +79,18 @@ Settled in the 2026-09-23 hosted design discovery
 
 - [Memory quality metrics v0](memory-quality-metrics-v0-proposal.md): maintainer review of the existing
   baseline remains the next gate.
-- [Task Packet source following and orientation lite](task-packet-sources-and-orientation-lite-plan.md):
-  proposed 2026-09-23. It makes packets follow `S:` sources, replaces embedded full rules with a subagent
-  orientation-lite skill, and enforces session-write safety. Revision 2, after independent review, awaits JNL approval.
-- [Task Packet hardening](task-packet-hardening-progressive-provenance-plan.md) and
-  [calibration](task-packet-calibration-harness-plan.md): finish independent review, dogfooding, and the
-  representative/holdout design.
+- [Task Packet source following and orientation lite](../5_Completed/task-packet-sources-and-orientation-lite-plan.md):
+  completed 2026-09-24. Task Packet v2 embeds the subagent orientation-lite skill and pins the full rules for
+  digest-verified on-demand loading. This cuts packets by 42-74%. Its deferred follow-ups remain open:
+  - log Task Packet compile, preview, activate and governance-load calls to the retrieval log as their own
+    event type, excluded from attention ranking, so packet usage is measurable;
+  - retire the stalled [Task Packet hardening plan](task-packet-hardening-progressive-provenance-plan.md) to
+    `7_Replaced/` with a pointer to the completed plan: its compiler items are delivered and its Seed Pod
+    steps lapsed;
+  - make P0.2 workers the first real consumers of v2 packets.
+- [Task Packet calibration](task-packet-calibration-harness-plan.md): freeze the representative
+  development population and sealed holdout, then run M2-M5. This includes calibrating the 4,000-token
+  per-source cap for followed `S:` sources.
 - [Memory Trace UX reference plan](memory-trace-ux-reference-model-implementation-plan.md) and
   [interaction matrix](memory-trace-ux-m0-interaction-matrix.md): M3 bounded graph perspectives remain
   the next local UI slice.
