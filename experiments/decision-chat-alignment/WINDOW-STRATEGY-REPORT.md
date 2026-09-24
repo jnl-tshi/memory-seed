@@ -12,6 +12,7 @@ How much retained Codex conversation can be removed while preserving the manuall
 - **Plan adaptive 12:** fixed window plus the span back to the nearest Plan-mode turn within 12 causal turns; if none exists, fall back to five turns.
 - **Plan + lineage adaptive 12:** Plan-adaptive expansion plus the same bounded search in parent tasks, with each parent cut off at child creation time.
 - **Lineage + backward 12:** unconditional 12-turn expansion in the selected task and traversed parents; this is the high-recall control for the Plan-mode heuristic.
+- **Lineage + backward 20:** the proposed wider safety envelope: up to 20 preceding turns plus the anchor in each selected/parent task, using the same causal and lineage rules. The fixed-radius union can add turns.
 
 All strategies are structural and were applied without reading gold evidence coordinates. Gold coordinates are used only for scoring. Encrypted reasoning and raw chat text are not written to the outputs.
 
@@ -25,6 +26,7 @@ All strategies are structural and were applied without reading gold evidence coo
 | plan adaptive 12 | 50/50 (100.0%) | 43/50 (86.0%) | 40/42 (95.2%) | 7.0 | 96.2% | 83.0% |
 | plan lineage adaptive 12 | 50/50 (100.0%) | 46/50 (92.0%) | 40/42 (95.2%) | 7.5 | 95.9% | 81.9% |
 | lineage backward 12 | 50/50 (100.0%) | 49/50 (98.0%) | 42/42 (100.0%) | 12.9 | 93.0% | 68.9% |
+| lineage backward 20 | 50/50 (100.0%) | 50/50 (100.0%) | 42/42 (100.0%) | 17.9 | 90.2% | 56.9% |
 
 `Any cited evidence` is candidate-region recall. `All cited evidence` is the stricter window-completeness measure. Neither metric converts partial or child-result rows into verified decisions.
 
@@ -32,7 +34,7 @@ All strategies are structural and were applied without reading gold evidence coo
 
 `backward_12` is the smallest tested strategy meeting the exploratory 98% target on complete cited evidence for verified decisions (42/42).
 
-Across all 50 adjudicated rows, including partial and child-result cases, `lineage_backward_12` is strongest: 49/50 contain every cited source turn and all 50 contain at least one, while removing 93.0% of the temporal search universe. The lone incomplete row is partial rather than a verified source.
+Across all 50 adjudicated rows, including partial and child-result cases, `lineage_backward_20` is strongest: 50/50 contain every cited source turn and all 50 contain at least one, while removing 90.2% of the temporal search universe. Compared with the 12-turn version, the extra recovered case is partial rather than a verified source.
 
 Plan-mode anchoring did not improve cited-evidence recall over the five-turn fallback (43/50 versus 43/50). Plan mode remains a useful ranking signal, but the nearest Plan turn is not a safe stopping boundary for high-recall context expansion.
 
@@ -49,8 +51,9 @@ The search-universe denominator is the per-decision set of repository turns elig
 
 - Gold rows: 50
 - Gold sample hash: `73b2dc2de7967859c9b138a6fbd56b9b10774a453bc5d3ba7b76c6c7795179a6`
-- Parsed repository rollouts: 932
-- Parsed turn blocks: 4455
+- Parsed repository rollouts: 934
+- Parsed turn blocks: 4473
 - Plan lookback cap: 12 turns
+- Safety lookback: 20 turns
 - Fallback lookback: 5 turns
 - Parent depth cap: 2

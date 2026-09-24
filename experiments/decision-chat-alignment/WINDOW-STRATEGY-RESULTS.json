@@ -2,13 +2,14 @@
   "metadata": {
     "encrypted_reasoning_used": false,
     "fallback_lookback_turns": 5,
-    "generated_at": "2026-09-24T15:00:56.835953+00:00",
+    "generated_at": "2026-09-24T17:25:16.745528+00:00",
     "gold_rows": 50,
     "max_parent_depth": 2,
-    "normalized_turn_blocks": 4455,
+    "normalized_turn_blocks": 4473,
     "plan_lookback_turns": 12,
     "raw_text_serialized": false,
-    "repository_rollouts": 932,
+    "repository_rollouts": 934,
+    "safety_lookback_turns": 20,
     "sample_ids_sha256": "73b2dc2de7967859c9b138a6fbd56b9b10774a453bc5d3ba7b76c6c7795179a6",
     "time_window_hours": 72
   },
@@ -212,6 +213,101 @@
             ]
           ],
           "retained_turns": 14
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              54
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              55
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              56
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              57
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              58
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              59
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              60
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              61
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              62
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              63
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              64
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              65
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              66
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              67
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              68
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              69
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              70
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              71
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              72
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              73
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              74
+            ],
+            [
+              "019e5f82-bca6-74f3-b226-422af8de505f",
+              75
+            ]
+          ],
+          "retained_turns": 22
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -484,6 +580,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              64
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              65
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              66
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              67
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              68
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              69
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              70
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              71
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              72
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              73
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              74
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              75
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              76
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              77
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              78
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              79
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              80
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              81
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              82
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              83
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              84
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              85
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              86
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -773,6 +968,77 @@
           ],
           "retained_turns": 14
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              1
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              2
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              3
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              4
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              5
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              6
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              7
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              8
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              9
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              10
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              11
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              12
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              13
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              14
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              15
+            ],
+            [
+              "019fbeb0-1b29-72f1-a521-6882d819ff78",
+              16
+            ]
+          ],
+          "retained_turns": 16
+        },
         "plan_adaptive_12": {
           "all_evidence": false,
           "any_evidence": true,
@@ -899,6 +1165,25 @@
           "retained_turns": 3
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              1
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              2
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              3
+            ]
+          ],
+          "retained_turns": 3
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -1137,6 +1422,57 @@
           ],
           "retained_turns": 11
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              1
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              2
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              3
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              4
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              5
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              6
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              7
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              8
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              9
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              10
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              11
+            ]
+          ],
+          "retained_turns": 11
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -1311,6 +1647,33 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              1
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              2
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              3
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              4
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              5
+            ]
+          ],
+          "retained_turns": 5
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -1605,6 +1968,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              36
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              37
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              38
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              39
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              40
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              41
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              42
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              43
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              44
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              45
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              46
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              47
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              48
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              49
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              50
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              51
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              52
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              53
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              54
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              55
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              56
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              57
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              58
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -1896,6 +2358,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              43
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              44
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              45
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              46
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              47
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              48
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              49
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              50
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              51
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              52
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              53
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              54
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              55
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              56
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              57
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              58
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              59
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              60
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              61
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              62
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              63
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              64
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              65
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -2208,6 +2769,97 @@
             ]
           ],
           "retained_turns": 18
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              47
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              48
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              49
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              50
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              51
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              52
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              53
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              54
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              55
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              56
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              57
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              58
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              59
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              60
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              61
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              62
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              63
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              64
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              65
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              66
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              67
+            ]
+          ],
+          "retained_turns": 21
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -2525,6 +3177,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              32
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              33
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              34
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              35
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              36
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              37
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              38
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              39
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              40
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              41
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              42
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              43
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              44
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              45
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              46
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              47
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              48
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              49
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              50
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              51
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              52
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              53
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              54
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -2817,6 +3568,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              151
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              152
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              153
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              154
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              155
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              156
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              157
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              158
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              159
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              160
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              161
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              162
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              163
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              164
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              165
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              166
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              167
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              168
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              169
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              170
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              171
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              172
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              173
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -3056,6 +3906,113 @@
             ]
           ],
           "retained_turns": 17
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              47
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              48
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              49
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              50
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              51
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              52
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              53
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              54
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              55
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              56
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              57
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              58
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              59
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              60
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              61
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              62
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              63
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              64
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              65
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              66
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              67
+            ],
+            [
+              "01a07386-c539-78e0-87f9-a6c47dff6f34",
+              1
+            ],
+            [
+              "01a07386-c539-78e0-87f9-a6c47dff6f34",
+              2
+            ],
+            [
+              "01a07386-c539-78e0-87f9-a6c47dff6f34",
+              3
+            ],
+            [
+              "01a07386-c539-78e0-87f9-a6c47dff6f34",
+              4
+            ]
+          ],
+          "retained_turns": 25
         },
         "plan_adaptive_12": {
           "all_evidence": false,
@@ -3321,6 +4278,61 @@
           ],
           "retained_turns": 12
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              1
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              2
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              3
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              4
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              5
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              6
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              7
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              8
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              9
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              10
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              11
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              12
+            ]
+          ],
+          "retained_turns": 12
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -3471,6 +4483,25 @@
           "retained_turns": 3
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              1
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              2
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              3
+            ]
+          ],
+          "retained_turns": 3
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -3663,6 +4694,53 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              1
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              2
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              3
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              4
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              5
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              6
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              7
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              8
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              9
+            ],
+            [
+              "01a0b600-7c89-70f2-a85a-c57aad5c5b26",
+              10
+            ]
+          ],
+          "retained_turns": 10
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -3933,6 +5011,109 @@
           ],
           "retained_turns": 16
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              153
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              154
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              155
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              156
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              157
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              158
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              159
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              160
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              161
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              162
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              163
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              164
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              165
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              166
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              167
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              168
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              169
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              170
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              171
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              172
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              173
+            ],
+            [
+              "01a07b1f-583d-70f1-9bbe-451148a3a0e0",
+              1
+            ],
+            [
+              "01a07b1f-583d-70f1-9bbe-451148a3a0e0",
+              2
+            ],
+            [
+              "01a07b1f-583d-70f1-9bbe-451148a3a0e0",
+              3
+            ]
+          ],
+          "retained_turns": 24
+        },
         "plan_adaptive_12": {
           "all_evidence": false,
           "any_evidence": true,
@@ -4184,6 +5365,97 @@
             ]
           ],
           "retained_turns": 13
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              48
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              49
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              50
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              51
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              52
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              53
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              54
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              55
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              56
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              57
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              58
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              59
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              60
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              61
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              62
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              63
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              64
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              65
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              66
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              67
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              68
+            ]
+          ],
+          "retained_turns": 21
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -4460,6 +5732,85 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              1
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              2
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              3
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              4
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              5
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              6
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              7
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              8
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              9
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              10
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              11
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              12
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              13
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              14
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              15
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              16
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              17
+            ],
+            [
+              "01a0c882-5b0b-7270-bd74-071d6ef4888d",
+              18
+            ]
+          ],
+          "retained_turns": 18
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -4753,6 +6104,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              82
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              83
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              84
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              85
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              86
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              87
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              88
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              89
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              90
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              91
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              92
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              93
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              94
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              95
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              96
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              97
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              98
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              99
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              100
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              101
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              102
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              103
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              104
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -5029,6 +6479,97 @@
           ],
           "retained_turns": 13
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              100
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              101
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              102
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              103
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              104
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              105
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              106
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              107
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              108
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              109
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              110
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              111
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              112
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              113
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              114
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              115
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              116
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              117
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              118
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              119
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              120
+            ]
+          ],
+          "retained_turns": 21
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -5288,6 +6829,85 @@
             ]
           ],
           "retained_turns": 14
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              1
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              2
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              3
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              4
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              5
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              6
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              7
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              8
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              9
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              10
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              11
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              12
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              13
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              14
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              15
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              16
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              17
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              18
+            ]
+          ],
+          "retained_turns": 18
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -5597,6 +7217,97 @@
           ],
           "retained_turns": 13
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              14
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              15
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              16
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              17
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              18
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              19
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              20
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              21
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              22
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              23
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              24
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              25
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              26
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              27
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              28
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              29
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              30
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              31
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              32
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              33
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              34
+            ]
+          ],
+          "retained_turns": 21
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -5840,6 +7551,97 @@
             ]
           ],
           "retained_turns": 13
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              85
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              86
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              87
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              88
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              89
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              90
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              91
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              92
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              93
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              94
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              95
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              96
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              97
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              98
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              99
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              100
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              101
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              1
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              2
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              3
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              4
+            ]
+          ],
+          "retained_turns": 21
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -6108,6 +7910,101 @@
             ]
           ],
           "retained_turns": 14
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              85
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              86
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              87
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              88
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              89
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              90
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              91
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              92
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              93
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              94
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              95
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              96
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              97
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              98
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              99
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              100
+            ],
+            [
+              "01a08641-81f0-77f1-83d3-298cd560f297",
+              101
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              1
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              2
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              3
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              4
+            ],
+            [
+              "01a08a5c-1eb2-76f2-b472-742630d855c0",
+              5
+            ]
+          ],
+          "retained_turns": 22
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -6396,6 +8293,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              7
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              8
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              9
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              10
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              11
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              12
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              13
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              14
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              15
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              16
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              17
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              18
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              19
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              20
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              21
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              22
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              23
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              24
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              25
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              26
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              27
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              28
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              29
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -6688,6 +8684,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              53
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              54
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              55
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              56
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              57
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              58
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              59
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              60
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              61
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              62
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              63
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              64
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              65
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              66
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              67
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              68
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              69
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              70
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              71
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              72
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              73
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              74
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              75
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -6989,6 +9084,85 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              1
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              2
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              3
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              4
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              5
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              6
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              7
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              8
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              9
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              10
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              11
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              12
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              13
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              14
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              15
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              16
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              17
+            ],
+            [
+              "01a0868a-099d-79c2-b2b1-7ee69e475d18",
+              18
+            ]
+          ],
+          "retained_turns": 18
+        },
         "plan_adaptive_12": {
           "all_evidence": false,
           "any_evidence": true,
@@ -7199,6 +9373,57 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              1
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              2
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              3
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              4
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              5
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              6
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              7
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              8
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              9
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              10
+            ],
+            [
+              "01a02623-5ba1-7793-96d0-7e7f575afeb9",
+              11
+            ]
+          ],
+          "retained_turns": 11
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -7569,6 +9794,97 @@
           ],
           "retained_turns": 16
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              123
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              124
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              125
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              126
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              127
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              128
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              129
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              130
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              131
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              132
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              133
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              134
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              135
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              136
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              137
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              138
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              139
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              140
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              141
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              142
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              143
+            ]
+          ],
+          "retained_turns": 21
+        },
         "plan_adaptive_12": {
           "all_evidence": false,
           "any_evidence": true,
@@ -7829,6 +10145,45 @@
           ],
           "retained_turns": 8
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              1
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              2
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              3
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              4
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              5
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              6
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              7
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              8
+            ]
+          ],
+          "retained_turns": 8
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -7995,6 +10350,41 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              1
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              2
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              3
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              4
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              5
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              6
+            ],
+            [
+              "019feca6-9016-75d3-a0ea-a15280892247",
+              7
+            ]
+          ],
+          "retained_turns": 7
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -8301,6 +10691,101 @@
           ],
           "retained_turns": 14
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              54
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              55
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              56
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              57
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              58
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              59
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              60
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              61
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              62
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              63
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              64
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              65
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              66
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              67
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              68
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              69
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              70
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              71
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              72
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              73
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              74
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              75
+            ]
+          ],
+          "retained_turns": 22
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -8483,6 +10968,41 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              1
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              2
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              3
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              4
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              5
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              6
+            ],
+            [
+              "01a07fb7-439c-7471-a58b-f482a239d7da",
+              7
+            ]
+          ],
+          "retained_turns": 7
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -8723,6 +11243,73 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              1
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              2
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              3
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              4
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              5
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              6
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              7
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              8
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              9
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              10
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              11
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              12
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              13
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              14
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              15
+            ]
+          ],
+          "retained_turns": 15
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -9085,6 +11672,89 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              1
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              2
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              3
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              4
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              5
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              6
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              7
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              8
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              9
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              10
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              11
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              12
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              13
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              14
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              15
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              16
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              17
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              18
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              19
+            ]
+          ],
+          "retained_turns": 19
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -9247,6 +11917,29 @@
           "retained_turns": 4
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              1
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              2
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              3
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              4
+            ]
+          ],
+          "retained_turns": 4
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -9528,6 +12221,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              112
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              113
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              114
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              115
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              116
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              117
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              118
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              119
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              120
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              121
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              122
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              123
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              124
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              125
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              126
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              127
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              128
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              129
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              130
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              131
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              132
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              133
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              134
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -9837,6 +12629,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              55
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              56
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              57
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              58
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              59
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              60
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              61
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              62
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              63
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              64
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              65
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              66
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              67
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              68
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              69
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              70
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              71
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              72
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              73
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              74
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              75
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              76
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              77
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -9979,6 +12870,53 @@
           "retained_turns": 2
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              1
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              2
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              3
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              4
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              5
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              6
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              7
+            ],
+            [
+              "019feb41-a290-73d1-aba3-042493dd017e",
+              8
+            ],
+            [
+              "019fed19-c317-7bb3-821b-29ea54559527",
+              1
+            ],
+            [
+              "019fed19-c317-7bb3-821b-29ea54559527",
+              2
+            ]
+          ],
+          "retained_turns": 10
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -10276,6 +13214,85 @@
             ]
           ],
           "retained_turns": 14
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              1
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              2
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              3
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              4
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              5
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              6
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              7
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              8
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              9
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              10
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              11
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              12
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              13
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              14
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              15
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              16
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              17
+            ],
+            [
+              "019fe379-dff4-7821-928c-3269d799a758",
+              18
+            ]
+          ],
+          "retained_turns": 18
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -10609,6 +13626,101 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              1
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              2
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              3
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              4
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              5
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              6
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              7
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              8
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              9
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              10
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              11
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              12
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              13
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              14
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              15
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              16
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              17
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              18
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              19
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              20
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              21
+            ],
+            [
+              "019ffb26-18bb-7b80-ba4c-3ea2e5a09da6",
+              22
+            ]
+          ],
+          "retained_turns": 22
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -10803,6 +13915,41 @@
           "retained_turns": 5
         },
         "lineage_backward_12": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              1
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              2
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              3
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              4
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              5
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              6
+            ],
+            [
+              "01a0c5a6-0f63-7180-a747-7049de8353cf",
+              7
+            ]
+          ],
+          "retained_turns": 7
+        },
+        "lineage_backward_20": {
           "all_evidence": true,
           "any_evidence": true,
           "coordinates": [
@@ -11121,6 +14268,93 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              1
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              2
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              3
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              4
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              5
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              6
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              7
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              8
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              9
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              10
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              11
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              12
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              13
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              14
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              15
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              16
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              17
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              18
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              19
+            ],
+            [
+              "019f64ba-a828-7a83-909d-bef0998afdab",
+              20
+            ]
+          ],
+          "retained_turns": 20
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -11397,6 +14631,97 @@
           ],
           "retained_turns": 13
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              15
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              16
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              17
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              18
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              19
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              20
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              21
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              22
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              23
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              24
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              25
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              26
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              27
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              28
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              29
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              30
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              31
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              32
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              33
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              34
+            ],
+            [
+              "019f0b5e-267a-7263-8c5c-0f6fb130fe4b",
+              35
+            ]
+          ],
+          "retained_turns": 21
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -11672,6 +14997,105 @@
             ]
           ],
           "retained_turns": 15
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              172
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              173
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              174
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              175
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              176
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              177
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              178
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              179
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              180
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              181
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              182
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              183
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              184
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              185
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              186
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              187
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              188
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              189
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              190
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              191
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              192
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              193
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              194
+            ]
+          ],
+          "retained_turns": 23
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -11965,6 +15389,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              1
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              2
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              3
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              4
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              5
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              6
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              7
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              8
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              9
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              10
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              11
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              12
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              13
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              14
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              15
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              16
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              17
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              18
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              19
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              20
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              21
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              22
+            ],
+            [
+              "019fadcc-85d6-7142-b038-c6916abbeeb2",
+              23
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -12257,6 +15780,105 @@
           ],
           "retained_turns": 15
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              3
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              4
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              5
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              6
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              7
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              8
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              9
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              10
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              11
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              12
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              13
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              14
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              15
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              16
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              17
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              18
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              19
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              20
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              21
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              22
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              23
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              24
+            ],
+            [
+              "019fb34e-dc09-7010-8233-4383756ab82e",
+              25
+            ]
+          ],
+          "retained_turns": 23
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -12516,6 +16138,97 @@
             ]
           ],
           "retained_turns": 13
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              17
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              18
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              19
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              20
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              21
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              22
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              23
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              24
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              25
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              26
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              27
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              28
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              29
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              30
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              31
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              32
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              33
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              34
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              35
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              36
+            ],
+            [
+              "01a09d55-63ec-7b60-b798-70d6e888b869",
+              37
+            ]
+          ],
+          "retained_turns": 21
         },
         "plan_adaptive_12": {
           "all_evidence": true,
@@ -12784,6 +16497,125 @@
             ]
           ],
           "retained_turns": 20
+        },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              78
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              79
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              80
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              81
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              82
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              83
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              84
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              85
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              86
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              87
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              88
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              89
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              90
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              91
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              92
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              93
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              94
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              95
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              96
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              97
+            ],
+            [
+              "01a05ef9-96eb-7232-a0d7-71cf48d55c3a",
+              98
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              1
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              2
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              3
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              4
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              5
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              6
+            ],
+            [
+              "01a076a1-ead7-7593-b170-45e5abf4563f",
+              7
+            ]
+          ],
+          "retained_turns": 28
         },
         "plan_adaptive_12": {
           "all_evidence": false,
@@ -13077,6 +16909,97 @@
           ],
           "retained_turns": 13
         },
+        "lineage_backward_20": {
+          "all_evidence": true,
+          "any_evidence": true,
+          "coordinates": [
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              41
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              42
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              43
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              44
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              45
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              46
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              47
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              48
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              49
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              50
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              51
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              52
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              53
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              54
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              55
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              56
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              57
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              58
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              59
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              60
+            ],
+            [
+              "019f26b2-9813-7101-ac1c-baa49a3c8ad2",
+              61
+            ]
+          ],
+          "retained_turns": 21
+        },
         "plan_adaptive_12": {
           "all_evidence": true,
           "any_evidence": true,
@@ -13228,6 +17151,24 @@
       "search_universe_turns": 9156,
       "source_scope_turns": 2072,
       "source_turn_reduction": 0.6887065637065637,
+      "verified_all_evidence_recall": 1.0,
+      "verified_all_evidence_rows": 42,
+      "verified_rows": 42
+    },
+    "lineage_backward_20": {
+      "all_evidence_recall": 1.0,
+      "all_evidence_rows": 50,
+      "any_evidence_recall": 1.0,
+      "any_evidence_rows": 50,
+      "mean_retained_turns": 17.86,
+      "median_retained_turns": 21.0,
+      "missed_decision_ids": [],
+      "retained_turns": 893,
+      "rows": 50,
+      "search_turn_reduction": 0.9024683267802533,
+      "search_universe_turns": 9156,
+      "source_scope_turns": 2072,
+      "source_turn_reduction": 0.569015444015444,
       "verified_all_evidence_recall": 1.0,
       "verified_all_evidence_rows": 42,
       "verified_rows": 42

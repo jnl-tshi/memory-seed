@@ -174,7 +174,7 @@ def evaluate(repo: Path, codex_home: Path) -> dict[str, Any]:
         raise RuntimeError("Gold and safety envelope cohorts differ")
     selected_rollouts = {
         str(coord[0]) for row in controls.values()
-        for coord in row["strategies"]["lineage_backward_12"]["coordinates"]
+        for coord in row["strategies"]["lineage_backward_20"]["coordinates"]
     }
     metas = [
         meta for path in alignment.iter_rollout_paths(codex_home)
@@ -193,7 +193,7 @@ def evaluate(repo: Path, codex_home: Path) -> dict[str, Any]:
             raise RuntimeError(f"Bad record timestamp: {decision_id}")
         envelope = {
             (str(coord[0]), int(coord[1]))
-            for coord in controls[decision_id]["strategies"]["lineage_backward_12"]["coordinates"]
+            for coord in controls[decision_id]["strategies"]["lineage_backward_20"]["coordinates"]
         }
         blocks = [
             block for rollout_id in {coord[0] for coord in envelope}
@@ -238,6 +238,16 @@ def evaluate(repo: Path, codex_home: Path) -> dict[str, Any]:
             "gold_rows": len(rows),
             "verified_rows": sum(row["label"] == "verified_source" for row in rows),
             "span_width_turns": 3,
+            "safety_window_turns": 20,
+            "safety_comparison": {
+                name: {
+                    "all_evidence_rows": control["summary"][name]["all_evidence_rows"],
+                    "verified_all_evidence_rows": control["summary"][name]["verified_all_evidence_rows"],
+                    "mean_retained_turns": control["summary"][name]["mean_retained_turns"],
+                    "search_turn_reduction": control["summary"][name]["search_turn_reduction"],
+                }
+                for name in ("lineage_backward_12", "lineage_backward_20")
+            },
             "causal_cutoff": "record minute end",
             "queries": ["decision title", "full final record"],
             "raw_text_serialized": False,
@@ -263,12 +273,19 @@ def evaluate(repo: Path, codex_home: Path) -> dict[str, Any]:
 
 def report(result: dict[str, Any]) -> str:
     summary = result["summary"]
+    twelve = result["metadata"]["safety_comparison"]["lineage_backward_12"]
+    twenty = result["metadata"]["safety_comparison"]["lineage_backward_20"]
+    lexical = summary["lexical_top_3"]
+    phase_cues = summary["phase_top_3"]
+    full_record_one = summary["full_record_top_1"]
+    title_one = summary["lexical_top_1"]
+    full_record_three = summary["full_record_top_3"]
     lines = [
         "# Ranked short-span decision retrieval",
         "",
         "## Method",
         "",
-        "The frozen Codex-only 50-decision gold cohort and previously measured lineage plus 12-turn envelope are reused. Candidate spans contain up to three adjacent turns from one logical task. Turns and messages after the decision-record minute are excluded. Queries use the decision title or full final record. Gold evidence coordinates are read only after ranking. Recency, lexical overlap, isolated cue variants, and a combined phase variant are compared. Cues affect ranking only.",
+        "The frozen Codex-only 50-decision gold cohort is reused. A lineage-aware 20-turn lookback defines the safety envelope: up to 20 preceding turns plus the anchor in each selected/parent task, with the fixed-radius union able to add turns. The earlier 12-turn strategy remains in WINDOW-STRATEGY-RESULTS.json for direct comparison. Candidate spans contain up to three adjacent turns from one logical task. Turns and messages after the decision-record minute are excluded. Queries use the decision title or full final record. Gold evidence coordinates are read only after ranking. Recency, lexical overlap, isolated cue variants, and a combined phase variant are compared. Cues affect ranking only.",
         "",
         "| Strategy | Any evidence /50 | All evidence /50 | Verified complete /42 | Mean turns | Turn reduction vs causal envelope | Character reduction vs causal envelope |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -282,9 +299,11 @@ def report(result: dict[str, Any]) -> str:
         )
     lines.extend([
         "", "## Interpretation", "",
-        "The best tested three-span setting is title lexical overlap: 39/42 verified decisions retain every cited turn (92.9%), with 64.0% fewer parsed characters than the causal envelope. That is below the exploratory 98% complete-evidence target. A full final-record query is stronger for a single span (36/42 versus title-only 26/42), but weaker at three spans (37/42 versus 39/42); more query text is not a uniformly better ranker. The combined phase-cue score retains only 31/42 at three spans. These figures support using ranking to prioritize inspection, not to discard the rest of the envelope.",
+        f"The 20-turn safety envelope retains all cited turns for {twenty['all_evidence_rows']}/50 cases, compared with {twelve['all_evidence_rows']}/50 at 12 turns; both retain {twenty['verified_all_evidence_rows']}/42 verified sources. It averages {twenty['mean_retained_turns']:.1f} turns and removes {twenty['search_turn_reduction']:.1%} of the eligible search universe. This is a larger safety margin, not a measured improvement on the verified subset.",
         "",
-        "The next bounded test should inspect the three title-lexical misses at message level, then trial adaptive expansion: inspect the highest-ranked spans first, expand backward/through lineage when evidence is incomplete, and retain the 12-turn envelope as a fallback. The tool-heavy-then-user cue is only a possible round boundary; this experiment did not establish that implementation was complete at those points. The origin field is too sparse in this cohort to judge its value.",
+        f"The title-lexical top three retain every cited turn for {lexical['verified_all_evidence_rows']}/42 verified decisions, with {lexical['character_reduction_vs_pool']:.1%} fewer parsed characters than the 20-turn envelope. A full final-record query retains {full_record_one['verified_all_evidence_rows']}/42 in one span versus title-only {title_one['verified_all_evidence_rows']}/42, and {full_record_three['verified_all_evidence_rows']}/42 in three spans. The combined phase-cue score retains {phase_cues['verified_all_evidence_rows']}/42 at three spans. These figures support using ranking to prioritize inspection, not to discard the rest of the envelope.",
+        "",
+        "The next bounded test should inspect title-lexical misses at message level, then trial adaptive expansion: inspect the highest-ranked spans first, widen to the entire 20-turn safety envelope when evidence is incomplete, and only then extend farther back through lineage if needed. The tool-heavy-then-user cue is only a possible round boundary; this experiment did not establish that implementation was complete at those points. The origin field is too sparse in this cohort to judge its value.",
         "",
         "The causal envelope is the recall ceiling for these ranking variants. A gold turn can be counted even if the cited message is later in a long turn; future work should evaluate message-level provenance before treating turn recall as curator-ready context.",
         "",

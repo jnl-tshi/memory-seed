@@ -38,6 +38,7 @@ alignment = _load_alignment_module()
 
 Coordinate = tuple[str, int]
 PLAN_LOOKBACK_TURNS = 12
+SAFETY_LOOKBACK_TURNS = 20
 FALLBACK_LOOKBACK_TURNS = 5
 MAX_PARENT_DEPTH = 2
 
@@ -375,6 +376,15 @@ def evaluate(
             plan_lookback=0,
             fallback_lookback=PLAN_LOOKBACK_TURNS,
         )
+        lineage_backward_20 = fixed | lineage_adaptive_coordinates(
+            selected_rollout_id=selected["rollout_id"],
+            anchor_turn=int(best["anchor_turn"]),
+            decision_time=decision_time,
+            metas=metas,
+            blocks_by_rollout=blocks_by_rollout,
+            plan_lookback=0,
+            fallback_lookback=SAFETY_LOOKBACK_TURNS,
+        )
         output.append(
             {
                 "decision_id": decision_id,
@@ -394,6 +404,7 @@ def evaluate(
                     "plan_adaptive_12": plan_adaptive,
                     "plan_lineage_adaptive_12": lineage,
                     "lineage_backward_12": lineage_backward_12,
+                    "lineage_backward_20": lineage_backward_20,
                 },
             }
         )
@@ -413,6 +424,7 @@ def render_report(summary: dict[str, dict[str, Any]], metadata: dict[str, Any]) 
         "plan_adaptive_12",
         "plan_lineage_adaptive_12",
         "lineage_backward_12",
+        "lineage_backward_20",
     ):
         value = summary[name]
         rows.append(
@@ -467,7 +479,7 @@ def render_report(summary: dict[str, dict[str, Any]], metadata: dict[str, Any]) 
         f"`{overall_name}` is strongest: {overall['all_evidence_rows']}/{overall['rows']} "
         f"contain every cited source turn and all {overall['rows']} contain at least one, while "
         f"removing {_percent(overall['search_turn_reduction'])} of the temporal search universe. "
-        "The lone incomplete row is partial rather than a verified source."
+        "Compared with the 12-turn version, the extra recovered case is partial rather than a verified source."
     )
     plan = summary["plan_adaptive_12"]
     backward = summary["backward_5"]
@@ -498,6 +510,7 @@ def render_report(summary: dict[str, dict[str, Any]], metadata: dict[str, Any]) 
             "parent tasks, with each parent cut off at child creation time.",
             "- **Lineage + backward 12:** unconditional 12-turn expansion in the selected task and "
             "traversed parents; this is the high-recall control for the Plan-mode heuristic.",
+            "- **Lineage + backward 20:** the proposed wider safety envelope: up to 20 preceding turns plus the anchor in each selected/parent task, using the same causal and lineage rules. The fixed-radius union can add turns.",
             "",
             "All strategies are structural and were applied without reading gold evidence coordinates. "
             "Gold coordinates are used only for scoring. Encrypted reasoning and raw chat text are not "
@@ -539,6 +552,7 @@ def render_report(summary: dict[str, dict[str, Any]], metadata: dict[str, Any]) 
             f"- Parsed repository rollouts: {metadata['repository_rollouts']}",
             f"- Parsed turn blocks: {metadata['normalized_turn_blocks']}",
             f"- Plan lookback cap: {PLAN_LOOKBACK_TURNS} turns",
+            f"- Safety lookback: {SAFETY_LOOKBACK_TURNS} turns",
             f"- Fallback lookback: {FALLBACK_LOOKBACK_TURNS} turns",
             f"- Parent depth cap: {MAX_PARENT_DEPTH}",
             "",
@@ -647,6 +661,7 @@ def main() -> int:
         "normalized_turn_blocks": sum(len(blocks) for blocks in blocks_by_rollout.values()),
         "time_window_hours": alignment.TIME_WINDOW_HOURS,
         "plan_lookback_turns": PLAN_LOOKBACK_TURNS,
+        "safety_lookback_turns": SAFETY_LOOKBACK_TURNS,
         "fallback_lookback_turns": FALLBACK_LOOKBACK_TURNS,
         "max_parent_depth": MAX_PARENT_DEPTH,
         "raw_text_serialized": False,

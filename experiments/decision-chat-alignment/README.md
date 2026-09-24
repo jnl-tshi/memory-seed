@@ -72,7 +72,8 @@ This evaluator verifies cited timestamps against their source JSONL coordinates 
 aggregate metrics plus decision/source coordinates. It does not serialize raw chat or encrypted
 reasoning.
 
-To reproduce the short-span ranking ablation inside the previously measured causal safety envelope:
+To reproduce the short-span ranking ablation inside the lineage-aware 20-turn lookback safety
+envelope, first regenerate the window-strategy results using the preceding command, then run:
 
 ```powershell
 python -X utf8 experiments/decision-chat-alignment/evaluate_ranked_decision_spans.py `
