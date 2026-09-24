@@ -20,23 +20,19 @@ source: write-time
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `mse_936gt0xp5hqjv55y:d1`
+Authoritative decision: `mse_wgssyj0541btgke4:d2`
 
 ### Decision
 
-The SessionStart hook's injected pointer and AGENTS.md's Operating Mode section must state that completing the orientation chain (AGENTS.md -> agent-rules.md) is mandatory before any task action, not a numbered checklist a model can truncate for a task it judges simple.
+The orientation chain (AGENTS.md -> agent-rules.md) remains a mandatory gate before any task action for primary sessions. Delegated workers and subagents instead complete the orientation-lite gate: a digest-pinned subagent orientation skill, embedded in their Task Packet or read first when spawned without one, with full rules loaded on demand through a digest-verified path.
 
 ### Reason
 
-Transcript evidence from a targeted diagnostic replay showed two distinct failure shapes at two points in the same chain: one session never opened AGENTS.md at all, another opened it in full but never followed its own explicit next-step instruction to read agent-rules.md - which is where the actual session-logging rule lives. Both existing prompts read as sequential guidance, not a hard prerequisite, which a model treating its task as trivial can truncate without technically ignoring anything it looked at.
+Measured on 2026-09-24, embedded full baselines are 54-78% of every Task Packet. Workers receive project state from their orchestrator under the Worker Context Contract, and T3 moves session-write safety into the append tooling.
 
 ### Impact
 
-Builds on the git-diff trigger (adr_session_log_trigger_enforcement) and its wording revisions, which addressed sessions that DID read the rules but reasoned around them. This ADR addresses a distinct, earlier-stage failure: sessions that never reach the rules at all.
-
-### Awaiting review
-
-- `mse_wgssyj0541btgke4:d2` - The orientation chain (AGENTS.md -> agent-rules.md) remains a mandatory gate before any task action for...
+Refines the gate by role without weakening it for primary sessions; the worker gate becomes a digest-verified lite skill instead of the full chain.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -122,3 +118,28 @@ Measured on 2026-09-24, embedded full baselines are 54-78% of every Task Packet.
 #### Impact
 
 Refines the gate by role without weakening it for primary sessions; the worker gate becomes a digest-verified lite skill instead of the full chain.
+
+### revision-accepted - 2026-09-24T14:34:00
+
+```json
+{
+  "decision_ref": "mse_wgssyj0541btgke4:d2",
+  "event_id": "adre_9465059fd12f0eaafe18",
+  "expected_authoritative_decision": "mse_936gt0xp5hqjv55y:d1",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_2948qnxwpxx87w7t"
+}
+```
+
+#### Decision
+
+Accept mse_wgssyj0541btgke4:d2.
+
+#### Reason
+
+JNL reviewed the worker-scoped revision and approved it directly on 2026-09-24.
+
+#### Impact
+
+mse_wgssyj0541btgke4:d2 becomes the authoritative decision; later contrary evidence must create a successor revision.
