@@ -5,6 +5,8 @@ decisions with local Codex rollout windows. Start with `REPORT-CODEX-LINEAGE-CAU
 structural repair and causal controls, then `GOLD-SET-REPORT.md` for the manually adjudicated fixed
 50-decision cohort and candidate-window findings. `WINDOW-STRATEGY-REPORT.md` measures the recall and
 conversation reduction of fixed, backward, Plan-aware, continuation-aware, and parent-lineage windows.
+`ORIGIN-PHASE-REPORT.md` checks the proposed user/agent timing priors and reviewer-detection signals
+against the same gold cohort.
 
 The matcher never edits Memory Seed records or Codex rollouts. Public results contain source
 coordinates and hashes; raw conversation windows are written only to the explicitly supplied private
@@ -57,3 +59,15 @@ python -X utf8 experiments/decision-chat-alignment/evaluate_window_strategies.py
 The evaluator reads retained Codex logs but writes only aggregate counts and source coordinates to
 `WINDOW-STRATEGY-RESULTS.json`, `WINDOW-STRATEGY-ROWS.csv`, and
 `WINDOW-STRATEGY-REPORT.md`. It does not serialize raw chat or reasoning-summary text.
+
+To reproduce the origin, timing, and reviewer-signal hypothesis check:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/evaluate_origin_phase_hypotheses.py `
+  --repo . `
+  --output experiments/decision-chat-alignment
+```
+
+This evaluator verifies cited timestamps against their source JSONL coordinates and writes only
+aggregate metrics plus decision/source coordinates. It does not serialize raw chat or encrypted
+reasoning.
