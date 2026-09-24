@@ -65,11 +65,18 @@ def overlap(
     known_groups = set().union(*(source_groups(row, metas) for row in (known or [])))
     final_groups = set().union(*(source_groups(row, metas) for row in held_out))
     leaked = final_groups & (development_groups | known_groups)
+    affected = sorted(
+        row["decision"]["id"] for row in held_out
+        if source_groups(row, metas) & leaked
+    )
     return {
         "development_source_groups": len(development_groups),
         "known_source_groups": len(known_groups),
         "held_out_source_groups": len(final_groups),
         "overlapping_source_groups": len(leaked),
+        "overlap_with_development_group_count": len(final_groups & development_groups),
+        "overlap_with_known_group_count": len(final_groups & known_groups),
+        "affected_held_out_decision_ids": affected,
         "source_group_disjoint": not leaked,
         "overlap_group_hashes": sorted(hashlib.sha256(value.encode("utf-8")).hexdigest()[:16] for value in leaked),
         "limitation": "Unresolved rows have no verified source; this audit cannot prove their actual source-group separation.",

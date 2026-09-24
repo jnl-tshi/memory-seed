@@ -48,6 +48,13 @@ def conditional_oracle_scope(
     return baseline
 
 
+def staged_full_scope(
+    baseline: set[tuple[str, int]], neighbors: set[tuple[str, int]],
+) -> set[tuple[str, int]]:
+    """The frozen read order never discards the original 20-turn envelope."""
+    return baseline | neighbors
+
+
 def evaluate(
     gold_rows: list[dict[str, Any]], window_rows: dict[str, dict[str, Any]],
     fallback_rows: dict[str, dict[str, Any]], blocks: dict[str, list[Any]],
@@ -57,6 +64,7 @@ def evaluate(
         raise ValueError("Gold, window, and fallback cohorts must match")
     raw_index = token_eval.index_raw_tool_output_token_counts(blocks, tokenizer)
     stages = ("all_neighbor_1", "all_neighbor_10", "hybrid_recent1_text1",
+              "staged_full_recent_1", "staged_full_hybrid", "staged_full_recent_10",
               "hybrid_ranked_10", "conditional_hybrid_oracle")
     output_rows: list[dict[str, Any]] = []
     for gold in gold_rows:
@@ -70,8 +78,14 @@ def evaluate(
         evidence = token_eval._gold_evidence(gold)
         selected = {
             stage: coords(fallback["stages"][stage]["coordinates"])
-            for stage in stages if stage != "conditional_hybrid_oracle"
+            for stage in stages if stage not in {
+                "staged_full_recent_1", "staged_full_hybrid", "staged_full_recent_10",
+                "conditional_hybrid_oracle",
+            }
         }
+        selected["staged_full_recent_1"] = staged_full_scope(baseline, selected["all_neighbor_1"])
+        selected["staged_full_hybrid"] = staged_full_scope(baseline, selected["hybrid_recent1_text1"])
+        selected["staged_full_recent_10"] = staged_full_scope(baseline, selected["all_neighbor_10"])
         selected["conditional_hybrid_oracle"] = conditional_oracle_scope(
             baseline, selected["hybrid_recent1_text1"], evidence,
             gold["adjudication"]["label"],
@@ -83,6 +97,7 @@ def evaluate(
             raw_count, raw_tokens, omitted = token_eval.raw_tool_output_counts(selected_coords, raw_index, cutoff)
             stage_counts[stage] = {
                 "turns": len(selected_coords),
+                "contains_all_evidence": bool(evidence) and evidence <= selected_coords,
                 "normalized_tokens": normalized,
                 "raw_tool_output_count": raw_count,
                 "raw_tool_output_tokens": raw_tokens,
@@ -95,6 +110,11 @@ def evaluate(
         counts = [row["stages"][stage] for row in output_rows]
         summary[stage] = {
             "rows": len(counts),
+            "verified_rows": sum(row["gold_label"] == "verified_source" for row in output_rows),
+            "verified_all_evidence_rows": sum(
+                row["gold_label"] == "verified_source" and row["stages"][stage]["contains_all_evidence"]
+                for row in output_rows
+            ),
             "turns_total": sum(item["turns"] for item in counts),
             "normalized_tokens_total": sum(item["normalized_tokens"] for item in counts),
             "raw_tool_output_tokens_total": sum(item["raw_tool_output_tokens"] for item in counts),

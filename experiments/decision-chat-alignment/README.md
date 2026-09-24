@@ -84,9 +84,9 @@ python -X utf8 experiments/decision-chat-alignment/evaluate_ranked_decision_span
 See `RANKED-SPAN-REPORT.md` for the results and limitations. The evaluator writes only counts and
 source coordinates to `RANKED-SPAN-RESULTS.json`; it does not serialize conversation text.
 
-## Strict 100-decision extension (in progress)
+## Strict 100-decision extension (provisional gold set complete)
 
-`COHORT-100-STATUS.md` is the execution record. The original 50 tagged records
+`COHORT-100-REPORT.md` is the result and `COHORT-100-STATUS.md` is the execution record. The original 50 tagged records
 contain 47 typed Decisions and three Documentation controls, so the frozen
 seeded extension samples **53** unseen typed Codex Decisions to reach 100
 strict decisions. Do not redraw the sample while comparing retrieval changes.
@@ -98,6 +98,10 @@ The private review workflow is: two independent source checks, exact ordinal
 and timestamp validation, explicit adjudicator selections, and only then the
 fail-closed gold assembler. An automatic candidate is a search hint, never a
 positive label. Blank or unresolved reviews do not become negatives.
+Both new-cohort splits have now been independently reviewed and explicitly
+adjudicated; the held-out labels were opened only after the retrieval setting
+was frozen. The final source-lineage audit found one development/held-out
+overlap group, reported in the result rather than repaired after unsealing.
 
 ```powershell
 $reviewDir = Join-Path $env:TEMP 'memory-seed-cohort100-verification'
@@ -152,6 +156,12 @@ coverage and token measurements with `evaluate_nearby_session_fallback.py`
 followed by `measure_fallback_tokens.py`; see each script's `--help` for the
 exact read-only inputs and explicit output path. The "conditional" cost is a
 gold-oracle calculation, not an automatic decision that the evidence is enough.
+Held-out outputs are under `cohort-100/heldout-evaluation/`. The final
+`measure_cited_messages.py` run takes the historical, development, and held-out
+gold files together, excludes the three Documentation controls from strict
+totals, and counts exact cited raw ordinals without saving transcript text.
+`check_source_leakage.py` groups sources through parent-agent lineage and
+intentionally returns nonzero when the split overlaps.
 
 For the original 50, `evaluate_staged_retrieval.py` measures the requested read
 order using frozen window/ranker outputs: top three short spans **inside** the

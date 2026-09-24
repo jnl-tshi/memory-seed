@@ -32,11 +32,25 @@ class SourceLeakageTests(unittest.TestCase):
             "a": SimpleNamespace(session_id="same", parent_thread_id=None),
             "b": SimpleNamespace(session_id="child", parent_thread_id="same"),
         }
-        dev = [{"adjudication": {"label": "verified_source", "evidence_refs": [{"rollout_id": "a", "turn": 1}]}}]
-        final = [{"adjudication": {"label": "verified_source", "evidence_refs": [{"rollout_id": "b", "turn": 1}]}}]
+        dev = [{"decision": {"id": "dev:d1"}, "adjudication": {"label": "verified_source", "evidence_refs": [{"rollout_id": "a", "turn": 1}]}}]
+        final = [{"decision": {"id": "held:d1"}, "adjudication": {"label": "verified_source", "evidence_refs": [{"rollout_id": "b", "turn": 1}]}}]
         result = leakage.overlap(dev, final, metas)
         self.assertEqual(result["overlapping_source_groups"], 1)
         self.assertFalse(result["source_group_disjoint"])
+
+    def test_overlap_names_affected_decisions_and_comparison_set(self) -> None:
+        metas = {
+            "known": SimpleNamespace(session_id="shared", parent_thread_id=None),
+            "held": SimpleNamespace(session_id="child", parent_thread_id="shared"),
+        }
+        known = [{"decision": {"id": "known:d1"}, "adjudication": {
+            "label": "verified_source", "evidence_refs": [{"rollout_id": "known", "turn": 1}]}}]
+        final = [{"decision": {"id": "held:d1"}, "adjudication": {
+            "label": "verified_source", "evidence_refs": [{"rollout_id": "held", "turn": 2}]}}]
+        result = leakage.overlap([], final, metas, known)
+        self.assertEqual(result["affected_held_out_decision_ids"], ["held:d1"])
+        self.assertEqual(result["overlap_with_known_group_count"], 1)
+        self.assertEqual(result["overlap_with_development_group_count"], 0)
 
 
 if __name__ == "__main__":

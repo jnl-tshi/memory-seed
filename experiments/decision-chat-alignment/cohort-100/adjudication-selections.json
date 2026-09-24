@@ -1,6 +1,6 @@
 {
   "schema_version": "decision-adjudication-selections/1.0",
-  "status": "development_adjudication_incomplete",
+  "status": "development_adjudication_complete",
   "selections": {
     "mse_2b6c8d9f1h3j5k7m:d1": {
       "use_review": "B",

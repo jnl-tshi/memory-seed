@@ -1,6 +1,6 @@
 # 100-decision alignment experiment — execution record
 
-This is an in-progress empirical run, not a production retrieval contract or a
+This is a completed empirical run, not a production retrieval contract or a
 classifier-training set. The frozen original cohort contains 50 Codex-tagged
 records, of which 47 are currently typed `Decision` and three are typed
 `Documentation`. Those three remain in the historical audit but are excluded
@@ -28,11 +28,11 @@ heuristic candidate ranks, **not verified source labels**. Thirty candidate
 windows being High/Medium does not mean thirty decisions were correctly
 aligned.
 
-The new cases are split by whole *candidate logical session* into 33
+The new cases were split by whole *candidate logical session* into 33
 development and 20 held-out decisions. No held-out candidate session appeared
-in the original gold set. The split is provisional until reviewers establish
-actual source sessions; if an actual source crosses groups, leakage must be
-reassessed before final scoring. Two reviewers receive independent private
+in the original gold set. A post-label source-lineage check found one actual
+source group crossing both development and historical groups; four held-out
+rows are affected. Two reviewers received independent private
 packets. A five-case pilot showed that wholly blind source searches were too
 slow for this cohort, so remaining reviews may use the frozen matcher candidate
 as a **hint**, not as proof. Each review records `review_mode` as either
@@ -124,7 +124,7 @@ constitutional allowance. Expired, unavailable, or withdrawn evidence needs
 an explicit state, never an invented citation. This experiment adds no hosted
 storage, permission, or retention behavior.
 
-## Development result and held-out boundary
+## Final results and held-out boundary
 
 Two independent reviewers completed all 33 development rows. Explicit
 adjudication produced 27 verified sources, two partial, and four unresolved;
@@ -134,8 +134,9 @@ rollout from the frozen matcher candidate. The original matcher plus the
 top-three lexical spans inside it contained all evidence for 22/27. A
 development-only fallback including one recent neighboring session and one
 text-relevant neighboring session contained all cited evidence for 27/27.
-The same 27/27 coverage with ten recency neighbors retained 2,383 turns across
-the 33 decisions; the hybrid retained 2,049. Ranked short spans plus the
+The same 27/27 coverage with ten recency neighbors retained 2,433 turns across
+the 33 decisions after union with the initial scope; the hybrid retained 2,099.
+Ranked short spans plus the
 original envelope retained 811 turns at ten spans but fell to 26/27, so the
 short view cannot replace the full fallback. If invoked only for the three
 known baseline misses, the full hybrid would raise the total from 613 to 823
@@ -153,25 +154,26 @@ Exact cited messages are a lower bound on the surrounding context a curator
 would need to interpret them.
 
 `cohort-100/frozen-retrieval-setting.json` records the development-selected
-read order before held-out labels are opened. Source misses had two concrete
+read order before held-out labels were opened. Source misses had two concrete
 causes: a preceding voice-chat session without a parent link, and a relevant
 projectless session excluded by repository-only candidate filtering. The
-held-out 20 must be scored without tuning this rule. Candidate-session grouping
-still cannot prove source-session separation. `check_source_leakage.py` will
-compare verified source groups after collapsing parent/child lineage; overlap
-must be reported as a limitation rather than repaired by tuning on those
-labels. One supplemental unresolved-case search was discarded because a broad
+held-out 20 were scored without tuning this rule. Candidate-session grouping
+did not prove source-session separation: `check_source_leakage.py` found one
+actual source-lineage group crossing groups, affecting four held-out rows.
+The overlap was reported, not repaired by tuning. One supplemental
+unresolved-case search was discarded because a broad
 raw-log search surfaced embedded evaluator-style transcript material; it
 contributed no independent judgment or gold label.
 
-The development-only fallback token run reports 5,547,547 normalized tokens
-for one recent neighbor, 7,857,665 for the recent-plus-text hybrid, and
-8,123,245 for ten recent neighbors, versus 2,265,636 for the initial 20-turn
-scope. The hybrid ranked-to-ten short view is 4,862,125 tokens but misses one
+The development-only fallback token run reports 5,593,819 normalized tokens
+for the initial scope plus one recent neighbor, 7,903,937 for the initial
+scope plus the recent-plus-text hybrid, and 8,169,517 for the initial scope
+plus ten recent neighbors, versus 2,265,636 for the initial 20-turn scope.
+The hybrid ranked-to-ten short view is 4,862,125 tokens but misses one
 verified source. A gold-oracle expansion of the hybrid *only* for the three
 known initial misses would be 3,320,007 tokens; this is a hypothetical cost,
 not an implemented sufficiency detector. Raw tool-output text proxies add
-39,097,389, 46,032,996, 62,451,996, 28,145,672, and 20,566,232 tokens
+39,639,943, 46,575,550, 62,994,550, 28,145,672, and 20,566,232 tokens
 to those five stages respectively; encoded payloads inside text can inflate
 them. `cohort-100/development-evaluation/ITERATION-MEASUREMENTS.json` records
 four measured strategy comparisons on the same development IDs. The
@@ -179,7 +181,11 @@ predeclared gate accepts the two recall gains and stops after ten-neighbor
 expansion yields no gain and short ranking loses one verified source. Runtime
 was not consistently measured and is recorded as unknown, not zero.
 
-One held-out candidate points to this live root task's rollout. Reviewers are
-excluding that live conversation from evidence rather than allowing task
-discussion to contaminate the sealed evaluation; its disposition will be
-reported explicitly after adjudication.
+Held-out adjudication yielded 16 verified, one partial, two child-result-only,
+and one unresolved. The unresolved candidate pointed to this live root task's
+rollout; both reviewers excluded it rather than allowing task discussion to
+contaminate the test. The frozen initial scope held all cited evidence for
+16/16 verified held-out decisions; the first three ranked spans held it for
+13/16. The source-group-clean subset has 14 verified decisions, with 14/14 in
+the initial scope and 13/14 in the top three spans. The full analysis, token
+totals for all 100 typed decisions, and limitations are in `COHORT-100-REPORT.md`.

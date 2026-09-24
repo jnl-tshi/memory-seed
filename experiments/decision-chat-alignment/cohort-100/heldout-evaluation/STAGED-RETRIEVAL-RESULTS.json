@@ -1,0 +1,434 @@
+{
+  "method": "gold-guided oracle stage coverage; escalation unions causal source scope with previously read envelope; no online semantic stop verifier",
+  "rows": [
+    {
+      "cited_turns": 2,
+      "decision_id": "ms-38098d7a:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 17,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 90799,
+        "lexical_top_3": 11857,
+        "lineage_backward_20": 45428,
+        "minimal_useful_content": 1078
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 16,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "ms-3cad2a35:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 7,
+      "evidence_status": "cited",
+      "first_complete_stage": "lineage_backward_20",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 90799,
+        "lexical_top_3": 14375,
+        "lineage_backward_20": 23730,
+        "minimal_useful_content": 1641
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 6,
+      "strict_decision": true,
+      "top_3_all_evidence": false,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 0,
+      "decision_id": "mse_38b7jfjbwy8dfdtt:d1",
+      "envelope_all_evidence": false,
+      "envelope_turns": 23,
+      "evidence_status": "unresolved",
+      "first_complete_stage": null,
+      "gold_label": "unresolved",
+      "proxy_tokens": {
+        "full_logical_session": 325512,
+        "lexical_top_3": 28902,
+        "lineage_backward_20": 103074,
+        "minimal_useful_content": 0
+      },
+      "scope_all_evidence": false,
+      "scope_turns": 29,
+      "strict_decision": true,
+      "top_3_all_evidence": false,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_3hx7ym0qajvxm1w4:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 23,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "child_result",
+      "proxy_tokens": {
+        "full_logical_session": 9083,
+        "lexical_top_3": 26425,
+        "lineage_backward_20": 144348,
+        "minimal_useful_content": 762
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 168,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_a58avhtbcy9djpa0:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 23,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 276939,
+        "lexical_top_3": 32614,
+        "lineage_backward_20": 57126,
+        "minimal_useful_content": 88
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 51,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_ak94rd4r1zna4bc7:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 24,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "child_result",
+      "proxy_tokens": {
+        "full_logical_session": 32102,
+        "lexical_top_3": 31477,
+        "lineage_backward_20": 179813,
+        "minimal_useful_content": 83
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 170,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_ed8zaf52k3eyaxqv:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 21,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "partial_multi_turn",
+      "proxy_tokens": {
+        "full_logical_session": 90799,
+        "lexical_top_3": 25409,
+        "lineage_backward_20": 74435,
+        "minimal_useful_content": 312
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 25,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_eszq6qxf2jck32e8:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 5,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 19970,
+        "lexical_top_3": 6896,
+        "lineage_backward_20": 6896,
+        "minimal_useful_content": 170
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 3,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "mse_fx1gm0x6p1sts4y2:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 12,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 51706,
+        "lexical_top_3": 18132,
+        "lineage_backward_20": 25166,
+        "minimal_useful_content": 1181
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 11,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 6
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "mse_jem7xd5yd771rkwq:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 24,
+      "evidence_status": "cited",
+      "first_complete_stage": "lineage_backward_20",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 15711,
+        "lexical_top_3": 70791,
+        "lineage_backward_20": 187020,
+        "minimal_useful_content": 1033
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 179,
+      "strict_decision": true,
+      "top_3_all_evidence": false,
+      "top_3_turns": 5
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "mse_jem7xd5yd771rkwq:d3",
+      "envelope_all_evidence": true,
+      "envelope_turns": 24,
+      "evidence_status": "cited",
+      "first_complete_stage": "lineage_backward_20",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 15711,
+        "lexical_top_3": 8301,
+        "lineage_backward_20": 187020,
+        "minimal_useful_content": 1033
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 179,
+      "strict_decision": true,
+      "top_3_all_evidence": false,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_nttx32yw5ejypz5m:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 6,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 31328,
+        "lexical_top_3": 20349,
+        "lineage_backward_20": 29925,
+        "minimal_useful_content": 203
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 6,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_nw47r0vpcj5tr2pj:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 2,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 17009,
+        "lexical_top_3": 8564,
+        "lineage_backward_20": 8564,
+        "minimal_useful_content": 129
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 1,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 1
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_ssxkdsjq8d0knk4v:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 14,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 276939,
+        "lexical_top_3": 49398,
+        "lineage_backward_20": 66121,
+        "minimal_useful_content": 1538
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 12,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_v7pdg66vgfbctyfj:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 10,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 19970,
+        "lexical_top_3": 1463,
+        "lineage_backward_20": 14622,
+        "minimal_useful_content": 214
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 8,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_vjb1kgdq26c5b38y:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 18,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 51706,
+        "lexical_top_3": 11419,
+        "lineage_backward_20": 40501,
+        "minimal_useful_content": 251
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 16,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "mse_vpqwta8c6m8yj6nk:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 23,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 276939,
+        "lexical_top_3": 12523,
+        "lineage_backward_20": 79512,
+        "minimal_useful_content": 397
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 24,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_z61np2tq3zkg01ew:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 8,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 19970,
+        "lexical_top_3": 4451,
+        "lineage_backward_20": 12521,
+        "minimal_useful_content": 81
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 6,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 2,
+      "decision_id": "mse_z8tp67yhcrtkq110:d1",
+      "envelope_all_evidence": true,
+      "envelope_turns": 8,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 19970,
+        "lexical_top_3": 2527,
+        "lineage_backward_20": 13652,
+        "minimal_useful_content": 132
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 6,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 3
+    },
+    {
+      "cited_turns": 1,
+      "decision_id": "mse_ztcsrx4hw0b6kxdv:d2",
+      "envelope_all_evidence": true,
+      "envelope_turns": 3,
+      "evidence_status": "cited",
+      "first_complete_stage": "lexical_top_3",
+      "gold_label": "verified_source",
+      "proxy_tokens": {
+        "full_logical_session": 16688,
+        "lexical_top_3": 11579,
+        "lineage_backward_20": 11579,
+        "minimal_useful_content": 260
+      },
+      "scope_all_evidence": true,
+      "scope_turns": 1,
+      "strict_decision": true,
+      "top_3_all_evidence": true,
+      "top_3_turns": 1
+    }
+  ],
+  "schema_version": "decision-staged-retrieval-evaluation/1.0",
+  "summary": {
+    "first_complete_stage_counts": {
+      "lexical_top_3": 13,
+      "lineage_backward_20": 3
+    },
+    "proxy_token_totals": {
+      "full_logical_session": 1749650,
+      "lexical_top_3": 397452,
+      "lineage_backward_20": 1311053,
+      "minimal_useful_content": 10586
+    },
+    "rows": 20,
+    "strict_decision_proxy_token_totals": {
+      "full_logical_session": 1749650,
+      "lexical_top_3": 397452,
+      "lineage_backward_20": 1311053,
+      "minimal_useful_content": 10586
+    },
+    "strict_decision_rows": 20,
+    "strict_verified_complete_at_20": 16,
+    "strict_verified_complete_at_top_3": 13,
+    "strict_verified_rows": 16,
+    "unresolved_rows": 1,
+    "verified_complete_at_20": 16,
+    "verified_complete_at_scope": 16,
+    "verified_complete_at_top_3": 13,
+    "verified_rows": 16
+  }
+}

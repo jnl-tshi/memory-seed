@@ -1,0 +1,19 @@
+{
+  "affected_held_out_decision_ids": [
+    "mse_3hx7ym0qajvxm1w4:d2",
+    "mse_ak94rd4r1zna4bc7:d2",
+    "mse_jem7xd5yd771rkwq:d2",
+    "mse_jem7xd5yd771rkwq:d3"
+  ],
+  "development_source_groups": 14,
+  "held_out_source_groups": 8,
+  "known_source_groups": 20,
+  "limitation": "Unresolved rows have no verified source; this audit cannot prove their actual source-group separation.",
+  "overlap_group_hashes": [
+    "a0e88365bd9dd7ff"
+  ],
+  "overlap_with_development_group_count": 1,
+  "overlap_with_known_group_count": 1,
+  "overlapping_source_groups": 1,
+  "source_group_disjoint": false
+}

@@ -15,6 +15,11 @@ SPEC.loader.exec_module(measure)
 
 
 class FallbackTokenTests(unittest.TestCase):
+    def test_full_fallback_retains_initial_safety_scope(self) -> None:
+        baseline = {("initial", 1)}
+        neighbors = {("nearby", 2)}
+        self.assertEqual(measure.staged_full_scope(baseline, neighbors), baseline | neighbors)
+
     def test_conditional_oracle_only_expands_verified_baseline_miss(self) -> None:
         baseline = {("a", 1)}
         fallback = {("a", 1), ("b", 2)}
