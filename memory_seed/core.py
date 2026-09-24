@@ -101,6 +101,14 @@ CORE_RETRIEVAL_PROFILES = (
     ("adr-review", 1),
     ("refactoring", 1),
     ("architecture", 1),
+    # v2 of each profile extends its v1 and turns on selectors.source_references
+    # (decision S: sources followed one hop). v1 stays immutable and unchanged.
+    ("implementation", 2),
+    ("bug-investigation", 2),
+    ("research", 2),
+    ("adr-review", 2),
+    ("refactoring", 2),
+    ("architecture", 2),
 )
 
 

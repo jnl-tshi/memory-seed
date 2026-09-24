@@ -523,6 +523,32 @@ def _retrieval_corpus_revision(
         candidate = _runtime_scoped_path(root, relative)
         if candidate.is_file() and candidate.suffix.lower() == ".md":
             inputs.add(candidate)
+    if normalized_spec.get("selectors", {}).get("source_references") and sessions.is_dir():
+        # Followed S: sources are read from the live tree, so every Markdown
+        # file any session cites joins the revision: editing one invalidates
+        # the pack exactly as editing a session would.  Off by default, so the
+        # revision of every pre-existing spec is unchanged.
+        from .semantic_cache import _extract_source_references, _normalize_file_ref
+
+        for path in sessions.rglob("*.md"):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for ref in _extract_source_references(text):
+                relative = _normalize_file_ref(ref.path)
+                if (
+                    Path(relative).suffix.lower() != ".md"
+                    or any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in Path(relative).parts)
+                ):
+                    continue
+                try:
+                    candidate = _runtime_scoped_candidate_path(
+                        root, root / relative, stage="corpus_revision", details={"path": relative})
+                except RetrievalSpecResolutionError:
+                    continue
+                if candidate.is_file():
+                    inputs.add(candidate)
 
     digest = hashlib.sha256()
     digest.update(b"memory-seed-retrieval-corpus-v1\0")
@@ -934,6 +960,182 @@ def _check_retrieval_timeout(
         stage=stage,
         completed_stages=completed_stages,
     )
+
+
+# Source following (``selectors.source_references``): one hop from a selected
+# decision to the documents its DRAFTS ``S:`` lines cite.  Governance control
+# files are never followed - orientation lite loads them on demand - and the
+# Constitution is routed to clause projection instead of whole-file evidence.
+SOURCE_REFERENCE_MAX_TOKENS = 4_000
+_SOURCE_REFERENCE_EXCLUDED = frozenset(
+    {".memory-seed/index.md", ".memory-seed/policy.md", ".memory-seed/agent-rules.md"}
+)
+_SOURCE_REFERENCE_CONSTITUTIONS = frozenset({"docs/CONSTITUTION.md", "CONSTITUTION.md"})
+_SOURCE_REFERENCE_RETIRED_PREFIXES = ("docs/7_Replaced/", "docs/4_Reference/archived/")
+
+
+def _heading_slug(heading: str) -> str:
+    """GitHub-style anchor slug for one Markdown heading line."""
+    text = heading.strip().lstrip("#").strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text)
+    return text.replace(" ", "-")
+
+
+def _anchored_section(lines: Sequence[str], anchor: str) -> tuple[int, int] | None:
+    """Return the 0-based ``[start, end)`` span of the heading slugged ``anchor``.
+
+    The section runs to the next heading of the same or a higher level.
+    Fenced code is skipped so a ``#`` inside a code block is never a heading.
+    """
+    in_fence = False
+    start: int | None = None
+    level = 0
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = re.match(r"^(#{1,6})\s+\S", line)
+        if not match:
+            continue
+        if start is None:
+            if _heading_slug(line) == anchor:
+                start, level = index, len(match.group(1))
+        elif len(match.group(1)) <= level:
+            return start, index
+    return None if start is None else (start, len(lines))
+
+
+def _source_reference_warning(code: str, decision_id: str, ref: str, detail: str = "") -> dict[str, str]:
+    return {
+        "code": code,
+        "clause": "selectors.source_references",
+        "detail": f"{decision_id} -> {ref}" + (f": {detail}" if detail else ""),
+    }
+
+
+def _follow_source_references(
+    root: Path,
+    runtime: Any,
+    chunks: Sequence[MemoryChunk],
+    candidates: dict[str, _RetrievalCandidate],
+    warnings: list[dict[str, str]],
+) -> tuple[int, list[str]]:
+    """Add each selected decision's cited sources as optional evidence.
+
+    Returns ``(followed_count, constitution_anchors)``.  Every ref that is not
+    followed is reported by one warning naming the decision and the reason.
+    """
+    from .semantic_cache import (
+        _continuity_alias_map,
+        _extract_source_references,
+        _normalize_file_ref,
+    )
+
+    aliases = _continuity_alias_map(list(chunks))
+    constitution_anchors: set[str] = set()
+    followed = 0
+    decisions = sorted(
+        (candidate for candidate in candidates.values() if candidate.kind == "decision"),
+        key=lambda candidate: (
+            candidate.graph_distance if candidate.graph_distance is not None else -1,
+            candidate.evidence_id,
+        ),
+    )
+    for decision in decisions:
+        for ref in _extract_source_references(decision.text):
+            authored = _normalize_file_ref(ref.path)
+            label = authored + (f"#{ref.anchor}" if ref.anchor else "")
+            if authored in _SOURCE_REFERENCE_CONSTITUTIONS:
+                if ref.anchor:
+                    constitution_anchors.add(ref.anchor)
+                continue
+            if authored in _SOURCE_REFERENCE_EXCLUDED:
+                warnings.append(_source_reference_warning(
+                    "source_ref_excluded", decision.evidence_id, label,
+                    "governance control file; load it on demand"))
+                continue
+            if any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in Path(authored).parts):
+                warnings.append(_source_reference_warning(
+                    "source_ref_forbidden", decision.evidence_id, label))
+                continue
+            current = aliases.get(authored, authored)
+            if current != authored:
+                warnings.append(_source_reference_warning(
+                    "source_ref_moved", decision.evidence_id, label, f"now {current}; not followed"))
+                continue
+            if authored.startswith(_SOURCE_REFERENCE_RETIRED_PREFIXES):
+                warnings.append(_source_reference_warning(
+                    "source_ref_retired", decision.evidence_id, label,
+                    "replaced or archived document; follow its successor pointer"))
+                continue
+            if Path(authored).suffix.lower() != ".md":
+                warnings.append(_source_reference_warning(
+                    "source_ref_non_markdown", decision.evidence_id, label))
+                continue
+            try:
+                target = _runtime_scoped_candidate_path(
+                    root, root / authored, stage="source_references", details={"path": authored})
+            except RetrievalSpecResolutionError:
+                warnings.append(_source_reference_warning(
+                    "source_ref_forbidden", decision.evidence_id, label))
+                continue
+            if not target.is_file():
+                warnings.append(_source_reference_warning(
+                    "source_ref_missing", decision.evidence_id, label))
+                continue
+            try:
+                lines = target.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeDecodeError):
+                warnings.append(_source_reference_warning(
+                    "source_ref_unreadable", decision.evidence_id, label))
+                continue
+            source = target.relative_to(root).as_posix()
+            span: tuple[int, int] | None = None
+            if ref.anchor:
+                span = _anchored_section(lines, ref.anchor)
+                if span is None:
+                    warnings.append(_source_reference_warning(
+                        "source_ref_anchor_missing", decision.evidence_id, label,
+                        "heading not found; whole file considered"))
+            start, end = span if span is not None else (0, len(lines))
+            evidence_id = f"{source}#{ref.anchor}" if span is not None else source
+            if source in candidates or evidence_id in candidates:
+                existing = candidates.get(evidence_id) or candidates[source]
+                existing.reasons.add(f"cited by {decision.evidence_id} S: source")
+                continue
+            try:
+                target.relative_to((runtime.memory_dir / "decisions").resolve())
+            except ValueError:
+                kind = "markdown"
+            else:
+                warnings.append(_source_reference_warning(
+                    "source_ref_adr", decision.evidence_id, label,
+                    "ADRs are selected by pinned or path selectors, not followed"))
+                continue
+            text = "\n".join(lines[start:end])
+            candidate = _RetrievalCandidate(
+                evidence_id=evidence_id,
+                kind=kind,
+                source=source,
+                line_range=(start + 1, max(start + 1, end)),
+                chunk_id=None,
+                session_date=None,
+                graph_distance=(decision.graph_distance or 0) + 1,
+                text=text,
+                selected_by={"optional.source_references"},
+                reasons={f"cited by {decision.evidence_id} S: source"},
+            )
+            if candidate.token_estimate > SOURCE_REFERENCE_MAX_TOKENS:
+                warnings.append(_source_reference_warning(
+                    "source_ref_over_cap", decision.evidence_id, label,
+                    f"{candidate.token_estimate} tokens exceeds the {SOURCE_REFERENCE_MAX_TOKENS}-token "
+                    "per-source cap; cite a heading anchor"))
+                continue
+            _merge_candidate(candidates, candidate)
+            followed += 1
+    return followed, sorted(constitution_anchors)
 
 
 def _build_retrieval_plan(
@@ -1458,6 +1660,24 @@ def _build_retrieval_plan(
             "depth": depth_limit,
         }
     )
+    follow_sources = bool(normalized.get("selectors", {}).get("source_references", False))
+    constitution_anchors: list[str] = []
+    if follow_sources:
+        _check_retrieval_timeout(
+            clock, started, timeout_ms, stage="source_references", completed_stages=completed
+        )
+        followed_count, constitution_anchors = _follow_source_references(
+            root, runtime, chunks, candidates, warnings
+        )
+        completed.append("source_references")
+        trace.append(
+            {
+                "stage": "source_references",
+                "reader": "decision S: source reader (one hop, runtime-bounded Markdown)",
+                "candidate_count": followed_count,
+                "constitution_anchors": constitution_anchors,
+            }
+        )
     _check_retrieval_timeout(
         clock, started, timeout_ms, stage="optional_sessions", completed_stages=completed
     )
@@ -1609,7 +1829,7 @@ def _build_retrieval_plan(
             "token_estimate": tokens,
         }
     )
-    return {
+    plan = {
         "selected": selected,
         "candidate_count": len(ordered),
         "omitted_count": len(omitted),
@@ -1618,6 +1838,9 @@ def _build_retrieval_plan(
         "trace": trace,
         "completed_stages": completed,
     }
+    if follow_sources:
+        plan["source_reference_constitution_anchors"] = constitution_anchors
+    return plan
 
 
 def _evidence_record(
@@ -1738,6 +1961,8 @@ def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
             record["model_selection_reasons"] = item["model_selection_reasons"]
             record["pinned_required"] = item["pinned_required"]
         identity["evidence"].append(record)
+    if "source_reference_constitution_anchors" in pack:
+        identity["source_reference_constitution_anchors"] = pack["source_reference_constitution_anchors"]
     return "sha256:" + hashlib.sha256(
         canonical_retrieval_json(identity).encode("utf-8")
     ).hexdigest()
@@ -1886,6 +2111,10 @@ def resolve_retrieval_spec(
         "token_estimate": plan["token_estimate"],
         "fingerprint": "",
     }
+    if "source_reference_constitution_anchors" in plan:
+        # Present only when source following is on, so every existing pack
+        # keeps its exact shape.  Consumed by Constitution clause projection.
+        pack["source_reference_constitution_anchors"] = plan["source_reference_constitution_anchors"]
     pack["fingerprint"] = _evidence_pack_fingerprint(pack)
     _check_retrieval_timeout(
         _clock,

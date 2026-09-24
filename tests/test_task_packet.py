@@ -368,6 +368,45 @@ class TaskPacketTests(unittest.TestCase):
             validate_task_packet_supplemental_fetch(packet, "docs/gap.md", [1, 3], token_estimate=1001)
         self.assertEqual(packet, original)
 
+    def test_governance_load_verifies_pin_and_never_debits_the_reserve(self):
+        from memory_seed.task_packet import (
+            governance_reference,
+            load_task_packet_governance,
+            validate_task_packet_supplemental_fetch,
+        )
+        root = self.make_project()
+        packet = compile_task_packet(self.dispatch(), self.binding(root), root)
+        # v1 packets embed their governance; the lazy path refuses and the
+        # historical re-read refusal is unchanged.
+        with self.assertRaisesRegex(TaskPacketValidationError, "governance_embedded"):
+            load_task_packet_governance(packet, "session_logging", root)
+        with self.assertRaisesRegex(TaskPacketValidationError, "duplicate_evidence_content"):
+            validate_task_packet_supplemental_fetch(packet, ".memory-seed/agent-rules.md", [1, 3], token_estimate=10)
+
+        lazy = copy.deepcopy(packet)
+        lazy.pop("worker_baseline")
+        memory_dir = root / ".memory-seed"
+        lazy["governance_references"] = {
+            "session_logging": governance_reference(memory_dir, ".memory-seed/skills/session_logging.md"),
+        }
+        before = copy.deepcopy(lazy)
+        loaded = load_task_packet_governance(lazy, "session_logging", root)
+        self.assertEqual(
+            loaded["content"],
+            (memory_dir / "skills" / "session_logging.md").read_bytes().decode("utf-8"),
+        )
+        self.assertEqual(loaded["supplemental_debit"], 0)
+        self.assertEqual(lazy, before)
+        # The supplemental path's refusal of referenced governance needs a
+        # canonical v2 packet (the fetch check verifies the fingerprint first);
+        # it is covered with the v2 compiler in T8.
+        with self.assertRaisesRegex(TaskPacketValidationError, "missing_governance_reference"):
+            load_task_packet_governance(lazy, "agent_rules", root)
+
+        (memory_dir / "skills" / "session_logging.md").write_text("# Edited after compile\n", encoding="utf-8")
+        with self.assertRaisesRegex(TaskPacketValidationError, "stale_governance"):
+            load_task_packet_governance(lazy, "session_logging", root)
+
     def test_planning_rejects_duplicated_materialized_evidence(self):
         root = self.make_project()
         dispatch = self.planning_dispatch(root)

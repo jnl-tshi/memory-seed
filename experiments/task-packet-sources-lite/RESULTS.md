@@ -25,7 +25,22 @@ to about 4.3k tokens, and the session-writing one to about 4.6k. This confirms t
 
 Raw output: [`t0.json`](t0.json).
 
-## T3 — mechanical session-write backstop
+## T7 — blocked: no packet compiles against this repository
+
+`measure.py --repo` compiles read-only packets over the real corpus with two pinned decisions. It fails in
+both profiles, before source following runs:
+
+> `invalid_constitution_projection`: Constitution anchors must use the ratified Version's major identity
+
+- `docs/CONSTITUTION.md` has been ratified as v2.x since 2026-09-19 (a4b51292), but all 30 of its clause anchors
+  still read `constitution:v1#…`.
+- `_constitution_clauses` requires the anchor prefix to match the ratified major version. So every Task
+  Packet compiled against this repository has been refused since v2.0 was ratified.
+- 54 ADRs, and 56 code and test references, bind `constitution:v1#…` anchors.
+- The pilot fixture is unaffected; it carries its own Constitution.
+
+This check predates the plan, and fixing it needs a decision (see the session log).
+
 
 - `entry_future_timestamp_issue` (`memory_seed/core.py`) refuses a heading more than 10 minutes in the
   future. It applies at CLI and MCP append, including dry runs, and when `session fuse`, `merge-branch` or MCP

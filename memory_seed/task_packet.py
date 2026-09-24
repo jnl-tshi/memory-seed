@@ -981,6 +981,69 @@ def _validate_planning_evidence(dispatch: Mapping[str, Any], records: Sequence[M
         _fail("planning_evidence.assessed_scope", "task scope expanded beyond assessed evidence", code="stale_planning_evidence")
 
 
+def governance_reference(memory_dir: Path, relative_source: str) -> dict[str, Any]:
+    """Pin one full control-plane file by identity, without embedding it.
+
+    The reference carries everything ``load_task_packet_governance`` needs to
+    prove later bytes are the compiled bytes: path, size, digest, and the
+    token estimate a worker will spend if it loads the file.
+    """
+    record = _materialize_worker_baseline_document(memory_dir, relative_source, required=True)
+    assert record is not None
+    return {key: record[key] for key in ("source", "byte_count", "content_digest", "token_estimate")}
+
+
+def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str | Path) -> dict[str, Any]:
+    """Load one lazily referenced governance file, verified against its pin.
+
+    Governance loads are the on-demand half of orientation lite: a worker
+    reads the full ``session_logging.md`` or ``agent-rules.md`` only when a
+    lite trigger fires. They are deliberately NOT supplemental gap reads -
+    they never debit ``supplemental_input_reserve_tokens``, so a budget can
+    never starve a worker of the rules it is required to consult. Bytes that
+    no longer match the compiled digest are refused as stale governance.
+    """
+    references = packet.get("governance_references")
+    if not isinstance(references, Mapping):
+        if isinstance(packet.get("worker_baseline"), Mapping):
+            _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
+                  code="governance_embedded", stage="governance_load")
+        _fail("governance", "packet declares no governance references",
+              code="missing_governance_reference", stage="governance_load")
+    reference = references.get(name)
+    if not isinstance(reference, Mapping):
+        _fail(f"governance.{name}", "packet declares no governance reference with this name",
+              code="missing_governance_reference", stage="governance_load",
+              details={"available": sorted(references)})
+    root = Path(cwd).resolve()
+    source = (root / str(reference["source"])).resolve()
+    try:
+        source.relative_to(root)
+    except ValueError:
+        _fail(f"governance.{name}", "governance source resolved outside the bound checkout",
+              code="invalid_governance_reference", stage="governance_load",
+              details={"source": reference["source"]})
+    try:
+        payload = source.read_bytes()
+    except OSError as exc:
+        _fail(f"governance.{name}", "governance source is missing or unreadable",
+              code="stale_governance", stage="governance_load",
+              details={"source": reference["source"], "error": exc.__class__.__name__})
+    digest = "sha256:" + hashlib.sha256(payload).hexdigest()
+    if digest != reference["content_digest"]:
+        _fail(f"governance.{name}", "governance source changed since the packet was compiled",
+              code="stale_governance", stage="governance_load",
+              details={"source": reference["source"], "expected": reference["content_digest"], "actual": digest})
+    return {
+        "name": name,
+        "source": reference["source"],
+        "content": payload.decode("utf-8"),
+        "content_digest": digest,
+        "token_estimate": reference["token_estimate"],
+        "supplemental_debit": 0,
+    }
+
+
 def validate_task_packet_supplemental_fetch(packet: Mapping[str, Any], source: str,
                                            line_range: Sequence[int], *, token_estimate: int,
                                            prior_debits: int = 0) -> dict[str, int]:
@@ -995,9 +1058,13 @@ def validate_task_packet_supplemental_fetch(packet: Mapping[str, Any], source: s
         if (_canonical_scope_identity(source) == _canonical_scope_identity(record["source"])
                 and line_range[0] <= record["line_range"][1] and record["line_range"][0] <= line_range[1]):
             _fail("supplemental.source", "requested evidence is already materialized", code="duplicate_evidence_content")
-    for record in packet["worker_baseline"]["sources"].values():
+    for record in ((packet.get("worker_baseline") or {}).get("sources") or {}).values():
         if record is not None and _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
             _fail("supplemental.source", "requested governance is already materialized", code="duplicate_evidence_content")
+    for record in (packet.get("governance_references") or {}).values():
+        if _canonical_scope_identity(source) == _canonical_scope_identity(record["source"]):
+            _fail("supplemental.source", "referenced governance loads through load_task_packet_governance, not the reserve",
+                  code="governance_reference")
     debit = _nonnegative_int(token_estimate, "supplemental.token_estimate")
     prior = _nonnegative_int(prior_debits, "supplemental.prior_debits")
     remaining = packet["input_ledger"]["supplemental_input_reserve_tokens"] - prior - debit
@@ -1693,8 +1760,17 @@ def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
     return {word for word in re.findall(r"[a-z][a-z0-9_-]*", text) if len(word) >= 4}
 
 
+def _heading_anchor_slug(heading: str) -> str:
+    """GitHub-style anchor slug; mirrors ``retrieval._heading_slug``."""
+    text = heading.strip().lstrip("#").strip().lower()
+    text = re.sub(r"[^\w\- ]", "", text)
+    return text.replace(" ", "-")
+
+
 def project_constitution(
-    dispatch: Mapping[str, Any], materialized: Sequence[Mapping[str, Any]]
+    dispatch: Mapping[str, Any],
+    materialized: Sequence[Mapping[str, Any]],
+    source_anchors: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Return bounded, complete governing evidence or an explicit full fallback."""
     constitution_items = [item for item in materialized if item.get("kind") == "constitution"]
@@ -1777,9 +1853,31 @@ def project_constitution(
             selected.append(selected_clause)
         selection_mode = "ranked_whole_clauses"
 
+    # Constitution anchors cited by selected decisions' S: sources (only
+    # present when source following is on).  An anchor is a heading slug or a
+    # clause ref suffix; each selects every whole clause under it, never the
+    # full document, so a cited section cannot reinstate the fallback.
+    unmatched_source_anchors: list[str] = []
+    for anchor in source_anchors:
+        matches = [
+            clause
+            for clause in clauses
+            if _heading_anchor_slug(clause["heading"]) == anchor
+            or clause["ref"].split("#", 1)[-1] == anchor
+        ]
+        if not matches:
+            unmatched_source_anchors.append(anchor)
+            continue
+        for clause in matches:
+            if any(existing["ref"] == clause["ref"] for existing in selected):
+                continue
+            selected_clause = dict(clause)
+            selected_clause["selection_reason"] = f"decision S: Constitution anchor #{anchor}"
+            selected.append(selected_clause)
+
     if selected:
         content_tokens = sum(estimate_tokens(item["content"]) for item in selected)
-        return {
+        projection = {
             "mode": "anchored_clauses",
             "selection_mode": selection_mode,
             "target_tokens": target,
@@ -1791,6 +1889,9 @@ def project_constitution(
             },
             "clauses": selected,
         }
+        if unmatched_source_anchors:
+            projection["unmatched_source_anchors"] = unmatched_source_anchors
+        return projection
 
     return {
         "mode": "full_document_fallback",
@@ -2422,7 +2523,11 @@ def compile_task_packet(
             stage="materialization",
             details={"missing_decisions": missing_implements},
         )
-    constitution_projection = project_constitution(normalized_dispatch, materialized_all)
+    constitution_projection = project_constitution(
+        normalized_dispatch,
+        materialized_all,
+        evidence_pack.get("source_reference_constitution_anchors", ()),
+    )
     materialized = [
         item for item in materialized_all if item.get("kind") != "constitution"
     ]
