@@ -71,3 +71,14 @@ python -X utf8 experiments/decision-chat-alignment/evaluate_origin_phase_hypothe
 This evaluator verifies cited timestamps against their source JSONL coordinates and writes only
 aggregate metrics plus decision/source coordinates. It does not serialize raw chat or encrypted
 reasoning.
+
+To reproduce the short-span ranking ablation inside the previously measured causal safety envelope:
+
+```powershell
+python -X utf8 experiments/decision-chat-alignment/evaluate_ranked_decision_spans.py `
+  --repo . `
+  --output experiments/decision-chat-alignment
+```
+
+See `RANKED-SPAN-REPORT.md` for the results and limitations. The evaluator writes only counts and
+source coordinates to `RANKED-SPAN-RESULTS.json`; it does not serialize conversation text.
