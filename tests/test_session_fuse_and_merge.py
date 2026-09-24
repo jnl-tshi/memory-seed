@@ -1284,10 +1284,14 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         other.mkdir()
         path_value = os.pathsep.join([str(broken), str(healthy), str(other)])
 
-        with mock.patch("memory_seed.core.os.name", "nt"):
-            env = _git_subprocess_env({"PATH": path_value})
+        # Faking os.name = "nt" off Windows makes pathlib build WindowsPath,
+        # which cannot exist there, so each platform checks its real branch.
+        env = _git_subprocess_env({"PATH": path_value})
 
         entries = env["PATH"].split(os.pathsep)
+        if os.name != "nt":
+            self.assertEqual(entries, [str(broken), str(healthy), str(other)])
+            return
         self.assertNotIn(str(broken), entries)
         self.assertEqual(entries, [str(healthy), str(other)])
 
