@@ -9886,6 +9886,10 @@ SEED_FILES = [
         ".memory-seed/skills/risk_signaling.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subagent_orientation.md",
+        ".memory-seed/skills/subagent_orientation.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "skill_architecture.md",
         ".memory-seed/skills/skill_architecture.md",
     ),
@@ -10194,6 +10198,7 @@ CORE_SKILL_NAMES = (
     "adr_sweep.md",
     "memory_hygiene.md",
     "risk_signaling.md",
+    "subagent_orientation.md",
     "memory_doctor.md",
     "memory_consolidation.md",
     "subproject_runtime.md",

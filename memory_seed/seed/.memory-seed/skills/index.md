@@ -255,6 +255,14 @@ skills:
     do_not_load_when:
       - task has no security, privacy, or destructive-operation surface
 
+  - skill: subagent_orientation.md
+    required: true
+    load_when:
+      - you were spawned as a delegated worker or subagent for a bounded task
+      - composing a spawn prompt or Task Packet for a subagent (point it here first)
+    do_not_load_when:
+      - you are the primary session working with the user; complete the full orientation chain instead
+
   - skill: risk_signaling.md
     required: true
     load_when:

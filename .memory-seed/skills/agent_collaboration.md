@@ -83,6 +83,19 @@ distilled it into the packet. So a worker **skips** primary orientation and late
 (steps 7–9), and load-all-active-personas (step 10). Its packet names the one persona, triggered skills,
 and any policy, Constitution, or ADR context its objective actually requires.
 
+**Orientation lite is the worker gate.** A worker's always-on rules live in
+`.memory-seed/skills/subagent_orientation.md` (scope and location checks, no shared-state writes,
+writer-only session entries, STOP categories, and the return contract), with triggers for loading the full
+rules on demand. Deliver it one of two ways:
+
+- **With a Task Packet:** compile with `"packet_version": 2`. The packet embeds the lite skill, pins
+  `agent-rules.md` (plus `session_logging.md` when session writes are delegated) by digest, and the worker
+  loads a pinned file only through `load_task_packet_governance`, which refuses changed bytes and never
+  spends the supplemental reserve. Version 1 packets still embed the full rules.
+- **Without a packet** (a plain subagent or a spawned session): start the spawn prompt with
+  "Read `.memory-seed/skills/subagent_orientation.md` first and follow it." This matters most for
+  clients whose subagents never receive the SessionStart hook.
+
 It **still runs** `base_sha` verification, the packet's `preflight`, and the worktree guard. The
 exemption is about *context volume*, never about safety rails — a worker that skips the guard is not
 slim, it is unsafe.
