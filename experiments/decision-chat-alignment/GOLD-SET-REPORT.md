@@ -23,8 +23,8 @@ remain separately labeled and should not be silently promoted to equivalent posi
 ## Candidate quality
 
 - The matcher's winning turn directly describes the decision for 43 of 50 rows (86%).
-- The returned bounded window contains at least one cited causal evidence item for 49 of 50 rows
-  (98%). This is window evidence coverage, not proof that the complete decision is inside the window.
+- The returned bounded window contains at least one cited causal evidence item for all 50 rows
+  (100%). This is window evidence coverage, not proof that the complete decision is inside the window.
 - All cited evidence is inside the returned window for 42 of 50 rows (84%).
 - Among the 42 fully verified decisions, 39 contain all cited evidence inside the returned window;
   three require deeper backward traversal.
@@ -42,7 +42,7 @@ Confidence is directionally useful but not a correctness boundary:
 ## Interpretation
 
 The deterministic retrieval stage is now a credible high-recall candidate generator. Its bounded
-window surfaced some causal evidence for 98% of this cohort, including many Low-confidence rows.
+window surfaced some causal evidence for 100% of this cohort, including many Low-confidence rows.
 However, only 84% of rows contain every cited evidence item inside that window, and 86% of winning
 turns directly describe the decision. The curator or a verification stage still needs backward
 multi-turn and lineage traversal.
@@ -56,7 +56,8 @@ train/test estimate, and safe reviewed negatives are still absent.
 - Every row preserves the frozen decision ID, selected rollout ID, selected turn, evidence ordinals,
   timestamps, source roles, and parent hops.
 - Raw chat excerpts and encrypted reasoning are excluded from tracked artifacts.
-- `assemble_gold_set.py` refuses missing, duplicate, extra, or candidate-drifted rows.
+- `assemble_gold_set.py` refuses missing, duplicate, extra, candidate-drifted, or untraversed evidence
+  rollout references.
 - Negative-control tests deliberately corrupt a winning turn and remove a cohort row; both must fail.
 - `GOLD-SET.jsonl` is the canonical machine-readable artifact; `GOLD-SET.csv` is the compact review
   projection. The three files under `gold-parts/` preserve audit-batch provenance.

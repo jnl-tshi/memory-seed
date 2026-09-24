@@ -39,7 +39,8 @@ recovery.
 ## Mechanical gates
 
 `assemble_gold_set.py` refuses to generate the combined outputs unless all 50 fixed decision IDs occur
-exactly once and every audited rollout/turn identity exactly matches the frozen selected candidate.
-This prevents a reviewer from silently auditing a nearby but different task or mistyping a decision
-identifier. The final JSONL retains evidence coordinates and concise rationales, not raw conversation
-text.
+exactly once, every audited rollout/turn identity exactly matches the frozen selected candidate, and
+every evidence rollout is either the selected rollout or an explicitly traversed parent/child source.
+This prevents a reviewer from silently auditing a nearby task, mistyping a decision identifier, or
+transcribing an evidence rollout incorrectly. The final JSONL retains evidence coordinates and concise
+rationales, not raw conversation text.

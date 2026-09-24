@@ -73,6 +73,30 @@ def validated_gold_rows(
         evidence_refs = adjudication.get("evidence_refs")
         if label != "unresolved" and not evidence_refs:
             raise RuntimeError(f"{decision_id}: {label} requires evidence_refs")
+        traversed_rollouts = {selected.get("rollout_id")}
+        for hop in adjudication.get("parent_chain_traversed", []):
+            if not isinstance(hop, dict):
+                continue
+            traversed_rollouts.update(
+                value
+                for key, value in hop.items()
+                if isinstance(value, str)
+                and ("parent" in key or "child" in key)
+                and value
+            )
+        unknown_evidence_rollouts = sorted(
+            {
+                ref.get("rollout_id")
+                for ref in evidence_refs or []
+                if isinstance(ref, dict)
+                and ref.get("rollout_id") not in traversed_rollouts
+            }
+        )
+        if unknown_evidence_rollouts:
+            raise RuntimeError(
+                f"{decision_id}: evidence rollout was not selected or traversed: "
+                f"{unknown_evidence_rollouts}"
+            )
         decision = alignment["decision"]
         window = candidate["window"]
         evidence_locations = [

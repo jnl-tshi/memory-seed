@@ -45,6 +45,15 @@ class GoldSetAssemblyTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "gold cohort mismatch"):
             gold.validated_gold_rows(self.alignments, incomplete)
 
+    def test_untraversed_evidence_rollout_fails_closed(self) -> None:
+        corrupted = copy.deepcopy(self.audit_rows)
+        first_id = self.alignments["metadata"]["sample_ids"][0]
+        corrupted[first_id]["adjudication"]["evidence_refs"][0]["rollout_id"] = (
+            "00000000-0000-0000-0000-000000000000"
+        )
+        with self.assertRaisesRegex(RuntimeError, "evidence rollout was not selected or traversed"):
+            gold.validated_gold_rows(self.alignments, corrupted)
+
 
 if __name__ == "__main__":
     unittest.main()
