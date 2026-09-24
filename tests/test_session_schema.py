@@ -390,6 +390,9 @@ class SessionSchemaTests(unittest.TestCase):
         content = live.read_text(encoding="utf-8")
         for phrase in (
             "consequential new product, architectural, data, safety, or workflow",
+            "Native Plan Mode Gate",
+            "Please switch to Plan mode with `/plan`",
+            "Stop after this prompt",
             "Capability and reuse inventory",
             "Relevant authority and evidence",
             "Realistic alternatives",
