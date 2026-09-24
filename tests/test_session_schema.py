@@ -791,6 +791,23 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
+    def test_agent_collaboration_requires_leaving_worktree_before_cleanup(self):
+        """A session must move to the primary checkout before its worktree is removed."""
+        live_skill = Path(".memory-seed/skills/agent_collaboration.md")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/agent_collaboration.md")
+        content = live_skill.read_text(encoding="utf-8")
+
+        self.assertEqual(content, seed_skill.read_text(encoding="utf-8"))
+        for phrase in (
+            "## Leave The Worktree Before Cleanup",
+            "move the session to the primary checkout",
+            "deregister and delete the worktree",
+            "git merge-base --is-ancestor",
+            "No pyvenv.cfg file",
+            "never from inside the worktree being removed",
+        ):
+            self.assertIn(phrase, content)
+
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
         path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")
         self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")
