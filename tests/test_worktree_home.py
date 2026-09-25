@@ -103,6 +103,18 @@ class WorktreeHomeTests(_HomeRepoMixin, unittest.TestCase):
 
         self.assertEqual(_git(repo, "status", "--porcelain").stdout.strip(), "")
 
+    def test_claim_reports_a_refused_lease_write_instead_of_crashing(self):
+        # Codex's sandbox refused writes under .git on 2026-09-25 and the CLI died with a traceback.
+        from unittest import mock
+
+        repo = self.make_repo()
+        with mock.patch("memory_seed.worktree_home.os.open", side_effect=PermissionError("sandboxed")):
+            result = worktree_home(repo, agent="claude", action="claim", branch="claude/fix/one", session="s-1")
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("could not write the home lease", result.issues[0])
+        self.assertIn("sandboxed", result.issues[0])
+        self.assertEqual(_git(home_worktree_path(repo, "claude"), "branch", "--show-current").stdout.strip(), "")
+
     def test_claim_rejects_branch_outside_agent_namespace(self):
         repo = self.make_repo()
         result = worktree_home(repo, agent="claude", action="claim", branch="feature-x", session="s-1")

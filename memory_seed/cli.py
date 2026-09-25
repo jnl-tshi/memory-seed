@@ -1115,6 +1115,22 @@ def main(argv: list[str] | None = None) -> int:
                                  help="cap lexical candidates per source; 0 enumerates all (default: 0)")
     link_batch_plan.add_argument("--no-semantic", dest="semantic", action="store_false",
                                  help="rank lexically only; skips loading the embedding model")
+    link_batch_plan.add_argument("--open-stubs", action="store_true",
+                                 help="plan every entry that still has an open classify_pending stub")
+    link_batch_apply = link_sub.add_parser(
+        "batch-apply",
+        help="write validated verdicts as live, retractable edges (replaces/refines need two agreeing runs)",
+    )
+    link_batch_apply.add_argument("--run-dir", required=True, help="first collected run directory")
+    link_batch_apply.add_argument("--agree-with", default=None,
+                                  help="second collected run of the same plan; required for replaces/refines")
+    link_batch_apply.add_argument("--dry-run", action="store_true", help="report the planned edges without writing")
+    link_verify = link_sub.add_parser(
+        "verify", help="record human verification of a live edge, raising it to full weight"
+    )
+    link_verify.add_argument("source_entry_id", help="the newer entry that carries the edge")
+    link_verify.add_argument("ref", help='the edge ref as written, e.g. "d1 -> mse_x:d2 (refines)"')
+    link_verify.add_argument("--by", required=True, help="who verified it, e.g. JNL")
     link_batch_collect = link_sub.add_parser(
         "batch-collect", help="validate file-written TOON findings and update a run analytics ledger"
     )
@@ -2970,6 +2986,26 @@ def main(argv: list[str] | None = None) -> int:
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")
             return 0
+        if args.link_command == "batch-apply":
+            from .link_autoclassify import apply_auto_links
+
+            try:
+                applied = apply_auto_links(cwd, args.run_dir, args.agree_with, dry_run=args.dry_run)
+            except (LookupError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(json.dumps(applied, indent=2, ensure_ascii=False))
+            return 0
+        if args.link_command == "verify":
+            from .link_autoclassify import verify_link
+
+            try:
+                verified = verify_link(cwd, args.source_entry_id, args.ref, verified_by=args.by)
+            except (LookupError, OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(f"Verified {verified['ref']} on {verified['entry_id']} ({verified['file']})")
+            return 0
         if args.link_command == "batch-collect":
             from .retrieval import collect_link_swarm_run
 
@@ -3032,12 +3068,24 @@ def main(argv: list[str] | None = None) -> int:
                     worker_skill_source = worker_skill_path.relative_to(
                         runtime.workspace_root
                     ).as_posix()
-                    gaps = audit_link_gaps(
-                        cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
-                        top_k=None if args.top_k == 0 else args.top_k,
-                        semantic_enabled=args.semantic, semantic_status=semantic_status,
-                        semantic_candidate_threshold=args.semantic_cutoff,
-                    )
+                    if args.open_stubs:
+                        from .link_autoclassify import open_stub_entry_ids
+
+                        gaps = []
+                        for stub_entry in open_stub_entry_ids(cwd):
+                            gaps.extend(audit_link_gaps(
+                                cwd=cwd, entry_id=stub_entry,
+                                top_k=None if args.top_k == 0 else args.top_k,
+                                semantic_enabled=args.semantic, semantic_status=semantic_status,
+                                semantic_candidate_threshold=args.semantic_cutoff,
+                            ))
+                    else:
+                        gaps = audit_link_gaps(
+                            cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date,
+                            top_k=None if args.top_k == 0 else args.top_k,
+                            semantic_enabled=args.semantic, semantic_status=semantic_status,
+                            semantic_candidate_threshold=args.semantic_cutoff,
+                        )
                     plan = plan_link_audit_batches(
                         link_audit_payload(gaps, semantic_status),
                         context_window_tokens=args.context_window,

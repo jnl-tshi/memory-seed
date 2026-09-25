@@ -4,6 +4,16 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed
+
+- [2026-09-25] **Lifecycle links are classified automatically.** Machine-classified edges no longer wait for human approval (Constitution v2.4, §4 `link-corrections`).
+  - The new `memory-seed link batch-apply --run-dir <a> --agree-with <b>` writes mechanically validated swarm verdicts as live, retractable `source: derived` edges. Each edge carries a confidence and a grounding quote.
+  - `replaces` and `refines` are written only when two independent runs agree.
+  - `memory-seed link verify` records optional human verification, which raises an edge to full weight.
+  - Search scales a machine `replaces` by its confidence.
+  - `link batch-plan --open-stubs` plans every open stub.
+  - The swarm verdict vocabulary adds typed `refines` and `builds-on`.
+
 ### Added
 
 - [2026-09-25] **Each agent keeps one persistent home worktree.**

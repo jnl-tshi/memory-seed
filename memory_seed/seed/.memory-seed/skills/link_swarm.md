@@ -9,19 +9,17 @@ tags:
 
 # Lifecycle-Link Judgment Swarm Skill
 
-Use this skill to enrich lifecycle edges (`replaces`/`evolves`/`related_entries`) across the corpus at
-scale, when the mechanical `link audit` sweep has surfaced more candidate gaps than a human wants to
-classify by hand. It is the automated **judgment** layer above the manual Lifecycle Link Sweep in
-`end_of_turn.md`: `link audit` finds the pairs mechanically, a swarm of small models judges each at
-decision granularity, an orchestrator validates the verdicts mechanically, and a human approves the
-batch before any edge is written. Do not reach for this for one or two obvious edges — classify those
-by hand per `end_of_turn.md`. This is for a backfill campaign over many gaps.
+Use this skill to classify lifecycle edges (`replaces`/`evolves`/`related_entries`) automatically: the
+open stubs of the end-of-turn Lifecycle Link Sweep, or a backfill campaign over many gaps. `link audit`
+finds the pairs mechanically, small models judge each pair at decision granularity in **two independent
+runs**, an orchestrator validates the verdicts mechanically, and `link batch-apply` writes the surviving
+verdicts as live, retractable `source: derived` edges - with **no human approval step** (Constitution §4
+`link-corrections`, v2.4, JNL 2026-09-25).
 
-**Opt-in and cost.** The swarm calls a fan-out of models (a Workflow), so it is network-using and must
-be run deliberately — never as an automatic step. Confirm with the user before launching the fan-out,
-and confirm again before writing any edge. The core stays network-free (Constitution Invariant #1); the
-model calls live entirely in this optional layer, and every stored edge is human-gated and authored as
-an ordinary `:dN` edge with no dependency on the model that suggested it (Invariant #5).
+**Cost and network.** The fan-out calls models, so it lives in this optional layer; the core stays
+network-free (Constitution Invariant #1). Every stored edge is an ordinary `:dN` edge with no dependency
+on the model that suggested it (Invariant #5). A host without model fan-out leaves the stubs pending; that
+is a skipped step, never a reason to invent edges.
 
 **Model selection.** Use the smallest available model that can reliably apply this fixed rubric, with
 high reasoning enabled. This is an economy-tier capability requirement, not a provider or model-family
@@ -36,10 +34,11 @@ Workflow fan-out                                 (optional layer, network)
     -> each worker reads one self-contained batch file, then writes its assigned findings/*.toon file
 orchestrator validation                          (mechanical-first, no new model calls)
     -> memory-seed link batch-collect validates reports and writes survivors.json + validation.json
-batch approval                                   (the human gate)
-    -> surface the surviving verdicts as one batch; the user approves, edits, or rejects
-write + check
-    -> approved edges written to the day's link sidecar; memory-seed links check validates
+second run                                       (the agreement check)
+    -> repeat the fan-out into a second run directory built from the SAME plan, then batch-collect it
+automatic write + check
+    -> memory-seed link batch-apply --run-dir <run1> --agree-with <run2> writes live derived edges;
+       links check runs inside it and a failure rolls the write back
 finalize + retain
     -> batch-finalize seals a receipt; batch-gc later compacts only expired, hash-matching raw files
 ```
@@ -101,7 +100,9 @@ authority.
 ### 2. The judging criteria (what the swarm decides)
 
 Each agent reads the two decision bodies and returns, per gap:
-`{verdict: replaces|evolves|related|none, source_dN, target_dN, why, quote, confidence}`.
+`{verdict: replaces|refines|builds-on|related|none, source_dN, target_dN, why, quote, confidence}`.
+`refines` is the next form of the same decision; `builds-on` is later work resting on it; both are written
+as typed `evolves` edges. Never answer a bare `evolves`: it cannot be written and is downgraded to `related`.
 
 **Batch return contract.** Return exactly one strict **TOON** (Token-Oriented Object Notation) document
 with schema `memory-seed.link-swarm-verdicts.v1`: its `batch` and `measurement` identify the packed
@@ -135,15 +136,17 @@ rejects a batch whose row count or per-row cell count does not match its declare
 
 The verdict rules, measured against 68 validated corrections:
 
-1. **The three-way litmus is the spine.** The newer decision *retires* the older -> `replaces`; *refines
-   it while it stays valid* -> `evolves`; genuinely just connected -> `related`; no real relationship ->
-   `none`. When in doubt between `related` and `evolves`, ask whether the newer entry changes or
-   completes the older *decision itself*, not merely follows it in time.
-2. **Implementation evolves its proposal.** An entry that *implements what an earlier entry proposed,
-   scoped, or drafted* **evolves** it — the proposal stays valid as rationale. This is the single most
+1. **The litmus is the spine.** The newer decision *retires* the older -> `replaces`; is *the next form of
+   the same decision* while it stays valid -> `refines`; is later work *resting on* it -> `builds-on`;
+   genuinely just connected -> `related`; no real relationship -> `none`. When in doubt between `related`
+   and an evolution, ask whether the newer entry changes or completes the older *decision itself*, not
+   merely follows it in time.
+2. **Implementation builds on its proposal.** An entry that *implements what an earlier entry proposed,
+   scoped, or drafted* is `builds-on` it (or `refines` when it becomes the proposal's own current form) —
+   the proposal stays valid as rationale. This is the single most
    under-declared shape.
-3. **Deferral completion evolves the deferring entry.** An entry that *completes a design call an
-   earlier entry explicitly deferred* (an evaluation, a selection, a scoping) **evolves** it.
+3. **Deferral completion refines the deferring entry.** An entry that *completes a design call an
+   earlier entry explicitly deferred* (an evaluation, a selection, a scoping) `refines` it.
 4. **An explicit rewrite replaces.** A decision that plainly reverses or rewrites an earlier decision
    **replaces** it. Retiring a feature with no successor still `replaces` the retired feature's entries.
 5. **Landing work is not a lifecycle edge.** An entry whose decision is to merge / land / integrate /
@@ -188,12 +191,12 @@ Before surfacing anything, the orchestrator drops verdicts mechanically:
   guard.
 - **Ordinal / id existence:** `source_dN` and `target_dN` must exist on their entries; the ids must
   resolve; forward-only must hold (target older than source). Reuse `links check`'s own rules.
-- **Consistency:** group verdicts by pair; a pair with contradictory verdicts across runs is held back
-  for human eyes, not auto-resolved.
+- **Consistency:** group verdicts by pair across the two runs; `batch-apply` writes a structural label
+  only on agreement and otherwise falls back to the weaker label both runs support.
 - **Litmus regressions:** spot-check that no `evolves`/`replaces` verdict is actually a landing/parallel
   case (rules 5-6) — the two the swarm most often over-calls.
 
-Surviving verdicts are candidates; everything dropped is logged so the human sees what was filtered.
+Surviving verdicts are candidates; everything dropped is logged so the filtering stays auditable.
 Run `memory-seed link batch-collect --run-dir <run>` after workers finish. It reads their files,
 checks rectangular TOON, pair coverage, duplicate/unexpected rows, ordinals, chain-position legality,
 confidence range, and exact quote grounding. It updates `analytics.jsonl` and produces
@@ -201,16 +204,26 @@ confidence range, and exact quote grounding. It updates `analytics.jsonl` and pr
 component's mean/min/max by final verdict so patterns such as high semantic + short temporal distance
 among `evolves` results are visible without collapsing the raw rows. Review `survivors.json`, not chat callbacks.
 
-### 4. Batch approval (the human gate)
+### 4. Second run and automatic write
 
-Surface the surviving verdicts as ONE batch — pair, verdict, ordinals, the grounding quote, and the
-`why`. The user approves the batch, edits individual verdicts, or rejects. **Never write without this
-approval** (same gate as persona evolution and stub-to-edge conversion in `end_of_turn.md`). A
-confidence floor may auto-*hide* low-confidence verdicts from the batch, but never auto-*writes* them.
+Run the fan-out a second time, independently, into another run directory built from the same plan, and
+collect it. Then run `memory-seed link batch-apply --run-dir <run1> --agree-with <run2>` (add `--dry-run`
+first when you want to inspect). It applies the agreement rule and writes without asking:
 
-### 5. Write + check
+- `replaces` and `refines` are written only when both runs give the same label and ordinals - single-run
+  agreement on these labels has measured close to a coin flip.
+- `builds-on` and `related` are written from one validated verdict.
+- A disagreement falls back to the weaker label both runs support; an entry whose candidates were all
+  `none` records `edge_status: not_applicable`.
+- Each edge carries `source: derived`, `classified_by`, `edge_confidence` (the weaker run's value) and
+  `edge_evidence` (quote + why). Retrieval scales a machine `replaces` by that confidence.
+- A human may later record `memory-seed link verify <source> "<ref>" --by <initials>`, which raises the edge
+  to full weight. Machine edges never move an ADR head; an edge onto an ADR member only enters the ESR
+  review queue. Correct a wrong machine edge with `retracts:` like any other edge.
 
-Write approved edges into the link sidecar for the **source entry's own session date** —
+### 5. Where edges are written
+
+`batch-apply` writes edges into the link sidecar for the **source entry's own session date** —
 `.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md`, where the date is when that entry was logged,
 **not today**. A campaign spanning many dates therefore writes to many files; filing a block under any
 other date fails `links check` with `link-sidecar-date-mismatch`.
@@ -237,12 +250,12 @@ and must be explained before merging.
   `agent_collaboration.md`).
 - Block identity for a link sidecar is `(entry_id, timestamp)`; two blocks for one entry need distinct
   timestamps.
-- The swarm only *suggests*. The mechanical recall, the validation, the approval, and the write are all
-  outside the model's authority — a stronger `link suggest`, not a new source of truth.
+- The model only judges. The mechanical recall, the validation, the two-run agreement rule, and the write
+  are all outside the model's authority; every written edge stays retractable and marked `source: derived`.
 
 ## Retention and cleanup
 
-Collection never deletes evidence. After the human disposition is known, create a
+Collection never deletes evidence. After `batch-apply` has written (or you decide to discard a run), create a
 `memory-seed.link-swarm-approval.v1` JSON record and run `memory-seed link batch-finalize --run-dir
 <run> --approval-file <approval.json>`. The finalizer refuses a pending run; an approved disposition
 also requires complete validation, at least one surviving approved pair, `graph_delta_reviewed: true`,

@@ -2980,6 +2980,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
         _frontmatter_list_refs,
         _frontmatter_list_region,
         _parse_edge_confidence,
+        _parse_verified_refs,
         _parse_retract,
         iter_link_sidecar_documents,
         resolve_runtime,
@@ -3073,6 +3074,11 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
             # kind-agnostic (source_ord, target, target_ord) identity so a graph
             # consumer joins it to any edge. Absent = human-authored, unscored.
             found["edge_confidence"] = _parse_edge_confidence(yaml_block)
+            # A human `verified:` record raises the named edge to full weight. It is an
+            # appended block, so the later-block-wins merge below lets it override the
+            # machine confidence without editing the published classification.
+            for key in _parse_verified_refs(yaml_block):
+                found["edge_confidence"][key] = 1.0
             # Retractions this block declares (against this or an earlier block's
             # edges). A bare/entry-level ref subtracts by (kind, target); a
             # decision ref subtracts the exact 4-tuple. Applied after the union.
@@ -4346,7 +4352,9 @@ def parse_link_swarm_toon(
         for column, raw in zip(columns, values):
             value = raw.strip()
             item[column] = None if value.lower() == "null" else value
-        if item["verdict"] not in {"replaces", "evolves", "related", "none"}:
+        # `refines`/`builds-on` are the typed evolution verdicts (2026-09-25); a bare legacy
+        # `evolves` still parses but can only ever support a `related` edge.
+        if item["verdict"] not in {"replaces", "refines", "builds-on", "evolves", "related", "none"}:
             raise ValueError(f"report row {row_number} has invalid verdict {item['verdict']!r}")
         if item["confidence"] is not None:
             try:
@@ -4527,7 +4535,7 @@ def collect_link_swarm_run(run_dir: str | Path) -> dict[str, Any]:
         "temporal", "temporal_distance_days",
     )
     by_verdict: dict[str, Any] = {}
-    for verdict in ("replaces", "evolves", "related", "none"):
+    for verdict in ("replaces", "refines", "builds-on", "evolves", "related", "none"):
         rows = [row for row in ordered if row.get("status") == "validated" and row.get("verdict") == verdict]
         features: dict[str, Any] = {}
         for name in feature_names:
