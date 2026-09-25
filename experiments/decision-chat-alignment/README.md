@@ -1,7 +1,16 @@
 # Decision-to-chat alignment experiment
 
 This directory contains a bounded, read-only experiment for aligning structured Memory Seed
-decisions with local Codex rollout windows. Start with `REPORT-CODEX-LINEAGE-CAUSAL.md` for the
+decisions with local Codex rollout windows. It takes a **known decision** as its query. Today that
+helps prepare source-backed decision/span pairs; later, the same locator could help an
+owner-authorized hosted “why?” lookup find retained transcript evidence behind a curated decision.
+The pairs are a starting pool for developing and validating deterministic extraction of
+decision-relevant facts and decisions, as well as candidate-detection research. Separate fact-span
+annotations and a clean lineage-grouped test set are still needed before claiming fact-level accuracy.
+This does not make generic atomic-fact extraction mandatory or add a stored Fact kind.
+Neither use proves a forward detector can find decisions in raw chat without the decision text, and
+this script is not a hosted retrieval endpoint. See `COHORT-100-REPORT.md` for the measured limits and
+the hosted privacy/retention boundary. Start with `REPORT-CODEX-LINEAGE-CAUSAL.md` for the
 structural repair and causal controls, then `GOLD-SET-REPORT.md` for the manually adjudicated fixed
 50-decision cohort and candidate-window findings. `WINDOW-STRATEGY-REPORT.md` measures the recall and
 conversation reduction of fixed, backward, Plan-aware, continuation-aware, and parent-lineage windows.

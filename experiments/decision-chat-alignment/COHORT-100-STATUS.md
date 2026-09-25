@@ -117,8 +117,9 @@ message ordinals where possible.
 
 Stable source coordinates may later support a curated-decision-first answer to
 “why?”, with an owner-authorized raw-history fallback only while the applicable
-retention window remains open. The proposed 30-day period is an example, not an
-implemented retention policy. Raw evidence must not become visible to another
+retention window remains open. The hosted programme now specifies a 30-day
+rolling raw-retention window as a design rule; this experiment does not implement
+or validate that policy. Raw evidence must not become visible to another
 member or a project lead; the curator's bounded machine read is a separate
 constitutional allowance. Expired, unavailable, or withdrawn evidence needs
 an explicit state, never an invented citation. This experiment adds no hosted

@@ -175,6 +175,25 @@ misses, but no deployable sufficiency test identifies them yet.
 
 The 82 verified decisions provide promising **positive** source windows with
 provenance, but 18 strict records remain partial, child-only or unresolved.
+These pairs can also seed a bounded **deterministic information-extraction
+dataset**: given only a cited raw span, can a rule-based extractor locate
+decision-relevant facts and the decision, including choice, reasons,
+alternatives, constraints, evidence, consequences, and earlier-decision links?
+This follows the decomposition lesson from the earlier atomic-facts research,
+not its deferred Fact-kind proposal. The decision record can serve as a
+reference label for review, never as input to the forward extractor. Human
+reviewers must check whether the source actually supports each component;
+the current decision label does **not** exhaustively label facts in the span.
+Fact extraction therefore needs separate span/role/attribution/condition
+annotations before fact-level accuracy can be measured. Use distinct
+lineage-grouped development, validation, and sealed test sets; these 100
+AI-adjudicated, partly overlapping pairs are a starting pool, not a clean
+final test set. Measure missed decisions and facts, precision, grounding,
+and read-volume reduction, not overall accuracy alone.
+
+The tracked pair is a coordinate plus a judgment; raw text stays in the
+authorized local session store and is fetched only for the bounded test.
+
 No unlinked random window is a trustworthy negative: Memory Seed may have
 missed decisions. A first detector baseline should use human-reviewed
 high-confidence negatives sampled from execution/tool-heavy and ordinary
@@ -194,12 +213,23 @@ Plan-mode and reviewer-shaped signals should be weak ranking cues, not hard
 eligibility rules: choices also surfaced in ordinary user turns, assistant
 plans, implementation closeouts, parent sessions, and child review results.
 
-The same exact source coordinates could later support an owner-authorized
-hosted “why?” answer that begins with the structured decision and optionally
-retrieves retained raw history. This experiment implements no hosted storage,
-access control or retention policy. Raw history availability and curator
-permission must be checked at answer time; absent or expired evidence must be
-reported as unavailable rather than reconstructed as a citation.
+This decision-known reverse locator has a second possible use beyond training
+pair preparation: a hosted “why?” answer could start with the curated decision
+and, only if it does not explain enough, search retained raw history for the
+bounded source span. Decision text is a legitimate query in that *reverse*
+lookup; it would be leakage in a *forward* decision detector. The source
+coordinates, write-event cutoff, parent/child lineage, supporting-text check,
+and an explicit uncertain/no-source result are the candidate algorithmic
+contract, not a production API. A plausible ranked window alone is not proof.
+
+The [hosted programme](../../docs/2_Todo/hosted-memory-mvp-programme.md#privacy-retention-and-sharing)
+specifies curated-first retrieval, owner-only raw fallback while raw evidence
+is retained, and an explicit unavailable state after expiry. Its 30-day raw
+retention window is a current hosted **design rule**, not functionality built
+by this experiment. Another member may receive the curated decision and only
+permitted excerpts, never the owner's raw transcript. This experiment adds no
+hosted storage, access-control, retention, or answer-time sufficiency check;
+it does not grant a general hosted agent raw-history access.
 
 ## Smallest next experiment
 
