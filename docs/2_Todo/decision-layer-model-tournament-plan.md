@@ -85,6 +85,52 @@ grant a general hosted agent access to another member's transcript. This documen
 authorize a hosted API, storage change, model training, or production deployment; P0.4 and the tranche-entry discovery remain
 gates.
 
+## Next offline experiment: agent audit and bounded September cohort
+
+This is the handoff for the next source-alignment and information-extraction data experiment, not the
+P1 model tournament. It preserves the frozen 100-decision measurements above. The existing cohort's
+decision timestamps run from **2026-05-26 23:32 to 2026-09-24 14:38 Europe/London**. The new cohort
+uses only **2026-09-01 00:00 through 2026-09-24 14:39 Europe/London (exclusive end)**, entirely before
+this planning session. At the 2026-09-25 inventory, 124 unseen typed Codex decisions were eligible in
+that narrower interval; recheck and freeze the population, repository revision, seed, IDs, and hashes
+at execution time. Do not extend the decision or raw-message date range to fill a quota.
+
+1. **Audit the existing 20 cases with agents.** Give the 15 source-group-clean held-out cases and five
+   unresolved cases to two independent reviewers, then a stronger adjudicator for disagreements.
+   Review pre-write raw messages and cite exact session, turn, message, and timestamps. Label full
+   support, partial support, wrong source, or unresolved; a child recommendation alone is not parent
+   adoption. Retain earlier labels and frozen scores as separate versions. The result is agent-reviewed
+   provisional evidence, not human-certified gold.
+2. **Freeze and verify 100 new decisions.** Randomly sample 100 unseen typed Codex Decisions from the
+   sorted September-eligible IDs with a recorded seed; do not replace unmatched or difficult cases.
+   Search raw items within the same London-time interval and before each record's write-time cutoff.
+   If the apparent source falls before the interval, record a boundary miss and inspect it separately,
+   without admitting it into the bounded score. Reuse the frozen top-ranked spans → full 20-turn
+   lineage-aware envelope → nearby-session fallback, and use the same independent-review/adjudication
+   rubric. Store coordinates and judgments in tracked artifacts, raw review text only in authorized
+   private storage.
+3. **Iterate without test leakage.** After source verification, group by actual root session and
+   parent/child lineage; aim for a 70/30 development/held-out split. Groups overlapping the prior
+   cohort cannot enter the new sealed test, and unknown lineage remains unresolved. Tune only on
+   development cases, preserving each retriever version. Stop after two iterations without a
+   recall-preserving improvement or five iterations total, then score the sealed group once. If
+   fewer than 30 independent held-out decisions remain, report the shortfall instead of relaxing
+   grouping. Measure source recall, misses, ambiguity, and tokens for whole session, 20-turn scope,
+   ranked spans, and final useful evidence; no claimed 98% recall from this sample.
+4. **Prepare extraction labels.** For sufficiently supported pairs, separately annotate the choice,
+   rationale, alternatives, constraints, evidence, consequences, attribution, conditions, polarity,
+   and earlier-decision links against raw coordinates. Independently review hard non-decision windows;
+   unlinked text stays unlabeled. This is decision-focused decomposition from the
+   [atomic-facts research](../4_Reference/atomic-facts-and-decisions-report.md), not a mandatory
+   extract-every-fact pipeline or an adopted Fact record kind. A deterministic extractor can later
+   use these labels after its own discovery and P0.4/P1 gates.
+
+Within the September interval, report the existing session log's typed Codex decision count and
+write-time distribution beside retrieval coverage and source-to-record lag. Matching known logged
+decisions does **not** measure decisions that logging missed. Defer a blind raw-conversation comparison
+until a forward deterministic fact/decision extractor exists; keep that evaluation separate from the
+decision-known reverse locator and never supply completed decision text as its input.
+
 ## Purpose
 
 Evaluate the best decision/classification architecture for Memory Seed using the existing curated corpus as the primary benchmark.
