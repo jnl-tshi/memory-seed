@@ -1,0 +1,86 @@
+{
+  "schema_version": "decision-adjudication-selections/1.0",
+  "status": "heldout_adjudication_complete",
+  "selections": {
+    "ms-38098d7a:d1": {
+      "use_review": "A",
+      "reason": "The proposed opt-in identity and per-user target plan is followed by direct user implementation approval; B stopped at the candidate anchor without citing these causal turns."
+    },
+    "ms-3cad2a35:d2": {
+      "use_review": "A",
+      "reason": "The user locks bare-slug and legacy compatibility, approves the plan, and the later same-rollout implementation and mixed-layout check support the read-only boundary."
+    },
+    "mse_38b7jfjbwy8dfdtt:d1": {
+      "use_review": "A",
+      "reason": "Both reviews exclude this live root conversation; no independent pre-existing source was established, so unresolved is the only defensible label."
+    },
+    "mse_3hx7ym0qajvxm1w4:d2": {
+      "use_review": "A",
+      "reason": "The cited child review names the malformed-retention TypeError gap, but does not establish parent adoption or the exact final scalar guard; preserve child_result, not verified_source."
+    },
+    "mse_a58avhtbcy9djpa0:d1": {
+      "use_review": "A",
+      "reason": "The pre-cutoff closeout explicitly states the three-arm plumbing result, audited retrieval, deterministic packet, separate token ledgers, and non-calibration limitation."
+    },
+    "mse_ak94rd4r1zna4bc7:d2": {
+      "use_review": "A",
+      "reason": "The child result directly proposes reflection admission before fetch and full planning after refresh; B's frozen continuation missed that earlier child source, but parent adoption is not independently cited."
+    },
+    "mse_ed8zaf52k3eyaxqv:d1": {
+      "use_review": "A",
+      "reason": "The cited migration plan and tests support identity mapping, backup/removal, and ambiguous-initial refusal, but not every recorded migration detail; retain partial coverage."
+    },
+    "mse_eszq6qxf2jck32e8:d1": {
+      "use_review": "B",
+      "reason": "Both found the same task; B cites the user reversal plus completed scoped removal and verification while preserving independent related-entry work."
+    },
+    "mse_fx1gm0x6p1sts4y2:d1": {
+      "use_review": "A",
+      "reason": "The exact 12,000-character whole-file/economy-worker plan and user approval establish the choice; B's partial rating reflects implementation closeout, not a missing decision source."
+    },
+    "mse_jem7xd5yd771rkwq:d2": {
+      "use_review": "A",
+      "reason": "The child review identifies the pre-integration receipt reuse gap and the historical parent explicitly selects exact-receipt parent tracing as its remedy."
+    },
+    "mse_jem7xd5yd771rkwq:d3": {
+      "use_review": "A",
+      "reason": "The child review identifies retired-owner snapshot reactivation and the historical parent selects committed transfer independent of ancestry direction."
+    },
+    "mse_nttx32yw5ejypz5m:d2": {
+      "use_review": "B",
+      "reason": "Both cite the same task; B includes duplicate-collection measurement, the explicit two-suite pytest boundary, and bounded command verification."
+    },
+    "mse_nw47r0vpcj5tr2pj:d1": {
+      "use_review": "B",
+      "reason": "Both cite the same explicit selection of a dedicated worktree-reconciliation skill and its ownership boundary."
+    },
+    "mse_ssxkdsjq8d0knk4v:d1": {
+      "use_review": "A",
+      "reason": "A cites the user's implementation instruction together with guarded pilot evidence and the final independent review, covering accepted scope and rationale."
+    },
+    "mse_v7pdg66vgfbctyfj:d1": {
+      "use_review": "A",
+      "reason": "The later user clarification and assistant confirmation explicitly combine responsive pane resizing with a zoomable overview and compact stream; B's earlier anchor is incomplete."
+    },
+    "mse_vjb1kgdq26c5b38y:d1": {
+      "use_review": "A",
+      "reason": "The user's update request, assistant's focused S0/S1 change scope, and the prior Inbox-placement decision all appear before cutoff; B's partial rating focused on closeout checks."
+    },
+    "mse_vpqwta8c6m8yj6nk:d1": {
+      "use_review": "A",
+      "reason": "The user accepts the typed identity correction and subsequent implementation status states id, kind, source, and content_digest roles before the decision record."
+    },
+    "mse_z61np2tq3zkg01ew:d1": {
+      "use_review": "A",
+      "reason": "The pre-cutoff recommendation explicitly names all three design-language roles in the recorded shortlist."
+    },
+    "mse_z8tp67yhcrtkq110:d1": {
+      "use_review": "B",
+      "reason": "B includes the user's acceptance and the complete resulting token/component/data-surface baseline; A found the same surrounding choice."
+    },
+    "mse_ztcsrx4hw0b6kxdv:d2": {
+      "use_review": "B",
+      "reason": "Both cite the user-requested filter dimensions; B also cites the implemented service/API filter path and verification before cutoff."
+    }
+  }
+}

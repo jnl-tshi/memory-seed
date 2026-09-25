@@ -34,6 +34,57 @@ conversation; the reviewed tranche-specific design governs execution.
 
 The source text below is retained as proposal evidence. Where its examples suggest a production winner or broader edge vocabulary, the execution brief and live programme govern.
 
+## Source-alignment discovery and forward-curator data gate
+
+The [Codex decision-to-chat experiment](../../experiments/decision-chat-alignment/COHORT-100-REPORT.md)
+tests a **decision-known reverse locator**: given an existing decision, find the earlier raw turns that
+support it. The strict 100-decision sample has 82 source-verified rows in the frozen audit; a separate
+post-hoc write-event re-audit raises the provisional source count to 86 without changing sealed
+retrieval scores. The audit was AI-adjudicated, one source group crossed the development/held-out split,
+and the clean held-out subset contains only 15 decisions. These are promising source pairs, not yet a
+production gold set or a demonstration of 98% decision-detection recall.
+
+**Decision for the information-extraction track:** use verified raw-span/decision pairs as a
+development and evaluation dataset for **deterministic extraction of decision-relevant facts and
+decisions** from source text. Test whether the extractor identifies the choice and supporting
+facts—rationale, alternatives, constraints, evidence, consequences, and earlier-decision links—
+with source-grounded spans and correct attribution, conditions, and polarity. Optimize this
+task for the Memory Seed use case, measuring decision and component recall, false negatives,
+precision, grounding, and candidate/read volume separately; a curator remains responsible for
+semantic interpretation. This carries forward the decomposition insight in
+`docs/4_Reference/atomic-facts-and-decisions-report.md` and this experiment's
+`DESIGN-NOTE.md`, while respecting the later roadmap disposition in
+`docs/8_Deferred/fact-items-and-premise-tracking-proposal.md`: it does **not** add a mandatory
+extract-every-fact stage, a Fact record kind, or a `rests_on` field. Record-kind, decision-splitting,
+and premise-extraction evaluations remain P1.5 discovery candidates, not accepted schemas. The
+tracked pairs carry source coordinates and judgments; raw text is fetched from the authorized
+session store only for a bounded review or evaluation, not copied into the public corpus. The
+current records label decisions, **not every fact in their source spans**: annotate supporting
+fact spans and their roles before reporting fact-extraction accuracy. Keep development/training,
+validation, and sealed test groups separate by actual root session and parent/child lineage;
+the current leaked held-out split cannot supply a clean final accuracy estimate.
+
+The forward curator has a different input: raw conversation **without** a finished decision to use as
+a search query. The reverse locator may prepare provenance-checked positive examples, but a forward
+detector must be evaluated without decision-title/text leakage. Before its baseline, obtain human-reviewed
+source sufficiency, independently reviewed hard negatives (unlinked text remains unlabeled), and a
+split grouped by actual root session/parent lineage; reserve independent projects when transfer is the
+claim. Freeze a new blind holdout before tuning. Even 100 independent zero-miss positives would give
+only about a 97% one-sided 95% recall lower bound; at least 149 zero-miss independent positives would
+be needed to clear a 98% lower bound under that simplified assumption. Session clustering and actual
+misses weaken that bound further.
+
+The same reverse-locator method is also a **future retrieval primitive** for a hosted “why was this
+decided?” question: begin with the curated decision, and only if it is insufficient, locate a bounded,
+citable source span using retained raw-session coordinates, write-time cutoff, and parent/child lineage.
+The current experiment is not a hosted service. Any later adapter must follow the [hosted privacy and
+retention contract](hosted-memory-mvp-programme.md#privacy-retention-and-sharing): raw fallback only
+for the member who owns that evidence, within retention, with an explicit unavailable or uncertain
+result when the source cannot be established. The curator's bounded machine processing does not
+grant a general hosted agent access to another member's transcript. This documentation does not
+authorize a hosted API, storage change, model training, or production deployment; P0.4 and the tranche-entry discovery remain
+gates.
+
 ## Purpose
 
 Evaluate the best decision/classification architecture for Memory Seed using the existing curated corpus as the primary benchmark.

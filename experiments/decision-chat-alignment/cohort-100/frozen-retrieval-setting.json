@@ -1,0 +1,22 @@
+{
+  "schema_version": "decision-alignment-frozen-setting/1.0",
+  "frozen_after_development_review": true,
+  "sample_ids_sha256": "e1fb0f77272bed5f17c11c11203ef330fa29fba6c718dc6062d7f97168b96dfb",
+  "development_gold_sha256": "a862e9f903629f2ab9c29739b3dcb8b7ce3e9c76ea69c391f26d88e0a19aa330",
+  "development_fallback_result_sha256": "391b1628df9fb677fbf1720e7c8e9d9da35686d842cd2c3fdd876b5ecf856940",
+  "selection_order": [
+    "frozen candidate and 20-turn lineage-aware envelope",
+    "top three lexical spans within that envelope for first read",
+    "remainder of the envelope when evidence is insufficient",
+    "one additional session by recent eligible turn activity plus one by visible-message lexical overlap",
+    "ranked spans in that neighboring-session pool for prioritization, followed by its full causal 72-hour turns if still insufficient"
+  ],
+  "neighbor_scope": "all local Codex session origins, including voice and projectless; direct source turns must precede the record minute plus one minute",
+  "development_verified_source_coverage": {
+    "top_three_inside_envelope": "22/27",
+    "full_envelope": "24/27",
+    "full_hybrid_nearby_session_scope": "27/27"
+  },
+  "non_operational_oracle_warning": "The experiment uses gold citations to report the first complete stage. A deployed system would need curator feedback or another validated sufficiency check to decide when to expand; no such automatic semantic stop is implemented.",
+  "held_out_policy": "Do not change selection/ranking parameters in response to the 20 held-out labels; report misses and source-lineage overlap as limitations."
+}

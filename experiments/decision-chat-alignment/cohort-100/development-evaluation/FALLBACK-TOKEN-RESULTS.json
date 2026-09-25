@@ -1,0 +1,2668 @@
+{
+  "metadata": {
+    "cohort_ids_sha256": "bd07996d723dc53feb3b17d973064b7c06b201520dfc0df3e1ed9c5359a8b9b1",
+    "conditional_stage": "gold-oracle upper-bound cost, not an operational sufficiency trigger",
+    "raw_output_caveat": "opaque encodings inside text strings may be counted; structured multimodal blocks are excluded",
+    "tokenizer_label": "caller-supplied local tokenizer.json",
+    "tokenizer_sha256": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a"
+  },
+  "rows": [
+    {
+      "decision_id": "mse_2b6c8d9f1h3j5k7m:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 54
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 54
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 537916,
+          "contains_all_evidence": true,
+          "normalized_tokens": 64600,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 478,
+          "raw_tool_output_tokens": 473316,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 601719,
+          "contains_all_evidence": true,
+          "normalized_tokens": 77907,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 572,
+          "raw_tool_output_tokens": 523812,
+          "turns": 25
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 54
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 56
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 56
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 866149,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120395,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 745754,
+          "turns": 56
+        }
+      }
+    },
+    {
+      "decision_id": "mse_3zb8patr1qwnxhay:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 59
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 59
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 616891,
+          "contains_all_evidence": true,
+          "normalized_tokens": 54019,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 397,
+          "raw_tool_output_tokens": 562872,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1239114,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122682,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 986,
+          "raw_tool_output_tokens": 1116432,
+          "turns": 31
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 59
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 61
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 61
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2144286,
+          "contains_all_evidence": true,
+          "normalized_tokens": 212338,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1668,
+          "raw_tool_output_tokens": 1931948,
+          "turns": 61
+        }
+      }
+    },
+    {
+      "decision_id": "mse_6tby0bkrj5e9p30v:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 2244262,
+          "contains_all_evidence": true,
+          "normalized_tokens": 191984,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1459,
+          "raw_tool_output_tokens": 2052278,
+          "turns": 40
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3261579,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293280,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1998,
+          "raw_tool_output_tokens": 2968299,
+          "turns": 57
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 892589,
+          "contains_all_evidence": true,
+          "normalized_tokens": 60404,
+          "omitted_structured_multimodal_blocks": 2,
+          "raw_tool_output_count": 450,
+          "raw_tool_output_tokens": 832185,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1646351,
+          "contains_all_evidence": true,
+          "normalized_tokens": 141775,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1213,
+          "raw_tool_output_tokens": 1504576,
+          "turns": 28
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2387052,
+          "contains_all_evidence": true,
+          "normalized_tokens": 208807,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1541,
+          "raw_tool_output_tokens": 2178245,
+          "turns": 43
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2387052,
+          "contains_all_evidence": true,
+          "normalized_tokens": 208807,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1541,
+          "raw_tool_output_tokens": 2178245,
+          "turns": 45
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 2244262,
+          "contains_all_evidence": true,
+          "normalized_tokens": 191984,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1459,
+          "raw_tool_output_tokens": 2052278,
+          "turns": 42
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3261579,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293280,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1998,
+          "raw_tool_output_tokens": 2968299,
+          "turns": 59
+        }
+      }
+    },
+    {
+      "decision_id": "mse_76fbjv3d7mxssad1:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 431763,
+          "contains_all_evidence": true,
+          "normalized_tokens": 44169,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 105,
+          "raw_tool_output_tokens": 387594,
+          "turns": 38
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3717385,
+          "contains_all_evidence": true,
+          "normalized_tokens": 463025,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 2423,
+          "raw_tool_output_tokens": 3254360,
+          "turns": 169
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 2009967,
+          "contains_all_evidence": true,
+          "normalized_tokens": 790665,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 824,
+          "raw_tool_output_tokens": 1219302,
+          "turns": 129
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1014915,
+          "contains_all_evidence": true,
+          "normalized_tokens": 601483,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 399,
+          "raw_tool_output_tokens": 413432,
+          "turns": 20
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2009967,
+          "contains_all_evidence": true,
+          "normalized_tokens": 790665,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 824,
+          "raw_tool_output_tokens": 1219302,
+          "turns": 127
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2009967,
+          "contains_all_evidence": true,
+          "normalized_tokens": 790665,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 824,
+          "raw_tool_output_tokens": 1219302,
+          "turns": 129
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 431763,
+          "contains_all_evidence": true,
+          "normalized_tokens": 44169,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 105,
+          "raw_tool_output_tokens": 387594,
+          "turns": 40
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3717385,
+          "contains_all_evidence": true,
+          "normalized_tokens": 463025,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 2423,
+          "raw_tool_output_tokens": 3254360,
+          "turns": 171
+        }
+      }
+    },
+    {
+      "decision_id": "mse_7h9y085yssjc18yq:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1375859,
+          "contains_all_evidence": true,
+          "normalized_tokens": 315335,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1053,
+          "raw_tool_output_tokens": 1060524,
+          "turns": 119
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2547606,
+          "contains_all_evidence": true,
+          "normalized_tokens": 400636,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1412,
+          "raw_tool_output_tokens": 2146970,
+          "turns": 139
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 116663,
+          "contains_all_evidence": true,
+          "normalized_tokens": 22012,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 70,
+          "raw_tool_output_tokens": 94651,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 581234,
+          "contains_all_evidence": true,
+          "normalized_tokens": 118415,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 383,
+          "raw_tool_output_tokens": 462819,
+          "turns": 37
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1464274,
+          "contains_all_evidence": true,
+          "normalized_tokens": 326832,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1068,
+          "raw_tool_output_tokens": 1137442,
+          "turns": 123
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1464274,
+          "contains_all_evidence": true,
+          "normalized_tokens": 326832,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1068,
+          "raw_tool_output_tokens": 1137442,
+          "turns": 125
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1375859,
+          "contains_all_evidence": true,
+          "normalized_tokens": 315335,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1053,
+          "raw_tool_output_tokens": 1060524,
+          "turns": 121
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2547606,
+          "contains_all_evidence": true,
+          "normalized_tokens": 400636,
+          "omitted_structured_multimodal_blocks": 5,
+          "raw_tool_output_count": 1412,
+          "raw_tool_output_tokens": 2146970,
+          "turns": 141
+        }
+      }
+    },
+    {
+      "decision_id": "mse_7q3vt0k8m2h5r9cw:d1",
+      "gold_label": "partial_multi_turn",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 700735,
+          "contains_all_evidence": true,
+          "normalized_tokens": 130293,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 421,
+          "raw_tool_output_tokens": 570442,
+          "turns": 55
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1420461,
+          "contains_all_evidence": true,
+          "normalized_tokens": 208708,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 692,
+          "raw_tool_output_tokens": 1211753,
+          "turns": 70
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 153923,
+          "contains_all_evidence": true,
+          "normalized_tokens": 43002,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 83,
+          "raw_tool_output_tokens": 110921,
+          "turns": 24
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 153923,
+          "contains_all_evidence": true,
+          "normalized_tokens": 43002,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 83,
+          "raw_tool_output_tokens": 110921,
+          "turns": 24
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 832708,
+          "contains_all_evidence": true,
+          "normalized_tokens": 139934,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 453,
+          "raw_tool_output_tokens": 692774,
+          "turns": 57
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 832708,
+          "contains_all_evidence": true,
+          "normalized_tokens": 139934,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 453,
+          "raw_tool_output_tokens": 692774,
+          "turns": 57
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 700735,
+          "contains_all_evidence": true,
+          "normalized_tokens": 130293,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 421,
+          "raw_tool_output_tokens": 570442,
+          "turns": 55
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1420461,
+          "contains_all_evidence": true,
+          "normalized_tokens": 208708,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 692,
+          "raw_tool_output_tokens": 1211753,
+          "turns": 70
+        }
+      }
+    },
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d1",
+      "gold_label": "unresolved",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1184121,
+          "contains_all_evidence": false,
+          "normalized_tokens": 282897,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 936,
+          "raw_tool_output_tokens": 901224,
+          "turns": 94
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2444571,
+          "contains_all_evidence": false,
+          "normalized_tokens": 372121,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1375,
+          "raw_tool_output_tokens": 2072450,
+          "turns": 116
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 229114,
+          "contains_all_evidence": false,
+          "normalized_tokens": 55033,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 170,
+          "raw_tool_output_tokens": 174081,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 708048,
+          "contains_all_evidence": false,
+          "normalized_tokens": 144838,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 520,
+          "raw_tool_output_tokens": 563210,
+          "turns": 34
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1436911,
+          "contains_all_evidence": false,
+          "normalized_tokens": 311205,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1103,
+          "raw_tool_output_tokens": 1125706,
+          "turns": 99
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1436911,
+          "contains_all_evidence": false,
+          "normalized_tokens": 311205,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1103,
+          "raw_tool_output_tokens": 1125706,
+          "turns": 99
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1184121,
+          "contains_all_evidence": false,
+          "normalized_tokens": 282897,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 936,
+          "raw_tool_output_tokens": 901224,
+          "turns": 94
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2444571,
+          "contains_all_evidence": false,
+          "normalized_tokens": 372121,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1375,
+          "raw_tool_output_tokens": 2072450,
+          "turns": 116
+        }
+      }
+    },
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d2",
+      "gold_label": "unresolved",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1184121,
+          "contains_all_evidence": false,
+          "normalized_tokens": 282897,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 936,
+          "raw_tool_output_tokens": 901224,
+          "turns": 94
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2444571,
+          "contains_all_evidence": false,
+          "normalized_tokens": 372121,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1375,
+          "raw_tool_output_tokens": 2072450,
+          "turns": 116
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 229114,
+          "contains_all_evidence": false,
+          "normalized_tokens": 55033,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 170,
+          "raw_tool_output_tokens": 174081,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 666550,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138756,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 512,
+          "raw_tool_output_tokens": 527794,
+          "turns": 30
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1436911,
+          "contains_all_evidence": false,
+          "normalized_tokens": 311205,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1103,
+          "raw_tool_output_tokens": 1125706,
+          "turns": 99
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1436911,
+          "contains_all_evidence": false,
+          "normalized_tokens": 311205,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1103,
+          "raw_tool_output_tokens": 1125706,
+          "turns": 99
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1184121,
+          "contains_all_evidence": false,
+          "normalized_tokens": 282897,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 936,
+          "raw_tool_output_tokens": 901224,
+          "turns": 94
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2444571,
+          "contains_all_evidence": false,
+          "normalized_tokens": 372121,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1375,
+          "raw_tool_output_tokens": 2072450,
+          "turns": 116
+        }
+      }
+    },
+    {
+      "decision_id": "mse_8e7e78fx4hspcfta:d2",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 757322,
+          "contains_all_evidence": true,
+          "normalized_tokens": 99824,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 670,
+          "raw_tool_output_tokens": 657498,
+          "turns": 39
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1198880,
+          "contains_all_evidence": true,
+          "normalized_tokens": 131187,
+          "omitted_structured_multimodal_blocks": 2,
+          "raw_tool_output_count": 837,
+          "raw_tool_output_tokens": 1067693,
+          "turns": 46
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 343565,
+          "contains_all_evidence": true,
+          "normalized_tokens": 45145,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 319,
+          "raw_tool_output_tokens": 298420,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 484887,
+          "contains_all_evidence": true,
+          "normalized_tokens": 66951,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 454,
+          "raw_tool_output_tokens": 417936,
+          "turns": 24
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 872721,
+          "contains_all_evidence": true,
+          "normalized_tokens": 105799,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 707,
+          "raw_tool_output_tokens": 766922,
+          "turns": 40
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 872721,
+          "contains_all_evidence": true,
+          "normalized_tokens": 105799,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 707,
+          "raw_tool_output_tokens": 766922,
+          "turns": 40
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 757322,
+          "contains_all_evidence": true,
+          "normalized_tokens": 99824,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 670,
+          "raw_tool_output_tokens": 657498,
+          "turns": 39
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1198880,
+          "contains_all_evidence": true,
+          "normalized_tokens": 131187,
+          "omitted_structured_multimodal_blocks": 2,
+          "raw_tool_output_count": 837,
+          "raw_tool_output_tokens": 1067693,
+          "turns": 46
+        }
+      }
+    },
+    {
+      "decision_id": "mse_8w5r7t9y2u4i6o8p:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 776710,
+          "contains_all_evidence": true,
+          "normalized_tokens": 197313,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 654,
+          "raw_tool_output_tokens": 579397,
+          "turns": 67
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1132632,
+          "contains_all_evidence": true,
+          "normalized_tokens": 243244,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 823,
+          "raw_tool_output_tokens": 889388,
+          "turns": 81
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 276081,
+          "contains_all_evidence": true,
+          "normalized_tokens": 104662,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 376,
+          "raw_tool_output_tokens": 171419,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 454103,
+          "contains_all_evidence": true,
+          "normalized_tokens": 128431,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 498,
+          "raw_tool_output_tokens": 325672,
+          "turns": 25
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 954732,
+          "contains_all_evidence": true,
+          "normalized_tokens": 221082,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 733650,
+          "turns": 69
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 954732,
+          "contains_all_evidence": true,
+          "normalized_tokens": 221082,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 776,
+          "raw_tool_output_tokens": 733650,
+          "turns": 71
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 776710,
+          "contains_all_evidence": true,
+          "normalized_tokens": 197313,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 654,
+          "raw_tool_output_tokens": 579397,
+          "turns": 69
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1132632,
+          "contains_all_evidence": true,
+          "normalized_tokens": 243244,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 823,
+          "raw_tool_output_tokens": 889388,
+          "turns": 83
+        }
+      }
+    },
+    {
+      "decision_id": "mse_9n4p6q8r2s5t7v1w:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 55
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 55
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 507186,
+          "contains_all_evidence": true,
+          "normalized_tokens": 62905,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 457,
+          "raw_tool_output_tokens": 444281,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 622659,
+          "contains_all_evidence": true,
+          "normalized_tokens": 80701,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 592,
+          "raw_tool_output_tokens": 541958,
+          "turns": 26
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 55
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 57
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 57
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 897829,
+          "contains_all_evidence": true,
+          "normalized_tokens": 122950,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 804,
+          "raw_tool_output_tokens": 774879,
+          "turns": 57
+        }
+      }
+    },
+    {
+      "decision_id": "mse_a68ddwhcna0ef86m:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 2606225,
+          "contains_all_evidence": true,
+          "normalized_tokens": 364835,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2316,
+          "raw_tool_output_tokens": 2241390,
+          "turns": 32
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2606225,
+          "contains_all_evidence": true,
+          "normalized_tokens": 364835,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2316,
+          "raw_tool_output_tokens": 2241390,
+          "turns": 41
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1844384,
+          "contains_all_evidence": true,
+          "normalized_tokens": 286010,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1710,
+          "raw_tool_output_tokens": 1558374,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1985586,
+          "contains_all_evidence": true,
+          "normalized_tokens": 295677,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1793,
+          "raw_tool_output_tokens": 1689909,
+          "turns": 24
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2618686,
+          "contains_all_evidence": true,
+          "normalized_tokens": 367003,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2317,
+          "raw_tool_output_tokens": 2251683,
+          "turns": 33
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2618686,
+          "contains_all_evidence": true,
+          "normalized_tokens": 367003,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2317,
+          "raw_tool_output_tokens": 2251683,
+          "turns": 35
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 2606225,
+          "contains_all_evidence": true,
+          "normalized_tokens": 364835,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2316,
+          "raw_tool_output_tokens": 2241390,
+          "turns": 34
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2606225,
+          "contains_all_evidence": true,
+          "normalized_tokens": 364835,
+          "omitted_structured_multimodal_blocks": 1,
+          "raw_tool_output_count": 2316,
+          "raw_tool_output_tokens": 2241390,
+          "turns": 43
+        }
+      }
+    },
+    {
+      "decision_id": "mse_cad6sznfsjwwj2ks:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 698091,
+          "contains_all_evidence": true,
+          "normalized_tokens": 90569,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 283,
+          "raw_tool_output_tokens": 607522,
+          "turns": 57
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 4212454,
+          "contains_all_evidence": true,
+          "normalized_tokens": 526429,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 2728,
+          "raw_tool_output_tokens": 3686025,
+          "turns": 189
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1652028,
+          "contains_all_evidence": true,
+          "normalized_tokens": 265556,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1315,
+          "raw_tool_output_tokens": 1386472,
+          "turns": 85
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1124771,
+          "contains_all_evidence": false,
+          "normalized_tokens": 162194,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1047,
+          "raw_tool_output_tokens": 962577,
+          "turns": 14
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1652028,
+          "contains_all_evidence": true,
+          "normalized_tokens": 265556,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1315,
+          "raw_tool_output_tokens": 1386472,
+          "turns": 84
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1652028,
+          "contains_all_evidence": true,
+          "normalized_tokens": 265556,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1315,
+          "raw_tool_output_tokens": 1386472,
+          "turns": 85
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 698091,
+          "contains_all_evidence": true,
+          "normalized_tokens": 90569,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 283,
+          "raw_tool_output_tokens": 607522,
+          "turns": 58
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 4212454,
+          "contains_all_evidence": true,
+          "normalized_tokens": 526429,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 2728,
+          "raw_tool_output_tokens": 3686025,
+          "turns": 190
+        }
+      }
+    },
+    {
+      "decision_id": "mse_d3fzy8v88twq33nh:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1045631,
+          "contains_all_evidence": true,
+          "normalized_tokens": 92987,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 798,
+          "raw_tool_output_tokens": 952644,
+          "turns": 17
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1059072,
+          "contains_all_evidence": true,
+          "normalized_tokens": 95623,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 820,
+          "raw_tool_output_tokens": 963449,
+          "turns": 18
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1194836,
+          "contains_all_evidence": true,
+          "normalized_tokens": 101248,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 823,
+          "raw_tool_output_tokens": 1093588,
+          "turns": 17
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1194836,
+          "contains_all_evidence": true,
+          "normalized_tokens": 101248,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 823,
+          "raw_tool_output_tokens": 1093588,
+          "turns": 17
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1045631,
+          "contains_all_evidence": true,
+          "normalized_tokens": 92987,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 798,
+          "raw_tool_output_tokens": 952644,
+          "turns": 17
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1280851,
+          "contains_all_evidence": true,
+          "normalized_tokens": 106993,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 851,
+          "raw_tool_output_tokens": 1173858,
+          "turns": 20
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1280851,
+          "contains_all_evidence": true,
+          "normalized_tokens": 106993,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 851,
+          "raw_tool_output_tokens": 1173858,
+          "turns": 20
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1294292,
+          "contains_all_evidence": true,
+          "normalized_tokens": 109629,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 873,
+          "raw_tool_output_tokens": 1184663,
+          "turns": 21
+        }
+      }
+    },
+    {
+      "decision_id": "mse_ddba1ztxqhasfbwf:d1",
+      "gold_label": "partial_multi_turn",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 4118089,
+          "contains_all_evidence": true,
+          "normalized_tokens": 327656,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2287,
+          "raw_tool_output_tokens": 3790433,
+          "turns": 69
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 5135406,
+          "contains_all_evidence": true,
+          "normalized_tokens": 428952,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2826,
+          "raw_tool_output_tokens": 4706454,
+          "turns": 86
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1794766,
+          "contains_all_evidence": true,
+          "normalized_tokens": 126005,
+          "omitted_structured_multimodal_blocks": 12,
+          "raw_tool_output_count": 762,
+          "raw_tool_output_tokens": 1668761,
+          "turns": 22
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 2676935,
+          "contains_all_evidence": true,
+          "normalized_tokens": 219444,
+          "omitted_structured_multimodal_blocks": 15,
+          "raw_tool_output_count": 1584,
+          "raw_tool_output_tokens": 2457491,
+          "turns": 31
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 4273887,
+          "contains_all_evidence": true,
+          "normalized_tokens": 343318,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2395,
+          "raw_tool_output_tokens": 3930569,
+          "turns": 70
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 4273887,
+          "contains_all_evidence": true,
+          "normalized_tokens": 343318,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2395,
+          "raw_tool_output_tokens": 3930569,
+          "turns": 71
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 4118089,
+          "contains_all_evidence": true,
+          "normalized_tokens": 327656,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2287,
+          "raw_tool_output_tokens": 3790433,
+          "turns": 70
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 5135406,
+          "contains_all_evidence": true,
+          "normalized_tokens": 428952,
+          "omitted_structured_multimodal_blocks": 22,
+          "raw_tool_output_count": 2826,
+          "raw_tool_output_tokens": 4706454,
+          "turns": 87
+        }
+      }
+    },
+    {
+      "decision_id": "mse_djnwts4msn5r296n:d1",
+      "gold_label": "unresolved",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 810049,
+          "contains_all_evidence": false,
+          "normalized_tokens": 86886,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 668,
+          "raw_tool_output_tokens": 723163,
+          "turns": 26
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 943486,
+          "contains_all_evidence": false,
+          "normalized_tokens": 103269,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 788,
+          "raw_tool_output_tokens": 840217,
+          "turns": 30
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1204634,
+          "contains_all_evidence": false,
+          "normalized_tokens": 138632,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1026,
+          "raw_tool_output_tokens": 1066002,
+          "turns": 52
+        }
+      }
+    },
+    {
+      "decision_id": "mse_fdt9nfjrtfep0d7z:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 3124033,
+          "contains_all_evidence": true,
+          "normalized_tokens": 257014,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 1853,
+          "raw_tool_output_tokens": 2867019,
+          "turns": 56
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 4141350,
+          "contains_all_evidence": true,
+          "normalized_tokens": 358310,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 2392,
+          "raw_tool_output_tokens": 3783040,
+          "turns": 73
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1117869,
+          "contains_all_evidence": true,
+          "normalized_tokens": 85201,
+          "omitted_structured_multimodal_blocks": 13,
+          "raw_tool_output_count": 550,
+          "raw_tool_output_tokens": 1032668,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1955712,
+          "contains_all_evidence": true,
+          "normalized_tokens": 157695,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 1186,
+          "raw_tool_output_tokens": 1798017,
+          "turns": 31
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 3330215,
+          "contains_all_evidence": true,
+          "normalized_tokens": 276028,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 1975,
+          "raw_tool_output_tokens": 3054187,
+          "turns": 61
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 3330215,
+          "contains_all_evidence": true,
+          "normalized_tokens": 276028,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 1975,
+          "raw_tool_output_tokens": 3054187,
+          "turns": 63
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 3124033,
+          "contains_all_evidence": true,
+          "normalized_tokens": 257014,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 1853,
+          "raw_tool_output_tokens": 2867019,
+          "turns": 58
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 4141350,
+          "contains_all_evidence": true,
+          "normalized_tokens": 358310,
+          "omitted_structured_multimodal_blocks": 16,
+          "raw_tool_output_count": 2392,
+          "raw_tool_output_tokens": 3783040,
+          "turns": 75
+        }
+      }
+    },
+    {
+      "decision_id": "mse_fmwktrvekcphg1zk:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1120719,
+          "contains_all_evidence": true,
+          "normalized_tokens": 95106,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 587,
+          "raw_tool_output_tokens": 1025613,
+          "turns": 38
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1451103,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120988,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 652,
+          "raw_tool_output_tokens": 1330115,
+          "turns": 47
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 347312,
+          "contains_all_evidence": true,
+          "normalized_tokens": 37764,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 186,
+          "raw_tool_output_tokens": 309548,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1411781,
+          "contains_all_evidence": true,
+          "normalized_tokens": 168409,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1131,
+          "raw_tool_output_tokens": 1243372,
+          "turns": 32
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1928832,
+          "contains_all_evidence": true,
+          "normalized_tokens": 206707,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1334,
+          "raw_tool_output_tokens": 1722125,
+          "turns": 57
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1928832,
+          "contains_all_evidence": true,
+          "normalized_tokens": 206707,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1334,
+          "raw_tool_output_tokens": 1722125,
+          "turns": 57
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1120719,
+          "contains_all_evidence": true,
+          "normalized_tokens": 95106,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 587,
+          "raw_tool_output_tokens": 1025613,
+          "turns": 38
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1451103,
+          "contains_all_evidence": true,
+          "normalized_tokens": 120988,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 652,
+          "raw_tool_output_tokens": 1330115,
+          "turns": 47
+        }
+      }
+    },
+    {
+      "decision_id": "mse_fn43c998br9cn2kv:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1092034,
+          "contains_all_evidence": true,
+          "normalized_tokens": 161773,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 985,
+          "raw_tool_output_tokens": 930261,
+          "turns": 17
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1835799,
+          "contains_all_evidence": true,
+          "normalized_tokens": 215711,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1312,
+          "raw_tool_output_tokens": 1620088,
+          "turns": 35
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1445640,
+          "contains_all_evidence": true,
+          "normalized_tokens": 194039,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1165,
+          "raw_tool_output_tokens": 1251601,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1445640,
+          "contains_all_evidence": true,
+          "normalized_tokens": 194039,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1165,
+          "raw_tool_output_tokens": 1251601,
+          "turns": 21
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1227843,
+          "contains_all_evidence": true,
+          "normalized_tokens": 187202,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1142,
+          "raw_tool_output_tokens": 1040641,
+          "turns": 21
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1581449,
+          "contains_all_evidence": true,
+          "normalized_tokens": 219468,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1322,
+          "raw_tool_output_tokens": 1361981,
+          "turns": 26
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1445640,
+          "contains_all_evidence": true,
+          "normalized_tokens": 194039,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1165,
+          "raw_tool_output_tokens": 1251601,
+          "turns": 22
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2189405,
+          "contains_all_evidence": true,
+          "normalized_tokens": 247977,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1492,
+          "raw_tool_output_tokens": 1941428,
+          "turns": 40
+        }
+      }
+    },
+    {
+      "decision_id": "mse_g4ear2p6fdm1pbnp:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 3824615,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293460,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 1951,
+          "raw_tool_output_tokens": 3531155,
+          "turns": 65
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 4447311,
+          "contains_all_evidence": true,
+          "normalized_tokens": 347395,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 2187,
+          "raw_tool_output_tokens": 4099916,
+          "turns": 74
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 179154,
+          "contains_all_evidence": true,
+          "normalized_tokens": 13803,
+          "omitted_structured_multimodal_blocks": 7,
+          "raw_tool_output_count": 72,
+          "raw_tool_output_tokens": 165351,
+          "turns": 7
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 623352,
+          "contains_all_evidence": true,
+          "normalized_tokens": 40119,
+          "omitted_structured_multimodal_blocks": 7,
+          "raw_tool_output_count": 215,
+          "raw_tool_output_tokens": 583233,
+          "turns": 14
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 3824615,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293460,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 1951,
+          "raw_tool_output_tokens": 3531155,
+          "turns": 65
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 3824615,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293460,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 1951,
+          "raw_tool_output_tokens": 3531155,
+          "turns": 67
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 3824615,
+          "contains_all_evidence": true,
+          "normalized_tokens": 293460,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 1951,
+          "raw_tool_output_tokens": 3531155,
+          "turns": 67
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 4447311,
+          "contains_all_evidence": true,
+          "normalized_tokens": 347395,
+          "omitted_structured_multimodal_blocks": 26,
+          "raw_tool_output_count": 2187,
+          "raw_tool_output_tokens": 4099916,
+          "turns": 76
+        }
+      }
+    },
+    {
+      "decision_id": "mse_jhvx67dygn06bk6t:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1723212,
+          "contains_all_evidence": true,
+          "normalized_tokens": 415410,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1391,
+          "raw_tool_output_tokens": 1307802,
+          "turns": 161
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3138273,
+          "contains_all_evidence": true,
+          "normalized_tokens": 509427,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1858,
+          "raw_tool_output_tokens": 2628846,
+          "turns": 183
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 126123,
+          "contains_all_evidence": true,
+          "normalized_tokens": 53215,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 181,
+          "raw_tool_output_tokens": 72908,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 533232,
+          "contains_all_evidence": true,
+          "normalized_tokens": 98663,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 336,
+          "raw_tool_output_tokens": 434569,
+          "turns": 34
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2008912,
+          "contains_all_evidence": true,
+          "normalized_tokens": 433040,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1448,
+          "raw_tool_output_tokens": 1575872,
+          "turns": 169
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2008912,
+          "contains_all_evidence": true,
+          "normalized_tokens": 433040,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1448,
+          "raw_tool_output_tokens": 1575872,
+          "turns": 171
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1723212,
+          "contains_all_evidence": true,
+          "normalized_tokens": 415410,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1391,
+          "raw_tool_output_tokens": 1307802,
+          "turns": 163
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3138273,
+          "contains_all_evidence": true,
+          "normalized_tokens": 509427,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1858,
+          "raw_tool_output_tokens": 2628846,
+          "turns": 185
+        }
+      }
+    },
+    {
+      "decision_id": "mse_jrnpgpb127aytmfn:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 2196023,
+          "contains_all_evidence": true,
+          "normalized_tokens": 186865,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1423,
+          "raw_tool_output_tokens": 2009158,
+          "turns": 37
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3213340,
+          "contains_all_evidence": true,
+          "normalized_tokens": 288161,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1962,
+          "raw_tool_output_tokens": 2925179,
+          "turns": 54
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1329698,
+          "contains_all_evidence": true,
+          "normalized_tokens": 111327,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 996,
+          "raw_tool_output_tokens": 1218371,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 2032056,
+          "contains_all_evidence": true,
+          "normalized_tokens": 198038,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1654,
+          "raw_tool_output_tokens": 1834018,
+          "turns": 28
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2672269,
+          "contains_all_evidence": true,
+          "normalized_tokens": 257332,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1963,
+          "raw_tool_output_tokens": 2414937,
+          "turns": 46
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2672269,
+          "contains_all_evidence": true,
+          "normalized_tokens": 257332,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1963,
+          "raw_tool_output_tokens": 2414937,
+          "turns": 48
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 2196023,
+          "contains_all_evidence": true,
+          "normalized_tokens": 186865,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1423,
+          "raw_tool_output_tokens": 2009158,
+          "turns": 39
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3213340,
+          "contains_all_evidence": true,
+          "normalized_tokens": 288161,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1962,
+          "raw_tool_output_tokens": 2925179,
+          "turns": 56
+        }
+      }
+    },
+    {
+      "decision_id": "mse_k6xq3f1d9n7v2hba:d1",
+      "gold_label": "unresolved",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 972685,
+          "contains_all_evidence": true,
+          "normalized_tokens": 133918,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 895,
+          "raw_tool_output_tokens": 838767,
+          "turns": 62
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1113350,
+          "contains_all_evidence": true,
+          "normalized_tokens": 148085,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 960,
+          "raw_tool_output_tokens": 965265,
+          "turns": 71
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 469010,
+          "contains_all_evidence": true,
+          "normalized_tokens": 56807,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 421,
+          "raw_tool_output_tokens": 412203,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 551073,
+          "contains_all_evidence": true,
+          "normalized_tokens": 71101,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 486,
+          "raw_tool_output_tokens": 479972,
+          "turns": 30
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 972685,
+          "contains_all_evidence": true,
+          "normalized_tokens": 133918,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 895,
+          "raw_tool_output_tokens": 838767,
+          "turns": 62
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 972685,
+          "contains_all_evidence": true,
+          "normalized_tokens": 133918,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 895,
+          "raw_tool_output_tokens": 838767,
+          "turns": 64
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 972685,
+          "contains_all_evidence": true,
+          "normalized_tokens": 133918,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 895,
+          "raw_tool_output_tokens": 838767,
+          "turns": 64
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1113350,
+          "contains_all_evidence": true,
+          "normalized_tokens": 148085,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 960,
+          "raw_tool_output_tokens": 965265,
+          "turns": 73
+        }
+      }
+    },
+    {
+      "decision_id": "mse_km4e73px71s5jqg2:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 308075,
+          "contains_all_evidence": true,
+          "normalized_tokens": 36352,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 267,
+          "raw_tool_output_tokens": 271723,
+          "turns": 15
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 495655,
+          "contains_all_evidence": true,
+          "normalized_tokens": 56322,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 381,
+          "raw_tool_output_tokens": 439333,
+          "turns": 26
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 275641,
+          "contains_all_evidence": true,
+          "normalized_tokens": 34085,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 257,
+          "raw_tool_output_tokens": 241556,
+          "turns": 16
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 275641,
+          "contains_all_evidence": true,
+          "normalized_tokens": 34085,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 257,
+          "raw_tool_output_tokens": 241556,
+          "turns": 16
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 495655,
+          "contains_all_evidence": true,
+          "normalized_tokens": 56322,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 381,
+          "raw_tool_output_tokens": 439333,
+          "turns": 26
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 495655,
+          "contains_all_evidence": true,
+          "normalized_tokens": 56322,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 381,
+          "raw_tool_output_tokens": 439333,
+          "turns": 28
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 308075,
+          "contains_all_evidence": true,
+          "normalized_tokens": 36352,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 267,
+          "raw_tool_output_tokens": 271723,
+          "turns": 17
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 495655,
+          "contains_all_evidence": true,
+          "normalized_tokens": 56322,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 381,
+          "raw_tool_output_tokens": 439333,
+          "turns": 28
+        }
+      }
+    },
+    {
+      "decision_id": "mse_kn36asmf96bf5tk1:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 764359,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76731,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 300,
+          "raw_tool_output_tokens": 687628,
+          "turns": 43
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3287443,
+          "contains_all_evidence": true,
+          "normalized_tokens": 282120,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1682,
+          "raw_tool_output_tokens": 3005323,
+          "turns": 81
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 473528,
+          "contains_all_evidence": true,
+          "normalized_tokens": 32860,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 178,
+          "raw_tool_output_tokens": 440668,
+          "turns": 5
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 688591,
+          "contains_all_evidence": true,
+          "normalized_tokens": 57097,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 292,
+          "raw_tool_output_tokens": 631494,
+          "turns": 16
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 764359,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76731,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 300,
+          "raw_tool_output_tokens": 687628,
+          "turns": 43
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 764359,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76731,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 300,
+          "raw_tool_output_tokens": 687628,
+          "turns": 45
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 764359,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76731,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 300,
+          "raw_tool_output_tokens": 687628,
+          "turns": 45
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3287443,
+          "contains_all_evidence": true,
+          "normalized_tokens": 282120,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1682,
+          "raw_tool_output_tokens": 3005323,
+          "turns": 83
+        }
+      }
+    },
+    {
+      "decision_id": "mse_myybjvx6pnscfdme:d2",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 2209620,
+          "contains_all_evidence": true,
+          "normalized_tokens": 189045,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1442,
+          "raw_tool_output_tokens": 2020575,
+          "turns": 37
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 3226937,
+          "contains_all_evidence": true,
+          "normalized_tokens": 290341,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1981,
+          "raw_tool_output_tokens": 2936596,
+          "turns": 54
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1343295,
+          "contains_all_evidence": true,
+          "normalized_tokens": 113507,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1015,
+          "raw_tool_output_tokens": 1229788,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 2117110,
+          "contains_all_evidence": true,
+          "normalized_tokens": 206434,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1704,
+          "raw_tool_output_tokens": 1910676,
+          "turns": 30
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2685866,
+          "contains_all_evidence": true,
+          "normalized_tokens": 259512,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1982,
+          "raw_tool_output_tokens": 2426354,
+          "turns": 46
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2685866,
+          "contains_all_evidence": true,
+          "normalized_tokens": 259512,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1982,
+          "raw_tool_output_tokens": 2426354,
+          "turns": 48
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 2209620,
+          "contains_all_evidence": true,
+          "normalized_tokens": 189045,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1442,
+          "raw_tool_output_tokens": 2020575,
+          "turns": 39
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 3226937,
+          "contains_all_evidence": true,
+          "normalized_tokens": 290341,
+          "omitted_structured_multimodal_blocks": 4,
+          "raw_tool_output_count": 1981,
+          "raw_tool_output_tokens": 2936596,
+          "turns": 56
+        }
+      }
+    },
+    {
+      "decision_id": "mse_ngwdpar27fjad246:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1492176,
+          "contains_all_evidence": true,
+          "normalized_tokens": 195969,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1429,
+          "raw_tool_output_tokens": 1296207,
+          "turns": 56
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 2058758,
+          "contains_all_evidence": true,
+          "normalized_tokens": 236243,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1675,
+          "raw_tool_output_tokens": 1822515,
+          "turns": 63
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 649437,
+          "contains_all_evidence": true,
+          "normalized_tokens": 83931,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 605,
+          "raw_tool_output_tokens": 565506,
+          "turns": 21
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1020063,
+          "contains_all_evidence": true,
+          "normalized_tokens": 129563,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 935,
+          "raw_tool_output_tokens": 890500,
+          "turns": 28
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1572649,
+          "contains_all_evidence": true,
+          "normalized_tokens": 201572,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1465,
+          "raw_tool_output_tokens": 1371077,
+          "turns": 57
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1572649,
+          "contains_all_evidence": true,
+          "normalized_tokens": 201572,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1465,
+          "raw_tool_output_tokens": 1371077,
+          "turns": 57
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1492176,
+          "contains_all_evidence": true,
+          "normalized_tokens": 195969,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1429,
+          "raw_tool_output_tokens": 1296207,
+          "turns": 56
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 2058758,
+          "contains_all_evidence": true,
+          "normalized_tokens": 236243,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1675,
+          "raw_tool_output_tokens": 1822515,
+          "turns": 63
+        }
+      }
+    },
+    {
+      "decision_id": "mse_qg9p71qx57rtq99n:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 4
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 4
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 233840,
+          "contains_all_evidence": true,
+          "normalized_tokens": 13736,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 71,
+          "raw_tool_output_tokens": 220104,
+          "turns": 5
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 6
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 4
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 6
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 6
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 240689,
+          "contains_all_evidence": true,
+          "normalized_tokens": 16233,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 73,
+          "raw_tool_output_tokens": 224456,
+          "turns": 6
+        }
+      }
+    },
+    {
+      "decision_id": "mse_rchj256dpbhf0wqg:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 262843,
+          "contains_all_evidence": true,
+          "normalized_tokens": 30198,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 220,
+          "raw_tool_output_tokens": 232645,
+          "turns": 13
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 450423,
+          "contains_all_evidence": true,
+          "normalized_tokens": 50168,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 334,
+          "raw_tool_output_tokens": 400255,
+          "turns": 24
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 230409,
+          "contains_all_evidence": true,
+          "normalized_tokens": 27931,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 210,
+          "raw_tool_output_tokens": 202478,
+          "turns": 14
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 230409,
+          "contains_all_evidence": true,
+          "normalized_tokens": 27931,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 210,
+          "raw_tool_output_tokens": 202478,
+          "turns": 14
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 450423,
+          "contains_all_evidence": true,
+          "normalized_tokens": 50168,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 334,
+          "raw_tool_output_tokens": 400255,
+          "turns": 24
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 450423,
+          "contains_all_evidence": true,
+          "normalized_tokens": 50168,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 334,
+          "raw_tool_output_tokens": 400255,
+          "turns": 26
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 262843,
+          "contains_all_evidence": true,
+          "normalized_tokens": 30198,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 220,
+          "raw_tool_output_tokens": 232645,
+          "turns": 15
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 450423,
+          "contains_all_evidence": true,
+          "normalized_tokens": 50168,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 334,
+          "raw_tool_output_tokens": 400255,
+          "turns": 26
+        }
+      }
+    },
+    {
+      "decision_id": "mse_rdtwf7sc4pexq9km:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 618268,
+          "contains_all_evidence": true,
+          "normalized_tokens": 104089,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 405,
+          "raw_tool_output_tokens": 514179,
+          "turns": 15
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1018156,
+          "contains_all_evidence": true,
+          "normalized_tokens": 148326,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 485,
+          "raw_tool_output_tokens": 869830,
+          "turns": 32
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 618268,
+          "contains_all_evidence": true,
+          "normalized_tokens": 104089,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 405,
+          "raw_tool_output_tokens": 514179,
+          "turns": 16
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 674918,
+          "contains_all_evidence": true,
+          "normalized_tokens": 109379,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 415,
+          "raw_tool_output_tokens": 565539,
+          "turns": 17
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 674918,
+          "contains_all_evidence": true,
+          "normalized_tokens": 109379,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 415,
+          "raw_tool_output_tokens": 565539,
+          "turns": 16
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 674918,
+          "contains_all_evidence": true,
+          "normalized_tokens": 109379,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 415,
+          "raw_tool_output_tokens": 565539,
+          "turns": 18
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 618268,
+          "contains_all_evidence": true,
+          "normalized_tokens": 104089,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 405,
+          "raw_tool_output_tokens": 514179,
+          "turns": 17
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1018156,
+          "contains_all_evidence": true,
+          "normalized_tokens": 148326,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 485,
+          "raw_tool_output_tokens": 869830,
+          "turns": 34
+        }
+      }
+    },
+    {
+      "decision_id": "mse_rsjbgk4qnyrtvv09:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 170106,
+          "contains_all_evidence": true,
+          "normalized_tokens": 15637,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 105,
+          "raw_tool_output_tokens": 154469,
+          "turns": 7
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 971257,
+          "contains_all_evidence": true,
+          "normalized_tokens": 138032,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 977,
+          "raw_tool_output_tokens": 833225,
+          "turns": 45
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 170106,
+          "contains_all_evidence": true,
+          "normalized_tokens": 15637,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 105,
+          "raw_tool_output_tokens": 154469,
+          "turns": 6
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 709582,
+          "contains_all_evidence": true,
+          "normalized_tokens": 91379,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 692,
+          "raw_tool_output_tokens": 618203,
+          "turns": 13
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 971257,
+          "contains_all_evidence": true,
+          "normalized_tokens": 138032,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 977,
+          "raw_tool_output_tokens": 833225,
+          "turns": 42
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 971257,
+          "contains_all_evidence": true,
+          "normalized_tokens": 138032,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 977,
+          "raw_tool_output_tokens": 833225,
+          "turns": 42
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 170106,
+          "contains_all_evidence": true,
+          "normalized_tokens": 15637,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 105,
+          "raw_tool_output_tokens": 154469,
+          "turns": 7
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 971257,
+          "contains_all_evidence": true,
+          "normalized_tokens": 138032,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 977,
+          "raw_tool_output_tokens": 833225,
+          "turns": 45
+        }
+      }
+    },
+    {
+      "decision_id": "mse_t432rwfkvtrv0amt:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1115100,
+          "contains_all_evidence": true,
+          "normalized_tokens": 260039,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1078,
+          "raw_tool_output_tokens": 855061,
+          "turns": 114
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1770781,
+          "contains_all_evidence": true,
+          "normalized_tokens": 333381,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1351,
+          "raw_tool_output_tokens": 1437400,
+          "turns": 133
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 390073,
+          "contains_all_evidence": true,
+          "normalized_tokens": 42104,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 270,
+          "raw_tool_output_tokens": 347969,
+          "turns": 23
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1121067,
+          "contains_all_evidence": true,
+          "normalized_tokens": 638401,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 639,
+          "raw_tool_output_tokens": 482666,
+          "turns": 36
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 2693304,
+          "contains_all_evidence": true,
+          "normalized_tokens": 1006535,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1797,
+          "raw_tool_output_tokens": 1686769,
+          "turns": 203
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 2693304,
+          "contains_all_evidence": true,
+          "normalized_tokens": 1006535,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1797,
+          "raw_tool_output_tokens": 1686769,
+          "turns": 205
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1115100,
+          "contains_all_evidence": true,
+          "normalized_tokens": 260039,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1078,
+          "raw_tool_output_tokens": 855061,
+          "turns": 116
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1770781,
+          "contains_all_evidence": true,
+          "normalized_tokens": 333381,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 1351,
+          "raw_tool_output_tokens": 1437400,
+          "turns": 135
+        }
+      }
+    },
+    {
+      "decision_id": "mse_xz1my3rvpf31r5tr:d1",
+      "gold_label": "verified_source",
+      "stages": {
+        "all_neighbor_1": {
+          "combined_text_channel_proxy": 1174552,
+          "contains_all_evidence": false,
+          "normalized_tokens": 64634,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 465,
+          "raw_tool_output_tokens": 1109918,
+          "turns": 25
+        },
+        "all_neighbor_10": {
+          "combined_text_channel_proxy": 1420876,
+          "contains_all_evidence": true,
+          "normalized_tokens": 89526,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 549,
+          "raw_tool_output_tokens": 1331350,
+          "turns": 36
+        },
+        "conditional_hybrid_oracle": {
+          "combined_text_channel_proxy": 1277764,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76786,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 502,
+          "raw_tool_output_tokens": 1200978,
+          "turns": 26
+        },
+        "hybrid_ranked_10": {
+          "combined_text_channel_proxy": 1277764,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76786,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 502,
+          "raw_tool_output_tokens": 1200978,
+          "turns": 25
+        },
+        "hybrid_recent1_text1": {
+          "combined_text_channel_proxy": 1277764,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76786,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 502,
+          "raw_tool_output_tokens": 1200978,
+          "turns": 26
+        },
+        "staged_full_hybrid": {
+          "combined_text_channel_proxy": 1277764,
+          "contains_all_evidence": true,
+          "normalized_tokens": 76786,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 502,
+          "raw_tool_output_tokens": 1200978,
+          "turns": 26
+        },
+        "staged_full_recent_1": {
+          "combined_text_channel_proxy": 1174552,
+          "contains_all_evidence": false,
+          "normalized_tokens": 64634,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 465,
+          "raw_tool_output_tokens": 1109918,
+          "turns": 25
+        },
+        "staged_full_recent_10": {
+          "combined_text_channel_proxy": 1420876,
+          "contains_all_evidence": true,
+          "normalized_tokens": 89526,
+          "omitted_structured_multimodal_blocks": 0,
+          "raw_tool_output_count": 549,
+          "raw_tool_output_tokens": 1331350,
+          "turns": 36
+        }
+      }
+    }
+  ],
+  "schema_version": "decision-fallback-token-proxy/1.0",
+  "summary": {
+    "all_neighbor_1": {
+      "combined_text_channel_proxy_total": 44644936,
+      "normalized_tokens_median": 138632,
+      "normalized_tokens_total": 5547547,
+      "raw_tool_output_tokens_total": 39097389,
+      "rows": 33,
+      "turns_total": 1706,
+      "verified_all_evidence_rows": 26,
+      "verified_rows": 27
+    },
+    "all_neighbor_10": {
+      "combined_text_channel_proxy_total": 70575241,
+      "normalized_tokens_median": 236243,
+      "normalized_tokens_total": 8123245,
+      "raw_tool_output_tokens_total": 62451996,
+      "rows": 33,
+      "turns_total": 2383,
+      "verified_all_evidence_rows": 27,
+      "verified_rows": 27
+    },
+    "conditional_hybrid_oracle": {
+      "combined_text_channel_proxy_total": 23886239,
+      "normalized_tokens_median": 60404,
+      "normalized_tokens_total": 3320007,
+      "raw_tool_output_tokens_total": 20566232,
+      "rows": 33,
+      "turns_total": 823,
+      "verified_all_evidence_rows": 27,
+      "verified_rows": 27
+    },
+    "hybrid_ranked_10": {
+      "combined_text_channel_proxy_total": 33007797,
+      "normalized_tokens_median": 118415,
+      "normalized_tokens_total": 4862125,
+      "raw_tool_output_tokens_total": 28145672,
+      "rows": 33,
+      "turns_total": 811,
+      "verified_all_evidence_rows": 26,
+      "verified_rows": 27
+    },
+    "hybrid_recent1_text1": {
+      "combined_text_channel_proxy_total": 53890661,
+      "normalized_tokens_median": 206707,
+      "normalized_tokens_total": 7857665,
+      "raw_tool_output_tokens_total": 46032996,
+      "rows": 33,
+      "turns_total": 2049,
+      "verified_all_evidence_rows": 27,
+      "verified_rows": 27
+    },
+    "staged_full_hybrid": {
+      "combined_text_channel_proxy_total": 54479487,
+      "normalized_tokens_median": 208807,
+      "normalized_tokens_total": 7903937,
+      "raw_tool_output_tokens_total": 46575550,
+      "rows": 33,
+      "turns_total": 2099,
+      "verified_all_evidence_rows": 27,
+      "verified_rows": 27
+    },
+    "staged_full_recent_1": {
+      "combined_text_channel_proxy_total": 45233762,
+      "normalized_tokens_median": 138632,
+      "normalized_tokens_total": 5593819,
+      "raw_tool_output_tokens_total": 39639943,
+      "rows": 33,
+      "turns_total": 1756,
+      "verified_all_evidence_rows": 26,
+      "verified_rows": 27
+    },
+    "staged_full_recent_10": {
+      "combined_text_channel_proxy_total": 71164067,
+      "normalized_tokens_median": 243244,
+      "normalized_tokens_total": 8169517,
+      "raw_tool_output_tokens_total": 62994550,
+      "rows": 33,
+      "turns_total": 2433,
+      "verified_all_evidence_rows": 27,
+      "verified_rows": 27
+    }
+  }
+}

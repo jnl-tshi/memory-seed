@@ -1,0 +1,45 @@
+{
+  "review_method": "Post-hoc manual review of exact pre-write raw JSONL coordinates; not a sealed evaluation",
+  "selections": [
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d1",
+      "label": "verified_source",
+      "rationale": "The parent review identified forged pod ownership as an integrity gap; the child then described measured nested-runtime checks and implemented the topology/ownership change before the record write.",
+      "evidence_refs": [
+        {"rollout_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a", "turn": 77, "ordinals": [7704]},
+        {"rollout_id": "01a073d9-6778-7111-8307-7a400894b51d", "turn": 2, "ordinals": [351, 352, 509]}
+      ]
+    },
+    {
+      "decision_id": "mse_7yrpnx76kdd71ts4:d2",
+      "label": "verified_source",
+      "rationale": "The parent review identified deleted or reordered sidecar material being accepted as append-only; the child described and implemented Git-prefix and committed-history checks before recording the decision.",
+      "evidence_refs": [
+        {"rollout_id": "01a05ef9-96eb-7232-a0d7-71cf48d55c3a", "turn": 77, "ordinals": [7704]},
+        {"rollout_id": "01a073d9-6778-7111-8307-7a400894b51d", "turn": 2, "ordinals": [351, 364, 509]}
+      ]
+    },
+    {
+      "decision_id": "mse_djnwts4msn5r296n:d1",
+      "label": "unresolved",
+      "rationale": "The correct session has an inbox-triage request immediately before the record write, but the visible pre-write turns inspected do not independently establish the record's particular promotion and disposition choices.",
+      "evidence_refs": []
+    },
+    {
+      "decision_id": "mse_k6xq3f1d9n7v2hba:d1",
+      "label": "verified_source",
+      "rationale": "The user requested branching and agent research; the assistant then explicitly combined Git branch/worktree isolation, task-specialized subagents, and PR/merge-queue/CI integration before the record was written.",
+      "evidence_refs": [
+        {"rollout_id": "019f0b5e-267a-7263-8c5c-0f6fb130fe4b", "turn": 45, "ordinals": [3964, 4025]}
+      ]
+    },
+    {
+      "decision_id": "mse_38b7jfjbwy8dfdtt:d1",
+      "label": "verified_source",
+      "rationale": "Earlier turns in this same live task called for a gold set and distinguished selected-turn precision, broader backward evidence recovery, and lineage traversal. They predate the record write; excluding the entire live task had discarded valid evidence.",
+      "evidence_refs": [
+        {"rollout_id": "01a0d10b-a924-7553-8f57-124c18a01a2a", "turn": 29, "ordinals": [5672, 5734, 5843, 6449]}
+      ]
+    }
+  ]
+}
