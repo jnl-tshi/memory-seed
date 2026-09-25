@@ -822,6 +822,29 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
+    def test_adr_sweep_preserves_the_approved_adr_change_presentation_format(self):
+        """JNL approved this ADR-change presentation on 2026-09-25; keep it and its trigger."""
+        live = Path(".memory-seed/skills/adr_sweep.md").read_text(encoding="utf-8")
+        seed = Path("memory_seed/seed/.memory-seed/skills/adr_sweep.md").read_text(encoding="utf-8")
+        self.assertEqual(live, seed)
+        for phrase in (
+            "## Presenting A Proposed ADR Change",
+            "- **Decision:** the new current-decision text",
+            "- **Reason:** why it changes now",
+            "- **Evidence:** the exact decision refs",
+            "One explicit question",
+            "Write nothing until the user answers",
+        ):
+            self.assertIn(phrase, live)
+        for registry in (
+            Path(".memory-seed/skills/index.md"),
+            Path("memory_seed/seed/.memory-seed/skills/index.md"),
+        ):
+            self.assertIn(
+                "asking the user to approve any single ADR promotion, revision, status transition",
+                registry.read_text(encoding="utf-8"),
+            )
+
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
         path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")
         self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")
