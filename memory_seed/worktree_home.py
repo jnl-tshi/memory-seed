@@ -200,6 +200,16 @@ def _write_lease(home: Path, lease: dict, *, exclusive: bool) -> bool:
     return bool(current) and current.get("session_id") == lease.get("session_id")
 
 
+def _lease_write_issue(home: Path, exc: OSError) -> str:
+    """Explain a lease write the OS refused (e.g. an agent sandbox that blocks `.git` writes)."""
+    admin = home_admin_dir(home)
+    return (
+        f"could not write the home lease in {admin or 'the worktree git directory'}: {exc}. "
+        "The home was not claimed. If an agent sandbox blocks writes under .git, rerun the claim with "
+        "the host's write approval."
+    )
+
+
 def release_lease(home: Path | str) -> bool:
     admin = home_admin_dir(home)
     if admin is None:
@@ -542,7 +552,13 @@ def worktree_home(
             )
             result.exit_code = 2
             return result
-        if not _write_lease(home, _new_lease(agent, user, session, result.branch), exclusive=False):
+        try:
+            taken = _write_lease(home, _new_lease(agent, user, session, result.branch), exclusive=False)
+        except OSError as exc:
+            result.issues.append(_lease_write_issue(home, exc))
+            result.exit_code = 2
+            return result
+        if not taken:
             result.issues.append("could not take over the stale lease")
             result.exit_code = 2
             return result
@@ -566,7 +582,13 @@ def worktree_home(
         return result
     stale_lease = result.lease is not None
     lease = _new_lease(agent, user, session, branch)
-    if not _write_lease(home, lease, exclusive=not stale_lease):
+    try:
+        written = _write_lease(home, lease, exclusive=not stale_lease)
+    except OSError as exc:
+        result.issues.append(_lease_write_issue(home, exc))
+        result.exit_code = 2
+        return result
+    if not written:
         result.issues.append("another session claimed the home at the same moment; retry to get an overflow worktree")
         result.exit_code = 2
         return result

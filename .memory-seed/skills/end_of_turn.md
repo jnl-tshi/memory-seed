@@ -90,19 +90,23 @@ lifecycle edges rot silently otherwise: genuine supersessions get logged as gene
   session's entries (targets) against the full corpus (candidates) and creates chronologically ordered,
   machine-detectable `classify_pending: true` sidecar stubs. The candidate ids remain comments: the
   command never auto-classifies a relationship and never writes a live edge.
-- A human must classify each stub with the litmus: the new entry *retires* the candidate ->
-  `replaces`; *refines it while it stays valid* -> `evolves`; genuinely just connected ->
-  `related_entries`. Not every candidate deserves an edge - shared files can be coincidental, so delete
-  or leave unresolved stubs rather than inventing a relationship.
-- After human approval, replace the accepted stubs with live edges in the day's link sidecar
-  `.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md` - never by reopening a written entry
-  (append-only). Each block is keyed to the SOURCE (newer) entry:
-  `## <entry's timestamp> - <short label>` + a fenced yaml with `entry_id:` and the
-  `replaces:`/`evolves:`/`related_entries:` lists pointing at older targets.
-- Stub creation itself is mechanical and safe; ask the user for approval before converting any stub
-  into a live edge (same gate as persona evolution), showing the evidence and proposed classification.
+- Classify the open stubs **automatically** - no human approval step (Constitution §4
+  `link-corrections`, v2.4). Plan them with `memory-seed link batch-plan --open-stubs --context-window
+  <tokens> --output-dir <run>`, run the `link_swarm.md` judgment **twice** into two run directories from
+  the same plan, collect each with `memory-seed link batch-collect`, then write with `memory-seed link
+  batch-apply --run-dir <run1> --agree-with <run2>`. The litmus is unchanged: the new entry *retires*
+  the candidate -> `replaces`; *refines it while it stays valid* -> `refines`; later work resting on it
+  -> `builds-on`; genuinely just connected -> `related`; otherwise `none`.
+- `batch-apply` writes only mechanically validated verdicts, as live `source: derived` edges with a
+  per-edge confidence and grounding quote, into each source entry's own dated link sidecar.
+  `replaces`/`refines` need both runs to agree; a disagreement falls back to the weaker shared label.
+  An entry whose candidates were all `none` records `edge_status: not_applicable`. The write is rolled
+  back if `links check` fails.
+- Machine edges are retractable (`retracts:`) and never move an ADR head. A human may later run
+  `memory-seed link verify <source> "<ref>" --by <initials>` to raise an edge to full weight; this is
+  optional, never required.
 - Finish with `memory-seed links check` - live sidecar edges join the dangling and forward-only guards,
-  while unresolved stubs remain warning-only and inert.
+  while any still-unresolved stubs remain warning-only and inert.
 
 Skip silently when the audit reports no gaps.
 

@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 2.3 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.4 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -23,7 +23,9 @@ SQL-authoritative hosted, with Markdown export rather than synchronization (Inva
 §10); amended 2026-09-22 to retire standing Reflection Board expiry and permit one conditional,
 identified historical-board cleanup (Invariant #2); amended 2026-09-23 so hosted raw evidence is readable
 only by its owner and a curated record may be removed only as a tombstoned last resort (Invariants #1 and
-#2); **corrected** 2026-09-24 (2.3, evolution-class) to re-namespace clause anchors to the ratified v2 major. **Source:** distilled from demonstrated behaviour
+#2); **corrected** 2026-09-24 (2.3, evolution-class) to re-namespace clause anchors to the ratified v2 major;
+evolved 2026-09-25 (2.4, evolution-class policy change) so machine-classified lifecycle links are written
+automatically as live, retractable edges, with human verification adding weight (§4). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -242,8 +244,14 @@ ordinary proposal work.
 - **Link-edge corrections are append-only.** A published `replaces`/`evolves`/`related_entries` edge is
   downgraded or removed only through a **new-block `retracts:` correction** (the fuse refuses in-place
   edits to a published link sidecar), realizing Invariant #2 for lifecycle edges — the sanctioned path
-  the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
-  optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
+  the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). **Machine-classified edges are
+  written automatically** as live, retractable links: each comes from a mechanically validated verdict
+  (grounded quote, existing ordinals, legal chain position), is marked `source: derived` with the classifier
+  run and a per-edge `edge_confidence`, and the structure-changing labels `replaces` and `refines` are
+  written only when two independent classification runs agree. Retrieval scales a machine `replaces` by its
+  confidence; an optional appended human `verified:` record (`memory-seed link verify`) raises an edge to
+  full weight. Machine edges never move an ADR's authoritative decision: an edge onto an ADR member only
+  enters the ADR review queue.
 <!-- constitution-ref: constitution:v2#draft-format -->
 - **Typed DRAFTS session-entry format** and append-only chronology (`session_logging.md`). The `D`
   denotes either a **Decision** or **Documentation** record under `### Records`; every record states
@@ -393,6 +401,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.4 | 2026-09-25 | **Evolution (policy change, not an amendment): automatic lifecycle-link classification.** The §4 `link-corrections` clause drops the human gate on machine-suggested edges. Validated machine verdicts are now written as live, retractable `source: derived` edges carrying confidence and a grounding quote; `replaces`/`refines` need two agreeing runs; retrieval scales a machine `replaces` by its confidence; a human `verified:` record raises an edge to full weight; machine edges never move ADR heads. Invariant #2's per-edge approval clause (1.2) is unchanged: it governs editing entry YAML, which the automatic path never does. | JNL (explicit decision in the 2026-09-25 Codex session, confirmed live 2026-09-25) |
 | 2.3 | 2026-09-24 | **Correction (evolution-class, not an amendment): clause anchors re-namespaced to v2.** The 30 `constitution-ref` markers change from `constitution:v1#slug` to `constitution:v2#slug` to match the ratified v2 major; no clause text changes. Since v2.0 the Task Packet compiler had refused every packet because anchor and ratified majors disagreed. Earlier `constitution:vK#slug` names remain resolvable legacy aliases, so existing ADR bindings and dispatches keep validating; new ADR events must write the current name. | JNL (explicit live instruction, 2026-09-24) |
 | 2.2 | 2026-09-23 | **Amendment: hosted raw-evidence privacy and last-resort curated-record removal.** Invariant #1 makes a member's hosted raw evidence readable only by that member; no governance role can be granted it, and the curator is the only machine reader. Invariant #2 adds a narrow hosted-only exception: a curated record may be removed only for a secret or personal data, misattribution, or fabrication. The author removes their own record and the lead is notified; another member's needs a lead-granted permission; a misattributed member may report the record as disputed. Each removal leaves a tombstone without content, wrong or outdated decisions are corrected through `evolves`/`replaces`, and backup persistence is left to retention policy. | JNL (explicit live ratification, 2026-09-23) |
 | 2.1 | 2026-09-22 | **Amendment: retire standing Reflection Board expiry; permit one conditional historical cleanup.** Withdraws the 1.12 standing chain-expiry mechanism. Allows removal of only the named ledger and public trust anchor after all seven records have durable session coverage, related session entries have validated append-only links, and exact file identities are preserved. Ordinary sessions, decisions, ADRs, policy, and other durable memory remain append-only. | JNL (explicit live ratification and conditional deletion authorization, 2026-09-22) |

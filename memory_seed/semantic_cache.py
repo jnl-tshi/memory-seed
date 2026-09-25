@@ -357,6 +357,38 @@ def _resolve_chunk_users(target_root: Path, chunks: list[MemoryChunk]) -> list[M
     return resolved
 
 
+def _replacement_confidence(
+    cwd: str | Path, graph: dict[str, "RelatedEntryNode"], replaced_ids: set[str]
+) -> dict[str, float]:
+    """The strongest confidence among the edges that replace each entry.
+
+    Authored (write-time) and human-verified edges carry no machine confidence
+    and count as 1.0; only machine-classified `replaces` edges are scaled. Any
+    failure to read sidecar confidence falls back to full weight - the
+    pre-existing behaviour - rather than silently weakening damping."""
+    try:
+        from .retrieval import entry_link_sidecars
+
+        sidecars = entry_link_sidecars(cwd)
+    except Exception:
+        return {}
+    confidence: dict[str, float] = {}
+    for target in replaced_ids:
+        node = graph.get(target)
+        if node is None:
+            continue
+        best = 0.0
+        for source in node.replaced_by:
+            scores = [
+                value
+                for (_, target_id, _), value in sidecars.get(source, {}).get("edge_confidence", {}).items()
+                if target_id == target
+            ]
+            best = max(best, max(scores) if scores else 1.0)
+        confidence[target] = best if node.replaced_by else 1.0
+    return confidence
+
+
 def rank_session_memory(
     query: str,
     cwd: str | Path = ".",
@@ -436,6 +468,11 @@ def rank_session_memory(
         # DEFAULT-OFF: only pass the dampener input when the caller opted in, so
         # default ranking order stays byte-for-byte identical to today.
         replaced_ids=replaced_ids if supersession_damping else None,
+        replaced_confidence=(
+            _replacement_confidence(cwd, graph, replaced_ids)
+            if supersession_damping and graph is not None
+            else None
+        ),
         replacing_heads_by_id=replacing_heads_by_id,
         attention_scores=attention,
     )
@@ -1336,6 +1373,7 @@ def rank_memory_chunks(
     replaced_ids: set[str] | None = None,
     replacing_heads_by_id: dict[str, tuple[str, ...]] | None = None,
     attention_scores: dict[str, float] | None = None,
+    replaced_confidence: dict[str, float] | None = None,
 ) -> list[RankedMemoryChunk]:
     # ``replaced_ids`` is the opt-in supersession rank-dampener input
     # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
@@ -1395,7 +1433,11 @@ def rank_memory_chunks(
         if replaced_ids and chunk.entry_id and chunk.entry_id in replaced_ids:
             # Down-rank only, never hide: the replaced entry stays in the
             # results, just multiplicatively demoted beneath a fresher match.
-            final_score *= REPLACED_RANK_DAMPING
+            # A machine-classified replacement demotes in proportion to its
+            # confidence (1.0 for authored or human-verified edges), so an
+            # unverified machine edge cannot bury a live decision outright.
+            confidence = (replaced_confidence or {}).get(chunk.entry_id, 1.0)
+            final_score *= 1.0 - confidence * (1.0 - REPLACED_RANK_DAMPING)
         if attention_scores and chunk.entry_id:
             # Opt-in attention boost (attention-retrieval-signal-proposal.md):
             # decayed fetch frequency, log-scaled so a heavily-fetched entry is

@@ -231,7 +231,7 @@ command may mechanically create chronologically ordered, idempotent `classify_pe
 commented file/topic evidence. This mechanical scaffold needs no relationship decision and never
 writes a live edge.
 
-A human then classifies each candidate: retire -> `supersedes`, refine while still valid -> `evolves`,
+Since 2026-09-25 (Constitution v2.4) the candidates are classified automatically by the two-run link swarm and `memory-seed link batch-apply` (see `link_swarm.md`); the litmus is unchanged: retire -> `supersedes`, refine while still valid -> `evolves`,
 otherwise `related_entries` or no edge. **User approval is required before replacing a stub with a live
 edge.** Author-time YAML remains the first line; the sidecar sweep is the append-only safety net for
 later discoveries.
@@ -405,7 +405,7 @@ classification.
   is declared in YAML or sidecar.
 - `link audit --apply`: creates one chronological inert stub with commented evidence, never a live
   edge; re-applying is idempotent; readers treat a stub as zero edges; `links check` warns and ESR
-  counts it until a human classifies or deletes the stub.
+  counts it until the automatic classification (or a human) resolves the stub.
 - Regression: `test_trail_golden`, v1 contract, OpenAPI fixture unchanged.
 
 ## Verification

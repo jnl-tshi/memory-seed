@@ -1182,6 +1182,23 @@ def _parse_edge_confidence(block: str) -> dict[tuple[str, str, str], float]:
     return out
 
 
+def _parse_verified_refs(block: str) -> list[tuple[str, str, str]]:
+    """Edges a human `verified:` record names, keyed like `edge_confidence`.
+
+    Verification is an appended block (`memory-seed link verify`) that raises a
+    machine-classified edge to full weight; it never creates an edge itself."""
+    keys: list[tuple[str, str, str]] = []
+    for line in _frontmatter_list_region(block, "verified").splitlines():
+        ref_match = _EDGE_CONF_REF_RE.match(line.strip())
+        if not ref_match:
+            continue
+        parsed = _parse_list_ref_multi(ref_match.group(1).strip())
+        if parsed and parsed[0].ok:
+            ref = parsed[0]
+            keys.append((ref.source_decision or "", ref.entry_id, ref.decision or ""))
+    return keys
+
+
 def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
     """Parse a frontmatter list into refs, one per authored item.
 

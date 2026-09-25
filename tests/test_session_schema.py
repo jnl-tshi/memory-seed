@@ -846,6 +846,26 @@ class SessionSchemaTests(unittest.TestCase):
                 registry.read_text(encoding="utf-8"),
             )
 
+    def test_lifecycle_links_are_classified_automatically_with_two_run_agreement(self):
+        """JNL 2026-09-25 (Constitution v2.4): no human approval step; replaces/refines need two runs."""
+        for path in (
+            ".memory-seed/skills/link_swarm.md",
+            ".memory-seed/skills/end_of_turn.md",
+        ):
+            live = Path(path).read_text(encoding="utf-8")
+            seed = Path("memory_seed/seed/" + path).read_text(encoding="utf-8")
+            self.assertEqual(live, seed, path)
+            flat = " ".join(live.split())
+            self.assertIn("memory-seed link batch-apply --run-dir", flat, path)
+            self.assertIn("memory-seed link verify", flat, path)
+            self.assertNotIn("A human must classify each stub", flat, path)
+            self.assertNotIn("Never write without this approval", flat, path)
+        swarm = " ".join(Path(".memory-seed/skills/link_swarm.md").read_text(encoding="utf-8").split())
+        self.assertIn("`replaces` and `refines` are written only when both runs give the same label", swarm)
+        constitution = Path("docs/CONSTITUTION.md").read_text(encoding="utf-8")
+        self.assertIn("**Machine-classified edges are\n  written automatically**", constitution)
+        self.assertNotIn("are human-gated before any write", constitution)
+
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
         path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")
         self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")
