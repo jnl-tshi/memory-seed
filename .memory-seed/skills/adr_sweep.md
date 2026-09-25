@@ -45,6 +45,27 @@ Recommendations do not rank hidden evidence and do not confer status. Show the c
 claim evidence before asking for a decision. ESR and workers never create an ADR, attach a member,
 transition status, or move an authoritative head.
 
+## Presenting A Proposed ADR Change
+
+Use this format whenever you ask the user to approve an ADR change. That covers promotion, revision,
+status transition, or reviewed-no-change, whether it comes up in a sweep or for a single ADR. JNL
+approved this format on 2026-09-25 because it is clear and easy to follow. Present it in plain chat
+before writing anything:
+
+1. One line naming the ADR and the kind of change, for example "Proposed revision to
+   `adr_worktree_convention`:".
+2. Three bullets, each one or two sentences:
+   - **Decision:** the new current-decision text, worded as it would appear in the ADR's current view.
+   - **Reason:** why it changes now. Name the concrete trigger (an incident, a measurement, or a user
+     instruction) and the earlier decision it continues or corrects.
+   - **Evidence:** the exact decision refs (`mse_x:dN`) or founding source the event will cite.
+3. One explicit question offering the concrete choices, for example "Propose and accept now, or
+   propose and leave acceptance to you?"
+
+Keep ledger mechanics out of the presentation: event ids, review receipts, JSON envelopes and
+expected-state guards. Show them only if the user asks. Write nothing until the user answers. When
+you record the approval, carry the substance of the user's answer into the event's reason.
+
 ## Orchestration
 
 Use the lowest level that fits the measured queue.
@@ -77,7 +98,8 @@ surviving batch. Fan-out changes review capacity, never authority.
 3. Attach the recommendation contract above to every potential ADR. For existing ADR head reviews,
    recommend either authored revision or reviewed-no-change and state the evidence for that choice.
 4. Present candidates grouped by type, with members, claims, recommendation, rationale, and any
-   uncertainty. Ask the user to approve, edit, defer, or reject dispositions.
+   uncertainty. Present each concrete ADR change in the **Presenting A Proposed ADR Change** format
+   above. Ask the user to approve, edit, defer, or reject dispositions.
 5. After approval, perform writes sequentially in an isolated worktree using the normal `adr
    promote`, `adr revise`, `adr transition`, or `adr reviewed` flows. Dry-run where supported and
    never bypass expected-state guards.

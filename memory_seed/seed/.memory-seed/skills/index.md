@@ -143,6 +143,7 @@ skills:
       - finding decision chains or pairs that do not yet have an ADR
       - reviewing grown decision chains for ADR membership or concern splitting
       - preparing batch ADR promotion, revision, reviewed-no-change, or deferral recommendations
+      - asking the user to approve any single ADR promotion, revision, status transition, or reviewed-no-change (use its presentation format)
     do_not_load_when:
       - reading or showing one known ADR with no corpus-wide review
       - recording the current turn's decision and its content-bound ADR review (use session_logging.md)
