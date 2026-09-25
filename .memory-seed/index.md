@@ -185,8 +185,11 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   one append-only concern record under `.memory-seed/decisions/`,
   mandatory MCP review for any lineage-linked evolution/replacement, structural branch fusion, read-only
   ADR MCP tools, and the Trace ADR workspace. Remaining record-kind/ranking signals stay gated; workflow
-  evidence/review and one Decision projection follow. Publishability and a generic skill/workflow router remain deferred. The worktree hygiene plan uses
-  worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.
+  evidence/review and one Decision projection follow. Publishability and a generic skill/workflow router remain deferred. Worktrees follow
+  home = agent, branch = task, overflow = concurrent session. Each agent owns one persistent home
+  worktree at `<namespace>/home`, claimed with `memory-seed worktree home --claim` and parked (never
+  removed) after merge. New branches are named `<agent>/<kind>/<topic>`. ADR
+  [`adr_worktree_convention`](decisions/adr_worktree_convention.md).
 - **Trace startup incremental; immutable git derivations persist** - Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy. ADR [`adr_trace_incremental_startup`](decisions/adr_trace_incremental_startup.md)
 - Decision identity is `(entry_id, dN)` and the Trail renders it: the entry row anchors as a heading with D1..DN as pastel subheading rows. Decision-level link-sidecar refs are IMPLEMENTED (grammar v2, 2026-07-24): `<entry_id>:dN`, comma multi-ordinal `:d1,d4`, and a `dN -> ` source-arrow prefix name the authoring decision; `replaces`/`evolves`/`related_entries` all carry decision granularity and stay a distinct edge set (a decision edge is never projected up to its entry). Spec: `docs/3_Spec/draft/decision-level-link-sidecar-refs.md`.
 - **Model2Vec default provider; silent lexical degrade; model2vec the only required dep** - `model2vec` is a REQUIRED dependency and the package's only one. ADR [`adr_semantic_provider`](decisions/adr_semantic_provider.md)

@@ -322,6 +322,32 @@ class EsrReportTests(unittest.TestCase):
         self.assertIn("STALE CANDIDATE", format_esr_report(report))
 
     @pytest.mark.integration
+    def test_git_worktree_posture_never_marks_a_home_as_stale(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        def git(*args, cwd=None):
+            subprocess.run(["git", "-C", str(cwd or self.cwd), *args], check=True, capture_output=True)
+
+        git("init", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        # A freshly claimed home: on a new task branch with no commits yet, so it looks merged + clean.
+        home = self.cwd / ".codex" / "worktrees" / "home"
+        git("worktree", "add", "-b", "codex/feature/just-claimed", str(home))
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        secondary = [w for w in report.worktrees if not w.is_primary]
+        self.assertEqual(len(secondary), 1)
+        self.assertTrue(secondary[0].is_home)
+        self.assertFalse(secondary[0].stale_candidate)
+        rendered = format_esr_report(report)
+        self.assertIn("HOME (persistent", rendered)
+        self.assertNotIn("STALE CANDIDATE", rendered)
+
+    @pytest.mark.integration
     def test_git_worktree_posture_surfaces_unregistered_physical_residue(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 
