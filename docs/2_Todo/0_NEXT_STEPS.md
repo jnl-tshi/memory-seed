@@ -40,6 +40,11 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
    candidate hierarchy and independent-project evaluation; the local corpus alone cannot prove transfer.
    Select a model only after calibration, abstention, high-risk error, privacy, latency, and cost gates. Add
    guarded replacement/approval, branch applicability, retention/export, and retrieval parity for a team pilot.
+   The [bounded source-alignment handoff](decision-layer-model-tournament-plan.md#next-offline-experiment-agent-audit-and-bounded-september-cohort)
+   prepares evidence before that tranche: agent-audit 20 existing cases, then sample 100 unseen Codex decisions
+   from the September 1–24 interval without widening the raw-text date range. Keep a lineage-grouped test split,
+   record token costs, and annotate decision-relevant fact spans for the information-extraction track. This is
+   offline dataset research, not permission to start the P1 tournament or hosted implementation before its gates.
 5. **P2 experience.** Consider focused Trace and
    [decision storyline retrieval](../8_Deferred/decision-storyline-retrieval-proposal.md) once the service loop works.
    A [persistent Laya worker](../8_Deferred/laya-local-decision-worker-proposal.md) remains deferred until
