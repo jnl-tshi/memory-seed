@@ -151,6 +151,23 @@ if report.checkout_classification == "root-checkout":
         "- this is the shared PRIMARY checkout; read-only work is fine, but create and verify "
         "an agent-owned worktree before non-trivial writes."
     )
+try:
+    from memory_seed.worktree_home import worktree_home
+
+    home = worktree_home(Path.cwd(), agent=agent, action="status")
+    if home.path:
+        parts.append(
+            f"- home worktree ({agent}): {home.state} — {home.path}"
+            + (f" on {home.branch}" if home.branch else "")
+        )
+        parts.append(
+            f"- before the first write: `memory-seed worktree home --agent {agent} --claim "
+            f"--branch {agent}/<kind>/<topic>`, then enter the path it returns "
+            "(Claude: EnterWorktree with that path; others: cd). Work there, land from the "
+            "primary checkout; the merge parks the home."
+        )
+except Exception:  # Hooks fail open: the home line is advisory.
+    pass
 
 if not report.newest_session_path:
     parts.extend(["", "LATEST SESSION", "- No applicable session entries were found yet."])

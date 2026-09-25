@@ -1399,6 +1399,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("memory_search", listed_names)
         self.assertIn("memory_branch_status", listed_names)
         self.assertIn("memory_worktree_guard", listed_names)
+        self.assertIn("memory_worktree_home", listed_names)
         self.assertIn("memory_session_fuse_preview", listed_names)
         self.assertIn("memory_link_suggest", listed_names)
         self.assertIn("memory_link_show", listed_names)

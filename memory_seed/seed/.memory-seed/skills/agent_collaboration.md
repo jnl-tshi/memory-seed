@@ -535,11 +535,11 @@ owners and validates the SDD return receipt before its handoff.
 - Update from the base branch before starting long-running work.
 - Name branches by repository convention first; otherwise use `<agent>/<kind>/<topic>` (agent segment required).
 - Use separate worktrees for parallel code-writing agents to prevent uncommitted file collisions.
-- Worktree = session, branch = task: a worktree is a durable per-agent session environment, not a per-task one. Writing agents use their own namespace by default: Codex in `.codex/worktrees/<session>`, Claude in `.claude/worktrees/<session>`, Gemini in `.gemini/worktrees/<session>`, and Cursor in `.cursor/worktrees/<session>`. Configured third-party agents need an explicit namespace in `.memory-seed/project.yaml` before routine write work.
+- Home = agent, branch = task, overflow = concurrent session: each writing agent owns one persistent **home worktree** at `<namespace>/home` (`<namespace>/<user>/home` once a second participant is registered): Codex in `.codex/worktrees/home`, Claude in `.claude/worktrees/home`, Gemini in `.gemini/worktrees/home`, Cursor in `.cursor/worktrees/home`. Sessions start on the primary checkout and, before the first write, run `memory-seed worktree home --agent <agent> --claim --branch <agent>/<kind>/<topic>` (MCP `memory_worktree_home`), then enter the path it returns (Claude: `EnterWorktree` with that path; others: `cd`). A parked home (HEAD detached at main) is free; a checked-out task branch with a live lease is busy, and a second live session of the same agent is given an **overflow** worktree `<namespace>/overflow-<id>` instead, which keeps the old remove-after-merge lifecycle. `--claim` refuses leftover uncommitted work (exit 3: hand it to the user, never commit or discard it) and offers `--resume` for an inactive session's clean unmerged branch. Configured third-party agents need an explicit namespace in `.memory-seed/project.yaml` before routine write work.
 - Before editing in a branch/worktree workflow, run `memory-seed worktree guard --agent <agent> --write-intent`. A foreign namespace is a shared-control-plane STOP hazard; move to the correct worktree unless the user explicitly approves a different path.
 - **Worktree identity is measured, never declared — including right after you create one.** A harness banner, a task packet, or an existing `…/worktrees/<session>` directory can each assert a worktree that was never created, and a `git worktree add` can half-fail and leave a bare directory behind. In every one of those cases git resolves upward to the primary checkout, so writes land in shared state while the agent believes it is isolated. After any create-or-enter, verify before the first write: `memory-seed worktree guard --agent <agent> --write-intent` (expect `owned-worktree` and `Safe to write: yes`), or by hand `git rev-parse --show-toplevel` (must return the worktree itself, not the repo root) and `git rev-parse --git-dir` (must point into `.git/worktrees/<name>`). Trusting the create is the same error as trusting the banner, one step later.
 - **The tool you run is measured too, not just the tree.** A worktree's `.venv` is usually empty — `uv run --no-sync` never syncs it, and a fresh worktree has none at all — so the project's console scripts do not exist there and the shell resolves the bare name through PATH to a *globally installed, older* build. It runs, it prints, and none of its output is about your checkout: reads report errors for code your tree does not contain, and writes regenerate committed files from code that is not in your diff, producing a regression attributable to nothing in the change. Invoke the checkout's own code instead (for a Python package, `python -m <package>.cli <command>` from the checkout root, which resolves from cwd), or install the project into the worktree venv. `memory-seed` itself refuses to run when the package that loaded is outside the checkout you are standing in, and names the working invocation; most other tools fail silently.
-- Root checkout is for read-only inspection, mainline integration, and approved cleanup. Routine feature edits should use an agent-owned task worktree; root writes require an explicit guard override (`--allow-root-write`) and should be recorded in the handoff.
+- Root checkout is for read-only inspection, mainline integration, and approved cleanup. Routine feature edits happen on a task branch in the agent's home (or overflow) worktree; root writes require an explicit guard override (`--allow-root-write`) and should be recorded in the handoff.
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
 - **Pass `--branch` explicitly whenever sessions may share a working tree.** `session append` auto-captures `branch:` from git HEAD, and two sessions in one working tree have a genuinely identical HEAD — a session's own branch is never passed to the CLI, so no check or heuristic can recover it. Standing convention: the harness (or an orchestrator appending on a worker's behalf) passes `--branch <name>` on every append, taken from the Task Packet's `working_branch`; use `--no-branch` when the session has no branch worth recording. Worktree-isolated agents may rely on auto-capture, but passing the flag is never wrong. Field semantics live in `session_logging.md`.
 - A branch is a **workstream, not a single commit**: keep follow-on fixes, evolutions, and adjacent tweaks of the same goal on the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry you just wrote, or the same files/area. Open a new branch only for a genuinely new, independent goal; avoid BOTH stacking unrelated work in one branch AND spawning a fresh branch per commit. Merge the batched workstream at a stable, tested stopping point, never after every commit.
@@ -548,7 +548,7 @@ owners and validates the SDD return receipt before its handoff.
 
 Before a branch can land, the orchestrator must:
 
-1. Verify the owned task worktree is clean and record `merge-base(<base>, HEAD)`.
+1. Verify the owned home or overflow worktree is clean and record `merge-base(<base>, HEAD)`.
 2. Run branch-head validation appropriate to the risk tier.
 3. Require Superpowers' final whole-branch review result when SDD ran; otherwise use the Memory Seed
    Fan-Out validator result.
@@ -557,8 +557,11 @@ Before a branch can land, the orchestrator must:
 6. On a live user go-ahead, integrate through `session merge-branch`, `session integrate`, or
    `session open-pr` as the configured mode permits — never a raw merge workaround.
 7. Validate the **integrated tree**, not just the branch head.
-8. Only after integrated validation passes, leave the worktree and remove it (see **Leave The Worktree
-   Before Cleanup** below). Branch deletion remains a separate decision.
+8. Only after integrated validation passes, finish the worktree. A **home** is parked, never removed:
+   `session merge-branch` detaches it at the merge commit and releases its lease (status `parked`), and a
+   merge done elsewhere (for example a GitHub PR) is followed by `memory-seed worktree home --agent
+   <agent> --park`. An **overflow** worktree is left and removed (see **Leave The Worktree Before
+   Cleanup** below). Branch deletion remains a separate decision.
 9. Append the handoff record with branch, worktree, merge commit, validation, review result, and
    retained risks.
 
@@ -566,6 +569,9 @@ Under `merge_trigger: manual`, step 5 is a hold. A dry-run is always allowed; a 
 validation leaves the branch and worktree intact.
 
 ## Leave The Worktree Before Cleanup
+
+This applies to worktrees that are removed: overflow worktrees and legacy per-session worktrees. A home
+worktree is parked in place and never removed, so a session may stay inside it through the merge.
 
 When the agent is done with a worktree, it must move the session to the primary checkout first, and
 only then deregister and delete the worktree. A worktree is never removed by a session or process still

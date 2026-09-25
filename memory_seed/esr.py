@@ -845,7 +845,8 @@ def _worktree_posture(root: Path) -> tuple[bool, list[WorktreePosture]]:
             current = {"path": line[len("worktree "):].strip()}
         elif line.startswith("branch "):
             ref = line[len("branch "):].strip()
-            current["branch"] = ref.rsplit("/", 1)[-1] if "/" in ref else ref
+            # Keep namespaced branch names whole: `claude/fix/topic`, not `topic`.
+            current["branch"] = ref.removeprefix("refs/heads/")
         elif line == "detached":
             current["branch"] = None
     flush(is_primary=not postures)

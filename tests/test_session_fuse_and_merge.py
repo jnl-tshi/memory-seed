@@ -1259,6 +1259,74 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         remover.assert_not_called()
         self._git(cwd, "worktree", "remove", "--force", str(source))
 
+    def _home_project(self):
+        cwd = self.make_project()
+        (cwd / ".gitignore").write_text(".claude/worktrees/\n", encoding="utf-8")
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "branch", "-M", "main")
+        return cwd
+
+    @pytest.mark.integration
+    def test_session_merge_branch_parks_the_home_worktree_instead_of_removing_it(self):
+        from memory_seed.worktree_home import read_lease, worktree_home
+
+        cwd = self._home_project()
+        claim = worktree_home(cwd, agent="claude", action="claim", branch="claude/fix/home", session="s-1")
+        self.assertEqual(claim.state, "claimed", claim.issues)
+        home = Path(claim.path)
+        self._write_grouped_session(home, "2026-07-11", "mse_1111111111111111", branch="claude/fix/home")
+        self._commit_all(home, "feature session")
+
+        # The caller being inside the home is the normal case; parking deletes nothing.
+        with mock.patch("memory_seed.core._process_host_paths", return_value=[home]):
+            result = session_merge_branch(cwd=cwd, branch="claude/fix/home")
+
+        self.assertTrue(result.committed, result.issues)
+        self.assertEqual(result.worktree_cleanup_status, "parked", result.worktree_cleanup_detail)
+        self.assertTrue(home.exists())
+        self.assertEqual(self._git(home, "branch", "--show-current").stdout.strip(), "")
+        self.assertEqual(
+            self._git(home, "rev-parse", "HEAD").stdout.strip(),
+            self._git(cwd, "rev-parse", "HEAD").stdout.strip(),
+        )
+        self.assertIsNone(read_lease(home))
+
+    @pytest.mark.integration
+    def test_session_merge_branch_retains_a_dirty_home_worktree(self):
+        from memory_seed.worktree_home import worktree_home
+
+        cwd = self._home_project()
+        claim = worktree_home(cwd, agent="claude", action="claim", branch="claude/fix/home", session="s-1")
+        home = Path(claim.path)
+        self._write_grouped_session(home, "2026-07-11", "mse_1111111111111111", branch="claude/fix/home")
+        self._commit_all(home, "feature session")
+        (home / "scratch.txt").write_text("wip\n", encoding="utf-8")
+
+        result = session_merge_branch(cwd=cwd, branch="claude/fix/home")
+
+        self.assertTrue(result.committed, result.issues)
+        self.assertEqual(result.worktree_cleanup_status, "retained")
+        self.assertEqual(self._git(home, "branch", "--show-current").stdout.strip(), "claude/fix/home")
+
+    @pytest.mark.integration
+    def test_session_merge_branch_still_removes_an_overflow_worktree(self):
+        from memory_seed.worktree_home import worktree_home
+
+        cwd = self._home_project()
+        worktree_home(cwd, agent="claude", action="claim", branch="claude/fix/home", session="s-1")
+        second = worktree_home(cwd, agent="claude", action="claim", branch="claude/fix/other", session="s-2")
+        overflow = Path(second.overflow_path)
+        self._write_grouped_session(overflow, "2026-07-11", "mse_2222222222222222", branch="claude/fix/other")
+        self._commit_all(overflow, "overflow session")
+
+        result = session_merge_branch(cwd=cwd, branch="claude/fix/other")
+
+        self.assertTrue(result.committed, result.issues)
+        self.assertEqual(result.worktree_cleanup_status, "removed", result.worktree_cleanup_detail)
+        self.assertFalse(overflow.exists())
+
     def test_git_text_reports_stderr_when_git_fails(self):
         from memory_seed.core import _git_text
 

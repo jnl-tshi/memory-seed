@@ -4,6 +4,20 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Added
+
+- [2026-09-25] **Each agent keeps one persistent home worktree.**
+  - The new `memory-seed worktree home --agent <agent> [--claim|--park|--release|--status]` command (MCP `memory_worktree_home`) manages `<namespace>/home`.
+  - Claiming the home takes a lease and checks out a task branch cut from `main`. A second live session gets an `overflow-<id>` worktree instead.
+  - After a merge, `session merge-branch` parks the home: it detaches at the merge commit instead of being removed. The new `parked` cleanup status counts as success in the CLI and MCP.
+  - Leftover uncommitted work stops the claim (exit 3) and is handed to the user. An inactive session's clean, unmerged branch can be continued with `--resume`.
+  - Worktree GC never marks a home removable, and the guard blocks writes in a parked home.
+  - A new home folder is kept out of the primary checkout's `git status` through `.git/info/exclude`.
+
+### Fixed
+
+- [2026-09-25] End-of-session reports keep namespaced branch names whole. `claude/fix/topic` was cut down to `topic`, which broke the stale-worktree check.
+
 ## 2.22.0 - 2026-09-22
 
 ### Added

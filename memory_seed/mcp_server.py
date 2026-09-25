@@ -489,6 +489,27 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_worktree_home",
+        "description": (
+            "Manage an agent's persistent home worktree. status (read-only), claim (create if missing, lease it, "
+            "check out a task branch; returns an overflow worktree when another live session holds it), park "
+            "(return a clean merged home to detached-at-main), release (drop the lease). exit_code 3 means leftover "
+            "uncommitted work needs the user."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_type": {"type": "string", "description": "Agent slug, e.g. codex or claude."},
+                "action": {"type": "string", "enum": ["status", "claim", "park", "release"], "default": "status"},
+                "branch": {"type": "string", "description": "Task branch for claim: <agent>/<kind>/<topic>."},
+                "session": {"type": "string", "description": "Session id that owns the lease."},
+                "resume": {"type": "boolean", "default": False},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["agent_type"],
+        },
+    },
+    {
         "name": "memory_session_fuse_preview",
         "description": "Dry-run branch-local session entry and diagram-sidecar fuse planning. Read-only; use the CLI --apply path during an in-progress merge to write.",
         "inputSchema": {
@@ -1110,6 +1131,24 @@ def call_tool(
         )
         return status.to_dict()
 
+    if name == "memory_worktree_home":
+        from .worktree_home import worktree_home
+
+        action = args.get("action", "status")
+        if action not in {"status", "claim", "park", "release"}:
+            raise ValueError("Invalid action: expected status, claim, park, or release")
+        home = worktree_home(
+            args.get("cwd", "."),
+            agent=_required_str(args, "agent_type"),
+            action=action,
+            branch=args.get("branch") or None,
+            session=args.get("session") or None,
+            resume=bool(args.get("resume", False)),
+        )
+        payload = home.to_dict()
+        payload["ok"] = home.exit_code == 0
+        return payload
+
     if name == "memory_session_fuse_preview":
         branch = _required_str(args, "branch")
         base = args.get("base", "HEAD")
@@ -1335,7 +1374,7 @@ def call_tool(
             if abort_code != 0:
                 result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
 
-        cleanup_complete = result.source_worktree is None or result.worktree_cleanup_status == "removed"
+        cleanup_complete = result.source_worktree is None or result.worktree_cleanup_status in {"removed", "parked"}
         return {
             "ok": (result.committed and cleanup_complete) or (dry_run and not result.issues),
             "committed": result.committed,
