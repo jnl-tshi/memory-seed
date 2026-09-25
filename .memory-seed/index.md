@@ -159,6 +159,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 ## Active State
 
 - Project type: reusable local AI memory-system seed plus a separately scoped hosted team edition.
+- This checkout opts into an optional, deterministic Graphify project index after successful local `session merge-branch` integration. Its ignored `graphify-out/` remains derived and checkout-local; use `python -m memory_seed.graphify_refresh status` before relying on it. A failed refresh warns without undoing the merge, and any Graphify fork requires separate user approval. See `experiments/graphify-merge-refresh/README.md`.
 - Current priority: execute the capture-first [hosted Memory MVP programme](../docs/2_Todo/hosted-memory-mvp-programme.md)
   without weakening the complete, network-independent local OSS edition.
 - Hosted next gate: P0.1 authority closeout is integrated; P0.2 Codex capture/approval feasibility is next.

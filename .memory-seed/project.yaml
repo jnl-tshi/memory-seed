@@ -7,6 +7,10 @@ participants:
 # use the session fuse and stop on validation failures or unresolved conflicts.
 merge_trigger: automatic
 
+# Optional local-only Graphify index refresh after a successful session merge.
+# Failure warns and leaves the merge committed; no LLM or network service is used.
+graphify_merge_refresh: true
+
 # Shared planning policy. Local/task settings may tighten these values only.
 delivery_quality:
   schema_version: 1
