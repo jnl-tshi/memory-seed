@@ -69,6 +69,12 @@ class GraphifyRefreshTests(unittest.TestCase):
             with patch.object(subject.Path, "cwd", return_value=root), patch.object(subject.shutil, "which", side_effect=AssertionError("query must not launch Graphify")):
                 self.assertEqual(1, subject.main(["query", "Why?"]))
 
+    def test_refresh_command_returns_after_success_without_query_question(self):
+        with patch.object(subject.Path, "cwd", return_value=Path(".")), patch.object(
+            subject, "refresh_after_merge", return_value=subject.RefreshResult("fresh", head="a" * 40)
+        ), patch.object(subject.shutil, "which", side_effect=AssertionError("refresh must not query")):
+            self.assertEqual(0, subject.main(["refresh"]))
+
     def test_committed_merge_surfaces_refresh_warning_without_rollback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
