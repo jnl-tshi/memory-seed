@@ -1,0 +1,16 @@
+# Deterministic project map: active documentation and active Memory Seed control.
+/*
+!/docs/
+!/.memory-seed/
+/.memory-seed/archive/
+/.memory-seed/sessions/
+/.memory-seed/reflections/
+/.memory-seed/retrieval-profiles/
+/.memory-seed/hooks/
+*.yaml
+*.yml
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.webp

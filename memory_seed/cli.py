@@ -1851,6 +1851,10 @@ def main(argv: list[str] | None = None) -> int:
                 print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
             elif result.committed:
                 print("Merge committed.")
+                if result.graphify_refresh_status == "fresh":
+                    print("Graphify index fresh at HEAD.")
+                for warning in result.post_merge_warnings:
+                    print(f"Graphify index warning: {warning}", file=sys.stderr)
                 if result.stamped_entries:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
                 else:
@@ -2088,6 +2092,10 @@ def main(argv: list[str] | None = None) -> int:
                 print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
             elif result.committed:
                 print("Merge committed.")
+                if result.graphify_refresh_status == "fresh":
+                    print("Graphify index fresh at HEAD.")
+                for warning in result.post_merge_warnings:
+                    print(f"Graphify index warning: {warning}", file=sys.stderr)
                 if result.stamped_entries:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
                 _print_session_merge_worktree_cleanup(result, dry_run=False)

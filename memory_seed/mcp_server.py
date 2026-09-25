@@ -1352,6 +1352,8 @@ def call_tool(
             "worktree_cleanup_status": result.worktree_cleanup_status,
             "worktree_cleanup_detail": result.worktree_cleanup_detail,
             "worktree_cleanup_attempts": result.worktree_cleanup_attempts,
+            "graphify_refresh_status": result.graphify_refresh_status,
+            "post_merge_warnings": result.post_merge_warnings,
             "cleanup_complete": cleanup_complete,
             "conflicts": result.conflicts,
             "merge_aborted": aborted,

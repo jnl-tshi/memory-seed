@@ -513,6 +513,8 @@ class SessionMergeBranchResult:
     worktree_cleanup_attempts: int = 0
     cadence: CommitCadence | None = None
     cadence_warnings: list[str] = field(default_factory=list)
+    graphify_refresh_status: str | None = None
+    post_merge_warnings: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
 
     def integration_preview_contract(self) -> dict[str, Any]:
@@ -9262,6 +9264,17 @@ def session_merge_branch(
         return result
 
     result.committed = True
+    # Optional, derived Graphify index. The merge is already committed; an
+    # unavailable or failed refresh is a visible warning, never a merge refusal.
+    try:
+        from .graphify_refresh import refresh_after_merge
+
+        graphify_result = refresh_after_merge(root)
+        result.graphify_refresh_status = graphify_result.status
+        if graphify_result.warning:
+            result.post_merge_warnings.append(graphify_result.warning)
+    except Exception as exc:
+        result.post_merge_warnings.append(f"Graphify index refresh failed after merge: {exc}")
     if result.source_worktree is not None:
         cleanup_path, cleanup_status, cleanup_detail, cleanup_attempts = _cleanup_merged_source_worktree(
             root, branch
