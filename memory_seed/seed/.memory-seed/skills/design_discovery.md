@@ -94,6 +94,10 @@ Capture a concise, proportionate record in the existing planning or decision sur
 6. Carry the discovery record into the existing plan and Task Packet path: identify the selected option,
    evidence and authority consulted, scope, trial decision, assumptions, and invalidation conditions.
    The existing plan compiler and execution controls remain the only execution path.
+7. At the Plan Gate of a multi-task plan, add one fenced ```` ```json ```` block with
+   `"schema": "memory-seed/plan-dispatch"`: shared dispatch `defaults`, one objective per task, and the
+   `implementation_plan` below. `task-packet from-plan` (or `memory_task_packet_from_plan`) turns it into
+   one dispatch per task; spawn each worker with its rendered packet (`agent_collaboration.md`, handoff 3).
 
 ## Optional Implementation Plan
 

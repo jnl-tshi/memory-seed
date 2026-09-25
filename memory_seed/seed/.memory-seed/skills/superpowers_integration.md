@@ -30,6 +30,10 @@ a manifest left by another client, or a globally installed executable. The activ
 skill, and the orchestrator records the observed release in the Task Packet. A major-version change is
 blocked until the interoperability baseline is rerun.
 
+Each SDD worker is seeded with its task's rendered v2 Task Packet (`task-packet render --handoff sdd`),
+generated from the plan with `task-packet from-plan`; this is handoff point 4 in
+`agent_collaboration.md`, where a packet is mandatory.
+
 If either condition fails, state the named fallback and use Memory Seed's normal direct, sequential, or
 Fan-Out workflow. Do not silently skip the work and do not download, update, or install dependencies as
 part of task dispatch.

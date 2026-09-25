@@ -87,14 +87,15 @@ Settled in the 2026-09-23 hosted design discovery
 - [Task Packet source following and orientation lite](../5_Completed/task-packet-sources-and-orientation-lite-plan.md):
   completed 2026-09-24. Task Packet v2 embeds the subagent orientation-lite skill and pins the full rules for
   digest-verified on-demand loading. This cuts packets by 42-74%. Its deferred follow-ups remain open:
-  - usage logging now belongs to the [handoff integration plan](task-packet-handoff-integration-plan.md);
+  - usage logging landed with the [handoff integration plan](task-packet-handoff-integration-plan.md);
   - retire the stalled [Task Packet hardening plan](task-packet-hardening-progressive-provenance-plan.md) to
     `7_Replaced/` with a pointer to the completed plan: its compiler items are delivered and its Seed Pod
     steps lapsed;
   - make P0.2 workers the first real consumers of v2 packets.
-- [Task Packets at agent handoff points](task-packet-handoff-integration-plan.md): proposed 2026-09-25. It
+- [Task Packets at agent handoff points](task-packet-handoff-integration-plan.md): implemented 2026-09-25. It
   generates dispatches from plan tasks, renders packets as spawn prompts, makes packets mandatory at
-  handoff points 3-6, and logs usage with an ESR coverage report. Awaiting JNL approval.
+  handoff points 3-6, and logs usage with an ESR coverage report. The reviewer dogfood (point 5) passed;
+  remaining: dogfood with the first P0.2 implementation workers, then move the plan to `5_Completed/`.
 - [Task Packet calibration](task-packet-calibration-harness-plan.md): freeze the representative
   development population and sealed holdout, then run M2-M5. This includes calibrating the 4,000-token
   per-source cap for followed `S:` sources.

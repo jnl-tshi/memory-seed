@@ -12216,6 +12216,8 @@ def init_project(
         created.append(cfg)
     if "superpowers_integration.md" in selected_optional and _ensure_superpowers_sdd_gitignore(target_root):
         created.append(".gitignore")
+    if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
+        created.append(".gitignore")
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
@@ -12303,6 +12305,8 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         "superpowers_integration.md" in skill_selection.selected
         and _ensure_superpowers_sdd_gitignore(target_root)
     ):
+        created.append(".gitignore")
+    if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
     for artifact in _create_skill_artifacts(target_root, skill_selection.selected):
         if artifact not in created:
@@ -12453,6 +12457,8 @@ def add_skill(cwd: str | Path = ".", name: str = "") -> dict:
         "superpowers_integration.md" in selected_optional
         and _ensure_superpowers_sdd_gitignore(target_root)
     ):
+        created.append(".gitignore")
+    if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
@@ -12922,6 +12928,23 @@ def _ensure_superpowers_sdd_gitignore(target_root: Path) -> bool:
         return False
     _ensure_gitignore_entry(target_root, SUPERPOWERS_SDD_IGNORE_ENTRY)
     return True
+
+
+def _ensure_telemetry_gitignore(target_root: Path) -> bool:
+    """Ignore the local retrieval/Task Packet telemetry files at init/update.
+
+    Registered up front because Task Packet usage events are recorded only when
+    the log is already ignored: writing ``.gitignore`` from inside a compile would
+    change the working tree the packet measures.
+    """
+    from .attention import GITIGNORE_ENTRIES
+
+    gitignore = target_root / ".gitignore"
+    existing = read_text_file(gitignore).splitlines() if gitignore.exists() else []
+    missing = [entry for entry in GITIGNORE_ENTRIES if entry not in existing]
+    for entry in missing:
+        _ensure_gitignore_entry(target_root, entry)
+    return bool(missing)
 
 
 def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:

@@ -1415,6 +1415,11 @@ def main(argv: list[str] | None = None) -> int:
             "--pricing-file",
             help="optional UTF-8 JSON pricing object",
         )
+        task_packet_operation.add_argument(
+            "--handoff",
+            choices=("implementation", "sdd", "review", "spawned-session", "other"),
+            help="workflow handoff this packet serves (recorded in usage telemetry)",
+        )
         if task_packet_command == "compile":
             task_packet_operation.add_argument(
                 "--output", help="explicit file export path; stdout is the default",
@@ -1424,6 +1429,29 @@ def main(argv: list[str] | None = None) -> int:
                 help="allow --output to replace an existing file",
             )
 
+    render = task_packet_sub.add_parser(
+        "render",
+        help="write a compiled packet file and print its client-neutral spawn prompt",
+    )
+    render_source = render.add_mutually_exclusive_group(required=True)
+    render_source.add_argument("--packet-file", help="existing compiled packet JSON to render")
+    render_source.add_argument("--dispatch-file", help="Task Dispatch JSON to compile and render")
+    render.add_argument("--binding-file", help="measured runtime binding JSON (with --dispatch-file)")
+    render.add_argument("--packet-out", help="where to write the compiled packet (with --dispatch-file)")
+    render.add_argument("--overwrite", action="store_true", help="allow --packet-out to replace an existing file")
+    render.add_argument("--environment-file", help="optional UTF-8 JSON environment object")
+    render.add_argument("--pricing-file", help="optional UTF-8 JSON pricing object")
+    render.add_argument("--handoff", choices=("implementation", "sdd", "review", "spawned-session", "other"), help="workflow handoff this spawn serves")
+    render.add_argument("--cwd", default=".", help="project path used for runtime discovery")
+    render.add_argument("--json", action="store_true", help="print the render payload as JSON instead of the prompt")
+
+    from_plan = task_packet_sub.add_parser(
+        "from-plan",
+        help="print one Task Dispatch per task from a plan's structured plan-dispatch JSON block",
+    )
+    from_plan.add_argument("--plan-file", required=True, help="Markdown tranche plan with one plan-dispatch block")
+    from_plan.add_argument("--cwd", default=".", help="project path used for runtime discovery")
+
     governance_load = task_packet_sub.add_parser(
         "governance-load",
         help="print one digest-verified governance file pinned by a packet-v2 Task Packet",
@@ -1431,6 +1459,10 @@ def main(argv: list[str] | None = None) -> int:
     governance_load.add_argument("--packet-file", required=True, help="UTF-8 JSON compiled Task Packet; use - for stdin")
     governance_load.add_argument("--name", required=True, choices=("agent_rules", "session_logging"))
     governance_load.add_argument("--cwd", default=".", help="project path used for runtime discovery")
+    governance_load.add_argument(
+        "--handoff", choices=("implementation", "sdd", "review", "spawned-session", "other"),
+        help="workflow handoff this worker serves (recorded in usage telemetry)",
+    )
 
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
@@ -1540,10 +1572,64 @@ def main(argv: list[str] | None = None) -> int:
             load_task_packet_governance,
         )
 
+        if args.task_packet_command == "render":
+            from .packet_render import render_payload
+            from .task_packet import _log_packet_usage
+
+            try:
+                if args.packet_file:
+                    if args.binding_file or args.packet_out or args.environment_file or args.pricing_file:
+                        raise ValueError("--packet-file renders an existing packet; compile flags do not apply")
+                    packet = _read_json_object(args.packet_file, label="packet")
+                    packet_path = args.packet_file
+                else:
+                    if not args.binding_file or not args.packet_out:
+                        raise ValueError("--dispatch-file requires --binding-file and --packet-out")
+                    if Path(args.packet_out).exists() and not args.overwrite:
+                        raise ValueError(f"refusing to overwrite existing packet: {args.packet_out}")
+                    packet = compile_task_packet(
+                        _read_json_object(args.dispatch_file, label="dispatch"),
+                        _read_json_object(args.binding_file, label="binding"),
+                        args.cwd,
+                        environment=(_read_json_object(args.environment_file, label="environment")
+                                     if args.environment_file else None),
+                        pricing=_read_json_object(args.pricing_file, label="pricing") if args.pricing_file else None,
+                        handoff=args.handoff,
+                    )
+                    _atomic_export_json(args.packet_out, canonical_task_packet_json(packet), overwrite=args.overwrite)
+                    packet_path = args.packet_out
+                payload = render_payload(packet, packet_path, handoff=args.handoff)
+                _log_packet_usage(args.cwd, "task_packet_render", packet, args.handoff)
+                sys.stdout.write(canonical_retrieval_json(payload) if args.json else payload["prompt"])
+                return 0
+            except (TaskPacketValidationError, RetrievalSpecResolutionError) as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+                return 1
+            except RetrievalProfileValidationError as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                    "code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {},
+                }}))
+                return 1
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                    "code": "invalid_input", "message": str(exc), "stage": "input", "details": {},
+                }}))
+                return 2
+
+        if args.task_packet_command == "from-plan":
+            from .plan_dispatch import plan_dispatches_from_file
+
+            try:
+                sys.stdout.write(canonical_retrieval_json(plan_dispatches_from_file(args.plan_file, args.cwd)))
+                return 0
+            except TaskPacketValidationError as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+                return 1
+
         if args.task_packet_command == "governance-load":
             try:
                 packet = _read_json_object(args.packet_file, label="packet")
-                loaded = load_task_packet_governance(packet, args.name, args.cwd)
+                loaded = load_task_packet_governance(packet, args.name, args.cwd, handoff=args.handoff)
                 sys.stdout.write(canonical_retrieval_json({"ok": True, "governance": loaded}))
                 return 0
             except TaskPacketValidationError as exc:
@@ -1567,7 +1653,11 @@ def main(argv: list[str] | None = None) -> int:
                 if args.pricing_file else None
             )
             packet = compile_task_packet(
-                dispatch, binding, args.cwd, environment=environment, pricing=pricing
+                dispatch, binding, args.cwd, environment=environment, pricing=pricing,
+                handoff=args.handoff,
+                usage_kind=(
+                    "task_packet_preview" if args.task_packet_command == "preview" else "task_packet_compile"
+                ),
             )
             rendered = canonical_task_packet_json(packet)
             if getattr(args, "output", None):

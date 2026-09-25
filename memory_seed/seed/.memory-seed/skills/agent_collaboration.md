@@ -92,9 +92,32 @@ rules on demand. Deliver it one of two ways:
   `agent-rules.md` (plus `session_logging.md` when session writes are delegated) by digest, and the worker
   loads a pinned file only through `load_task_packet_governance`, which refuses changed bytes and never
   spends the supplemental reserve. Version 1 packets still embed the full rules.
-- **Without a packet** (a plain subagent or a spawned session): start the spawn prompt with
+- **Without a packet** (only where the table below allows it): start the spawn prompt with
   "Read `.memory-seed/skills/subagent_orientation.md` first and follow it." This matters most for
   clients whose subagents never receive the SessionStart hook.
+
+### Handoff points
+
+Seed every new agent at the point it is spawned. At points 3–6 a Task Packet is **mandatory**: compile it
+and spawn with its rendered prompt, `task-packet render --handoff <label>` (CLI) or
+`memory_task_packet_render` (MCP). The render writes the packet file and prints a client-neutral prompt
+carrying the lite skill, scope, acceptance, evidence and the packet fingerprint.
+
+| # | Handoff | Seeding | `--handoff` |
+|---|---|---|---|
+| 1 | Session-start summary worker | Lite read-first line only | — |
+| 2 | Discovery research fan-out (read-only) | Lite read-first line only | — |
+| 3 | Plan task → implementation worker | Writing v2 packet per task from `task-packet from-plan` | `implementation` |
+| 4 | Superpowers SDD worker | Writing v2 packet per task | `sdd` |
+| 5 | Independent reviewer / validator | Read-only v2 packet pinning the plan, decisions and diff range | `review` |
+| 6 | Spawned or next session continuing a tranche | v2 packet rendered as the opening prompt | `spawned-session` |
+| 7 | Link / topic / ADR swarm worker | Exempt: closed-list batch files are the contract | — |
+
+Every compile, render, activation and governance load is logged, with its handoff label when the caller
+passes one (`--handoff`, or the MCP `handoff` argument; otherwise `unspecified`). Logging needs the
+retrieval log gitignored, which `init`/`update` register. ESR reports agent merges that carry no packet
+evidence (no `Memory-Implements` trailer and no surviving activation). Nothing is blocked; a skipped
+packet is visible.
 
 It **still runs** `base_sha` verification, the packet's `preflight`, and the worktree guard. The
 exemption is about *context volume*, never about safety rails — a worker that skips the guard is not
