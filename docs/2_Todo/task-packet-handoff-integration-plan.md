@@ -20,7 +20,7 @@ non_goals:
 
 # Task Packets at agent handoff points
 
-Status: **PROPOSED — awaiting JNL approval.** Written from the 2026-09-25 design discovery with JNL.
+Status: **IMPLEMENTED — T1–T6 landed 2026-09-25 (approved by JNL); P0.2 worker dogfood pending.** Written from the 2026-09-25 design discovery with JNL.
 
 ## Why
 
@@ -53,8 +53,11 @@ The pieces already exist:
 ## Discovery decisions (JNL, 2026-09-25)
 
 - **D1 — Plans carry one structured tasks block.**
-  - Tranche plans stay prose, but gain one fenced `implementation_plan` YAML block in the existing
-    `planning.py` schema.
+  - Tranche plans stay prose, but gain one fenced ```` ```json ```` block with
+    `"schema": "memory-seed/plan-dispatch"`. It holds the `implementation_plan` in the existing
+    `planning.py` schema, plus shared dispatch `defaults` and one objective per task.
+  - *Amended 2026-09-25 (JNL):* the block is JSON, not YAML. PyYAML is not a package dependency, and the
+    repo's strict profile YAML reader rejects realistic plan blocks.
   - `task-packet from-plan` validates the block and emits one dispatch per task. Each dispatch carries edit
     ownership as allowed files, acceptance observables, dependencies, verification and the approval
     reference.
@@ -124,6 +127,18 @@ The pieces already exist:
     when that tranche starts.
   - Record measured packet sizes and the ESR coverage output.
   - Get an independent review of the slice before integration.
+
+## T6 results (2026-09-25)
+
+- **Point 5 dogfood.** This tranche's independent reviewer was seeded only from a rendered read-only v2
+  packet (`--handoff review`). It returned APPROVE WITH CHANGES in the lite return format; all seven
+  findings were fixed with tests before integration.
+- **Measured size.** Packet file 77,102 bytes; rendered prompt 49,155 bytes. It carried 7 evidence items,
+  26 anchored Constitution clauses and the 1,040-token lite skill; `agent_rules` (5,093 tokens) stayed a
+  digest-pinned on-demand reference, not inline text. Cost ledger `unavailable` (no pricing supplied).
+- **ESR coverage output.** "Today: compile 1, render 2. Today by handoff: review 3." Three agent branches
+  merged earlier that day showed no packet evidence, as expected: they predate the handoff path.
+- **Still to observe.** The first P0.2 implementation workers (point 3) are the next dogfood.
 
 ## Acceptance
 

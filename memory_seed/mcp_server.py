@@ -273,6 +273,7 @@ TOOLS: list[dict[str, Any]] = [
                 "dispatch": {"type": "object"}, "binding": {"type": "object"},
                 "environment": {"type": "object"}, "pricing": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
+                "handoff": {"type": "string", "enum": ["implementation", "sdd", "review", "spawned-session", "other"]},
             },
             "required": ["dispatch", "binding"], "additionalProperties": False,
         },
@@ -286,8 +287,37 @@ TOOLS: list[dict[str, Any]] = [
                 "dispatch": {"type": "object"}, "binding": {"type": "object"},
                 "environment": {"type": "object"}, "pricing": {"type": "object"},
                 "cwd": {"type": "string", "default": "."},
+                "handoff": {"type": "string", "enum": ["implementation", "sdd", "review", "spawned-session", "other"]},
             },
             "required": ["dispatch", "binding"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_render",
+        "description": "Render a Task Packet as a client-neutral spawn prompt. Pass a compiled packet, or a dispatch and binding to compile; packet_path is where the caller saves the returned packet. Read-only: MCP never writes the file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "packet": {"type": "object"},
+                "dispatch": {"type": "object"}, "binding": {"type": "object"},
+                "environment": {"type": "object"}, "pricing": {"type": "object"},
+                "packet_path": {"type": "string"},
+                "handoff": {"type": "string", "enum": ["implementation", "sdd", "review", "spawned-session", "other"]},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["packet_path"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_task_packet_from_plan",
+        "description": "Return one Task Dispatch per task from a Markdown tranche plan's single plan-dispatch JSON block, validated against the implementation-plan schema. Read-only; it compiles nothing and dispatches no workers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "plan_file": {"type": "string"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["plan_file"], "additionalProperties": False,
         },
     },
     {
@@ -298,6 +328,7 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "packet": {"type": "object"},
                 "name": {"type": "string", "enum": ["agent_rules", "session_logging"]},
+                "handoff": {"type": "string", "enum": ["implementation", "sdd", "review", "spawned-session", "other"]},
                 "cwd": {"type": "string", "default": "."},
             },
             "required": ["packet", "name"], "additionalProperties": False,
@@ -935,14 +966,18 @@ def call_tool(
 
         if not isinstance(args, dict):
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "tool arguments must be a JSON object", "stage": "validation", "completed_stages": [], "details": {}}}
-        unsupported = sorted(set(args) - {"dispatch", "binding", "environment", "pricing", "cwd"})
+        unsupported = sorted(set(args) - {"dispatch", "binding", "environment", "pricing", "cwd", "handoff"})
         if unsupported:
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported task packet tool argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
         dispatch, binding = args.get("dispatch"), args.get("binding")
         if not isinstance(dispatch, dict) or not isinstance(binding, dict):
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "dispatch and binding must be JSON objects", "stage": "validation", "completed_stages": [], "details": {}}}
         try:
-            packet = compile_task_packet(dispatch, binding, args.get("cwd", "."), environment=args.get("environment"), pricing=args.get("pricing"))
+            packet = compile_task_packet(
+                dispatch, binding, args.get("cwd", "."), environment=args.get("environment"), pricing=args.get("pricing"),
+                handoff=args.get("handoff"),
+                usage_kind="task_packet_preview" if name.endswith("_preview") else "task_packet_compile",
+            )
             return {"ok": True, "preview" if name.endswith("_preview") else "packet": packet}
         except TaskPacketValidationError as exc:
             return {"ok": False, "error": exc.to_dict()}
@@ -956,16 +991,63 @@ def call_tool(
         except RetrievalProfileValidationError as exc:
             return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
 
+    if name == "memory_task_packet_render":
+        from .packet_render import render_payload
+        from .retrieval_profiles import RetrievalProfileValidationError
+        from .retrieval_spec import RetrievalSpecValidationError
+        from .task_packet import TaskPacketValidationError, _log_packet_usage, compile_task_packet
+
+        allowed = {"packet", "dispatch", "binding", "environment", "pricing", "packet_path", "handoff", "cwd"}
+        if not isinstance(args, dict) or not isinstance(args.get("packet_path"), str) or set(args) - allowed:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "render needs packet_path and known arguments", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": sorted(set(args or {}) - allowed)}}}
+        has_packet = isinstance(args.get("packet"), dict)
+        has_dispatch = isinstance(args.get("dispatch"), dict) and isinstance(args.get("binding"), dict)
+        if has_packet == has_dispatch:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "pass either packet or dispatch+binding", "stage": "validation", "completed_stages": [], "details": {}}}
+        cwd = args.get("cwd", ".")
+        try:
+            packet = args["packet"] if has_packet else compile_task_packet(
+                args["dispatch"], args["binding"], cwd, environment=args.get("environment"),
+                pricing=args.get("pricing"), handoff=args.get("handoff"),
+            )
+            payload = render_payload(packet, args["packet_path"], handoff=args.get("handoff"))
+        except (TaskPacketValidationError, RetrievalSpecResolutionError) as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except RetrievalProfileValidationError as exc:
+            return {"ok": False, "error": {"code": "invalid_profile", "message": str(exc), "stage": "profile_expansion", "details": {}}}
+        except RetrievalSpecValidationError as exc:
+            return {"ok": False, "error": {"code": "invalid_spec", "message": str(exc), "stage": "validation", "completed_stages": [], "details": {}}}
+        _log_packet_usage(cwd, "task_packet_render", packet, args.get("handoff"))
+        # MCP is read-only: the prompt names packet_path, so the caller must
+        # write the returned packet there before spawning the worker.
+        return {"ok": True, **payload, "packet": packet, "packet_written": False,
+                "caller_must_save_packet_to": args["packet_path"]}
+
+    if name == "memory_task_packet_from_plan":
+        from .plan_dispatch import plan_dispatches_from_file
+        from .task_packet import TaskPacketValidationError
+
+        if not isinstance(args, dict) or not isinstance(args.get("plan_file"), str):
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "plan_file must be a string", "stage": "validation", "completed_stages": [], "details": {}}}
+        unsupported = sorted(set(args) - {"plan_file", "cwd"})
+        if unsupported:
+            return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported from-plan argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
+        try:
+            return plan_dispatches_from_file(args["plan_file"], args.get("cwd", "."))
+        except TaskPacketValidationError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+
     if name == "memory_task_packet_governance_load":
         from .task_packet import TaskPacketValidationError, load_task_packet_governance
 
         if not isinstance(args, dict) or not isinstance(args.get("packet"), dict) or not isinstance(args.get("name"), str):
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "packet must be an object and name a string", "stage": "validation", "completed_stages": [], "details": {}}}
-        unsupported = sorted(set(args) - {"packet", "name", "cwd"})
+        unsupported = sorted(set(args) - {"packet", "name", "cwd", "handoff"})
         if unsupported:
             return {"ok": False, "error": {"code": "invalid_arguments", "message": "unsupported governance-load argument(s)", "stage": "validation", "completed_stages": [], "details": {"unsupported_arguments": unsupported}}}
         try:
-            return {"ok": True, "governance": load_task_packet_governance(args["packet"], args["name"], args.get("cwd", "."))}
+            return {"ok": True, "governance": load_task_packet_governance(
+                args["packet"], args["name"], args.get("cwd", "."), handoff=args.get("handoff"))}
         except TaskPacketValidationError as exc:
             return {"ok": False, "error": exc.to_dict()}
 
@@ -1717,6 +1799,8 @@ def handle_jsonrpc_message(
                     "memory_task_packet_preview",
                     "memory_task_packet_compile",
                     "memory_task_packet_governance_load",
+                    "memory_task_packet_from_plan",
+                    "memory_task_packet_render",
                 }
                 else json.dumps(
                     tool_result,

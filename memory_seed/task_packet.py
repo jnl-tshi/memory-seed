@@ -1020,7 +1020,9 @@ _GOVERNANCE_SOURCES = {
 }
 
 
-def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str | Path) -> dict[str, Any]:
+def load_task_packet_governance(
+    packet: Mapping[str, Any], name: str, cwd: str | Path, *, handoff: str | None = None
+) -> dict[str, Any]:
     """Load one lazily referenced governance file, verified against its pin.
 
     Governance loads are the on-demand half of orientation lite: a worker
@@ -1067,6 +1069,7 @@ def load_task_packet_governance(packet: Mapping[str, Any], name: str, cwd: str |
         _fail(f"governance.{name}", "governance source changed since the packet was compiled",
               code="stale_governance", stage="governance_load",
               details={"source": relative, "expected": reference["content_digest"], "actual": digest})
+    _log_packet_usage(cwd, "task_packet_governance_load", packet, handoff)
     return {
         "name": name,
         "source": relative,
@@ -2462,6 +2465,7 @@ def activate_task_packet(
     cwd: str | Path = ".",
     *,
     binding_update_reason: str | None = None,
+    handoff: str | None = None,
 ) -> dict[str, Any]:
     """Activate a compiled writing packet for its bound Git branch.
 
@@ -2563,6 +2567,7 @@ def activate_task_packet(
                 handle.write(canonical_json(receipt) + "\n")
         except OSError as exc:
             _fail("activation", "could not persist the worktree-local packet artifact", code="activation_io", stage="activation", details={"error": exc.__class__.__name__})
+    _log_packet_usage(cwd, "task_packet_activate", packet, handoff)
     return {
         "activated": True,
         "branch": branch,
@@ -2576,6 +2581,16 @@ def activate_task_packet(
     }
 
 
+def _log_packet_usage(cwd: str | Path, kind: str, packet: Mapping[str, Any], handoff: str | None) -> None:
+    """Record one usage event for the ESR coverage report. Never raises."""
+    try:
+        from .attention import record_task_packet_event
+
+        record_task_packet_event(resolve_runtime(cwd).memory_dir, kind, dict(packet), handoff=handoff)
+    except Exception:
+        return
+
+
 def compile_task_packet(
     dispatch: Mapping[str, Any],
     binding: Mapping[str, Any],
@@ -2583,8 +2598,30 @@ def compile_task_packet(
     *,
     environment: Mapping[str, Any] | None = None,
     pricing: Mapping[str, Any] | None = None,
+    handoff: str | None = None,
+    usage_kind: str = "task_packet_compile",
 ) -> dict[str, Any]:
-    """Compile one deterministic, fully materialized Task Packet v1."""
+    """Compile one deterministic Task Packet and record its usage.
+
+    ``handoff`` labels the workflow point the packet serves (implementation,
+    sdd, review, spawned-session, other); ``usage_kind`` lets preview surfaces
+    log as previews. Logging is telemetry only: it never alters the packet and
+    never fails the compile.
+    """
+    packet = _compile_task_packet(dispatch, binding, cwd, environment=environment, pricing=pricing)
+    _log_packet_usage(cwd, usage_kind, packet, handoff)
+    return packet
+
+
+def _compile_task_packet(
+    dispatch: Mapping[str, Any],
+    binding: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    environment: Mapping[str, Any] | None = None,
+    pricing: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compile one deterministic, fully materialized Task Packet."""
     normalized_dispatch = normalize_task_dispatch(dispatch)
     normalized_binding = normalize_runtime_binding(
         binding,

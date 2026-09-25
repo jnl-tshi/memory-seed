@@ -44,6 +44,22 @@ COMPACT_THRESHOLD = 5000
 # future sources (file-touch trigger, Trace views) are logged but weigh zero.
 FETCH_TOOL = "memory_get_chunk"
 
+# Task Packet usage telemetry (task-packet-handoff-integration-plan.md, T1).
+# These kinds share the log so one gitignored, rebuildable file carries all
+# retrieval-side operational state, but they never score: load_attention folds
+# only FETCH_TOOL. Compaction keeps their counts in the summary.
+TASK_PACKET_EVENT_KINDS = frozenset(
+    {
+        "task_packet_compile",
+        "task_packet_preview",
+        "task_packet_render",
+        "task_packet_activate",
+        "task_packet_governance_load",
+    }
+)
+# Where in the workflow a packet crossed a handoff (plan handoff points 3-6).
+HANDOFF_LABELS = frozenset({"implementation", "sdd", "review", "spawned-session", "other"})
+
 GITIGNORE_ENTRIES = (
     f".memory-seed/{LOG_NAME}",
     f".memory-seed/{SUMMARY_NAME}",
@@ -105,6 +121,137 @@ def record_event(
             handle.write(line + "\n")
     except Exception:
         return
+
+
+def record_task_packet_event(
+    memory_dir: str | Path,
+    kind: str,
+    packet: Any,
+    *,
+    handoff: str | None = None,
+    ts: datetime | None = None,
+) -> None:
+    """Append one Task Packet usage event. Fail-open by contract.
+
+    ``entry_id`` carries the packet fingerprint so existing log readers keep a
+    uniform shape; the packet's version, profile, write intent and the caller's
+    handoff label ride alongside for the ESR coverage report.
+    """
+    try:
+        memory_dir = Path(memory_dir)
+        if kind not in TASK_PACKET_EVENT_KINDS or not memory_dir.is_dir() or not isinstance(packet, dict):
+            return
+        fingerprint = packet.get("fingerprint")
+        if not isinstance(fingerprint, str) or not fingerprint:
+            return
+        dispatch = packet.get("dispatch") if isinstance(packet.get("dispatch"), dict) else {}
+        execution = dispatch.get("execution") if isinstance(dispatch.get("execution"), dict) else {}
+        profile = packet.get("retrieval_profile") if isinstance(packet.get("retrieval_profile"), dict) else {}
+        log_path = _log_path(memory_dir)
+        # Unlike retrieval events, packet events must never change the working
+        # tree: registering the log in .gitignore would alter the very commit
+        # cadence a packet measures and break deterministic compilation. So
+        # they are recorded only once the log is already ignored.
+        if not _log_is_ignored(memory_dir):
+            return
+        line = json.dumps(
+            {
+                "schema": 1,
+                "ts": (ts or _now()).isoformat(timespec="seconds"),
+                "tool": kind,
+                "entry_id": fingerprint,
+                "packet_version": packet.get("packet_version"),
+                "profile": (
+                    f"{profile.get('id')}:v{profile.get('profile_version')}" if profile.get("id") else None
+                ),
+                "write_intent": execution.get("write_intent"),
+                "handoff": handoff if handoff in HANDOFF_LABELS else "unspecified",
+            },
+            ensure_ascii=False,
+        )
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except Exception:
+        return
+
+
+def _log_is_ignored(memory_dir: Path) -> bool:
+    import subprocess
+
+    relative = f"{memory_dir.name}/{LOG_NAME}"
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(memory_dir.parent), "check-ignore", "-q", "--no-index", relative],
+            capture_output=True, timeout=10,
+        )
+        if probe.returncode in (0, 1):
+            return probe.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        lines = (memory_dir.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any(line.strip().lstrip("/") == relative for line in lines)
+
+
+def _usage_counts(events: list[dict[str, Any]]) -> dict[str, Any]:
+    totals: dict[str, int] = {}
+    by_handoff: dict[str, int] = {}
+    by_day: dict[str, dict[str, dict[str, int]]] = {}
+    for event in events:
+        kind = event.get("tool")
+        if kind not in TASK_PACKET_EVENT_KINDS:
+            continue
+        label = str(event.get("handoff") or "unspecified")
+        totals[kind] = totals.get(kind, 0) + 1
+        by_handoff[label] = by_handoff.get(label, 0) + 1
+        moment = _parse_ts(event.get("ts"))
+        if moment is not None:
+            day = by_day.setdefault(moment.astimezone().date().isoformat(), {"totals": {}, "by_handoff": {}})
+            day["totals"][kind] = day["totals"].get(kind, 0) + 1
+            day["by_handoff"][label] = day["by_handoff"].get(label, 0) + 1
+    return {"totals": totals, "by_handoff": by_handoff, "by_day": by_day}
+
+
+def _add_counts(target: dict[str, int], source: Any) -> None:
+    for key, value in (source or {}).items():
+        if isinstance(value, int):
+            target[key] = target.get(key, 0) + value
+
+
+def _merge_counts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    merged: dict[str, Any] = {"totals": {}, "by_handoff": {}, "by_day": {}}
+    for source in (left, right):
+        _add_counts(merged["totals"], source.get("totals"))
+        _add_counts(merged["by_handoff"], source.get("by_handoff"))
+        for day, counts in (source.get("by_day") or {}).items():
+            target = merged["by_day"].setdefault(day, {"totals": {}, "by_handoff": {}})
+            _add_counts(target["totals"], (counts or {}).get("totals"))
+            _add_counts(target["by_handoff"], (counts or {}).get("by_handoff"))
+    return merged
+
+
+def load_task_packet_usage(
+    memory_dir: str | Path, since: datetime | None = None
+) -> dict[str, Any]:
+    """Lifetime Task Packet usage counts plus the log's events since ``since``.
+
+    Counts survive compaction (folded into the summary); individual events are
+    available only while still in the log. Returns empty structures on failure.
+    """
+    try:
+        memory_dir = Path(memory_dir)
+        events = [event for event in _iter_log_events(memory_dir) if event.get("tool") in TASK_PACKET_EVENT_KINDS]
+        counts = _merge_counts(_read_summary(memory_dir).get("task_packet_usage") or {}, _usage_counts(events))
+        recent = []
+        for event in events:
+            moment = _parse_ts(event.get("ts"))
+            if moment is not None and (since is None or moment >= since):
+                recent.append(event)
+        return {**counts, "events": recent}
+    except Exception:
+        return {"totals": {}, "by_handoff": {}, "by_day": {}, "events": []}
 
 
 def _ensure_ignored(memory_dir: Path) -> None:
@@ -229,9 +376,16 @@ def compact_if_needed(memory_dir: str | Path, now: datetime | None = None) -> bo
             return False
         moment = now or _now()
         folded = load_attention(memory_dir, moment)
+        # Task Packet usage is telemetry, not attention: keep its counts across
+        # truncation so the ESR coverage report never loses history.
+        usage = _merge_counts(
+            _read_summary(memory_dir).get("task_packet_usage") or {},
+            _usage_counts(_iter_log_events(memory_dir)),
+        )
         summary = {
             "schema": 1,
             "as_of": moment.isoformat(timespec="seconds"),
+            "task_packet_usage": usage,
             "entries": {
                 entry_id: {
                     "score": record["attention_score"],

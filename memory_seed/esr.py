@@ -60,6 +60,11 @@ class WorktreeResidue:
 @dataclass
 class EsrReport:
     session_date: str
+    # Task Packet handoff coverage (task-packet-handoff-integration-plan.md, T5).
+    # Advisory: packet usage from the telemetry log plus agent branches merged
+    # today whose commits carry no Memory-Implements trailer (the hook stamps it
+    # only under an activated packet). Never blocks and never writes memory.
+    task_packet_coverage: dict[str, Any] = field(default_factory=dict)
     integration_mode: str = "local-merge"
     merge_trigger: str = "automatic"
     integrity_ok: bool = True
@@ -794,6 +799,70 @@ def _git_lines(root: Path, *args: str, timeout: int = 30) -> list[str] | None:
     return proc.stdout.splitlines()
 
 
+_AGENT_BRANCH_PREFIXES = ("claude/", "codex/", "gemini/", "cursor/", "worktree-")
+_MERGE_SUBJECT_RE = re.compile(r"^Merge branch '([^']+)'")
+
+
+def _activation_artifact_exists(root: Path, branch: str) -> bool:
+    """True when any git dir still holds this branch's packet activation."""
+    import hashlib
+
+    common = _git_lines(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if not common:
+        return False
+    token = hashlib.sha256(branch.encode("utf-8")).hexdigest()
+    git_dir = Path(common[0])
+    candidates = [git_dir / "memory-seed" / "task-packets" / f"{token}.json"]
+    worktrees = git_dir / "worktrees"
+    if worktrees.is_dir():
+        candidates += [child / "memory-seed" / "task-packets" / f"{token}.json" for child in worktrees.iterdir()]
+    return any(path.is_file() for path in candidates)
+
+
+def _task_packet_coverage(root: Path, memory_dir: Path, day: str) -> dict[str, Any]:
+    """Packet usage today plus agent branches merged today without packet evidence.
+
+    Evidence of an activated packet is a surviving activation artifact for the
+    branch, or a ``Memory-Implements`` trailer (which the hook stamps only
+    under an activated packet with implements refs). A merged, cleaned-up
+    worktree loses its artifact, so a writing packet with no implements refs
+    can still read as uncovered; the report says "no packet evidence", not
+    "no packet".
+    """
+    from datetime import date as _date, timedelta
+
+    from .attention import load_task_packet_usage
+
+    usage = load_task_packet_usage(memory_dir)
+    today = (usage.get("by_day") or {}).get(day) or {"totals": {}, "by_handoff": {}}
+
+    uncovered: list[str] = []
+    covered: list[str] = []
+    next_day = (_date.fromisoformat(day) + timedelta(days=1)).isoformat()
+    merges = _git_lines(
+        root, "log", "--first-parent", "--merges", f"--since={day}T00:00:00", f"--until={next_day}T00:00:00",
+        "--format=%H%x00%s", "HEAD",
+    )
+    for line in merges or []:
+        sha, _, subject = line.partition("\x00")
+        match = _MERGE_SUBJECT_RE.match(subject)
+        if not match or not match.group(1).startswith(_AGENT_BRANCH_PREFIXES):
+            continue
+        branch = match.group(1)
+        bodies = _git_lines(root, "log", "--format=%B", f"{sha}^1..{sha}^2")
+        if bodies is None:
+            continue
+        trailer = any(body.lower().startswith("memory-implements:") for body in bodies)
+        (covered if trailer or _activation_artifact_exists(root, branch) else uncovered).append(branch)
+    return {
+        "lifetime": usage["totals"],
+        "today": today["totals"],
+        "today_by_handoff": today["by_handoff"],
+        "agent_merges_covered": covered,
+        "agent_merges_without_packet": uncovered,
+    }
+
+
 def _integration_ref(root: Path) -> str | None:
     for ref in ("main", "master"):
         if _git_lines(root, "rev-parse", "--verify", "--quiet", ref) is not None:
@@ -1066,6 +1135,10 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     if report.worktrees_available:
         report.worktree_residues = _worktree_residues(root, report.worktrees)
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
+    try:
+        report.task_packet_coverage = _task_packet_coverage(root, runtime.memory_dir, day)
+    except Exception as exc:  # noqa: BLE001 - advisory telemetry must not fail ESR
+        report.task_packet_coverage = {"error": str(exc)}
 
     from .docs_check import check_docs
 
@@ -1311,6 +1384,34 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append("merge_trigger: manual — HOLD; landing needs `--user-approved` (MCP integrate declines).")
     else:
         lines.append("merge_trigger: automatic — may land at a stable, tested stopping point (local merge / open PR only).")
+    lines.append("")
+
+    lines.append("## Task Packet coverage (advisory)")
+    coverage = report.task_packet_coverage
+    if coverage.get("error"):
+        lines.append(f"Unavailable: {coverage['error']}")
+    else:
+        def counts(values: dict[str, int]) -> str:
+            return ", ".join(f"{key.removeprefix('task_packet_')} {value}" for key, value in sorted(values.items())) or "none"
+
+        lines.append(f"Today: {counts(coverage.get('today', {}))}.")
+        lines.append(f"Today by handoff: {counts(coverage.get('today_by_handoff', {}))}.")
+        lines.append(f"Lifetime: {counts(coverage.get('lifetime', {}))}.")
+        missing = coverage.get("agent_merges_without_packet", [])
+        covered = coverage.get("agent_merges_covered", [])
+        lines.append(
+            f"Agent branches merged today: {len(covered) + len(missing)}; with packet evidence: {len(covered)}."
+        )
+        for branch in missing[:10]:
+            lines.append(f"- {branch}: no packet evidence (expected if a delegated worker did this work)")
+        if len(missing) > 10:
+            lines.append(f"- ... and {len(missing) - 10} more")
+        by_handoff = coverage.get("today_by_handoff", {})
+        if not by_handoff.get("review") and not by_handoff.get("spawned-session"):
+            lines.append(
+                "No review or spawned-session packets today: any reviewer or next session spawned today was "
+                "seeded without one (handoff points 5-6)."
+            )
     lines.append("")
 
     lines.append("## Worktrees")
