@@ -44,10 +44,13 @@ class WorktreePosture:
     ahead: int | None
     dirty: int | None
     is_primary: bool
+    is_home: bool = False
 
     @property
     def stale_candidate(self) -> bool:
-        return not self.is_primary and self.ahead == 0 and self.dirty == 0
+        # A home worktree is an agent's persistent environment: it is parked, never removed,
+        # so a freshly claimed (merged-looking) home must not read as cleanup material.
+        return not self.is_primary and not self.is_home and self.ahead == 0 and self.dirty == 0
 
 
 @dataclass(frozen=True)
@@ -176,6 +179,7 @@ class EsrReport:
                         "ahead": w.ahead,
                         "dirty": w.dirty,
                         "is_primary": w.is_primary,
+                        "is_home": w.is_home,
                         "stale_candidate": w.stale_candidate,
                     }
                     for w in self.worktrees
@@ -877,6 +881,9 @@ def _worktree_posture(root: Path) -> tuple[bool, list[WorktreePosture]]:
     integration = _integration_ref(root)
     postures: list[WorktreePosture] = []
     current: dict[str, Any] = {}
+    from .worktree_home import _repo_root, is_home_worktree
+
+    primary_root = _repo_root(root) or root
 
     def flush(is_primary: bool) -> None:
         if not current.get("path"):
@@ -899,6 +906,7 @@ def _worktree_posture(root: Path) -> tuple[bool, list[WorktreePosture]]:
                 ahead=ahead,
                 dirty=dirty,
                 is_primary=is_primary,
+                is_home=not is_primary and is_home_worktree(primary_root, wt_path) is not None,
             )
         )
 
@@ -1426,7 +1434,10 @@ def format_esr_report(report: EsrReport) -> str:
                 continue
             ahead = "?" if wt.ahead is None else wt.ahead
             dirty = "?" if wt.dirty is None else wt.dirty
-            marker = "  STALE CANDIDATE (merged + clean)" if wt.stale_candidate else ""
+            if wt.is_home:
+                marker = "  HOME (persistent; parked after merge, never removed)"
+            else:
+                marker = "  STALE CANDIDATE (merged + clean)" if wt.stale_candidate else ""
             lines.append(f"- {wt.path}  [{wt.branch or 'detached'}]  ahead: {ahead}  dirty: {dirty}{marker}")
         if report.worktree_residues:
             lines.append("Unregistered physical directories — audit before removal:")
