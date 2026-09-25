@@ -205,6 +205,7 @@ class WorktreeGuardConfig:
     root_write_policy: str
     unmanaged_write_policy: str
     namespaces: dict[str, str]
+    home_lease_stale_minutes: int = 180
 
 
 @dataclass(frozen=True)
@@ -227,6 +228,7 @@ class WorktreeGuardStatus:
     recommended_next_action: str
     warnings: tuple[str, ...] = ()
     cadence: CommitCadence | None = None
+    is_home: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -234,6 +236,7 @@ class WorktreeGuardStatus:
             "severity": self.severity,
             "agent_type": self.agent_type,
             "classification": self.classification,
+            "is_home": self.is_home,
             "safe_to_write": self.safe_to_write,
             "write_intent": self.write_intent,
             "current_branch": self.current_branch,
@@ -2028,6 +2031,7 @@ def _worktree_guard_config_for(root: Path) -> WorktreeGuardConfig:
         return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
 
     in_namespaces = False
+    stale_minutes = 180
     for raw in block.splitlines()[1:]:
         line = raw.rstrip()
         if not line.strip() or line.lstrip().startswith("#"):
@@ -2048,9 +2052,14 @@ def _worktree_guard_config_for(root: Path) -> WorktreeGuardConfig:
             elif key == "unmanaged_write_policy" and value:
                 unmanaged_write_policy = value
             continue
+        if indent == 2 and key == "home_lease_stale_minutes":
+            in_namespaces = False
+            if value.isdigit() and int(value) > 0:
+                stale_minutes = int(value)
+            continue
         if indent >= 4 and in_namespaces and value:
             namespaces[key.lower()] = value.replace("\\", "/").strip("/")
-    return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
+    return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces, stale_minutes)
 
 
 def worktree_guard(
@@ -2108,8 +2117,18 @@ def worktree_guard(
     cadence = commit_cadence(worktree_path)
 
     actual_owner = _namespace_owner(repo_root, worktree_path, config.namespaces)
+    from .worktree_home import is_home_worktree
+
+    is_home = (
+        _casefold_parts(worktree_path) != _casefold_parts(repo_root)
+        and is_home_worktree(repo_root, worktree_path) is not None
+    )
     if _casefold_parts(worktree_path) == _casefold_parts(repo_root):
         classification = "root-checkout"
+    elif actual_owner and (normalized_agent is None or actual_owner == normalized_agent) and is_home and not branch:
+        # A parked home is free, not a place to commit: work on a detached HEAD is
+        # orphaned by the next claim.
+        classification = "parked-home"
     elif actual_owner and (normalized_agent is None or actual_owner == normalized_agent):
         classification = "owned-worktree"
     elif actual_owner:
@@ -2122,6 +2141,15 @@ def worktree_guard(
     severity = "ok"
     if classification == "owned-worktree":
         recommendation = "Current worktree matches the agent namespace; writing is allowed."
+    elif classification == "parked-home":
+        if write_intent:
+            safe_to_write = False
+            severity = "block"
+            warnings.append("The home worktree is parked (detached HEAD); commits here would be orphaned.")
+        recommendation = (
+            f"Claim a task branch first: memory-seed worktree home --agent {actual_owner} --claim "
+            f"--branch {actual_owner}/<kind>/<topic>"
+        )
     elif classification == "foreign-worktree":
         safe_to_write = False
         severity = "block"
@@ -2180,6 +2208,7 @@ def worktree_guard(
         recommended_next_action=recommendation,
         warnings=tuple(warnings),
         cadence=cadence,
+        is_home=is_home,
     )
 
 
@@ -4373,6 +4402,21 @@ def _ensure_per_user_session_file(
     )
 
 
+def _multi_user_segment(workspace_root: Path | str, cwd: Path | str | None = None) -> str | None:
+    """The active user's path segment, but only once the project has 2+ participants.
+
+    A configured user alone isn't enough to fragment shared paths: per-user session files (and
+    per-user home worktrees) exist to avoid concurrent-author conflicts, which isn't a concern until
+    there is a second participant to conflict with.
+    """
+    user = resolve_active_user(cwd if cwd is not None else workspace_root)
+    if user is None:
+        return None
+    if len(read_project_participants(Path(workspace_root))) < 2:
+        return None
+    return user
+
+
 def session_target(
     cwd: Path | str = ".",
     date_str: str | None = None,
@@ -4390,15 +4434,12 @@ def session_target(
     if not _valid_session_date(date_value):
         raise ValueError(f"Invalid session date: {date_value}")
 
-    user = resolve_active_user(cwd, explicit_user=explicit_user)
-    if user is not None and explicit_user is None:
-        # A configured user alone isn't enough to fragment the log: per-user
-        # files exist to avoid concurrent-author merge conflicts, which isn't a
-        # concern until there is a second participant to conflict with. An
-        # explicit --user override bypasses this (a deliberate one-shot choice,
-        # e.g. testing migration by hand).
-        if len(read_project_participants(runtime.workspace_root)) < 2:
-            user = None
+    if explicit_user is not None:
+        # An explicit --user override bypasses the participant gate (a
+        # deliberate one-shot choice, e.g. testing migration by hand).
+        user = resolve_active_user(cwd, explicit_user=explicit_user)
+    else:
+        user = _multi_user_segment(runtime.workspace_root, cwd)
     if user is None:
         path = _session_flat_path(sessions_dir, date_value)
         if create:
@@ -8976,6 +9017,16 @@ def _cleanup_merged_source_worktree(
     merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
     if merged_code != 0:
         return str(path), "retained", "source branch is not confirmed merged into HEAD", 0
+
+    # A home worktree is the agent's durable environment: park it (detach at the merge
+    # commit, release its lease) instead of removing it. Parking deletes nothing, so a
+    # caller running from inside the home is the normal case, not a hazard.
+    from .worktree_home import is_home_worktree, park_home
+
+    if is_home_worktree(root, path):
+        merge_commit = _resolve_commit(root, "HEAD")
+        parked, park_detail = park_home(root, path, merge_commit)
+        return str(path), "parked" if parked else "retained", park_detail, 1
 
     # Never remove the checkout the caller itself runs from. On Windows the
     # running interpreter stays locked while everything around it is deleted,

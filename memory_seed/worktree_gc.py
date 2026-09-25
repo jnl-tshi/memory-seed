@@ -23,6 +23,7 @@ from typing import Literal
 
 WorktreeState = Literal[
     "root",  # the primary worktree - never removable
+    "home",  # an agent's persistent home worktree - parked, never removed
     "active",  # the worktree this process is running in
     "dirty",  # uncommitted or untracked changes present
     "unmerged",  # branch has commits not in the integration branch
@@ -114,18 +115,18 @@ def classify_worktrees(
     namespace owner is still reported, but only unowned paths are foreign.
     """
     from .core import (
-        DEFAULT_WORKTREE_NAMESPACES,
         _git_text,
         _namespace_owner,
         _parse_worktree_list,
+        _worktree_guard_config_for,
     )
+    from .worktree_home import is_home_worktree
 
     root = Path(cwd).resolve()
     code, porcelain = _git_text(root, ("worktree", "list", "--porcelain"))
     if code != 0 or not porcelain.strip():
         return WorktreeGcReport(integration_branch=integration_branch, classifications=())
 
-    namespaces = dict(DEFAULT_WORKTREE_NAMESPACES)
     here = root
     items = _parse_worktree_list(porcelain)
     if not items:
@@ -139,6 +140,8 @@ def classify_worktrees(
         repo_root = Path(items[0].get("path", "")).resolve()
     except (OSError, ValueError):
         return WorktreeGcReport(integration_branch=integration_branch, classifications=())
+    # Same namespaces the guard enforces, including project.yaml overrides.
+    namespaces = dict(_worktree_guard_config_for(repo_root).namespaces)
     classifications: list[WorktreeClassification] = []
 
     for index, item in enumerate(items):
@@ -179,6 +182,26 @@ def classify_worktrees(
                     removable=False,
                     evidence=tuple(evidence),
                     recommendation="Never removable: this is the repository root.",
+                )
+            )
+            continue
+
+        if is_home_worktree(repo_root, path):
+            evidence.append("persistent home worktree for its agent")
+            classifications.append(
+                WorktreeClassification(
+                    path=str(path),
+                    state="home",
+                    branch=branch,
+                    head=head,
+                    namespace_owner=owner,
+                    removable=False,
+                    evidence=tuple(evidence),
+                    recommendation=(
+                        "Never removable: park it instead (`memory-seed worktree home --park`) once its branch is merged."
+                        if branch
+                        else "Never removable: parked and free."
+                    ),
                 )
             )
             continue

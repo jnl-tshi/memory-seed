@@ -65,6 +65,17 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual([i.path for i in report.removable], [str(wt.resolve())])
 
     @pytest.mark.integration
+    def test_merged_home_worktree_is_never_removable(self):
+        repo = self.make_repo()
+        home = self.add_worktree(repo, ".claude/worktrees/home", "claude/feature/landed")
+        _git(repo, "merge", "--no-ff", "claude/feature/landed", "-m", "merge")
+
+        report = classify_worktrees(repo, agent_type="claude")
+
+        self.assertEqual(self.state_of(report, home), "home")
+        self.assertEqual(report.removable, ())
+
+    @pytest.mark.integration
     def test_dirty_worktree_is_never_removable_even_when_merged(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/dirty", "claude/feature/dirty")

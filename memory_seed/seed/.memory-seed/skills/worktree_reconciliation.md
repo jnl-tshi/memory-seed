@@ -15,6 +15,12 @@ or otherwise uncertain Git worktree. It owns evidence-led review of candidate wo
 cleanup of the exact source worktree after a successful guarded branch integration remains owned by
 `agent_collaboration.md` and the integration command.
 
+An agent's **home** worktree (`<namespace>/home`) is never a deletion candidate. A detached home is
+simply parked. A home left on a merged branch is parked with `memory-seed worktree home --agent <agent>
+--park`. A home left dirty or on an unmerged branch by an inactive session (`--status` reports
+`stale-dirty` or `stale-resumable`) is reviewed with this skill's evidence-first summary, and its
+leftover work goes to the user. Recovering that work never includes deleting the home.
+
 ## Outcome
 
 Produce one descriptive summary per worktree before any deletion recommendation. The summary must

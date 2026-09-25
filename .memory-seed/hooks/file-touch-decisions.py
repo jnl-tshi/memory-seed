@@ -252,6 +252,13 @@ def main():
     # workspace hook own VS Code so the same event is not processed twice.
     if agent == "copilot" and payload.get("hook_event_name"):
         return
+    try:
+        # Keep a home worktree's lease live while a session works in it.
+        from memory_seed.worktree_home import heartbeat
+
+        heartbeat(Path.cwd())
+    except Exception:
+        pass
     touched = touched_paths(payload)
     if not touched:
         return

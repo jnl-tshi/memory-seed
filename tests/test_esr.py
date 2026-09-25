@@ -307,14 +307,15 @@ class EsrReportTests(unittest.TestCase):
         git("add", "-A")
         git("commit", "-m", "base")
         wt = self.cwd / ".claude" / "worktrees" / "wt-merged"
-        git("worktree", "add", "-b", "feature-merged", str(wt))
+        # A namespaced branch name must survive whole (it used to be cut to its last segment).
+        git("worktree", "add", "-b", "claude/feature/merged", str(wt))
 
         report = esr_report(cwd=self.cwd, session_date="2026-06-01")
 
         self.assertTrue(report.worktrees_available)
         secondary = [w for w in report.worktrees if not w.is_primary]
         self.assertEqual(len(secondary), 1)
-        self.assertEqual(secondary[0].branch, "feature-merged")
+        self.assertEqual(secondary[0].branch, "claude/feature/merged")
         self.assertEqual(secondary[0].ahead, 0)
         self.assertEqual(secondary[0].dirty, 0)
         self.assertTrue(secondary[0].stale_candidate)

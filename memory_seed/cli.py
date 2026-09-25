@@ -446,6 +446,11 @@ def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
                 f"({result.worktree_cleanup_detail})"
             )
             return
+        from .worktree_home import is_home_worktree
+
+        if is_home_worktree(Path(".").resolve(), result.source_worktree):
+            print(f"Would park the home worktree after a successful merge: {result.source_worktree}")
+            return
         print(
             "Would verify and remove the clean source worktree after a successful merge: "
             f"{result.source_worktree}"
@@ -453,6 +458,9 @@ def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
         return
     if result.worktree_cleanup_status == "removed":
         print(f"Removed source worktree: {result.source_worktree}")
+        return
+    if result.worktree_cleanup_status == "parked":
+        print(f"Parked home worktree: {result.source_worktree} ({result.worktree_cleanup_detail})")
         return
     if result.worktree_cleanup_status == "cleanup-pending":
         print(
@@ -924,6 +932,38 @@ def main(argv: list[str] | None = None) -> int:
     )
     worktree_status_parser.add_argument("--agent", default=None, help="optional expected agent slug")
     worktree_status_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
+    worktree_home_parser = worktree_sub.add_parser(
+        "home",
+        help="manage this agent's persistent home worktree: claim a task branch, park after merge, or show status",
+    )
+    worktree_home_parser.add_argument("--agent", required=True, help="agent slug, e.g. codex or claude")
+    home_action = worktree_home_parser.add_mutually_exclusive_group()
+    home_action.add_argument(
+        "--claim",
+        dest="home_action",
+        action="store_const",
+        const="claim",
+        help="claim the home for a task branch (creates the home if missing; gives an overflow worktree when busy)",
+    )
+    home_action.add_argument(
+        "--park",
+        dest="home_action",
+        action="store_const",
+        const="park",
+        help="return a clean, merged home to the free state (detached at main); creates it if missing",
+    )
+    home_action.add_argument(
+        "--release", dest="home_action", action="store_const", const="release", help="drop this home's lease only"
+    )
+    home_action.add_argument(
+        "--status", dest="home_action", action="store_const", const="status", help="report the home state (default)"
+    )
+    worktree_home_parser.add_argument("--branch", default=None, help="task branch for --claim: <agent>/<kind>/<topic>")
+    worktree_home_parser.add_argument("--session", default=None, help="session id that owns the lease")
+    worktree_home_parser.add_argument(
+        "--resume", action="store_true", help="with --claim: continue an inactive session's unmerged branch"
+    )
+    worktree_home_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
 
     topics_parser = subparsers.add_parser("topics", help="inspect and validate the controlled topic vocabulary")
     topics_sub = topics_parser.add_subparsers(dest="topics_command", required=True)
@@ -1877,7 +1917,7 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                 _print_session_merge_worktree_cleanup(result, dry_run=False)
-                if result.source_worktree is not None and result.worktree_cleanup_status != "removed":
+                if result.source_worktree is not None and result.worktree_cleanup_status not in {"removed", "parked"}:
                     return 2
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
@@ -2292,6 +2332,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "worktree":
+        if args.worktree_command == "home":
+            from .worktree_home import format_worktree_home, worktree_home
+
+            home_result = worktree_home(
+                Path(".").resolve(),
+                agent=args.agent,
+                action=args.home_action or "status",
+                branch=args.branch,
+                session=args.session,
+                resume=args.resume,
+            )
+            if args.json:
+                print(json.dumps(home_result.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(format_worktree_home(home_result))
+            return home_result.exit_code
         # `classify` is a different capability from guard/status (every
         # worktree vs. this one) and carries its own flags, so it must be
         # handled before the guard call reads guard-only args.
