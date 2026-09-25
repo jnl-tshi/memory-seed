@@ -151,6 +151,25 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue((cwd / ".agents" / "solo-founder.md").exists())
         self.assertFalse((cwd / ".agents" / "_registry.yaml").exists())
 
+    def test_graphify_scope_is_passive_and_project_owned(self):
+        cwd = self.make_project()
+        fresh = self.make_project()
+        init_project(cwd=fresh)
+        self.assertEqual(
+            (Path(__file__).resolve().parents[1] / "memory_seed" / "seed" / ".graphifyignore").read_text(encoding="utf-8"),
+            (fresh / ".graphifyignore").read_text(encoding="utf-8"),
+        )
+        self.assertNotIn("graphify_merge_refresh: true", (fresh / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+        custom_scope = cwd / ".graphifyignore"
+        custom_scope.write_text("private-work/\n", encoding="utf-8")
+        init_project(cwd=cwd)
+        self.assertEqual("private-work/\n", custom_scope.read_text(encoding="utf-8"))
+        self.assertNotIn("graphify_merge_refresh: true", (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+        update_project(cwd=cwd)
+        self.assertEqual("private-work/\n", custom_scope.read_text(encoding="utf-8"))
+        init_project(cwd=cwd, force=True)
+        self.assertEqual("private-work/\n", custom_scope.read_text(encoding="utf-8"))
+
     def test_core_retrieval_profiles_install_update_and_remain_immutable(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
@@ -784,6 +803,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".gemini/commands/esr.toml",
                 ".gemini/commands/situate.toml",
                 ".github/copilot-instructions.md",
+                ".graphifyignore",
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
                 ".memory-seed/hooks/file-touch-decisions.py",

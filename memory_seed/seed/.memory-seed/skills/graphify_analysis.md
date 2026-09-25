@@ -8,23 +8,29 @@ tags: [memory-seed, skill, graphify]
 
 Use Graphify after Semble when code work needs architecture, dependency impact, call-path, or
 community-level evidence rather than a routine lookup. For questions about relationships among
-indexed project documents, use the local graph as a structural lead before inspecting the source
-Markdown. Read a single document directly for ordinary content questions.
+indexed project files, use the local graph as a structural lead before inspecting source files.
+Read a single file directly for ordinary content questions.
 
 ## Procedure
 
 1. Check whether `.memory-seed/project.yaml` opts into `graphify_merge_refresh: true`.
-2. For a document-relationship question, first confirm the documents are within the opted-in
-   project's `.graphifyignore` scope. Run `python -m memory_seed.graphify_refresh status` before
+2. For a project-relationship question, first confirm the files are within the opted-in
+   project's `.graphifyignore` scope. The shipped scope covers visible source code and Markdown
+   throughout the project, including `docs/`, `experiments/`, `business/`, and demos. Any path
+   component beginning with `.` is outside scope, including `.memory-seed/`; generated graph
+   output and bulky data files are outside scope too. Session logs and decisions remain available
+   through Memory Seed, not this graph. Run `python -m memory_seed.graphify_refresh status` before
    trusting `graphify-out/graph.json`, then use
    `python -m memory_seed.graphify_refresh query "<question>"` for freshness-guarded retrieval.
-   Follow structural links or references to the source Markdown and verify any claimed dependency
+   Follow structural links or references to the source files and verify any claimed dependency
    or impact there; the graph does not prove intent or infer decision semantics. If the index is
-   absent, stale, unavailable, or the documents are outside its scope, inspect the documents
-   directly rather than creating a code-only graph.
-3. For an opted-in project after selected documents are committed, use
-   `python -m memory_seed.graphify_refresh refresh` to recover from a failed merge refresh.
-   Do not run a code-only extract over this managed documentation index.
+   absent, stale, unavailable, or files are outside its scope, inspect source directly.
+3. The seeded `.graphifyignore` is a passive, project-owned scope template; it does not enable a
+   build. Only an explicit `graphify_merge_refresh: true` in `.memory-seed/project.yaml` opts a
+   project into merge refresh. Scope changes cause a full rebuild; subsequent selected Git diffs
+   update incrementally and retain unchanged contributions. For an opted-in project, after selected
+   files are committed, use `python -m memory_seed.graphify_refresh refresh` to recover from a failed merge refresh.
+   Do not run a code-only extract over this managed project index.
 4. For structural code analysis in a project without the managed index, check `graphify --help`
    and find `graphify-out/graph.json` at the target root. If absent or stale, run
    `graphify extract <target> --code-only`. This creates only local,

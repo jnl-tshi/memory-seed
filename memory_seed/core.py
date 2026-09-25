@@ -9924,6 +9924,8 @@ def migrate_session_month_layout(cwd: str | Path = ".", dry_run: bool = False) -
 
 SEED_FILES = [
     SeedFile(SEED_ROOT / "AGENTS.md", "AGENTS.md"),
+    # Passive Graphify scope template. It never enables a build by itself.
+    SeedFile(SEED_ROOT / ".graphifyignore", ".graphifyignore"),
     SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md", agent="claude"),
     SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md", agent="gemini"),
     SeedFile(SEED_ROOT / ".github" / "copilot-instructions.md", ".github/copilot-instructions.md", agent="copilot"),
@@ -12140,6 +12142,7 @@ def init_project(
         for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
         and seed_file.destination not in CORE_RETRIEVAL_PROFILE_DESTINATIONS
+        and seed_file.destination != ".graphifyignore"
         and not _is_foreign_routing_file(target_root, seed_file)
     ]
 
@@ -12167,6 +12170,10 @@ def init_project(
             seed_file.destination in CORE_RETRIEVAL_PROFILE_DESTINATIONS
             and destination.exists()
         ):
+            continue
+        # The index scope is project-owned after first install, including with
+        # --force. Never replace a project's explicit Graphify exclusions.
+        if seed_file.destination == ".graphifyignore" and destination.exists():
             continue
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
@@ -12815,7 +12822,8 @@ def _is_runtime_local_file(destination: str) -> bool:
         f"{MEMORY_DIR_NAME}/project-bootstrap.md",
     }
     return (
-        (
+        destination == ".graphifyignore"
+        or (
             destination.startswith(f"{MEMORY_DIR_NAME}/")
             and destination not in reusable_runtime_files
         )

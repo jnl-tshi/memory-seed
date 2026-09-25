@@ -22,8 +22,29 @@ from pathlib import Path
 
 STATE_NAME = "merge-refresh-state.json"
 GRAPH_NAME = "graph.json"
-_CONTROL_FILES = {
-    "agent-rules.md", "project-bootstrap.md", "index.md", "policy.md"
+# Keep this portable: Graphify is optional and is never imported by Memory Seed.
+# These are the document and source formats supported by the managed structural
+# index. Data files and generated outputs are deliberately not evidence here.
+_SOURCE_SUFFIXES = {
+    ".astro", ".bash", ".c", ".cc", ".cjs", ".cls", ".cpp", ".cs",
+    ".cshtml", ".csproj", ".cts", ".cu", ".cuh", ".cxx", ".dart",
+    ".dfm", ".dm", ".dme", ".dmf", ".dmi", ".dmm", ".dpk",
+    ".dpr", ".ejs", ".ets", ".ex", ".exs", ".f", ".f03", ".f08", ".f90",
+    ".f95", ".fsproj", ".go", ".gradle", ".groovy", ".h", ".hcl",
+    ".hpp", ".inc", ".java", ".jl", ".js", ".jsx", ".kt", ".kts",
+    ".lfm", ".lpk", ".lpr", ".lua", ".luau", ".m", ".metal",
+    ".mjs", ".mm", ".mts", ".pas", ".php", ".pp", ".ps1",
+    ".psd1", ".psm1", ".py", ".r", ".rake", ".razor", ".rb",
+    ".rs", ".scala", ".sh", ".sln", ".slnx", ".sql", ".sv",
+    ".svelte", ".svh", ".swift", ".tf", ".tfvars", ".toc",
+    ".trigger", ".ts", ".tsx", ".v", ".vbproj", ".vue", ".xaml",
+    ".zig",
+}
+_DOCUMENT_SUFFIXES = {".md", ".mdx", ".qmd"}
+_SUPPORTED_MANIFESTS = {"pyproject.toml"}
+_GENERATED_DIRECTORIES = {
+    "graphify-out", "node_modules", "dist", "build", "coverage", "htmlcov",
+    "vendor", "site-packages", "target",
 }
 
 
@@ -52,15 +73,14 @@ def enabled(root: Path) -> bool:
 
 def selected(path: str) -> bool:
     parts = path.replace("\\", "/").split("/")
-    if len(parts) < 2 or not path.lower().endswith(".md"):
+    if not parts or any(not part or part in {".", ".."} or part.startswith(".") for part in parts):
         return False
-    if parts[0] == "docs":
-        return True
-    if parts[0] != ".memory-seed":
+    if any(part.lower() in _GENERATED_DIRECTORIES for part in parts[:-1]):
         return False
-    if len(parts) == 2:
-        return parts[1] in _CONTROL_FILES
-    return len(parts) == 3 and parts[1] in {"skills", "decisions"}
+    return (
+        parts[-1].lower() in _SUPPORTED_MANIFESTS
+        or Path(parts[-1]).suffix.lower() in _DOCUMENT_SUFFIXES | _SOURCE_SUFFIXES
+    )
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
@@ -91,8 +111,8 @@ def _state(root: Path) -> dict:
 
 
 def _dirty_selected_paths(root: Path) -> bool:
-    tracked = _git(root, "diff", "--name-only", "-z", "HEAD", "--", "docs", ".memory-seed", ".graphifyignore")
-    untracked = _git(root, "ls-files", "--others", "--exclude-standard", "-z", "--", "docs", ".memory-seed", ".graphifyignore")
+    tracked = _git(root, "diff", "--name-only", "-z", "HEAD")
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard", "-z")
     if tracked.returncode or untracked.returncode:
         return True
     paths = [os.fsdecode(part) for raw in (tracked.stdout, untracked.stdout) for part in raw.split(b"\0") if part]
@@ -120,7 +140,7 @@ def status(root: Path) -> RefreshResult:
     elif head != indexed:
         reason = "Graphify index is behind HEAD"
     else:
-        reason = "Selected documents or Graphify scope have uncommitted changes"
+        reason = "Selected project files or Graphify scope have uncommitted changes"
     return RefreshResult("stale", head, indexed, reason)
 
 
@@ -197,7 +217,7 @@ def refresh_after_merge(root: Path) -> RefreshResult:
     if not head:
         return RefreshResult("stale", warning="Cannot resolve HEAD for Graphify refresh")
     if _dirty_selected_paths(root):
-        return RefreshResult("stale", head, warning="Commit selected documents and the Graphify scope file before refreshing")
+        return RefreshResult("stale", head, warning="Commit selected project files and the Graphify scope file before refreshing")
     output = root / "graphify-out"
     graph = output / GRAPH_NAME
     state = _state(root)
