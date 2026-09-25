@@ -276,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if state.warning:
         print(state.warning, file=sys.stderr)
-    if args.command == "status":
+    if args.command in {"status", "refresh"}:
         return 0 if state.status == "fresh" else 1
     if state.status != "fresh":
         print("Refusing to query a stale Graphify index.", file=sys.stderr)
