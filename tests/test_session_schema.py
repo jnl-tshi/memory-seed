@@ -263,6 +263,20 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
+    def test_graphify_document_routing_is_relationship_only(self):
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+        live_skill = Path(".memory-seed/skills/graphify_analysis.md").read_text(encoding="utf-8")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/graphify_analysis.md").read_text(encoding="utf-8")
+
+        for registry in (live_registry, seed_registry):
+            graphify = registry.split("  - skill: graphify_analysis.md\n", 1)[1].split("\n  - skill:", 1)[0]
+            self.assertIn("indexed project documents link, reference, depend on, or affect one another", graphify)
+            self.assertIn("a simple question asks what one document says", graphify)
+        self.assertEqual(seed_skill, live_skill)
+        self.assertIn("freshness-guarded retrieval", live_skill)
+        self.assertIn("inspect the documents\n   directly rather than creating a code-only graph", live_skill)
+
     def test_extracted_lazy_skills_are_registered_seeded_and_standalone(self):
         extracted = {
             "history_retrieval.md": (

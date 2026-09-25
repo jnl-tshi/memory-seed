@@ -40,8 +40,10 @@ skills:
     load_when:
       - architecture, dependency-impact, call-path, community, or structural-code analysis is needed
       - deciding which files or symbols are affected by a proposed code change
+      - a question asks how indexed project documents link, reference, depend on, or affect one another
     do_not_load_when:
       - routine semantic or symbol lookup (use code_search.md and Semble)
+      - a simple question asks what one document says (read that document directly)
 
   - skill: agent_collaboration.md
     required: true
