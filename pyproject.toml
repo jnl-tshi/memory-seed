@@ -67,6 +67,7 @@ markers = [
 
 [tool.setuptools.package-data]
 memory_seed = [
+  "seed/.graphifyignore",
   "seed/AGENTS.md",
   "seed/CLAUDE.md",
   "seed/GEMINI.md",

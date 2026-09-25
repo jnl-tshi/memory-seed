@@ -20,17 +20,23 @@ def git(root: Path, *args: str) -> None:
 
 
 class GraphifyRefreshTests(unittest.TestCase):
-    def test_scope_is_narrow(self):
+    def test_scope_covers_visible_project_code_and_documents(self):
         self.assertTrue(subject.selected("docs/2_Todo/plan.md"))
-        self.assertTrue(subject.selected(".memory-seed/index.md"))
-        self.assertTrue(subject.selected(".memory-seed/decisions/adr.md"))
-        self.assertTrue(subject.selected(".memory-seed/skills/code_search.md"))
+        for path in ("README.md", "experiments/pilot/README.md", "business/brief.md",
+                     "demo/src/app.tsx", "memory_seed/core.py", "tests/test_core.py",
+                     "pyproject.toml"):
+            with self.subTest(path=path):
+                self.assertTrue(subject.selected(path))
         for path in (
             ".memory-seed/sessions/2026-09/2026-09-25.md",
-            ".memory-seed/archive/1.0/index.md",
-            ".memory-seed/reflections/active/note.md",
-            ".memory-seed/project.yaml",
-            "experiments/test.md",
+            ".memory-seed/decisions/adr.md",
+            "demo/.memory-seed/index.md",
+            "experiments/.cache/result.md",
+            "graphify-out/GRAPH_REPORT.md",
+            "experiments/results.json",
+            "experiments/results.jsonl",
+            "experiments/results.csv",
+            "package-lock.json",
             "docs/image.png",
         ):
             with self.subTest(path=path):
@@ -108,10 +114,17 @@ class GraphifyRefreshTests(unittest.TestCase):
                 "graphify_merge_refresh: true\n", encoding="utf-8"
             )
             (root / ".graphifyignore").write_text(
-                "/*\n!/docs/\n!/.memory-seed/\n*.yaml\n", encoding="utf-8"
+                (Path(__file__).resolve().parents[1] / "memory_seed" / "seed" / ".graphifyignore").read_text(encoding="utf-8"),
+                encoding="utf-8",
             )
             docs = root / "docs"
             docs.mkdir()
+            (root / "experiments").mkdir()
+            (root / "experiments" / "notes.md").write_text("# Experiment notes\n", encoding="utf-8")
+            (root / "src").mkdir()
+            (root / "src" / "feature.py").write_text("def feature():\n    return 1\n", encoding="utf-8")
+            (root / ".private").mkdir()
+            (root / ".private" / "secret.md").write_text("# Excluded\n", encoding="utf-8")
             alpha = docs / "alpha.md"
             beta = docs / "beta.md"
             alpha.write_text("# Alpha\n\n[Beta](./beta.md)\n", encoding="utf-8")
@@ -127,6 +140,10 @@ class GraphifyRefreshTests(unittest.TestCase):
             before = json.loads(graph.read_text(encoding="utf-8"))
             beta_nodes = [n for n in before["nodes"] if n.get("source_file") == "docs/beta.md"]
             self.assertTrue(beta_nodes)
+            sources = {n.get("source_file") for n in before["nodes"]}
+            self.assertIn("experiments/notes.md", sources)
+            self.assertIn("src/feature.py", sources)
+            self.assertNotIn(".private/secret.md", sources)
 
             alpha.write_text("# Alpha revised\n\n[Beta](./beta.md)\n", encoding="utf-8")
             git(root, "add", ".")
@@ -138,6 +155,23 @@ class GraphifyRefreshTests(unittest.TestCase):
             self.assertEqual(beta_nodes, [n for n in after["nodes"] if n.get("source_file") == "docs/beta.md"])
             links = after.get("links", after.get("edges", []))
             self.assertTrue(any(e.get("relation") == "references" and e.get("source_file") == "docs/alpha.md" for e in links))
+
+            # Code changes are now part of the incremental selected diff.
+            (root / "src" / "feature.py").write_text("def feature():\n    return 2\n", encoding="utf-8")
+            git(root, "add", ".")
+            git(root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "code-edit")
+            code_edit = subject.refresh_after_merge(root)
+            self.assertEqual("fresh", code_edit.status, code_edit.warning)
+            self.assertIn("src/feature.py", {n.get("source_file") for n in json.loads(graph.read_text(encoding="utf-8"))["nodes"]})
+
+            # A scope change rebuilds and removes now-excluded source nodes.
+            with (root / ".graphifyignore").open("a", encoding="utf-8") as scope:
+                scope.write("/experiments/\n")
+            git(root, "add", ".")
+            git(root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "scope-change")
+            scoped = subject.refresh_after_merge(root)
+            self.assertEqual("fresh", scoped.status, scoped.warning)
+            self.assertNotIn("experiments/notes.md", {n.get("source_file") for n in json.loads(graph.read_text(encoding="utf-8"))["nodes"]})
 
             # An unrelated merge moves HEAD but needs no Graphify extraction.
             (root / "unrelated.txt").write_text("unrelated\n", encoding="utf-8")
