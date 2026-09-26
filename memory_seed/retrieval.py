@@ -4058,9 +4058,24 @@ def _render_link_swarm_worker_batch(
         "Read the required skill above, judge every complete pair below, and write only the strict "
         f"TOON report to `{finding_path}`.\n\n"
         "```json\n"
-        f"{canonical_retrieval_json(assignment)}\n"
+        f"{_worker_assignment_json(assignment)}\n"
         "```\n"
     )
+
+
+def _worker_assignment_json(assignment: Mapping[str, Any]) -> str:
+    """Canonical assignment JSON with ONE PAIR PER LINE.
+
+    A batch's whole payload on a single line exceeded agent file readers' per-line limit
+    (~43k tokens, 2026-09-26): workers could not read the pairs at all and fell back to
+    guessing with scripts. Only the pairs array is split, so `_link_swarm_worker_batch_size`
+    can still measure it arithmetically (two extra bytes per pair boundary)."""
+    pairs = list(assignment.get("pairs", []))
+    head = canonical_retrieval_json({**assignment, "pairs": []})
+    if not pairs:
+        return head
+    body = ",\n".join(canonical_retrieval_json(pair) for pair in pairs)
+    return head.replace('"pairs":[]', '"pairs":[\n' + body + "\n]", 1)
 
 
 def _link_swarm_worker_batch_size(
@@ -4092,7 +4107,8 @@ def _link_swarm_worker_batch_size(
         # Pair JSON bytes plus commas replace the empty array, while the count
         # contributes only its additional digits.
         byte_count += len(str(pair_count)) - 1
-        byte_count += serialized_pairs_utf8_bytes + pair_count - 1
+        # One pair per line: ",\n" between pairs and a newline after "[" and before "]".
+        byte_count += serialized_pairs_utf8_bytes + 2 * (pair_count - 1) + 2
     return byte_count, (byte_count + 3) // 4
 
 
@@ -4472,9 +4488,24 @@ def collect_link_swarm_run(run_dir: str | Path) -> dict[str, Any]:
                 problems: list[str] = []
                 source_ordinals = {item["ordinal"] for item in pair["source"]["decisions"]}
                 candidate_ordinals = {item["ordinal"] for item in pair["candidate"]["decisions"]}
-                if result["source_decision"] not in source_ordinals:
+                # The rubric tells workers to name an ordinal only on a 2+-decision end, so a null
+                # ordinal on a single-decision end is correct and denotes that one decision.
+                if result["source_decision"] is None and len(source_ordinals) == 1:
+                    result["source_decision"] = next(iter(source_ordinals))
+                if result["candidate_decision"] is None and len(candidate_ordinals) == 1:
+                    result["candidate_decision"] = next(iter(candidate_ordinals))
+                # A `none` row states its reason in exclusion_reason; `why` is optional there.
+                if result["verdict"] == "none" and not result["why"] and result["exclusion_reason"]:
+                    result["why"] = result["exclusion_reason"]
+                # A `none` verdict names no edge, so its ordinals may be null on any end.
+                none_verdict = result["verdict"] == "none"
+                if result["source_decision"] not in source_ordinals and not (
+                    none_verdict and result["source_decision"] is None
+                ):
                     problems.append("invalid_source_ordinal")
-                if result["candidate_decision"] not in candidate_ordinals:
+                if result["candidate_decision"] not in candidate_ordinals and not (
+                    none_verdict and result["candidate_decision"] is None
+                ):
                     problems.append("invalid_candidate_ordinal")
                 if pair["candidate"].get("chain_position") == "interior" and result["verdict"] not in {"related", "none"}:
                     problems.append("invalid_interior_verdict")
