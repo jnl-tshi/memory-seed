@@ -85,6 +85,22 @@ def open_stub_entry_ids(cwd: str | Path) -> list[str]:
     return ids
 
 
+def _decisionless_open_stubs(cwd: str | Path) -> list[tuple[str, str]]:
+    """Open-stub entries whose body has no decision records, with their session dates."""
+    from .core import entry_body_decisions
+    from .retrieval import load_corpus
+
+    open_ids = set(open_stub_entry_ids(cwd))
+    if not open_ids:
+        return []
+    found: list[tuple[str, str]] = []
+    for chunk in load_corpus(cwd, granularity="entry"):
+        entry_id = getattr(chunk, "entry_id", None)
+        if entry_id in open_ids and not entry_body_decisions(chunk.text):
+            found.append((entry_id, str(chunk.session_date)))
+    return found
+
+
 def _load_run(run_dir: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
     rows = {}
@@ -284,6 +300,14 @@ def apply_auto_links(
     for entry_id, session_date in plan.not_applicable.items():
         by_source.setdefault(entry_id, [])
         dates[entry_id] = session_date
+    # An open stub on an entry with no decision records can never carry a decision-level
+    # lifecycle edge (the planner excludes it as `missing_decision`), so record it as
+    # examined rather than leaving it pending forever.
+    for entry_id, session_date in _decisionless_open_stubs(root):
+        if entry_id not in by_source:
+            by_source[entry_id] = []
+            dates[entry_id] = session_date
+            plan.not_applicable[entry_id] = session_date
 
     blocks: dict[Path, list[str]] = {}
     for entry_id in sorted(by_source):

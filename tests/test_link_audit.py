@@ -444,6 +444,8 @@ class LinkAuditTests(unittest.TestCase):
             f"skill_sha256: {plan['measurement']['worker_skill_sha256']}", worker_batch,
         )
         self.assertIn('"finding_path":"findings/batch-0001.toon"', worker_batch)
+        # No line may be so long that an agent's file reader cannot page to it.
+        self.assertLess(max(len(line) for line in worker_batch.splitlines()), 4000)
         self.assertEqual(
             len(worker_batch.encode("utf-8")),
             plan["batches"][0]["worker_batch_utf8_bytes"],

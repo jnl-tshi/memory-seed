@@ -68,6 +68,20 @@ class AutoClassifyTests(unittest.TestCase):
         self.assertEqual(collect_link_swarm_run(run_dir)["status"], "complete")
         return run_dir
 
+    def test_collector_accepts_null_ordinals_on_single_decision_ends_and_none_without_why(self):
+        # The rubric says: name an ordinal only on a 2+-decision end. The validator must agree.
+        run_dir = self.cwd / "nullord"
+        materialize_link_swarm_run(self.plan, run_dir)
+        row = f"{B},null,{A},null,none,null,null,null,null,\"no shared decision\"\n"
+        (run_dir / "findings" / "batch-0001.toon").write_text(HEADER + row, encoding="utf-8")
+        self.assertEqual(collect_link_swarm_run(run_dir)["status"], "complete")
+        run_dir2 = self.cwd / "nullord2"
+        materialize_link_swarm_run(self.plan, run_dir2)
+        row2 = f'{B},null,{A},null,builds-on,"{QUOTE}",{A},"implements it",0.8,null\n'
+        (run_dir2 / "findings" / "batch-0001.toon").write_text(HEADER + row2, encoding="utf-8")
+        result = collect_link_swarm_run(run_dir2)
+        self.assertEqual((result["status"], result["survivor_count"]), ("complete", 1))
+
     def test_refines_needs_two_agreeing_runs(self):
         one = self._run("r1", "refines")
         single = plan_auto_links(one)
@@ -106,6 +120,22 @@ class AutoClassifyTests(unittest.TestCase):
         links = entry_link_sidecars(self.cwd)[B]
         self.assertIn(A, links["replaces"])
         self.assertEqual(list(links["edge_confidence"].values()), [0.6])
+
+    def test_open_stub_on_a_decisionless_entry_is_recorded_examined(self):
+        # A summary-only entry has no decisions, so no decision-level edge can ever answer its stub.
+        C = "mse_" + "c" * 16
+        sessions = self.cwd / MEMORY_DIR_NAME / "sessions"
+        (sessions / "2026-06-03.md").write_text(_entry("2026-06-03 09:00", C, title="summary only"), encoding="utf-8")
+        links = sessions / "links" / "2026-06"
+        links.mkdir(parents=True, exist_ok=True)
+        (links / "2026-06-03.md").write_text(
+            f"## 2026-06-03 10:00 - stub\n\n```yaml\nentry_id: {C}\nclassify_pending: true\n```\n", encoding="utf-8"
+        )
+        apply_auto_links(self.cwd, self._run("r1", "related"), now=datetime(2026, 9, 25, 21, 0))
+        text = (links / "2026-06-03.md").read_text(encoding="utf-8")
+        self.assertIn("edge_status: not_applicable", text)
+        stubs = [i for i in check_session_links(self.cwd).issues if i.kind == "sidecar-unclassified-stub"]
+        self.assertEqual(stubs, [])
 
     def test_dry_run_writes_nothing(self):
         result = apply_auto_links(self.cwd, self._run("r1", "related"), dry_run=True)
