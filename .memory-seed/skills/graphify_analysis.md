@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.22
+memory-system-version: 2.23
 governing_adr: adr_optional_skill_profiles
 tags: [memory-seed, skill, graphify]
 ---

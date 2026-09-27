@@ -89,6 +89,9 @@ class GraphifyRefreshTests(unittest.TestCase):
                 "graphify_merge_refresh: true\n", encoding="utf-8"
             )
             git(root, "init", "-q")
+            # merge-branch commits the merge itself; CI runners have no global identity.
+            git(root, "config", "user.name", "Test")
+            git(root, "config", "user.email", "test@example.invalid")
             git(root, "branch", "-M", "main")
             git(root, "add", ".")
             git(root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "base")
