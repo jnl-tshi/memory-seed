@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.22
+memory-system-version: 2.23
 governing_adr: adr_topic_backfill_rejected
 tags:
   - memory-seed

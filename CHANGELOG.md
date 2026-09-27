@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.23.0 - 2026-09-28
+
 ### Changed
 
 - [2026-09-27] **Evidence packs carry the relevant Constitution clauses, not the whole document** (resolver v4, Constitution v2.5).
