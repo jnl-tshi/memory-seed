@@ -17,6 +17,6 @@ through the work. Mixed plans keep their full history and shipped-phase detail i
 | [memory-trace-ux-m0-interaction-matrix.md](memory-trace-ux-m0-interaction-matrix.md) | P1 | [] | Implement M3 bounded graph perspectives and controlled expansion against the named fixtures. |
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
 | [task-packet-calibration-harness-plan.md](task-packet-calibration-harness-plan.md) | P1 | — | Freeze the representative development population and sealed holdout design now that the Qwen3.5… |
-| [task-packet-handoff-integration-plan.md](task-packet-handoff-integration-plan.md) | P1 | — | JNL reviews this tranche plan; implementation starts only after approval. |
+| [task-packet-handoff-integration-plan.md](task-packet-handoff-integration-plan.md) | P1 | — | implemented 2026-09-25 (T1–T6); remaining: dogfood with the first P0.2 workers. |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
 <!-- docs-index:end -->

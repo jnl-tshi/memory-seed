@@ -4,7 +4,7 @@ date: "2026-09-25"
 project: "memory-seed"
 status: "proposed"
 priority: "P1"
-next_action: "JNL reviews this tranche plan; implementation starts only after approval."
+next_action: "implemented 2026-09-25 (T1–T6); remaining: dogfood with the first P0.2 workers."
 source:
   - "docs/5_Completed/task-packet-sources-and-orientation-lite-plan.md"
   - ".memory-seed/skills/agent_collaboration.md"
