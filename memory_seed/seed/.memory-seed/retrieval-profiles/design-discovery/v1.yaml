@@ -1,0 +1,16 @@
+schema: memory-seed/retrieval-profile
+schema_version: 1
+id: design-discovery
+profile_version: 1
+extends: []
+spec:
+  required:
+    related_decisions:
+      depth: 2
+  limits:
+    max_entries: 60
+    max_tokens: 20000
+  selectors:
+    pinned_roots: true
+    related_adrs: true
+    source_references: true

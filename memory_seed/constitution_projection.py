@@ -37,6 +37,9 @@ CONSTITUTION_BINDING_RE = re.compile(
     r"`(constitution:v\d+#[a-z0-9][a-z0-9-]*)`\s*\((governing|supporting)\)"
 )
 DEFAULT_RANKED_CAP = 4_000
+# Clauses are short (~100 tokens), so a token cap alone admits most of the
+# document; ranked selection also stops at this many clauses.
+DEFAULT_RANKED_LIMIT = 8
 
 # Selection stages, in cascade order.  They are also the ``selected_by``
 # vocabulary a pack records, so a reader can see why each clause is present.
@@ -374,6 +377,7 @@ def select_clauses(
     topic_map: Mapping[str, Mapping[str, Mapping[str, int]]] | None = None,
     keywords: Sequence[str] = (),
     ranked_cap: int = DEFAULT_RANKED_CAP,
+    ranked_limit: int = DEFAULT_RANKED_LIMIT,
 ) -> ClauseSelection:
     """Run the clause cascade.  Bindings are ``(ref, adr_id, role)``.
 
@@ -447,61 +451,69 @@ def select_clauses(
         for anchor, clause in section_anchor_matches:
             add(clause, STAGE_SOURCE, f"decision S: Constitution anchor #{anchor}")
     else:
-        used = sum(estimate_tokens(picked[ref].clause.content) for ref in order)
+        # Ranked clauses are relevance guesses.  Every signal adds to one
+        # score per clause, so a clause several signals agree on outranks one
+        # that a single weak signal reaches; the best ``ranked_limit`` are
+        # kept, whole, while they fit under ``ranked_cap``.
+        scores: dict[str, float] = {}
+        signals: dict[str, list[tuple[str, str]]] = {}
 
-        def fill(clause: ConstitutionClause, stage: str, reason: str) -> None:
-            nonlocal used
-            if clause.ref in picked:
-                add(clause, stage, reason)
+        def vote(ref: str, weight: float, stage: str, reason: str) -> None:
+            if ref not in by_ref:
                 return
-            cost = estimate_tokens(clause.content)
-            # Ranked clauses are guesses: they stop at the cap, except that the
-            # best one is always admitted when nothing else was selected.
-            if order and used + cost > ranked_cap:
-                return
-            add(clause, stage, reason)
-            used += cost
+            scores[ref] = scores.get(ref, 0.0) + weight
+            signals.setdefault(ref, []).append((stage, reason))
 
         for anchor, clause in section_anchor_matches:
-            fill(clause, STAGE_SOURCE, f"decision S: Constitution section anchor #{anchor}")
+            vote(clause.ref, 2.0, STAGE_SOURCE, f"decision S: Constitution section anchor #{anchor}")
         for ref, adr_id, role in related_adr_bindings:
-            clause = by_ref.get(document.current_ref(ref))
-            if clause is not None:
-                fill(clause, STAGE_BINDING, f"related ADR {adr_id} {role} binding")
-
+            vote(
+                document.current_ref(ref),
+                2.0 if role == "governing" else 1.0,
+                STAGE_BINDING,
+                f"related ADR {adr_id} {role} binding",
+            )
         clause_topics: dict[str, list[str]] = {}
-        topic_rows: list[tuple[tuple[int, int, int], str, str]] = []
         for topic, refs in (topic_map or {}).items():
             for ref, counts in refs.items():
                 clause_topics.setdefault(ref, []).append(topic)
-                if topic in topics and ref in by_ref:
-                    strength = (
-                        int(counts.get("authored", 0)),
-                        int(counts.get("governing", 0)),
-                        int(counts.get("supporting", 0)),
+                if topic not in topics:
+                    continue
+                governing = int(counts.get("governing", 0))
+                supporting = int(counts.get("supporting", 0))
+                if counts.get("authored"):
+                    vote(ref, 3.0, STAGE_TOPIC, f"topic {topic!r} maps to this clause (authored tag)")
+                if governing or supporting:
+                    # Diminishing: many ADRs in one topic citing a clause is
+                    # one signal about that topic, not many.
+                    vote(
+                        ref,
+                        min(3.0, governing * 1.0 + supporting * 0.5),
+                        STAGE_TOPIC,
+                        f"topic {topic!r} maps to this clause ({governing} governing / {supporting} supporting ADR binding(s))",
                     )
-                    topic_rows.append((strength, ref, topic))
-        best: dict[str, tuple[tuple[int, int, int], str]] = {}
-        for strength, ref, topic in topic_rows:
-            current = best.get(ref)
-            total = (strength[0], strength[1] * 2 + strength[2])
-            if current is None or total > (current[0][0], current[0][1] * 2 + current[0][2]):
-                best[ref] = (strength, topic)
-        for ref, (strength, topic) in sorted(
-            best.items(),
-            key=lambda item: (-item[1][0][0], -(item[1][0][1] * 2 + item[1][0][2]), item[0]),
-        ):
-            detail = (
-                "authored tag"
-                if strength[0]
-                else f"{strength[1]} governing / {strength[2]} supporting ADR binding(s)"
-            )
-            fill(by_ref[ref], STAGE_TOPIC, f"topic {topic!r} maps to this clause ({detail})")
+        ranked_keywords = rank_clauses_by_keywords(document, keywords, clause_topics=clause_topics)
+        top_keyword = ranked_keywords[0][0] if ranked_keywords else 0.0
+        for score, clause, matched in ranked_keywords:
+            # Normalised to the best keyword match, so keywords weigh like one
+            # strong structural signal rather than swamping the others.
+            vote(clause.ref, 3.0 * score / top_keyword, STAGE_KEYWORD, f"keyword BM25F {score:.2f} ({', '.join(matched)})")
 
-        for score, clause, matched in rank_clauses_by_keywords(
-            document, keywords, clause_topics=clause_topics
-        ):
-            fill(clause, STAGE_KEYWORD, f"keyword BM25F {score:.2f} ({', '.join(matched)})")
+        used = sum(estimate_tokens(picked[ref].clause.content) for ref in order)
+        admitted = 0
+        for ref in sorted(scores, key=lambda value: (-scores[value], value)):
+            if admitted >= ranked_limit:
+                break
+            clause = by_ref[ref]
+            if ref not in picked:
+                cost = estimate_tokens(clause.content)
+                # The best one is always admitted when nothing else was.
+                if order and used + cost > ranked_cap:
+                    continue
+                used += cost
+                admitted += 1
+            for stage, reason in signals[ref]:
+                add(clause, stage, reason)
 
     selected = [picked[ref] for ref in order]
     selected.sort(key=lambda item: item.clause.line_range[0])

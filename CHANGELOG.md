@@ -31,6 +31,19 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-27] **Design Discovery finds its authority and links at planning time.**
+  - `memory-seed discovery evidence` (MCP `memory_discovery_evidence`) resolves the new `design-discovery` retrieval profile for an area. It takes topics, keywords, pins and an optional free-text query, whose `memory_search` hits, boosted by `preferred_keywords`, are pinned. It returns:
+    - the related decisions;
+    - the ADRs that own the area;
+    - only the Constitution clauses that govern it.
+  - An area with no history is reported as a finding, not an error.
+  - `memory-seed discovery assess` (MCP `memory_discovery_assess`) takes one verdict per evidence item: `replaces`, `refines`, `builds-on`, `related`, `no-edge`, `conflicts` or `governed-by`. Verdicts may name only evidence the lookup returned. It returns:
+    - the Discovery Record's authority table;
+    - the exact `decisions[].links` envelope and `consulted` list for the plan-approval session append;
+    - the ADR outcomes that append will require;
+    - conflicts to raise with the user.
+  - An ADR verdict links to the ADR's authoritative decision. `no-edge` is not persisted.
+  - `design_discovery.md` now logs the design decisions when the plan is approved, with their links to ancestors already in place.
 - [2026-09-27] **Retrieval specs can follow ADRs and pinned decisions.**
   - `selectors.related_adrs` adds the Current view of every accepted or proposed ADR whose topics match the topic filter or whose membership includes a selected decision. These ADRs rank ahead of session decisions at the same graph distance.
   - `selectors.pinned_roots` lets pinned decisions seed graph expansion.

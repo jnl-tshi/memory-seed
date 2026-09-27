@@ -71,6 +71,76 @@ def _read_json_object(path_text: str, *, label: str) -> dict:
     return value
 
 
+def _run_discovery(args: argparse.Namespace) -> int:
+    """`memory-seed discovery evidence|assess` - the MCP discovery tools' twin."""
+    from .discovery import DiscoveryError, discovery_assess, discovery_evidence
+    from .retrieval import RetrievalSpecResolutionError
+    from .retrieval_profiles import RetrievalProfileValidationError
+
+    try:
+        if args.discovery_command == "evidence":
+            result = discovery_evidence(
+                args.cwd,
+                topics=args.topic,
+                keywords=args.keyword,
+                pins=args.pin,
+                paths=args.path,
+                query=args.query,
+                search_limit=args.search_limit,
+            )
+            if args.pack_out and result["pack"] is not None:
+                Path(args.pack_out).write_text(
+                    json.dumps(result["pack"], ensure_ascii=False), encoding="utf-8"
+                )
+            if args.json:
+                print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+                return 0
+            if result["empty"]:
+                print("No prior decisions, ADRs or Constitution clauses matched; record that in the Discovery Record.")
+                return 0
+            summary = result["summary"]
+            for label, key in (("ADRs", "adrs"), ("Constitution", "constitution"), ("Decisions", "decisions")):
+                print(f"{label} ({len(summary[key])}):")
+                for row in summary[key]:
+                    distance = "" if row["graph_distance"] is None else f" [d{row['graph_distance']}]"
+                    print(f"  {row['ref']}{distance}  {row.get('title', '')}")
+            if result["search_hits"]:
+                print("Search hits pinned: " + ", ".join(hit["ref"] for hit in result["search_hits"]))
+            if args.pack_out:
+                print(f"Pack written to {args.pack_out}; next: memory-seed discovery assess --pack-file {args.pack_out} --verdicts-file <json>")
+            return 0
+        pack = _read_json_object(args.pack_file, label="pack")
+        raw = sys.stdin.read() if args.verdicts_file == "-" else Path(args.verdicts_file).read_text(encoding="utf-8")
+        verdicts = json.loads(raw)
+        if not isinstance(verdicts, list):
+            raise ValueError("verdicts must be a JSON list")
+        result = discovery_assess(args.cwd, pack=pack, verdicts=verdicts)
+        if args.json:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+        print(result["authority_table"])
+        print()
+        print("decisions (links for the plan-approval session append):")
+        print(json.dumps(result["decisions"], indent=2, ensure_ascii=False))
+        print("consulted: " + json.dumps(result["consulted"]))
+        for outcome in result["adr_outcomes_needed"]:
+            print(f"ADR outcome needed: {outcome['adr_id']} ({', '.join(outcome['matched_decisions'])})")
+        for conflict in result["conflicts"]:
+            print(f"Ask the user: {conflict['question']}")
+        return 0
+    except DiscoveryError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        for issue in exc.issues:
+            print(f"  - {issue}", file=sys.stderr)
+        return 2
+    except RetrievalSpecResolutionError as exc:
+        print(json.dumps({"ok": False, "error": exc.to_dict()}), file=sys.stderr)
+        return 1
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RetrievalProfileValidationError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
 # Provenance is deliberately persisted as a sequence of Markdown blocks rather
 # than one mutable JSON document.  The validation contract owns meaning; this
 # thin adapter owns only append-only transport and public-surface parity.
@@ -1399,6 +1469,39 @@ def main(argv: list[str] | None = None) -> int:
             help="project path used for nearest-runtime discovery (default: current directory)",
         )
 
+    discovery_parser = subparsers.add_parser(
+        "discovery",
+        help="Design Discovery: look up the authority for an area, then turn verdicts into links",
+    )
+    discovery_sub = discovery_parser.add_subparsers(dest="discovery_command", required=True)
+    discovery_evidence = discovery_sub.add_parser(
+        "evidence",
+        help="related decisions, owning ADRs and governing Constitution clauses for topics/pins/a query",
+    )
+    discovery_evidence.add_argument("--topic", action="append", default=[], help="controlled topic (repeatable)")
+    discovery_evidence.add_argument(
+        "--keyword", action="append", default=[],
+        help="preferred keyword for search and clause ranking (repeatable, 2-5 discriminating terms)",
+    )
+    discovery_evidence.add_argument("--pin", action="append", default=[], help="decision ref or ADR id (repeatable)")
+    discovery_evidence.add_argument("--path", action="append", default=[], help="Markdown path to include (repeatable)")
+    discovery_evidence.add_argument("--query", default=None, help="free-text memory_search whose hits are pinned")
+    discovery_evidence.add_argument("--search-limit", type=int, default=5)
+    discovery_evidence.add_argument("--pack-out", default=None, help="write the Evidence Pack JSON here (for assess)")
+    discovery_evidence.add_argument("--json", action="store_true", help="emit the full JSON result")
+    discovery_evidence.add_argument("--cwd", default=".")
+    discovery_assess_parser = discovery_sub.add_parser(
+        "assess",
+        help="validate verdicts against a discovery pack; print the authority table and link envelope",
+    )
+    discovery_assess_parser.add_argument("--pack-file", required=True, help="Evidence Pack JSON from `discovery evidence --pack-out`")
+    discovery_assess_parser.add_argument(
+        "--verdicts-file", required=True,
+        help="JSON list of {ref, relation, why, applies_to}; use - for stdin",
+    )
+    discovery_assess_parser.add_argument("--json", action="store_true", help="emit the full JSON result")
+    discovery_assess_parser.add_argument("--cwd", default=".")
+
     constitution_parser = subparsers.add_parser(
         "constitution",
         help="inspect how topics map to Constitution clauses",
@@ -1600,6 +1703,9 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "discovery":
+        return _run_discovery(args)
 
     if args.command == "constitution":
         from .constitution_projection import ConstitutionProjectionError, topic_map_report

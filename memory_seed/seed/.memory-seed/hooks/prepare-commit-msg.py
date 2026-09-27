@@ -146,7 +146,7 @@ def _evidence_pack_fingerprint(pack: dict) -> str | None:
     """Mirror the compiler's v2 Evidence Pack identity calculation."""
     if pack.get("pack_schema") != "memory-seed/evidence-pack" or pack.get("pack_version") != 2:
         return None
-    if pack.get("resolver_version") != 3 or not isinstance(pack.get("evidence"), list):
+    if pack.get("resolver_version") not in (3, 4) or not isinstance(pack.get("evidence"), list):
         return None
     try:
         identity = {
@@ -168,6 +168,11 @@ def _evidence_pack_fingerprint(pack: dict) -> str | None:
                 )
             }
             identity["evidence"].append(record)
+        # Pack-level keys present only on some packs, exactly as the compiler
+        # folds them in (source following; resolver v4 clause selection).
+        for key in ("source_reference_constitution_anchors", "constitution"):
+            if key in pack:
+                identity[key] = pack[key]
     except (KeyError, TypeError):
         return None
     return _fingerprint(identity)
