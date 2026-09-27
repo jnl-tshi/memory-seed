@@ -40,7 +40,13 @@ DEFAULT_ON_MISSING = {"required": "fail", "optional": "report"}
 DEFAULT_OUTPUT = {"include_resolution_trace": False, "include_excerpts": False}
 
 _TOP_LEVEL = frozenset({"schema", "version", "required", "optional", "filters", "ordering", "limits", "on_missing", "output"})
-_V2_TOP_LEVEL = _TOP_LEVEL | {"selectors"}
+_V2_TOP_LEVEL = _TOP_LEVEL | {"selectors", "constitution"}
+# v2 Constitution selection.  "clauses" (the default) runs the clause cascade
+# and falls back to the whole document only when nothing is selected; "whole"
+# is the explicit opt-out.  The key is written only when it departs from the
+# default, so specs that predate it keep their canonical bytes.
+CONSTITUTION_MODES = ("clauses", "whole")
+DEFAULT_CONSTITUTION_RANKED_CAP = 4_000
 _DEFERRED = {
     "id": "named specs are deferred; submit an inline spec without 'id'",
     "profile": "profiles are deferred; submit an inline spec",
@@ -249,12 +255,16 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
 
     # Reuse the v1 validator as the owner of every inherited invariant.  Its
     # result is the v1 canonical shape; the v2-only selector is appended below.
-    v1_input = {key: value for key, value in spec.items() if key != "selectors"}
+    v1_input = {key: value for key, value in spec.items() if key not in {"selectors", "constitution"}}
     v1_input["version"] = VERSION
     base = normalize_retrieval_spec(v1_input)
 
     selectors_in = _mapping(spec.get("selectors", {}), "selectors")
-    _known_keys(selectors_in, "selectors", {"pinned", "path_references", "source_references"})
+    _known_keys(
+        selectors_in,
+        "selectors",
+        {"pinned", "path_references", "source_references", "pinned_roots", "related_adrs"},
+    )
     pinned_in = selectors_in.get("pinned", [])
     if not isinstance(pinned_in, list):
         _error("selectors.pinned", "must be a list")
@@ -319,7 +329,69 @@ def normalize_retrieval_spec_v2(spec: Mapping[str, Any]) -> dict[str, Any]:
     # normalizes to the same bytes and fingerprint as before.
     if _bool(selectors_in.get("source_references", False), "selectors.source_references"):
         base["selectors"]["source_references"] = True
+    # Pinned decisions also seed graph expansion, so a lookup started from a
+    # known decision reaches its lineage.  Opt-in and written only when on.
+    if _bool(selectors_in.get("pinned_roots", False), "selectors.pinned_roots"):
+        base["selectors"]["pinned_roots"] = True
+    # ADRs whose topics match the topic filters, or whose membership overlaps
+    # the selected decisions, join as their Current view.  Opt-in.
+    if _bool(selectors_in.get("related_adrs", False), "selectors.related_adrs"):
+        base["selectors"]["related_adrs"] = True
+
+    constitution = _normalize_constitution(spec.get("constitution"))
+    if constitution is not None:
+        base["constitution"] = constitution
     return base
+
+
+def _normalize_constitution(value: Any) -> dict[str, Any] | None:
+    """Validate the v2 ``constitution`` clause; ``None`` means every default."""
+    if value is None:
+        return None
+    mapping = _mapping(value, "constitution")
+    _known_keys(mapping, "constitution", {"mode", "anchors", "keywords", "ranked_cap"})
+    mode = mapping.get("mode", "clauses")
+    if mode not in CONSTITUTION_MODES:
+        _error("constitution.mode", f"must be one of {list(CONSTITUTION_MODES)!r}")
+    anchors = _string_list(mapping.get("anchors", []), "constitution.anchors", allow_empty=True)
+    import re
+
+    for index, anchor in enumerate(anchors):
+        if re.fullmatch(r"constitution:v\d+#[a-z0-9][a-z0-9-]*", anchor) is None:
+            _error(f"constitution.anchors[{index}]", "must match 'constitution:vN#slug'")
+    keywords = _string_list(mapping.get("keywords", []), "constitution.keywords", allow_empty=True)
+    if len(keywords) > 16:
+        _error("constitution.keywords", "accepts at most 16 items")
+    ranked_cap = (
+        DEFAULT_CONSTITUTION_RANKED_CAP
+        if "ranked_cap" not in mapping
+        else _positive_int(mapping["ranked_cap"], "constitution.ranked_cap", maximum=20_000)
+    )
+    if mode == "whole" and (anchors or keywords or "ranked_cap" in mapping):
+        _error("constitution", "mode 'whole' takes no anchors, keywords, or ranked_cap")
+    normalized: dict[str, Any] = {}
+    if mode != "clauses":
+        normalized["mode"] = mode
+    if anchors:
+        normalized["anchors"] = anchors
+    if keywords:
+        normalized["keywords"] = keywords
+    if ranked_cap != DEFAULT_CONSTITUTION_RANKED_CAP:
+        normalized["ranked_cap"] = ranked_cap
+    return normalized or None
+
+
+def constitution_settings(normalized: Mapping[str, Any]) -> dict[str, Any]:
+    """Every Constitution setting of a normalized spec, defaults filled in."""
+    if normalized.get("version") != V2_VERSION:
+        return {"mode": "whole", "anchors": [], "keywords": [], "ranked_cap": DEFAULT_CONSTITUTION_RANKED_CAP}
+    configured = normalized.get("constitution") or {}
+    return {
+        "mode": configured.get("mode", "clauses"),
+        "anchors": list(configured.get("anchors", [])),
+        "keywords": list(configured.get("keywords", [])),
+        "ranked_cap": configured.get("ranked_cap", DEFAULT_CONSTITUTION_RANKED_CAP),
+    }
 
 
 def normalize_any_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:

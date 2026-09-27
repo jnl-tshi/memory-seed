@@ -1368,32 +1368,49 @@ def main(argv: list[str] | None = None) -> int:
         dest="retrieval_spec_command",
         required=True,
     )
-    retrieval_spec_preview = retrieval_spec_sub.add_parser(
-        "preview",
-        help="plan a JSON inline spec against canonical Markdown without creating a pack",
+    for retrieval_spec_command, retrieval_spec_help in (
+        ("preview", "plan a JSON inline spec against canonical Markdown without creating a pack"),
+        ("resolve", "resolve a JSON inline spec or profile into an Evidence Pack (read-only)"),
+    ):
+        retrieval_spec_mode = retrieval_spec_sub.add_parser(
+            retrieval_spec_command,
+            help=retrieval_spec_help,
+        )
+        retrieval_spec_mode.add_argument(
+            "--spec-file",
+            help="UTF-8 JSON file containing the inline spec; use - for stdin",
+        )
+        retrieval_spec_mode.add_argument(
+            "--profile",
+            help="exact project-local retrieval profile ID (requires --profile-version)",
+        )
+        retrieval_spec_mode.add_argument(
+            "--profile-version",
+            type=int,
+            help="exact project-local retrieval profile version (requires --profile)",
+        )
+        retrieval_spec_mode.add_argument(
+            "--overrides-file",
+            help="optional UTF-8 JSON object of profile overrides; use - for stdin",
+        )
+        retrieval_spec_mode.add_argument(
+            "--cwd",
+            default=".",
+            help="project path used for nearest-runtime discovery (default: current directory)",
+        )
+
+    constitution_parser = subparsers.add_parser(
+        "constitution",
+        help="inspect how topics map to Constitution clauses",
     )
-    retrieval_spec_preview.add_argument(
-        "--spec-file",
-        help="UTF-8 JSON file containing the inline spec; use - for stdin",
+    constitution_sub = constitution_parser.add_subparsers(dest="constitution_command", required=True)
+    constitution_topics = constitution_sub.add_parser(
+        "topics",
+        help="print the topic->clause map (derived from ADR bindings, plus authored tags)",
     )
-    retrieval_spec_preview.add_argument(
-        "--profile",
-        help="exact project-local retrieval profile ID (requires --profile-version)",
-    )
-    retrieval_spec_preview.add_argument(
-        "--profile-version",
-        type=int,
-        help="exact project-local retrieval profile version (requires --profile)",
-    )
-    retrieval_spec_preview.add_argument(
-        "--overrides-file",
-        help="optional UTF-8 JSON object of profile overrides; use - for stdin",
-    )
-    retrieval_spec_preview.add_argument(
-        "--cwd",
-        default=".",
-        help="project path used for nearest-runtime discovery (default: current directory)",
-    )
+    constitution_topics.add_argument("--topic", default=None, help="show one topic only")
+    constitution_topics.add_argument("--json", action="store_true", help="emit JSON")
+    constitution_topics.add_argument("--cwd", default=".", help="project path (default: current directory)")
 
     task_packet_parser = subparsers.add_parser(
         "task-packet",
@@ -1523,7 +1540,11 @@ def main(argv: list[str] | None = None) -> int:
             RetrievalSpecResolutionError,
             canonical_retrieval_json,
         )
-        from .retrieval_adapters import RetrievalInputValidationError, preview_retrieval_input
+        from .retrieval_adapters import (
+            RetrievalInputValidationError,
+            preview_retrieval_input,
+            resolve_retrieval_input_pack,
+        )
         from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
@@ -1533,16 +1554,18 @@ def main(argv: list[str] | None = None) -> int:
                 _read_json_object(args.overrides_file, label="overrides")
                 if args.overrides_file else None
             )
-            payload = {
-                "ok": True,
-                "preview": preview_retrieval_input(
-                    spec=spec,
-                    profile=args.profile,
-                    profile_version=args.profile_version,
-                    overrides=overrides,
-                    cwd=args.cwd,
-                ),
+            request = {
+                "spec": spec,
+                "profile": args.profile,
+                "profile_version": args.profile_version,
+                "overrides": overrides,
+                "cwd": args.cwd,
             }
+            payload = (
+                {"ok": True, "pack": resolve_retrieval_input_pack(**request)}
+                if args.retrieval_spec_command == "resolve"
+                else {"ok": True, "preview": preview_retrieval_input(**request)}
+            )
             sys.stdout.write(canonical_retrieval_json(payload))
             return 0
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
@@ -1577,6 +1600,30 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "constitution":
+        from .constitution_projection import ConstitutionProjectionError, topic_map_report
+
+        try:
+            report = topic_map_report(args.cwd, topic=args.topic)
+        except ConstitutionProjectionError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+            return 0 if report["ok"] else 2
+        if not report["ok"]:
+            print(f"error: {report['error']}", file=sys.stderr)
+            return 2
+        print(f"{report['constitution']} v{report['ratified_version']}")
+        for row in report["rows"]:
+            print(f"  {row['topic']:<22} {row['clause']:<48} {'; '.join(row['sources'])}")
+        if report["unreached_clauses"]:
+            print("Clauses no topic reaches (keyword ranking only): " + ", ".join(report["unreached_clauses"]))
+        if report["unknown_authored_topics"]:
+            print("Authored tags not in topics.yaml: " + ", ".join(report["unknown_authored_topics"]))
+            return 1
+        return 0
 
     if args.command == "task-packet":
         from .retrieval import RetrievalSpecResolutionError, canonical_retrieval_json

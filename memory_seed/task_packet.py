@@ -931,8 +931,9 @@ def prepare_planning_evidence(dispatch: Mapping[str, Any], assessments: Sequence
     for the assessed plan scope. Compilation checks freshness without rebinding.
     """
     normalized = normalize_task_dispatch({key: value for key, value in dispatch.items() if key != "planning_evidence"})
-    retrieval = normalized["retrieval"]
-    spec = load_retrieval_profile(retrieval["profile"], retrieval["profile_version"], cwd, overrides=retrieval["overrides"])
+    # The same effective spec compile resolves, so assessed sources stay
+    # selectable when the packet is compiled.
+    spec = _dispatch_retrieval_spec(normalized, cwd)
     spec["output"]["include_excerpts"] = False
     pack = resolve_retrieval_spec(spec, cwd)
     validate_evidence_pack(pack, cwd)
@@ -1735,78 +1736,63 @@ def _constitution_clauses(
     a second authority path.  An anchor owns every line through the line before
     the next anchor, so a selected clause is always complete.
     """
+    from .constitution_projection import ConstitutionProjectionError, parse_constitution
+
     content = str(constitution["content"])
     source = str(constitution["source"])
-    lines = content.splitlines()
-    anchors = [
-        (index, match.group(1))
-        for index, line in enumerate(lines)
-        if (match := _CONSTITUTION_ANCHOR_RE.search(line)) is not None
-    ]
-    version_match = _CONSTITUTION_VERSION_RE.search(content)
-    if version_match is None:
+    try:
+        document = parse_constitution(content, source)
+    except ConstitutionProjectionError as exc:
         _fail(
             "evidence_pack.evidence",
-            "Constitution projection requires explicit ratified Version metadata",
+            str(exc),
             code="invalid_constitution_projection",
             stage="materialization",
-            details={"source": source},
-        )
-    ratified_version = version_match.group(1)
-    expected_anchor_version = f"constitution:v{ratified_version.split('.', 1)[0]}#"
-    incompatible_anchors = sorted(
-        reference
-        for _index, reference in anchors
-        if not reference.startswith(expected_anchor_version)
-    )
-    if incompatible_anchors:
-        _fail(
-            "evidence_pack.evidence",
-            "Constitution anchors must use the ratified Version's major identity",
-            code="invalid_constitution_projection",
-            stage="materialization",
-            details={
-                "source": source,
-                "ratified_version": ratified_version,
-                "expected_anchor_prefix": expected_anchor_version,
-                "incompatible_anchors": incompatible_anchors,
-            },
+            details=exc.details,
         )
     full_digest = _content_digest(content)
-    clauses: list[dict[str, Any]] = []
-    for ordinal, (start, reference) in enumerate(anchors):
-        end = anchors[ordinal + 1][0] if ordinal + 1 < len(anchors) else len(lines)
-        # A following section heading belongs to the clause whose anchor comes
-        # after that heading, not to this clause.  This matters for markers
-        # placed immediately below their headings and keeps line ranges honest.
-        for candidate_index in range(start + 1, end):
-            if lines[candidate_index].startswith("#"):
-                end = candidate_index
-                break
-        heading = ""
-        for candidate in reversed(lines[: start + 1]):
-            if candidate.startswith("#"):
-                heading = candidate.strip()
-                break
-        clause_content = "\n".join(lines[start:end])
-        clauses.append(
-            {
-                "ref": reference,
-                "path": source,
-                "ratified_version": ratified_version,
-                "heading": heading or "(unheaded constitutional clause)",
-                "line_range": [start + 1, max(start + 1, end)],
-                "full_document_digest": full_digest,
-                "clause_digest": _content_digest(clause_content),
-                "full_document_reference": {
-                    "path": source,
-                    "line_range": [1, max(1, len(lines))],
-                    "content_digest": full_digest,
-                },
-                "content": clause_content,
-            }
+    clauses = [
+        _clause_record(
+            reference=clause.ref,
+            source=source,
+            ratified_version=document.ratified_version,
+            heading=clause.heading,
+            line_range=clause.line_range,
+            content=clause.content,
+            full_digest=full_digest,
+            line_count=max(1, len(content.splitlines())),
         )
-    return content, ratified_version, clauses
+        for clause in document.clauses
+    ]
+    return content, document.ratified_version, clauses
+
+
+def _clause_record(
+    *,
+    reference: str,
+    source: str,
+    ratified_version: str,
+    heading: str,
+    line_range: Sequence[int],
+    content: str,
+    full_digest: str,
+    line_count: int,
+) -> dict[str, Any]:
+    return {
+        "ref": reference,
+        "path": source,
+        "ratified_version": ratified_version,
+        "heading": heading,
+        "line_range": [int(line_range[0]), int(line_range[1])],
+        "full_document_digest": full_digest,
+        "clause_digest": _content_digest(content),
+        "full_document_reference": {
+            "path": source,
+            "line_range": [1, line_count],
+            "content_digest": full_digest,
+        },
+        "content": content,
+    }
 
 
 def _constitution_ranking_terms(dispatch: Mapping[str, Any]) -> set[str]:
@@ -1833,13 +1819,117 @@ def _heading_anchor_slug(heading: str) -> str:
     return _heading_slug(heading)
 
 
+def _project_selected_clauses(
+    dispatch: Mapping[str, Any],
+    items: Sequence[Mapping[str, Any]],
+    meta: Mapping[str, Any],
+) -> dict[str, Any]:
+    target = CONSTITUTION_PROJECTION_TARGETS[dispatch["execution"]["capability_tier"]]
+    headings = meta.get("clause_headings") or {}
+    selected: list[dict[str, Any]] = []
+    for item in sorted(items, key=lambda value: value["line_range"][0]):
+        clause = _clause_record(
+            reference=str(item["id"]),
+            source=str(item["source"]),
+            ratified_version=str(meta["ratified_version"]),
+            heading=str(headings.get(item["id"], "(unheaded constitutional clause)")),
+            line_range=item["line_range"],
+            content=str(item["content"]),
+            full_digest=str(meta["full_document_digest"]),
+            line_count=int(meta["line_count"]),
+        )
+        # Keep the packet's established wording for the two mandated paths.
+        reasons = [
+            "explicit dispatch Constitution reference"
+            if reason == "explicit Constitution anchor"
+            else f"selected {reason}"
+            if reason.startswith("ADR ")
+            else reason
+            for reason in item["selection_reasons"]["source"]
+        ]
+        clause["selection_reason"] = "; ".join(sorted(reasons))
+        selected.append(clause)
+    content_tokens = sum(estimate_tokens(item["content"]) for item in selected)
+    return {
+        "mode": "anchored_clauses",
+        "selection_mode": {
+            "explicit_anchors": "explicit_dispatch_refs",
+            "cascade": "clause_cascade",
+        }.get(str(meta["selection_mode"]), str(meta["selection_mode"])),
+        "target_tokens": target,
+        "content_tokens": content_tokens,
+        "over_target": content_tokens > target,
+        "governing_overage": {
+            "status": "over_target" if content_tokens > target else "within_target",
+            "tokens": max(0, content_tokens - target),
+        },
+        "clauses": selected,
+    }
+
+
+def dispatch_constitution_spec(dispatch: Mapping[str, Any]) -> dict[str, Any]:
+    """The spec ``constitution`` clause a dispatch implies for the resolver.
+
+    Explicit ``constitution_refs`` become mandated anchors; the objective,
+    context and observables become BM25F keywords; the capability tier's
+    projection target caps the ranked clauses.
+    """
+    keywords = [
+        str(dispatch["objective"]),
+        *(
+            str(value)
+            for value in dispatch["project_context"].values()
+            if not isinstance(value, list)
+        ),
+        *dispatch["project_context"]["non_goals"],
+        *(item["name"] for item in dispatch["execution"]["acceptance_observables"]),
+    ]
+    keywords = [value for value in dict.fromkeys(item.strip() for item in keywords) if value][:16]
+    spec: dict[str, Any] = {
+        "ranked_cap": CONSTITUTION_PROJECTION_TARGETS[dispatch["execution"]["capability_tier"]],
+    }
+    if dispatch["constitution_refs"]:
+        spec["anchors"] = list(dict.fromkeys(dispatch["constitution_refs"]))
+    if keywords:
+        spec["keywords"] = keywords
+    return spec
+
+
+def _dispatch_retrieval_spec(dispatch: Mapping[str, Any], cwd: str | Path) -> dict[str, Any]:
+    retrieval = dispatch["retrieval"]
+    effective_spec = load_retrieval_profile(
+        retrieval["profile"],
+        retrieval["profile_version"],
+        cwd,
+        overrides=retrieval["overrides"],
+    )
+    effective_spec = copy.deepcopy(effective_spec)
+    if (effective_spec.get("constitution") or {}).get("mode") != "whole":
+        effective_spec["constitution"] = {
+            **(effective_spec.get("constitution") or {}),
+            **dispatch_constitution_spec(dispatch),
+        }
+    return effective_spec
+
+
 def project_constitution(
     dispatch: Mapping[str, Any],
     materialized: Sequence[Mapping[str, Any]],
     source_anchors: Sequence[str] = (),
+    pack_constitution: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return bounded, complete governing evidence or an explicit full fallback."""
+    """Return bounded, complete governing evidence or an explicit full fallback.
+
+    A resolver-v4 pack already carries the selected clauses (the shared
+    cascade in ``constitution_projection`` ran with this dispatch's refs,
+    ranking terms and tier target), so those are projected as-is.  A pack
+    holding the whole document is projected here, as before.
+    """
     constitution_items = [item for item in materialized if item.get("kind") == "constitution"]
+    if constitution_items and pack_constitution is not None and not (
+        len(constitution_items) == 1 and constitution_items[0]["id"] == constitution_items[0]["source"]
+    ):
+        return _project_selected_clauses(dispatch, constitution_items, pack_constitution)
     if len(constitution_items) != 1:
         _fail(
             "materialized_evidence",
@@ -2646,12 +2736,7 @@ def _compile_task_packet(
         )
 
     retrieval = normalized_dispatch["retrieval"]
-    effective_spec = load_retrieval_profile(
-        retrieval["profile"],
-        retrieval["profile_version"],
-        cwd,
-        overrides=retrieval["overrides"],
-    )
+    effective_spec = _dispatch_retrieval_spec(normalized_dispatch, cwd)
     if not (
         effective_spec["selectors"]["pinned"]
         or effective_spec["filters"]["topics"]
@@ -2667,7 +2752,20 @@ def _compile_task_packet(
     effective_spec = copy.deepcopy(effective_spec)
     effective_spec["output"]["include_excerpts"] = False
     effective_spec = normalize_retrieval_spec_v2(effective_spec)
-    evidence_pack = resolve_retrieval_spec(effective_spec, cwd)
+    try:
+        evidence_pack = resolve_retrieval_spec(effective_spec, cwd)
+    except RetrievalSpecResolutionError as exc:
+        if exc.stage != "constitution_clauses":
+            raise
+        # The resolver now owns explicit-anchor resolution; keep the
+        # packet's fail-closed contract and error identity.
+        _fail(
+            "constitution_refs",
+            "names anchor(s) absent from the supplied Constitution",
+            code="invalid_constitution_projection",
+            stage="materialization",
+            details=exc.details,
+        )
     if (
         evidence_pack["pack_schema"] != EVIDENCE_PACK_SCHEMA
         or evidence_pack["pack_version"] != EVIDENCE_PACK_VERSION
@@ -2708,6 +2806,7 @@ def _compile_task_packet(
         normalized_dispatch,
         materialized_all,
         evidence_pack.get("source_reference_constitution_anchors", ()),
+        evidence_pack.get("constitution"),
     )
     materialized = [
         item for item in materialized_all if item.get("kind") != "constitution"
