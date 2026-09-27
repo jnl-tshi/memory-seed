@@ -84,6 +84,7 @@ skills:
       - prior decisions, rationale, unresolved risks, or release history matter
       - reviews, audits, or recommendations may conclude that behavior is redundant, obsolete, removable, replaceable, superseded, or ready to consolidate
       - using memory_search or memory_get_chunk
+      - using memory_discovery_evidence or memory_discovery_assess (CLI memory-seed discovery evidence|assess)
       - filling an entry's related_entries or resolving the session-log append target via memory_link_suggest, memory_link_show, or memory_session_append
       - inspecting controlled topics via memory_topics_list, memory_topic_inspect, or memory_topics_check
       - reconciling current files with older session history
@@ -97,6 +98,7 @@ skills:
       - writing, validating, or repairing session entries
       - deciding DRAFTS labels, entry shapes, topics, related_entries, or append-only chronology
       - changing session log schema or examples
+      - writing the plan-approval entry of a Design Discovery (links and consulted from discovery assess)
     do_not_load_when:
       - only reading recent session state without writing or repairing logs
 
@@ -187,6 +189,8 @@ skills:
       - making a consequential new product, architectural, data, safety, or workflow choice
       - choosing a new capability, component, policy, workflow, or data approach before implementation
       - deciding whether uncertainty warrants a bounded trial before committing to an approach
+      - looking up which decisions, ADRs, or Constitution clauses govern an area before designing in it
+      - recording the authority answer (per-item verdicts) before a plan is approved
       - starting a new work tranche whose next-steps roadmap declares a design discovery gate
     do_not_load_when:
       - routine work directly follows an already assessed decision whose scope and evidence remain current, after any declared tranche-entry gate is complete
