@@ -297,6 +297,9 @@ Before choosing the entry shape, harvest both durable decisions and useful docum
    `related_entries`, or `no-edge`. Store the first three; `no-edge` is authoring-time evidence that
    the candidate was considered, not a new persisted relation. Most consults are no-edge — be
    conservative turning a mere consult into `related_entries` (co-occurrence is not a lifecycle edge).
+   For the plan-approval entry of a Design Discovery, these dispositions are already made. The
+   authority answer's verdicts, run through `discovery assess`, give the `decisions[].links` envelope,
+   the `consulted` list and the ADR outcomes to supply. Use those instead of re-deriving them.
 9. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
    concept/product name)? If so, record a `continuity:` block with the old and new names — that
    mapping is what keeps file-overlap ranking and traceability working across the change.

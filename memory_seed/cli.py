@@ -71,6 +71,76 @@ def _read_json_object(path_text: str, *, label: str) -> dict:
     return value
 
 
+def _run_discovery(args: argparse.Namespace) -> int:
+    """`memory-seed discovery evidence|assess` - the MCP discovery tools' twin."""
+    from .discovery import DiscoveryError, discovery_assess, discovery_evidence
+    from .retrieval import RetrievalSpecResolutionError
+    from .retrieval_profiles import RetrievalProfileValidationError
+
+    try:
+        if args.discovery_command == "evidence":
+            result = discovery_evidence(
+                args.cwd,
+                topics=args.topic,
+                keywords=args.keyword,
+                pins=args.pin,
+                paths=args.path,
+                query=args.query,
+                search_limit=args.search_limit,
+            )
+            if args.pack_out and result["pack"] is not None:
+                Path(args.pack_out).write_text(
+                    json.dumps(result["pack"], ensure_ascii=False), encoding="utf-8"
+                )
+            if args.json:
+                print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+                return 0
+            if result["empty"]:
+                print("No prior decisions, ADRs or Constitution clauses matched; record that in the Discovery Record.")
+                return 0
+            summary = result["summary"]
+            for label, key in (("ADRs", "adrs"), ("Constitution", "constitution"), ("Decisions", "decisions")):
+                print(f"{label} ({len(summary[key])}):")
+                for row in summary[key]:
+                    distance = "" if row["graph_distance"] is None else f" [d{row['graph_distance']}]"
+                    print(f"  {row['ref']}{distance}  {row.get('title', '')}")
+            if result["search_hits"]:
+                print("Search hits pinned: " + ", ".join(hit["ref"] for hit in result["search_hits"]))
+            if args.pack_out:
+                print(f"Pack written to {args.pack_out}; next: memory-seed discovery assess --pack-file {args.pack_out} --verdicts-file <json>")
+            return 0
+        pack = _read_json_object(args.pack_file, label="pack")
+        raw = sys.stdin.read() if args.verdicts_file == "-" else Path(args.verdicts_file).read_text(encoding="utf-8")
+        verdicts = json.loads(raw)
+        if not isinstance(verdicts, list):
+            raise ValueError("verdicts must be a JSON list")
+        result = discovery_assess(args.cwd, pack=pack, verdicts=verdicts)
+        if args.json:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
+        print(result["authority_table"])
+        print()
+        print("decisions (links for the plan-approval session append):")
+        print(json.dumps(result["decisions"], indent=2, ensure_ascii=False))
+        print("consulted: " + json.dumps(result["consulted"]))
+        for outcome in result["adr_outcomes_needed"]:
+            print(f"ADR outcome needed: {outcome['adr_id']} ({', '.join(outcome['matched_decisions'])})")
+        for conflict in result["conflicts"]:
+            print(f"Ask the user: {conflict['question']}")
+        return 0
+    except DiscoveryError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        for issue in exc.issues:
+            print(f"  - {issue}", file=sys.stderr)
+        return 2
+    except RetrievalSpecResolutionError as exc:
+        print(json.dumps({"ok": False, "error": exc.to_dict()}), file=sys.stderr)
+        return 1
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RetrievalProfileValidationError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
 # Provenance is deliberately persisted as a sequence of Markdown blocks rather
 # than one mutable JSON document.  The validation contract owns meaning; this
 # thin adapter owns only append-only transport and public-surface parity.
@@ -1368,32 +1438,82 @@ def main(argv: list[str] | None = None) -> int:
         dest="retrieval_spec_command",
         required=True,
     )
-    retrieval_spec_preview = retrieval_spec_sub.add_parser(
-        "preview",
-        help="plan a JSON inline spec against canonical Markdown without creating a pack",
+    for retrieval_spec_command, retrieval_spec_help in (
+        ("preview", "plan a JSON inline spec against canonical Markdown without creating a pack"),
+        ("resolve", "resolve a JSON inline spec or profile into an Evidence Pack (read-only)"),
+    ):
+        retrieval_spec_mode = retrieval_spec_sub.add_parser(
+            retrieval_spec_command,
+            help=retrieval_spec_help,
+        )
+        retrieval_spec_mode.add_argument(
+            "--spec-file",
+            help="UTF-8 JSON file containing the inline spec; use - for stdin",
+        )
+        retrieval_spec_mode.add_argument(
+            "--profile",
+            help="exact project-local retrieval profile ID (requires --profile-version)",
+        )
+        retrieval_spec_mode.add_argument(
+            "--profile-version",
+            type=int,
+            help="exact project-local retrieval profile version (requires --profile)",
+        )
+        retrieval_spec_mode.add_argument(
+            "--overrides-file",
+            help="optional UTF-8 JSON object of profile overrides; use - for stdin",
+        )
+        retrieval_spec_mode.add_argument(
+            "--cwd",
+            default=".",
+            help="project path used for nearest-runtime discovery (default: current directory)",
+        )
+
+    discovery_parser = subparsers.add_parser(
+        "discovery",
+        help="Design Discovery: look up the authority for an area, then turn verdicts into links",
     )
-    retrieval_spec_preview.add_argument(
-        "--spec-file",
-        help="UTF-8 JSON file containing the inline spec; use - for stdin",
+    discovery_sub = discovery_parser.add_subparsers(dest="discovery_command", required=True)
+    discovery_evidence = discovery_sub.add_parser(
+        "evidence",
+        help="related decisions, owning ADRs and governing Constitution clauses for topics/pins/a query",
     )
-    retrieval_spec_preview.add_argument(
-        "--profile",
-        help="exact project-local retrieval profile ID (requires --profile-version)",
+    discovery_evidence.add_argument("--topic", action="append", default=[], help="controlled topic (repeatable)")
+    discovery_evidence.add_argument(
+        "--keyword", action="append", default=[],
+        help="preferred keyword for search and clause ranking (repeatable, 2-5 discriminating terms)",
     )
-    retrieval_spec_preview.add_argument(
-        "--profile-version",
-        type=int,
-        help="exact project-local retrieval profile version (requires --profile)",
+    discovery_evidence.add_argument("--pin", action="append", default=[], help="decision ref or ADR id (repeatable)")
+    discovery_evidence.add_argument("--path", action="append", default=[], help="Markdown path to include (repeatable)")
+    discovery_evidence.add_argument("--query", default=None, help="free-text memory_search whose hits are pinned")
+    discovery_evidence.add_argument("--search-limit", type=int, default=5)
+    discovery_evidence.add_argument("--pack-out", default=None, help="write the Evidence Pack JSON here (for assess)")
+    discovery_evidence.add_argument("--json", action="store_true", help="emit the full JSON result")
+    discovery_evidence.add_argument("--cwd", default=".")
+    discovery_assess_parser = discovery_sub.add_parser(
+        "assess",
+        help="validate verdicts against a discovery pack; print the authority table and link envelope",
     )
-    retrieval_spec_preview.add_argument(
-        "--overrides-file",
-        help="optional UTF-8 JSON object of profile overrides; use - for stdin",
+    discovery_assess_parser.add_argument("--pack-file", required=True, help="Evidence Pack JSON from `discovery evidence --pack-out`")
+    discovery_assess_parser.add_argument(
+        "--verdicts-file", required=True,
+        help="JSON list of {ref, relation, why, applies_to}; use - for stdin",
     )
-    retrieval_spec_preview.add_argument(
-        "--cwd",
-        default=".",
-        help="project path used for nearest-runtime discovery (default: current directory)",
+    discovery_assess_parser.add_argument("--json", action="store_true", help="emit the full JSON result")
+    discovery_assess_parser.add_argument("--cwd", default=".")
+
+    constitution_parser = subparsers.add_parser(
+        "constitution",
+        help="inspect how topics map to Constitution clauses",
     )
+    constitution_sub = constitution_parser.add_subparsers(dest="constitution_command", required=True)
+    constitution_topics = constitution_sub.add_parser(
+        "topics",
+        help="print the topic->clause map (derived from ADR bindings, plus authored tags)",
+    )
+    constitution_topics.add_argument("--topic", default=None, help="show one topic only")
+    constitution_topics.add_argument("--json", action="store_true", help="emit JSON")
+    constitution_topics.add_argument("--cwd", default=".", help="project path (default: current directory)")
 
     task_packet_parser = subparsers.add_parser(
         "task-packet",
@@ -1523,7 +1643,11 @@ def main(argv: list[str] | None = None) -> int:
             RetrievalSpecResolutionError,
             canonical_retrieval_json,
         )
-        from .retrieval_adapters import RetrievalInputValidationError, preview_retrieval_input
+        from .retrieval_adapters import (
+            RetrievalInputValidationError,
+            preview_retrieval_input,
+            resolve_retrieval_input_pack,
+        )
         from .retrieval_profiles import RetrievalProfileValidationError
         from .retrieval_spec import RetrievalSpecValidationError
 
@@ -1533,16 +1657,18 @@ def main(argv: list[str] | None = None) -> int:
                 _read_json_object(args.overrides_file, label="overrides")
                 if args.overrides_file else None
             )
-            payload = {
-                "ok": True,
-                "preview": preview_retrieval_input(
-                    spec=spec,
-                    profile=args.profile,
-                    profile_version=args.profile_version,
-                    overrides=overrides,
-                    cwd=args.cwd,
-                ),
+            request = {
+                "spec": spec,
+                "profile": args.profile,
+                "profile_version": args.profile_version,
+                "overrides": overrides,
+                "cwd": args.cwd,
             }
+            payload = (
+                {"ok": True, "pack": resolve_retrieval_input_pack(**request)}
+                if args.retrieval_spec_command == "resolve"
+                else {"ok": True, "preview": preview_retrieval_input(**request)}
+            )
             sys.stdout.write(canonical_retrieval_json(payload))
             return 0
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
@@ -1577,6 +1703,33 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "discovery":
+        return _run_discovery(args)
+
+    if args.command == "constitution":
+        from .constitution_projection import ConstitutionProjectionError, topic_map_report
+
+        try:
+            report = topic_map_report(args.cwd, topic=args.topic)
+        except ConstitutionProjectionError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+            return 0 if report["ok"] else 2
+        if not report["ok"]:
+            print(f"error: {report['error']}", file=sys.stderr)
+            return 2
+        print(f"{report['constitution']} v{report['ratified_version']}")
+        for row in report["rows"]:
+            print(f"  {row['topic']:<22} {row['clause']:<48} {'; '.join(row['sources'])}")
+        if report["unreached_clauses"]:
+            print("Clauses no topic reaches (keyword ranking only): " + ", ".join(report["unreached_clauses"]))
+        if report["unknown_authored_topics"]:
+            print("Authored tags not in topics.yaml: " + ", ".join(report["unknown_authored_topics"]))
+            return 1
+        return 0
 
     if args.command == "task-packet":
         from .retrieval import RetrievalSpecResolutionError, canonical_retrieval_json

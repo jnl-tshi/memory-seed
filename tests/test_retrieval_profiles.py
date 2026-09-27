@@ -288,7 +288,7 @@ class RetrievalProfileTests(unittest.TestCase):
             ]},
         }
         pack = resolve_retrieval_spec(spec, root)
-        self.assertEqual(pack["resolver_version"], 3)
+        self.assertEqual(pack["resolver_version"], 4)
         self.assertEqual(
             {item["id"] for item in pack["evidence"][:2]},
             {"adr_pinned", "mse_entry0001:d1"},

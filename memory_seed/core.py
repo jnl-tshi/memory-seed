@@ -109,6 +109,8 @@ CORE_RETRIEVAL_PROFILES = (
     ("adr-review", 2),
     ("refactoring", 2),
     ("architecture", 2),
+    # Design Discovery's authority lookup (`memory-seed discovery evidence`).
+    ("design-discovery", 1),
 )
 
 

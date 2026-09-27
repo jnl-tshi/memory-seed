@@ -265,6 +265,50 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_discovery_evidence",
+        "description": (
+            "Design Discovery authority lookup for a topic/area: related decisions, the ADRs that own the "
+            "area (Current view), and the Constitution clauses that govern it (whole document only as a "
+            "fallback). An optional free-text query runs memory_search with preferred_keywords and pins its "
+            "decision hits. Read-only. An area with no history returns empty=true, not an error. Pass the "
+            "returned pack to memory_discovery_assess."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topics": {"type": "array", "items": {"type": "string"}},
+                "keywords": {"type": "array", "items": {"type": "string"}, "maxItems": 16},
+                "pins": {"type": "array", "items": {"type": "string"}, "description": "decision refs or ADR ids"},
+                "paths": {"type": "array", "items": {"type": "string"}},
+                "query": {"type": "string"},
+                "search_limit": {"type": "integer", "default": 5},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_discovery_assess",
+        "description": (
+            "Record the Discovery Record's authority answer: one verdict {ref, relation, why, applies_to} per "
+            "evidence item of a discovery pack (relation: replaces, refines, builds-on, related, no-edge, "
+            "conflicts, governed-by). Refs must be in the pack. Returns the decisions[].links envelope and "
+            "consulted list for the plan-approval memory_session_append, the ADR outcomes that append will "
+            "require, conflicts to raise with the user, and a Markdown authority table. Read-only; no-edge is "
+            "not persisted."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pack": {"type": "object"},
+                "verdicts": {"type": "array", "items": {"type": "object"}},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["pack", "verdicts"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_task_packet_preview",
         "description": "Validate, measure, resolve, and return one complete deterministic Task Packet inline. Read-only; it does not export, dispatch workers, or create worktrees.",
         "inputSchema": {
@@ -1050,6 +1094,34 @@ def call_tool(
                 args["packet"], args["name"], args.get("cwd", "."), handoff=args.get("handoff"))}
         except TaskPacketValidationError as exc:
             return {"ok": False, "error": exc.to_dict()}
+
+    if name in {"memory_discovery_evidence", "memory_discovery_assess"}:
+        from .discovery import DiscoveryError, discovery_assess, discovery_evidence
+        from .retrieval import RetrievalSpecResolutionError as DiscoveryResolutionError
+        from .retrieval_profiles import RetrievalProfileValidationError as DiscoveryProfileError
+
+        try:
+            if name == "memory_discovery_evidence":
+                return discovery_evidence(
+                    args.get("cwd", "."),
+                    topics=list(args.get("topics") or []),
+                    keywords=list(args.get("keywords") or []),
+                    pins=list(args.get("pins") or []),
+                    paths=list(args.get("paths") or []),
+                    query=_optional_str(args, "query"),
+                    search_limit=int(args.get("search_limit", 5)),
+                )
+            pack = args.get("pack")
+            verdicts = args.get("verdicts")
+            if not isinstance(pack, dict) or not isinstance(verdicts, list):
+                raise DiscoveryError("pack must be an object and verdicts a list")
+            return discovery_assess(args.get("cwd", "."), pack=pack, verdicts=verdicts)
+        except DiscoveryError as exc:
+            return {"ok": False, "error": str(exc), "issues": exc.issues}
+        except DiscoveryResolutionError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+        except (DiscoveryProfileError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
 
     if name == "memory_search":
         query = _required_str(args, "query")

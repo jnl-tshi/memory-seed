@@ -6,6 +6,21 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- [2026-09-27] **Evidence packs carry the relevant Constitution clauses, not the whole document** (resolver v4, Constitution v2.5).
+  - A v2 pack now selects anchored clauses through one cascade:
+    1. explicit `constitution.anchors`;
+    2. bindings of ADRs the spec names;
+    3. `S:` anchors that name a single clause;
+    4. then, up to `constitution.ranked_cap` (default 4,000 tokens): bindings of related ADRs, the topic-to-clause map, and BM25F `constitution.keywords`.
+  - The whole document is included only when nothing matches, and a `constitution_whole_fallback` warning says so.
+  - On this repository a topic lookup's Constitution share fell from 11.7k tokens to under 3k, leaving room for decisions and ADRs.
+  - Packs gain pack-level `constitution` metadata. `constitution: {mode: whole}` opts out.
+  - v1 specs are unchanged.
+  - Task Packets feed the same cascade:
+    - dispatch `constitution_refs` become anchors;
+    - the objective and observables become keywords;
+    - the tier target becomes the cap.
+  - Every v2 pack fingerprint changes once. A stored packet activation needs a recompile.
 - [2026-09-25] **Lifecycle links are classified automatically.** Machine-classified edges no longer wait for human approval (Constitution v2.4, §4 `link-corrections`).
   - The new `memory-seed link batch-apply --run-dir <a> --agree-with <b>` writes mechanically validated swarm verdicts as live, retractable `source: derived` edges. Each edge carries a confidence and a grounding quote.
   - `replaces` and `refines` are written only when two independent runs agree.
@@ -16,6 +31,24 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-09-27] **Design Discovery finds its authority and links at planning time.**
+  - `memory-seed discovery evidence` (MCP `memory_discovery_evidence`) resolves the new `design-discovery` retrieval profile for an area. It takes topics, keywords, pins and an optional free-text query, whose `memory_search` hits, boosted by `preferred_keywords`, are pinned. It returns:
+    - the related decisions;
+    - the ADRs that own the area;
+    - only the Constitution clauses that govern it.
+  - An area with no history is reported as a finding, not an error.
+  - `memory-seed discovery assess` (MCP `memory_discovery_assess`) takes one verdict per evidence item: `replaces`, `refines`, `builds-on`, `related`, `no-edge`, `conflicts` or `governed-by`. Verdicts may name only evidence the lookup returned. It returns:
+    - the Discovery Record's authority table;
+    - the exact `decisions[].links` envelope and `consulted` list for the plan-approval session append;
+    - the ADR outcomes that append will require;
+    - conflicts to raise with the user.
+  - An ADR verdict links to the ADR's authoritative decision. `no-edge` is not persisted.
+  - `design_discovery.md` now logs the design decisions when the plan is approved, with their links to ancestors already in place.
+- [2026-09-27] **Retrieval specs can follow ADRs and pinned decisions.**
+  - `selectors.related_adrs` adds the Current view of every accepted or proposed ADR whose topics match the topic filter or whose membership includes a selected decision. These ADRs rank ahead of session decisions at the same graph distance.
+  - `selectors.pinned_roots` lets pinned decisions seed graph expansion.
+  - `memory-seed retrieval-spec resolve` returns the same pack as MCP `memory_retrieval_spec_resolve`.
+  - `memory-seed constitution topics` prints the topic-to-clause map with its sources. The map is derived from ADR topics and bindings, plus `constitution-topics` markers on the five clauses no ADR binds.
 - [2026-09-25] **Each agent keeps one persistent home worktree.**
   - The new `memory-seed worktree home --agent <agent> [--claim|--park|--release|--status]` command (MCP `memory_worktree_home`) manages `<namespace>/home`.
   - Claiming the home takes a lease and checks out a task branch cut from `main`. A second live session gets an `overflow-<id>` worktree instead.

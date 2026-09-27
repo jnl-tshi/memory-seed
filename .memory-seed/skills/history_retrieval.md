@@ -35,7 +35,7 @@ Call `memory_search` before relying on the visible conversation alone when the t
 
 Skip MCP history lookup for small, obvious edits where current source files and the active `index.md` / `policy.md` are enough.
 
-**Carry the retrieval forward.** The entries you fetch to ground a change are not just context for the work — they are the highest-signal lifecycle-link candidates for the entry you are about to write. Keep the ids you actually consulted and hand them to `memory_link_suggest`'s `consulted` axis at authoring time (see Authoring-Support Tools), so link candidacy is based on **both** the current repo (shared files) and memory (what you consulted) — the same two-source discipline you apply to the work itself.
+**Carry the retrieval forward.** The entries you fetch to ground a change are not just context for the work — they are the highest-signal lifecycle-link candidates for the entry you are about to write. Keep the ids you actually consulted and hand them to `memory_link_suggest`'s `consulted` axis at authoring time (see Authoring-Support Tools), so link candidacy is based on **both** the current repo (shared files) and memory (what you consulted) — the same two-source discipline you apply to the work itself. During Design Discovery, `discovery evidence` / `discovery assess` (MCP `memory_discovery_evidence` / `memory_discovery_assess`) do this carrying for you. The lookup returns the area's decisions, owning ADRs and governing Constitution clauses. Your per-item verdicts become the exact `decisions[].links` envelope and `consulted` list for the plan-approval append (`design_discovery.md`).
 
 ### Why vs. Current State — Division Of Labor
 

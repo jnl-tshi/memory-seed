@@ -1,6 +1,6 @@
 # Memory Seed Constitution
 
-**Version:** 2.4 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 2.5 — **RATIFIED 2026-09-23** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. Its substance changes only by amendment; the version also increments for
 evolution-class corrections, so the log below is a complete version history (see
 [Governance](#11-governance)).
@@ -104,6 +104,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    without exception. *(The 1.4 row stays in the amendment log: the exception was real while it
    existed, and one repair landed under it.)*
    <!-- constitution-ref: constitution:v2#adr-ledger-v2-migration -->
+   <!-- constitution-topics: migration, schema, memory-repair -->
    **Narrow, one-time exception — ADR-ledger v2 canonicalization (1.10):** the historical ADR corpus
    may be rewritten **once**, solely to replace the v1 mixed `Why`/`Evolution` prose with the v2
    `Decision`/`Reason`/`Impact` shape. Before any source byte changes, the procedure must archive a
@@ -115,6 +116,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    general rewrite facility nor a standing CLI/MCP command. On successful completion this exception is
    exhausted; all future ADR history is append-only under the invariant.
    <!-- constitution-ref: constitution:v2#temporary-reflection-expiry -->
+   <!-- constitution-topics: agent-collaboration, memory-repair, cleanup -->
    **Retired exception and one-time historical cleanup (2.1):** the standing Reflection Board chain-expiry
    permission introduced in 1.12 is withdrawn. Elapsed retention no longer authorizes automatic or repeatable
    removal. The single tracked ledger at
@@ -126,6 +128,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    ordinary sessions, decisions, ADRs, policies, or other durable memory. Git may retain the historical
    blobs; active-tree removal is not privacy-grade erasure. The 1.12 version-log row remains historical.
    <!-- constitution-ref: constitution:v2#hosted-curated-removal -->
+   <!-- constitution-topics: multi-user-sessions, security, memory-repair -->
    **Narrow exception — hosted curated-record removal (2.2):** in the hosted edition, a curated record's
    content may be removed from active storage only when lifecycle correction cannot remedy it. That is the
    case when the record exposes a secret or personal data, attributes words or decisions to the wrong member,
@@ -202,6 +205,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 - **Prove risky automation on a small case; don't remove guards you don't understand.** *(Cited:
   `agent-rules.md` Working Principles; `.memory-seed/skills/risk_signaling.md`.)*
 <!-- constitution-ref: constitution:v2#trust-first -->
+<!-- constitution-topics: security, governance-profile -->
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
@@ -262,6 +266,7 @@ ordinary proposal work.
   repository-relative source artifact. Historical untyped and singular decision records remain valid,
   readable as decisions, and append-only.
 <!-- constitution-ref: constitution:v2#lexical-normalization -->
+<!-- constitution-topics: retrieval, topic-vocabulary -->
 - **Lexical matching is capitalization-safe.** Retrieval normalizes query text, preferred keywords,
   and indexed lexical fields with Unicode NFKC plus case folding before matching. Optional preferred
   keywords may add a bounded positive ranking signal, but never exclude otherwise matching history.
@@ -401,6 +406,7 @@ and say so.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 2.5 | 2026-09-27 | **Evolution (structural, not an amendment): per-clause topic tags.** Five clauses that no ADR binds gain a `constitution-topics` HTML-comment marker directly under their anchor, naming the controlled-vocabulary topics they govern (`adr-ledger-v2-migration`, `temporary-reflection-expiry`, `hosted-curated-removal`, `trust-first`, `lexical-normalization`). No clause text changes: the markers are invisible when rendered and are verified by a markers-stripped comparison. Retrieval now selects the relevant clauses instead of the whole document. It maps a topic to clauses through the ADRs that bind them (topics × governing/supporting bindings, derived at read time) and through these markers for the clauses no ADR reaches. The whole document is only the fallback when nothing matches. | JNL (approved the design-discovery evidence plan, 2026-09-27) |
 | 2.4 | 2026-09-25 | **Evolution (policy change, not an amendment): automatic lifecycle-link classification.** The §4 `link-corrections` clause drops the human gate on machine-suggested edges. Validated machine verdicts are now written as live, retractable `source: derived` edges carrying confidence and a grounding quote; `replaces`/`refines` need two agreeing runs; retrieval scales a machine `replaces` by its confidence; a human `verified:` record raises an edge to full weight; machine edges never move ADR heads. Invariant #2's per-edge approval clause (1.2) is unchanged: it governs editing entry YAML, which the automatic path never does. | JNL (explicit decision in the 2026-09-25 Codex session, confirmed live 2026-09-25) |
 | 2.3 | 2026-09-24 | **Correction (evolution-class, not an amendment): clause anchors re-namespaced to v2.** The 30 `constitution-ref` markers change from `constitution:v1#slug` to `constitution:v2#slug` to match the ratified v2 major; no clause text changes. Since v2.0 the Task Packet compiler had refused every packet because anchor and ratified majors disagreed. Earlier `constitution:vK#slug` names remain resolvable legacy aliases, so existing ADR bindings and dispatches keep validating; new ADR events must write the current name. | JNL (explicit live instruction, 2026-09-24) |
 | 2.2 | 2026-09-23 | **Amendment: hosted raw-evidence privacy and last-resort curated-record removal.** Invariant #1 makes a member's hosted raw evidence readable only by that member; no governance role can be granted it, and the curator is the only machine reader. Invariant #2 adds a narrow hosted-only exception: a curated record may be removed only for a secret or personal data, misattribution, or fabrication. The author removes their own record and the lead is notified; another member's needs a lead-granted permission; a misattributed member may report the record as disputed. Each removal leaves a tombstone without content, wrong or outdated decisions are corrected through `evolves`/`replaces`, and backup persistence is left to retention policy. | JNL (explicit live ratification, 2026-09-23) |

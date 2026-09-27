@@ -66,10 +66,19 @@ Capture a concise, proportionate record in the existing planning or decision sur
 2. **Capability and reuse inventory** — existing code, skills, services, configuration, and supported
    workflows that may solve the need before a new mechanism is introduced. Record what was inspected and
    what is unavailable or unsuitable.
-3. **Relevant authority and evidence** — current concern-owning files, applicable Constitution clauses,
-   accepted ADR heads, and evidence from the codebase or prior work. Preserve the authority order:
-   Constitution, current concern-owning control file, accepted ADR head, session evidence, then derived
-   projection.
+3. **Relevant authority and evidence — the authority answer** — current concern-owning files,
+   applicable Constitution clauses, accepted ADR heads, and evidence from the codebase or prior work,
+   each with its relation to the design. Preserve the authority order: Constitution, current
+   concern-owning control file, accepted ADR head, session evidence, then derived projection. Record it as
+   the table `discovery assess` prints (`Ref | Kind | Title | Relation | Why | Applies | ADR outcome`).
+   Every item gets one relation:
+   - `governed-by` for a clause the design must satisfy;
+   - `replaces`, `refines` or `builds-on` for a decision or ADR it carries forward;
+   - `related`;
+   - `no-edge`;
+   - `conflicts`.
+
+   An area with no prior history is a valid answer; say so.
 4. **Realistic alternatives** — viable approaches, including reuse or no change when credible. For each,
    name the material benefits, gaps, compatibility limits, cost, and operational or maintenance burden.
    Do not pad the record with straw alternatives.
@@ -85,6 +94,18 @@ Capture a concise, proportionate record in the existing planning or decision sur
    decision and continue with routine implementation; do not create heavyweight discovery work.
 2. Read the relevant current authority and retrieve prior rationale when it could change the option set.
    Treat search results and summaries as candidate evidence, not replacement authority.
+   - **Look it up:** run `memory-seed discovery evidence` (MCP `memory_discovery_evidence`) with:
+     - the area's controlled topics;
+     - 2-5 discriminating `--keyword`s;
+     - any decisions or ADRs you already know (`--pin`);
+     - optionally a free-text `--query`, whose `memory_search` hits are pinned.
+
+     It returns the related decisions, the ADRs that own the area, and only the Constitution clauses
+     that govern it.
+   - **Record the relations:** write one verdict per item that bears on the design, and run
+     `discovery assess` (MCP `memory_discovery_assess`). It accepts only evidence the lookup returned. It
+     prints the authority table and lists the ADRs whose review the plan-approval write will require.
+   - **Raise conflicts:** turn every `conflicts` row into a question for the user before approval.
 3. Inventory capabilities and reuse paths before proposing a new component, policy, workflow, or data
    structure.
 4. Compare only realistic alternatives. Make gaps, costs, and constraints explicit enough for a reviewer
@@ -94,6 +115,13 @@ Capture a concise, proportionate record in the existing planning or decision sur
 6. Carry the discovery record into the existing plan and Task Packet path: identify the selected option,
    evidence and authority consulted, scope, trial decision, assumptions, and invalidation conditions.
    The existing plan compiler and execution controls remain the only execution path.
+   - **When the user approves the plan,** log the design decisions right away with
+     `memory_session_append` (`session_logging.md`), not after implementation.
+   - **Links come from the authority answer:** use the `decisions` link envelope and the `consulted` list
+     from `discovery assess`, and add the listed ADR outcomes. The design decisions then carry their links
+     to their ancestors from the start.
+   - Implementation entries later `evolves` that design entry.
+   - `no-edge` verdicts stay in the Discovery Record prose; they are not stored as relations.
 7. At the Plan Gate of a multi-task plan, add one fenced ```` ```json ```` block with
    `"schema": "memory-seed/plan-dispatch"`: shared dispatch `defaults`, one objective per task, and the
    `implementation_plan` below. `task-packet from-plan` (or `memory_task_packet_from_plan`) turns it into

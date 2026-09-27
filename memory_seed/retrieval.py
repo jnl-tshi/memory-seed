@@ -372,7 +372,9 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
 
 
 RETRIEVAL_RESOLVER_VERSION = 2
-RETRIEVAL_V2_RESOLVER_VERSION = 3
+# 4: Constitution selected as anchored clauses (whole document only as the
+# fallback), pack-level ``constitution`` metadata, related_adrs, pinned_roots.
+RETRIEVAL_V2_RESOLVER_VERSION = 4
 RETRIEVAL_PREVIEW_SCHEMA = "memory-seed/retrieval-spec-preview"
 EVIDENCE_PACK_SCHEMA = "memory-seed/evidence-pack"
 EVIDENCE_PACK_VERSION = 2
@@ -490,12 +492,16 @@ def _retrieval_corpus_inputs(
     if sessions.is_dir():
         session_files = _walk_confined_tree(root, sessions, stage="corpus_revision", suffix=".md")
         inputs.update(session_files)
-    if (
-        normalized_spec.get("version") == 2
-        and any(
+    from .retrieval_spec import constitution_settings
+
+    if normalized_spec.get("version") == 2 and (
+        any(
             record.get("kind") == "adr"
             for record in normalized_spec.get("selectors", {}).get("pinned", [])
         )
+        # ADR topics and bindings feed related_adrs and the clause cascade.
+        or normalized_spec.get("selectors", {}).get("related_adrs")
+        or constitution_settings(normalized_spec)["mode"] == "clauses"
     ):
         decisions = runtime.memory_dir / "decisions"
         if decisions.is_dir():
@@ -691,14 +697,26 @@ def _assert_runtime_tree_confined(root: Path, directory: Path, *, stage: str) ->
 
 
 def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
-    required = any(clause.startswith("required.") for clause in candidate.selected_by)
+    # A related ADR's Current view outranks session evidence (authority order:
+    # ADR head before session evidence), so it competes in the required tier
+    # and sorts ahead of decisions at the same graph distance.  Both fields
+    # are constant for candidates without it, preserving earlier orders.
+    related_adr = "selectors.related_adrs" in candidate.selected_by
+    required = related_adr or any(clause.startswith("required.") for clause in candidate.selected_by)
     distance = -1 if candidate.graph_distance is None else candidate.graph_distance
     # ISO dates sort lexically; invert their integer representation for newest first.
     recency = -int(candidate.session_date.replace("-", "")) if candidate.session_date else 0
     # Required pinned evidence has an explicit caller mandate and must precede
     # every otherwise-required candidate.  The leading field is constant for
     # v1 candidates, preserving the frozen v1 order byte-for-byte.
-    return (0 if candidate.pinned_required else 1, 0 if required else 1, distance, recency, candidate.evidence_id)
+    return (
+        0 if candidate.pinned_required else 1,
+        0 if required else 1,
+        distance,
+        0 if related_adr else 1,
+        recency,
+        candidate.evidence_id,
+    )
 
 
 def _merge_candidate(
@@ -1345,29 +1363,45 @@ def _build_retrieval_plan(
         ) from exc
     constitution_text = "\n".join(constitution_text.splitlines())
     constitution_source = constitution_path.relative_to(root).as_posix()
-    _merge_candidate(
-        candidates,
-        _RetrievalCandidate(
-            evidence_id=constitution_source,
-            kind="constitution",
-            source=constitution_source,
-            line_range=(1, max(1, len(constitution_text.splitlines()))),
-            chunk_id=None,
-            session_date=None,
-            graph_distance=None,
-            text=constitution_text,
-            selected_by={"required.constitution"},
-            reasons={"governing Constitution required by the inline v1 contract"},
-        ),
+    whole_constitution = _RetrievalCandidate(
+        evidence_id=constitution_source,
+        kind="constitution",
+        source=constitution_source,
+        line_range=(1, max(1, len(constitution_text.splitlines()))),
+        chunk_id=None,
+        session_date=None,
+        graph_distance=None,
+        text=constitution_text,
+        selected_by={"required.constitution"},
+        reasons={"governing Constitution required by the inline v1 contract"},
     )
+    from .retrieval_spec import constitution_settings
+
+    constitution_config = constitution_settings(normalized)
+    constitution_document = None
+    if constitution_config["mode"] == "clauses":
+        # v2 selects whole anchored clauses later, once the ADRs and S:
+        # anchors that feed the cascade are known.  A document without
+        # ratified anchors cannot be split, so it stays whole.
+        from .constitution_projection import ConstitutionProjectionError, parse_constitution
+
+        try:
+            constitution_document = parse_constitution(constitution_text, constitution_source)
+        except ConstitutionProjectionError:
+            constitution_document = None
+        if constitution_document is not None and not constitution_document.clauses:
+            constitution_document = None
+    if constitution_document is None:
+        # An unanchored Constitution is a normal project state, not a fault:
+        # the pack's constitution.selection_mode reports "unparsed" instead.
+        _merge_candidate(candidates, whole_constitution)
     completed.append("constitution")
-    trace.append(
-        {
-            "stage": "constitution",
-            "reader": "canonical Constitution Markdown reader",
-            "candidate_count": 1,
-        }
-    )
+    constitution_trace: dict[str, Any] = {
+        "stage": "constitution",
+        "reader": "canonical Constitution Markdown reader",
+        "candidate_count": 1,
+    }
+    trace.append(constitution_trace)
     _check_retrieval_timeout(
         clock, started, timeout_ms, stage="sessions", completed_stages=completed
     )
@@ -1479,6 +1513,13 @@ def _build_retrieval_plan(
                     "",
                     f"topic {requested!r} matched canonical authored metadata",
                 )
+    if normalized.get("selectors", {}).get("pinned_roots"):
+        for record in pinned:
+            if record["kind"] != "decision":
+                continue
+            entry_id, ordinal = str(record["id"]).rsplit(":", 1)
+            if entry_id in by_id:
+                add_root(entry_id, ordinal, "pinned decision seeds graph expansion")
     completed.append("topic_filters")
     trace.append(
         {
@@ -1788,6 +1829,98 @@ def _build_retrieval_plan(
             "depth": depth_limit,
         }
     )
+    all_adrs: list[Any] | None = None
+
+    def load_all_adrs() -> list[Any]:
+        nonlocal all_adrs
+        if all_adrs is None:
+            from .adr import parse_adr
+
+            decisions_dir = runtime.memory_dir / "decisions"
+            all_adrs = []
+            if decisions_dir.is_dir():
+                for path in sorted(
+                    _walk_confined_tree(root, decisions_dir, stage="related_adrs", suffix=".md")
+                ):
+                    if not path.name.startswith("adr_"):
+                        continue
+                    try:
+                        all_adrs.append(parse_adr(path))
+                    except (OSError, ValueError, json.JSONDecodeError):
+                        warnings.append(
+                            {
+                                "code": "invalid_adr_skipped",
+                                "clause": "selectors.related_adrs",
+                                "detail": path.name,
+                            }
+                        )
+        return all_adrs
+
+    if normalized.get("selectors", {}).get("related_adrs"):
+        _check_retrieval_timeout(
+            clock, started, timeout_ms, stage="related_adrs", completed_stages=completed
+        )
+        from .adr import adr_membership
+
+        expanded_topics: set[str] = set()
+        for requested in normalized["filters"]["topics"]:
+            expanded_topics |= set(expand_topic_filter(root, [requested]))
+        decision_distances = {
+            candidate.evidence_id: candidate.graph_distance
+            for candidate in candidates.values()
+            if candidate.kind == "decision" and ":" in candidate.evidence_id
+        }
+        related_adr_count = 0
+        for record in load_all_adrs():
+            if record.current_status not in {"accepted", "proposed"}:
+                continue
+            reasons: set[str] = set()
+            distance: int | None = None
+            shared_topics = sorted(set(record.topics) & expanded_topics)
+            if shared_topics:
+                reasons.add(f"ADR topics {', '.join(shared_topics)} match the topic filter")
+                distance = 0
+            members = sorted(adr_membership(record) & set(decision_distances))
+            if members:
+                reasons.add(f"ADR membership includes selected decision(s) {', '.join(members[:5])}")
+                member_distance = min(
+                    decision_distances[ref] if decision_distances[ref] is not None else 0
+                    for ref in members
+                )
+                distance = member_distance if distance is None else min(distance, member_distance)
+            if not reasons or record.path is None:
+                continue
+            try:
+                candidate = _adr_current_view_candidate(
+                    root=root,
+                    record=record,
+                    selected_by={"selectors.related_adrs"},
+                    reason="",
+                    required=False,
+                )
+            except RetrievalSpecResolutionError:
+                warnings.append(
+                    {
+                        "code": "invalid_adr_skipped",
+                        "clause": "selectors.related_adrs",
+                        "detail": record.adr_id,
+                    }
+                )
+                continue
+            candidate.reasons = reasons
+            candidate.model_selection_reasons = set()
+            candidate.graph_distance = distance
+            _merge_candidate(candidates, candidate)
+            related_adr_count += 1
+        completed.append("related_adrs")
+        trace.append(
+            {
+                "stage": "related_adrs",
+                "reader": "canonical ADR Current view reader (topic and membership match)",
+                "candidate_count": related_adr_count,
+            }
+        )
+
     follow_sources = bool(normalized.get("selectors", {}).get("source_references", False))
     constitution_anchor_citers: dict[str, set[str]] = {}
     if follow_sources:
@@ -1804,6 +1937,131 @@ def _build_retrieval_plan(
                 "reader": "decision S: source reader (one hop, runtime-bounded Markdown)",
                 "candidate_count": followed_count,
                 "constitution_anchors": sorted(constitution_anchor_citers),
+            }
+        )
+    constitution_selection_mode = "whole"
+    if constitution_document is not None:
+        _check_retrieval_timeout(
+            clock, started, timeout_ms, stage="constitution_clauses", completed_stages=completed
+        )
+        from .constitution_projection import (
+            ConstitutionProjectionError,
+            adr_constitution_bindings,
+            derived_topic_clause_map,
+            select_clauses,
+        )
+
+        adrs_by_id = {record.adr_id: record for record in load_all_adrs()}
+        adr_candidates = [
+            candidate
+            for candidate in candidates.values()
+            if candidate.kind == "adr" and candidate.evidence_id in adrs_by_id
+        ]
+        # A caller-named ADR's bindings are mandated; a relevance-found ADR's
+        # are ranked guesses, nearest ADR and governing role first.
+        named = sorted(
+            candidate.evidence_id
+            for candidate in adr_candidates
+            if candidate.selected_by & {"selectors.pinned", "filters.paths"}
+        )
+        # Only direct matches (topic, or membership of a root decision) lend
+        # their bindings: a deep graph reaches most of the ledger, and every
+        # ADR's clauses would then pad the cap without discriminating.
+        related = sorted(
+            (
+                candidate
+                for candidate in adr_candidates
+                if candidate.evidence_id not in named and not candidate.graph_distance
+            ),
+            key=lambda candidate: (candidate.graph_distance or 0, candidate.evidence_id),
+        )
+        bindings = [
+            (ref, adr_id, role)
+            for adr_id in named
+            for ref, role in adr_constitution_bindings(adrs_by_id[adr_id])
+        ]
+        related_bindings = [
+            (ref, candidate.evidence_id, role)
+            for candidate in related
+            for ref, role in sorted(
+                adr_constitution_bindings(adrs_by_id[candidate.evidence_id]),
+                key=lambda item: (item[1] != "governing", item[0]),
+            )
+        ]
+        clause_topics: set[str] = set()
+        for requested in normalized["filters"]["topics"]:
+            clause_topics |= set(expand_topic_filter(root, [requested]))
+        decision_ids = {candidate.evidence_id for candidate in candidates.values()}
+        cited_anchors = sorted(
+            anchor for anchor, citers in constitution_anchor_citers.items() if citers & decision_ids
+        )
+        try:
+            selection = select_clauses(
+                constitution_document,
+                anchors=constitution_config["anchors"],
+                adr_bindings=bindings,
+                related_adr_bindings=related_bindings,
+                source_anchors=cited_anchors,
+                topics=sorted(clause_topics),
+                topic_map=derived_topic_clause_map(constitution_document, adrs_by_id.values()),
+                keywords=constitution_config["keywords"],
+                ranked_cap=constitution_config["ranked_cap"],
+            )
+        except ConstitutionProjectionError as exc:
+            raise RetrievalSpecResolutionError(
+                "missing_required",
+                str(exc),
+                stage="constitution_clauses",
+                completed_stages=completed,
+                details={"clause": "constitution.anchors", **exc.details},
+            ) from exc
+        for message in selection.warnings:
+            warnings.append(
+                {"code": "constitution_binding_unresolved", "clause": "required.constitution", "detail": message}
+            )
+        if selection.fallback:
+            fallback = whole_constitution
+            fallback.selected_by.add("constitution.fallback_whole")
+            fallback.reasons = {
+                "no Constitution clause matched the anchors, ADR bindings, topics, or keywords; whole document"
+            }
+            _merge_candidate(candidates, fallback)
+            warnings.append(
+                {
+                    "code": "constitution_whole_fallback",
+                    "clause": "required.constitution",
+                    "detail": "no clause selected; the whole Constitution was included",
+                }
+            )
+        else:
+            for item in selection.selected:
+                clause = item.clause
+                _merge_candidate(
+                    candidates,
+                    _RetrievalCandidate(
+                        evidence_id=clause.ref,
+                        kind="constitution",
+                        source=constitution_source,
+                        line_range=clause.line_range,
+                        chunk_id=None,
+                        session_date=None,
+                        graph_distance=None,
+                        text=clause.content,
+                        selected_by={"required.constitution", *item.stages},
+                        reasons=set(item.reasons),
+                    ),
+                )
+        constitution_selection_mode = selection.mode
+        completed.append("constitution_clauses")
+        constitution_trace["candidate_count"] = 1 if selection.fallback else len(selection.selected)
+        trace.append(
+            {
+                "stage": "constitution_clauses",
+                "reader": "anchored clause cascade (anchors, ADR bindings, S: anchors, topic map, keywords)",
+                "mode": selection.mode,
+                "candidate_count": len(selection.selected),
+                "ranked_cap": selection.ranked_cap,
+                "unmatched_source_anchors": selection.unmatched_source_anchors,
             }
         )
     _check_retrieval_timeout(
@@ -1983,6 +2241,31 @@ def _build_retrieval_plan(
         "trace": trace,
         "completed_stages": completed,
     }
+    if constitution_config["mode"] == "clauses":
+        # Clause records carry only their own slice, so the document identity
+        # a Task Packet projection reports travels at pack level.
+        from .constitution_projection import content_digest
+
+        plan["constitution"] = {
+            "source": constitution_source,
+            "ratified_version": (
+                constitution_document.ratified_version if constitution_document is not None else None
+            ),
+            "full_document_digest": content_digest(constitution_text),
+            "line_count": max(1, len(constitution_text.splitlines())),
+            "selection_mode": (
+                constitution_selection_mode if constitution_document is not None else "unparsed"
+            ),
+            # A clause slice starts at its anchor, so its section heading
+            # travels here for projections that report it.
+            "clause_headings": {
+                candidate.evidence_id: constitution_document.by_ref()[candidate.evidence_id].heading
+                for candidate in selected
+                if candidate.kind == "constitution"
+                and constitution_document is not None
+                and candidate.evidence_id in constitution_document.by_ref()
+            },
+        }
     if follow_sources:
         plan["source_reference_constitution_anchors"] = sorted(
             anchor for anchor, citers in constitution_anchor_citers.items() if citers & selected_ids
@@ -2110,6 +2393,8 @@ def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
         identity["evidence"].append(record)
     if "source_reference_constitution_anchors" in pack:
         identity["source_reference_constitution_anchors"] = pack["source_reference_constitution_anchors"]
+    if "constitution" in pack:
+        identity["constitution"] = pack["constitution"]
     return "sha256:" + hashlib.sha256(
         canonical_retrieval_json(identity).encode("utf-8")
     ).hexdigest()
@@ -2281,6 +2566,8 @@ def resolve_retrieval_spec(
         # Present only when source following is on, so every existing pack
         # keeps its exact shape.  Consumed by Constitution clause projection.
         pack["source_reference_constitution_anchors"] = plan["source_reference_constitution_anchors"]
+    if "constitution" in plan:
+        pack["constitution"] = plan["constitution"]
     pack["fingerprint"] = _evidence_pack_fingerprint(pack)
     _check_retrieval_timeout(
         _clock,
@@ -2349,6 +2636,30 @@ def validate_evidence_pack(
         raise RetrievalSpecResolutionError(
             "invalid_pack",
             "source_reference_constitution_anchors must be present exactly when source following is on",
+            stage="pack_validation",
+        )
+    from .retrieval_spec import constitution_settings
+
+    clause_mode = v2 and constitution_settings(effective_spec)["mode"] == "clauses"
+    constitution_meta = pack.get("constitution")
+    if ("constitution" in pack) != clause_mode or (
+        clause_mode
+        and (
+            not isinstance(constitution_meta, Mapping)
+            or set(constitution_meta)
+            != {
+                "source",
+                "ratified_version",
+                "full_document_digest",
+                "line_count",
+                "selection_mode",
+                "clause_headings",
+            }
+        )
+    ):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "constitution metadata must be present exactly when Constitution clause selection is on",
             stage="pack_validation",
         )
     current_revision = _revision_reader(cwd, effective_spec)
@@ -2525,7 +2836,29 @@ def validate_evidence_pack(
                         details={"id": evidence_id},
                     )
         chunk_id = item.get("chunk_id")
-        if kind in {"constitution", "markdown"} and evidence_id != source:
+        if kind == "constitution" and clause_mode and evidence_id != source:
+            # A clause record is the anchored clause the current document
+            # declares under that ref, at exactly that line range.
+            from .constitution_projection import ConstitutionProjectionError, parse_constitution
+
+            try:
+                document = parse_constitution(path.read_text(encoding="utf-8"), source)
+            except (OSError, UnicodeDecodeError, ConstitutionProjectionError) as exc:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "Constitution clause evidence needs an anchored, ratified Constitution",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                ) from exc
+            clause = document.by_ref().get(evidence_id)
+            if clause is None or tuple(item.get("line_range", ())) != clause.line_range:
+                raise RetrievalSpecResolutionError(
+                    "invalid_pack",
+                    "Constitution clause evidence must match its anchored clause",
+                    stage="pack_validation",
+                    details={"id": evidence_id},
+                )
+        elif kind in {"constitution", "markdown"} and evidence_id != source:
             raise RetrievalSpecResolutionError(
                 "invalid_pack",
                 "non-semantic Markdown evidence id must match its canonical source",
