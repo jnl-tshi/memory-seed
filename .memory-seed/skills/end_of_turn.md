@@ -16,7 +16,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 0. Run `memory-seed esr` (add `--date YYYY-MM-DD` for a session crossing midnight): one read-only
    report covering integrity, topics, lifecycle link gaps, ADR inverse-coverage candidates with
    attached recommendations, registered worktree posture, unregistered physical worktree residue,
-   seed-twin drift. If an ADR section contains work, load `adr_sweep.md` for adjudication and
+   orphaned Git admin stubs under `.git/worktrees`, seed-twin drift. If an ADR section contains work, load `adr_sweep.md` for adjudication and
    orchestration; ESR discovers and recommends but never writes an ADR change.
    Read every section - each prints even when clean, so a skipped check is visible. Use its
    sections for steps 5, 12, and 13 instead of re-running the underlying commands one by one.

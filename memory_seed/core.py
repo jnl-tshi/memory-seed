@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -8890,6 +8891,99 @@ def _worktree_admin_identity(
     return admin, directory_identity, None
 
 
+def _remove_verified_tree(target: Path) -> None:
+    """Recursively delete one already-verified exact target, clearing read-only bits."""
+    removal_target = target
+    if os.name == "nt":
+        raw = str(target)
+        if raw.startswith("\\\\"):
+            removal_target = Path("\\\\?\\UNC\\" + raw[2:])
+        elif not raw.startswith("\\\\?\\"):
+            removal_target = Path("\\\\?\\" + raw)
+
+    def _clear_readonly(function: Callable[[str], None], name: str, _exc_info: object) -> None:
+        os.chmod(name, stat.S_IWRITE)
+        function(name)
+
+    shutil.rmtree(removal_target, onerror=_clear_readonly)
+
+
+# What a deregistered worktree's administration directory may still hold. On
+# Windows `git worktree remove` can delete the registration files (`gitdir`,
+# `HEAD`, `index`) and then fail on the rest, and git ignores what it leaves.
+# Anything outside this set is not git's leftover, so the stub is retained.
+_WORKTREE_ADMIN_STUB_ENTRIES = frozenset(
+    {
+        "ORIG_HEAD",
+        "HEAD",
+        "index",
+        "commondir",
+        "config.worktree",
+        "COMMIT_EDITMSG",
+        "AUTO_MERGE",
+        "logs",
+        "refs",
+    }
+)
+
+
+def _remove_worktree_admin_stub(
+    root: Path,
+    expected_admin: Path,
+    *,
+    remover: Callable[[Path], None] | None = None,
+    attempts: int = 3,
+    delay_seconds: float = 0.5,
+) -> tuple[bool, str]:
+    """Remove the exact ``.git/worktrees/<name>`` stub a partial removal left.
+
+    Acts only on the administration path proven before removal, and only once
+    it has lost its ``gitdir`` file (git no longer registers it) and holds
+    nothing beyond git's own leftovers. The observed deletion failures were
+    transient locks, so it retries briefly; a stub that survives is reported,
+    never raised.
+    """
+    stub = expected_admin
+    if not stub.exists():
+        return True, ""
+    code, common_text = _git_text(root, ("rev-parse", "--git-common-dir"))
+    if code != 0 or not common_text:
+        return False, f"Git administration stub {stub} kept: registry could not be resolved"
+    common = Path(common_text)
+    if not common.is_absolute():
+        common = root / common
+    try:
+        registry = common.resolve() / "worktrees"
+        resolved = stub.resolve()
+        attributes = getattr(stub.lstat(), "st_file_attributes", 0)
+        entries = {child.name for child in stub.iterdir()}
+    except OSError:
+        return False, f"Git administration stub {stub} kept: it could not be inspected"
+    if _casefold_parts(resolved.parent) != _casefold_parts(registry):
+        return False, f"Git administration stub {stub} kept: it is outside the worktree registry"
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if stub.is_symlink() or (reparse_flag and attributes & reparse_flag):
+        return False, f"Git administration stub {stub} kept: it is a symlink or reparse point"
+    if "gitdir" in entries:
+        return False, f"Git administration stub {stub} kept: it still registers a worktree"
+    unexpected = sorted(entries - _WORKTREE_ADMIN_STUB_ENTRIES)
+    if unexpected:
+        return False, f"Git administration stub {stub} kept: unexpected entries {', '.join(unexpected)}"
+
+    last_error: OSError | None = None
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(delay_seconds)
+        try:
+            (remover or _remove_verified_tree)(stub)
+        except OSError as exc:
+            last_error = exc
+        if not stub.exists():
+            return True, "removed Git administration stub"
+    reason = str(last_error) if last_error else "it was not deleted"
+    return False, f"Git administration stub {stub} remains after {attempts} attempt(s): {reason}"
+
+
 def _remove_deregistered_worktree_residue(
     root: Path,
     path: Path,
@@ -8954,23 +9048,8 @@ def _remove_deregistered_worktree_residue(
     if merged_code != 0:
         return False, "source branch is no longer confirmed merged into HEAD"
 
-    def _remove(target: Path) -> None:
-        removal_target = target
-        if os.name == "nt":
-            raw = str(target)
-            if raw.startswith("\\\\"):
-                removal_target = Path("\\\\?\\UNC\\" + raw[2:])
-            elif not raw.startswith("\\\\?\\"):
-                removal_target = Path("\\\\?\\" + raw)
-
-        def _clear_readonly(function: Callable[[str], None], name: str, _exc_info: object) -> None:
-            os.chmod(name, stat.S_IWRITE)
-            function(name)
-
-        shutil.rmtree(removal_target, onerror=_clear_readonly)
-
     try:
-        (remover or _remove)(path)
+        (remover or _remove_verified_tree)(path)
     except OSError as exc:
         return False, f"verified residue removal failed: {exc}"
     if path.exists():
@@ -9079,9 +9158,13 @@ def _cleanup_merged_source_worktree(
         residue_removed, residue_detail = _remove_deregistered_worktree_residue(
             root, path, branch, admin, directory_identity
         )
-        if residue_removed:
-            return str(path), "removed", residue_detail, attempts + 1
-        return str(path), "cleanup-pending", f"{detail}; {residue_detail}", attempts + 1
+        # The admin stub is independent of the checkout directory: Git often
+        # deletes the checkout and leaves `.git/worktrees/<name>` behind.
+        stub_removed, stub_detail = _remove_worktree_admin_stub(root, admin)
+        details = "; ".join(item for item in (residue_detail, stub_detail) if item)
+        if residue_removed and stub_removed:
+            return str(path), "removed", details, attempts + 1
+        return str(path), "cleanup-pending", f"{detail}; {details}", attempts + 1
     return str(path), "retained", detail, attempts
 
 

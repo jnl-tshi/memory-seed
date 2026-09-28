@@ -1,3 +1,4 @@
+import contextlib
 import os
 import shutil
 import tempfile
@@ -1203,6 +1204,88 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertIn("verified directory residue", result.worktree_cleanup_detail or "")
         self.assertEqual(result.worktree_cleanup_attempts, 2)
         self.assertFalse(source.exists())
+
+    def _merge_with_admin_stub_left(self, extra_stub_entry=None, rmtree_error=None):
+        """Simulate Windows git: checkout and registration files gone, admin stub left."""
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+        marker = (source / ".git").read_text(encoding="utf-8").strip()
+        admin = Path(marker.split(":", 1)[1].strip())
+        if not admin.is_absolute():
+            admin = source / admin
+        admin = admin.resolve()
+        real_rmtree = shutil.rmtree
+
+        def deregister_leaving_stub(root, path, *, max_attempts):
+            real_rmtree(source)
+            for name in ("gitdir", "HEAD", "index", "commondir"):
+                (admin / name).unlink(missing_ok=True)
+            (admin / "ORIG_HEAD").write_text("0" * 40 + "\n", encoding="utf-8")
+            if extra_stub_entry:
+                (admin / extra_stub_entry).write_text("x", encoding="utf-8")
+            return False, 1, "error: failed to delete '.git/worktrees/x': Permission denied"
+
+        patches = [mock.patch("memory_seed.worktree_gc._remove_one_worktree", side_effect=deregister_leaving_stub)]
+        if rmtree_error is not None:
+            patches.append(mock.patch("memory_seed.core.shutil.rmtree", side_effect=rmtree_error))
+            patches.append(mock.patch("memory_seed.core.time.sleep"))
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
+            result = session_merge_branch(cwd=cwd, branch="feature-merge")
+        return result, admin
+
+    @pytest.mark.integration
+    def test_session_merge_branch_removes_git_admin_stub_after_partial_removal(self):
+        result, admin = self._merge_with_admin_stub_left()
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "removed")
+        self.assertIn("removed Git administration stub", result.worktree_cleanup_detail or "")
+        self.assertFalse(admin.exists())
+
+    @pytest.mark.integration
+    def test_session_merge_branch_keeps_admin_stub_with_unexpected_entries(self):
+        result, admin = self._merge_with_admin_stub_left(extra_stub_entry="codex-thread.json")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "cleanup-pending")
+        self.assertIn("unexpected entries codex-thread.json", result.worktree_cleanup_detail or "")
+        self.assertTrue(admin.exists())
+
+    @pytest.mark.integration
+    def test_session_merge_branch_reports_admin_stub_that_stays_locked(self):
+        result, admin = self._merge_with_admin_stub_left(rmtree_error=PermissionError("held open"))
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "cleanup-pending")
+        self.assertIn("remains after 3 attempt(s): held open", result.worktree_cleanup_detail or "")
+        self.assertTrue(admin.exists())
+
+    @pytest.mark.integration
+    def test_admin_stub_removal_refuses_a_still_registered_worktree(self):
+        from memory_seed.core import _remove_worktree_admin_stub
+
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-registered"
+        self._git(cwd, "worktree", "add", "-b", "registered", str(source))
+        admin = next((cwd / ".git" / "worktrees").iterdir())
+
+        removed, detail = _remove_worktree_admin_stub(cwd, admin)
+
+        self.assertFalse(removed)
+        self.assertIn("still registers a worktree", detail)
+        self.assertTrue((admin / "gitdir").exists())
+        self._git(cwd, "worktree", "remove", "--force", str(source))
 
     @pytest.mark.integration
     def test_session_merge_branch_reports_cleanup_pending_when_exact_residue_stays_locked(self):

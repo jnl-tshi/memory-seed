@@ -376,6 +376,29 @@ class EsrReportTests(unittest.TestCase):
         self.assertIn("ORPHAN RESIDUE CANDIDATE", text)
         self.assertNotIn(f"{registered}  [.codex/worktrees]  ORPHAN", text)
 
+    @pytest.mark.integration
+    def test_git_worktree_posture_counts_orphaned_admin_stubs(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        def git(*args, cwd=None):
+            subprocess.run(["git", "-C", str(cwd or self.cwd), *args], check=True, capture_output=True)
+
+        git("init", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        git("worktree", "add", "-b", "feature-live", str(self.cwd / ".codex" / "worktrees" / "live"))
+        stub = self.cwd / ".git" / "worktrees" / "left-behind"
+        (stub / "logs").mkdir(parents=True)
+        (stub / "ORIG_HEAD").write_text("0" * 40 + "\n", encoding="utf-8")
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual([Path(item).name for item in report.worktree_admin_stubs], ["left-behind"])
+        self.assertEqual(len(report.to_dict()["worktrees"]["admin_stubs"]), 1)
+        self.assertIn("Orphaned Git admin stubs", format_esr_report(report))
+
 
 class AdrHeadReviewQueueTests(unittest.TestCase):
     """ESR flags an ADR whose authoritative head has a `refines` successor.
@@ -733,6 +756,7 @@ class ToDictCompletenessTests(unittest.TestCase):
         "proposed_topics": ("proposed_topics",),
         "worktrees": ("worktrees", "entries"),
         "worktree_residues": ("worktrees", "residues"),
+        "worktree_admin_stubs": ("worktrees", "admin_stubs"),
         "worktrees_available": ("worktrees", "available"),
         "seed_twins_checked": ("seed_twins", "checked"),
         "seed_twin_drift": ("seed_twins", "drift"),
@@ -809,6 +833,7 @@ class ToDictCompletenessTests(unittest.TestCase):
             worktree_residues=[WorktreeResidue(
                 path="/wt/orphan", namespace="ns", git_file_present=False,
             )],
+            worktree_admin_stubs=["/repo/.git/worktrees/stub"],
             worktrees_available=True,
             seed_twins_checked=True,
             seed_twin_drift=["skill-x drifted"],
