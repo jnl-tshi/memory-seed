@@ -61,6 +61,20 @@ reference = source research/audits/scans (mined-out sources in `archived/`).
 8. **Never `git rm` a rejected or replaced document — move it to its lane.** Deletion loses the why-not
    and the reasoning trail (mirrors the memory system's replace-don't-delete rule).
 
+## Triage procedure
+
+A triage settles every disposition before anything moves:
+
+1. **Assess read-only.** For each item, gather the evidence for its outcome from shipped code, tests,
+   session history, and the roadmap. Do not move, edit, or branch while assessing.
+2. **Present one disposition table:** item -> destination lane -> evidence -> confidence. Flag low
+   confidence and partially complete work (rule 4) instead of guessing.
+3. **Wait for the owner's approval** unless the request already authorized the moves. An approval covers
+   exactly the rows shown.
+4. **Apply exactly the approved set** with `git mv`, then work through the update surfaces below.
+5. **Do not reverse an approved move on your own.** If new evidence contradicts one, stop and bring it
+   back as a revised row. Create no branches, audit documents, or side artifacts beyond the approved set.
+
 ## Roadmap promotion and tranche discovery
 
 When an accepted proposal becomes a distinct tranche in a project's next-steps roadmap, keep that
