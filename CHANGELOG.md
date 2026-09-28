@@ -4,6 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Fixed
+
+- [2026-09-28] **Merge cleanup no longer leaves `.git/worktrees/<name>` stubs behind.**
+  - On Windows, `git worktree remove` can deregister a worktree and delete its checkout, but fail to delete `ORIG_HEAD`, `logs/` and `refs/` in its admin directory. Git ignores what's left. 142 such stubs had built up in this repository.
+  - `session merge-branch` now removes that exact stub after proving it:
+    - its path is the one captured before removal;
+    - it no longer has a `gitdir` file;
+    - it holds only git's own leftovers.
+  - It retries briefly, because the observed failures were transient locks. A stub that still survives is reported as `cleanup-pending`, and the merge is never rolled back.
+  - `memory-seed esr` now counts orphaned admin stubs and prints the command to clear them. That covers removals made outside memory-seed.
+
 ## 2.23.0 - 2026-09-28
 
 ### Changed

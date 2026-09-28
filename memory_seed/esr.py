@@ -93,6 +93,10 @@ class EsrReport:
     proposed_topics: list[str] = field(default_factory=list)
     worktrees: list[WorktreePosture] = field(default_factory=list)
     worktree_residues: list[WorktreeResidue] = field(default_factory=list)
+    # `.git/worktrees/<name>` directories with no `gitdir` file: git no longer
+    # registers them, but a partial Windows removal left them behind. 142 had
+    # piled up unnoticed by 2026-09-28.
+    worktree_admin_stubs: list[str] = field(default_factory=list)
     worktrees_available: bool = False
     seed_twins_checked: bool = False
     seed_twin_drift: list[str] = field(default_factory=list)
@@ -192,6 +196,7 @@ class EsrReport:
                     }
                     for residue in self.worktree_residues
                 ],
+                "admin_stubs": self.worktree_admin_stubs,
             },
             "seed_twins": {"checked": self.seed_twins_checked, "drift": self.seed_twin_drift},
             "docs": {
@@ -984,6 +989,31 @@ def _worktree_residues(root: Path, postures: list[WorktreePosture]) -> list[Work
     return residues
 
 
+def _worktree_admin_stubs(root: Path) -> list[str]:
+    """Find `.git/worktrees/<name>` directories git no longer registers.
+
+    Read-only. Git treats an admin directory without a `gitdir` file as
+    unregistered and ignores it, so these are safe to delete, but ESR only
+    reports them; clearing them is a deliberate step.
+    """
+    lines = _git_lines(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if not lines:
+        return []
+    registry = Path(lines[0].strip()) / "worktrees"
+    try:
+        children = sorted(registry.iterdir(), key=lambda item: item.name.casefold())
+    except OSError:
+        return []
+    stubs: list[str] = []
+    for child in children:
+        try:
+            if child.is_dir() and not (child / "gitdir").exists():
+                stubs.append(str(child))
+        except OSError:
+            continue
+    return stubs
+
+
 def _seed_twin_drift(root: Path) -> tuple[bool, list[str]]:
     """Live-vs-seed skill drift, control-plane dev repo only.
 
@@ -1142,6 +1172,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.worktrees_available, report.worktrees = _worktree_posture(root)
     if report.worktrees_available:
         report.worktree_residues = _worktree_residues(root, report.worktrees)
+        report.worktree_admin_stubs = _worktree_admin_stubs(root)
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
     try:
         report.task_packet_coverage = _task_packet_coverage(root, runtime.memory_dir, day)
@@ -1425,7 +1456,7 @@ def format_esr_report(report: EsrReport) -> str:
     lines.append("## Worktrees")
     if not report.worktrees_available:
         lines.append("Not a git repository (or git unavailable) — nothing to sweep.")
-    elif len(report.worktrees) <= 1 and not report.worktree_residues:
+    elif len(report.worktrees) <= 1 and not report.worktree_residues and not report.worktree_admin_stubs:
         lines.append("Only the primary checkout — nothing to sweep.")
     else:
         for wt in report.worktrees:
@@ -1447,6 +1478,14 @@ def format_esr_report(report: EsrReport) -> str:
                     f"- {residue.path}  [{residue.namespace}]  "
                     f"ORPHAN RESIDUE CANDIDATE ({metadata})"
                 )
+        if report.worktree_admin_stubs:
+            lines.append(
+                f"Orphaned Git admin stubs (no `gitdir`; git ignores them): "
+                f"{len(report.worktree_admin_stubs)} under .git/worktrees. "
+                "Clear with PowerShell in the primary checkout: "
+                "`Get-ChildItem .git\\worktrees -Directory | Where-Object "
+                "{ -not (Test-Path \"$($_.FullName)\\gitdir\") } | Remove-Item -Recurse -Force`"
+            )
     lines.append("")
 
     lines.append("## Docs lifecycle")
