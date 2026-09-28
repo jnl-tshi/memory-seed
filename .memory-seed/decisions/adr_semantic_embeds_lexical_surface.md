@@ -16,7 +16,7 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Accepted**
+Status: **Superseded**
 
 Authoritative decision: `mse_hqasfw7847m20vz4:d1`
 
@@ -83,3 +83,28 @@ JNL approved the sweep's Decision, Reason and Evidence proposal on 2026-09-26.
 #### Impact
 
 mse_hqasfw7847m20vz4:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### adr-superseded - 2026-09-28T07:20:37Z
+
+```json
+{
+  "event_id": "adre_c1628fcab9c91ae9ad4d",
+  "expected_authoritative_decision": "mse_hqasfw7847m20vz4:d1",
+  "impact_provenance": "preserved",
+  "replacement_adr": "adr_semantic_embeds_body_text",
+  "source": "derived",
+  "update_entry_id": "mse_09h6y7z24fkfvp4t"
+}
+```
+
+#### Decision
+
+Supersede this ADR with adr_semantic_embeds_body_text.
+
+#### Reason
+
+The composed-surface change was reverted on 2026-08-05 (mse_wz1aec7859rk0h67:d1): 130/180 against 132/180 body-only, no title change, and the 58/60 claim was confounded by recency settings. JNL chose on 2026-09-28 to supersede this ADR rather than revise it, since its title names the reverted design.
+
+#### Impact
+
+Authority for this concern moves to adr_semantic_embeds_body_text while this ledger remains historical evidence.
