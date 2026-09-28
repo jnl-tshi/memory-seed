@@ -317,6 +317,7 @@ class McpReadParityTests(unittest.TestCase):
         self.assertTrue(
             {
                 "memory_session_append",
+                "memory_session_checkpoint",
                 "memory_session_integrate",
                 "memory_adr_reviewed",
                 "memory_link_retract",

@@ -754,6 +754,32 @@ def main(argv: list[str] | None = None) -> int:
     session_target_parser.add_argument("--date", default=None, help="target date (YYYY-MM-DD); default: today")
     session_target_parser.add_argument("--user", default=None, help="override the active user slug")
     session_target_parser.add_argument("--create", action="store_true", help="create the target file if needed")
+    session_checkpoint_parser = session_sub.add_parser(
+        "checkpoint",
+        help="inspect evidence-backed session-record checkpoint debt",
+    )
+    session_checkpoint_parser.add_argument(
+        "--json", action="store_true", help="emit the canonical machine-readable result"
+    )
+    session_checkpoint_sub = session_checkpoint_parser.add_subparsers(
+        dest="checkpoint_command"
+    )
+    session_checkpoint_resolve = session_checkpoint_sub.add_parser(
+        "resolve",
+        help="clear a checkpoint only after deterministic mechanical proof",
+    )
+    session_checkpoint_resolve.add_argument(
+        "--checkpoint-id", required=True, help="exact id returned by checkpoint inspection"
+    )
+    session_checkpoint_resolve.add_argument(
+        "--proof",
+        required=True,
+        choices=("whitespace-only",),
+        help="closed proof kind (v1 supports whitespace-only)",
+    )
+    session_checkpoint_resolve.add_argument(
+        "--json", action="store_true", help="emit the canonical machine-readable result"
+    )
     session_fuse_parser = session_sub.add_parser(
         "fuse",
         help="dry-run or apply branch-local session entries into the current integration tree",
@@ -2027,6 +2053,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "session":
+        if args.session_command == "checkpoint":
+            from .session_checkpoint import inspect_checkpoint, resolve_checkpoint
+
+            if args.checkpoint_command == "resolve":
+                result = resolve_checkpoint(
+                    Path(".").resolve(),
+                    checkpoint_id=args.checkpoint_id,
+                    proof=args.proof,
+                )
+            else:
+                result = inspect_checkpoint(Path(".").resolve())
+            if args.json:
+                print(json.dumps(result, indent=2, sort_keys=True))
+            else:
+                if result["pending"]:
+                    print(f"Pending checkpoint: {result['checkpoint_id']}")
+                    print("Evidence: " + ", ".join(result["evidence_kinds"]))
+                    print("Required action: append a session entry, or use a supported mechanical proof.")
+                elif result["clean_advisory"]:
+                    print("Clean read-only self-check is due; this is advisory only and creates no debt.")
+                elif result["ok"]:
+                    print("No session-record checkpoint debt is pending.")
+                for issue in result["issues"]:
+                    print(f"Issue: {issue}", file=sys.stderr)
+            return 0 if result["ok"] else 1
         if args.session_command == "target":
             try:
                 target = session_target(

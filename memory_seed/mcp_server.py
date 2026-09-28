@@ -62,6 +62,7 @@ _MCP_TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 MUTATING_TOOL_NAMES = frozenset(
     {
         "memory_session_append",
+        "memory_session_checkpoint",
         "memory_session_integrate",
         "memory_adr_reviewed",
         "memory_link_retract",
@@ -717,6 +718,25 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_session_checkpoint",
+        "description": (
+            "Inspect evidence-backed session-record checkpoint debt, or resolve one pending checkpoint with the "
+            "deterministic whitespace-only proof. Inspect returns the canonical state without consuming the one-time "
+            "clean advisory. Resolve requires the exact current checkpoint id and refuses stale ids, dirty baselines, "
+            "untracked/added/deleted/renamed/binary/semantic changes, and changed HEADs."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "mode": {"type": "string", "enum": ["inspect", "resolve"], "default": "inspect"},
+                "checkpoint_id": {"type": "string", "minLength": 1},
+                "proof": {"type": "string", "enum": ["whitespace-only"]},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_session_append",
         "description": (
             "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
@@ -928,6 +948,36 @@ def call_tool(
     today: date | None = None,
 ) -> dict[str, Any]:
     args = arguments or {}
+    if name == "memory_session_checkpoint":
+        from .session_checkpoint import inspect_checkpoint, resolve_checkpoint
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        mode = args.get("mode", "inspect")
+        if mode == "inspect":
+            unsupported = sorted(set(args) - {"cwd", "mode"})
+            if unsupported:
+                return {
+                    "ok": False,
+                    "pending": False,
+                    "issues": ["inspect mode does not accept: " + ", ".join(unsupported)],
+                }
+            return inspect_checkpoint(cwd)
+        if mode != "resolve":
+            return {"ok": False, "pending": False, "issues": ["mode must be inspect or resolve"]}
+        checkpoint_id = args.get("checkpoint_id")
+        proof = args.get("proof")
+        if not isinstance(checkpoint_id, str) or not checkpoint_id.strip():
+            return {"ok": False, "pending": False, "issues": ["resolve mode requires checkpoint_id"]}
+        if proof != "whitespace-only":
+            return {"ok": False, "pending": False, "issues": ["resolve mode requires proof=whitespace-only"]}
+        unsupported = sorted(set(args) - {"cwd", "mode", "checkpoint_id", "proof"})
+        if unsupported:
+            return {
+                "ok": False,
+                "pending": False,
+                "issues": ["resolve mode does not accept: " + ", ".join(unsupported)],
+            }
+        return resolve_checkpoint(cwd, checkpoint_id=checkpoint_id, proof=proof)
     if name in {
         "memory_retrieval_spec_preview",
         "memory_retrieval_spec_resolve",

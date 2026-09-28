@@ -33,6 +33,7 @@ MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
 LOCAL_CONFIG_IGNORE_ENTRY = ".memory-seed/local.yaml"
+SESSION_CHECKPOINT_IGNORE_ENTRY = ".memory-seed/.session-log-check-state"
 SUPERPOWERS_SDD_IGNORE_ENTRY = ".superpowers/sdd/"
 DEFAULT_WORKTREE_NAMESPACES = {
     "codex": ".codex/worktrees",
@@ -13043,7 +13044,8 @@ def _ensure_telemetry_gitignore(target_root: Path) -> bool:
 
     gitignore = target_root / ".gitignore"
     existing = read_text_file(gitignore).splitlines() if gitignore.exists() else []
-    missing = [entry for entry in GITIGNORE_ENTRIES if entry not in existing]
+    operational_entries = (*GITIGNORE_ENTRIES, SESSION_CHECKPOINT_IGNORE_ENTRY)
+    missing = [entry for entry in operational_entries if entry not in existing]
     for entry in missing:
         _ensure_gitignore_entry(target_root, entry)
     return bool(missing)
