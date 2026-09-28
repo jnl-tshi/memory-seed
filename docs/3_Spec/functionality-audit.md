@@ -529,10 +529,10 @@ graph TD
 |---|---|---|
 | `session-start-context.py` | session start | Directs the agent through the nearest `AGENTS.md` and `orientation.md`, then consumes the shared, deterministic `situate` report. It injects measured checkout/git/integration facts and the latest applicable session file's path and size, but no session bodies and no model output. Files at or below 12,000 characters are read whole by the primary agent; larger files route to a read-only economy worker for an at-most-800-token, source-linked whole-file briefing, with direct-read and entry-boundary chunking fallbacks. User-aware since 2.10: selects the **active user's** applicable file and reports same-day co-contributor file counts. Its user resolution mirrors `session_target()`'s participant-count gate so it reads whichever file that function writes to. **One-time identity-setup offer (new in 2.14):** if no local identity is configured at all, offers once to run `memory-seed user set <slug>`, tracked by a gitignored `.memory-seed/.identity-offer-stamp` so it never repeats. |
 | `memory-retrieval-check.py` | before a prompt/turn | Reminds the agent to use the SessionStart/`situate` route for current state and `memory_search` only for **topical** recall; throttled ~once per session. |
-| `session-log-check.py` | turn end | Reminds the agent to append a session entry; warns on out-of-order entries. User-aware since 2.10: checks only the **active user's** file. **Escalation (unreleased):** a gitignored `.memory-seed/.session-log-check-state` (fail-open on corruption) tracks consecutive stale checks with no new entry appearing in between; a miss that survives one reminder escalates to explicit "repeated" wording naming the count and citing the discipline-failure framing from `agent-rules.md`, instead of repeating identically forever. |
+| `session-log-check.py` | turn end | Delivers immediate, repeatable session-record checkpoint debt when tracked/untracked worktree state or `HEAD` changes relative to the latest valid entry baseline; a new valid entry clears and re-baselines it. After 15 clean read-only minutes it delivers exactly one non-escalating self-check for that latest entry, with no debt or miss counter. The versioned gitignored JSON state is atomic, backward-compatible, and fail-open; one canonical evaluator serves the hook, CLI `session checkpoint`, and MCP `memory_session_checkpoint`. Mechanical clearance v1 proves only tracked whitespace-only changes from a clean baseline and refuses every broader case. User-aware: checks only the **active user's** file. Also warns on out-of-order entries. |
 | `prepare-commit-msg.py` | git commit message preparation | Stamps `Memory-Entry: <entry_id>` trailers for staged session entries. The installed git hook shim lives in the git common dir so it covers all worktrees; `hooks status` audits it, `hooks repair` refreshes missing/stale Memory Seed-managed shims, and foreign hooks are never overwritten. On Windows the shim uses the active Python executable directly to avoid Git-for-Windows shell startup failures. |
 
-Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`Stop`; Gemini: `SessionStart`/`BeforeAgent`/`AfterAgent`; Cursor: `sessionStart`/`afterAgentResponse`; Copilot CLI: `sessionStart` prompt hook only). Hooks **nudge, never block**. The user-aware paths fall back to legacy flat-file behavior when no user is configured.
+Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`Stop`; Gemini: `SessionStart`/`BeforeAgent`/`AfterAgent`; Cursor: `sessionStart`/`afterAgentResponse`; Copilot CLI/cloud: `sessionStart`/`agentStop`/`postToolUse`). Session checkpoint debt blocks on blocking turn-end hosts and repeats on later real turns; Claude/VS Code also use one blocking delivery to make the otherwise non-escalating clean self-check model-visible, then the continuation-loop guard suppresses replay. Other lifecycle hooks remain advisory. The user-aware paths fall back to legacy flat-file behavior when no user is configured.
 
 ```mermaid
 graph TD
@@ -551,7 +551,7 @@ graph TD
   subgraph OutputTier["Nudges"]
     direction LR
     LATEST["Latest memory<br>injected"] ~~~ TOPICAL["Topical recall<br>reminder"]
-    LOGNUDGE["Session log<br>reminder"]
+    LOGNUDGE["Session record<br>checkpoint"]
   end
 
   EventTier ~~~ HookTier
