@@ -190,16 +190,129 @@ class DeterministicDecisionParserTests(unittest.TestCase):
         self.assertTrue(candidates)
         self.assertTrue(all(candidate["state"] != "accepted" for candidate in candidates))
 
-    def test_region_is_bounded_to_two_prior_one_following_and_limits(self):
+    def test_region_uses_twenty_turn_safety_envelope_and_ranks_short_spans(self):
         messages = [
-            {"turn": index, "source_ordinal": index, "actor": "user" if index % 2 else "agent", "text": "x" * 1000}
-            for index in range(1, 12)
+            {
+                "turn": index,
+                "source_ordinal": index,
+                "actor": "user" if index % 2 else "agent",
+                "text": "ordinary context" if index != 7 else "I propose option A because it is deterministic.",
+            }
+            for index in range(1, 25)
         ]
-        region = self.parser.region("rollout-1", messages, marker_turn=7)
+        messages.append({"turn": 24, "source_ordinal": 25, "actor": "user", "text": "Yes, choose option A."})
+        marker = {"turn": 24, "issue_hint": "choose deterministic option A", "trigger_quote": "choose option A"}
+        region = self.parser.region("rollout-1", messages, marker_turn=24, marker=marker)
         turns = {message["turn"] for message in region["messages"]}
-        self.assertTrue(turns.issubset({5, 6, 7, 8}))
-        self.assertLessEqual(len(region["messages"]), 20)
-        self.assertLessEqual(len(json.dumps(region["messages"])), 9000)
+        self.assertEqual(min(turns), 4)
+        self.assertEqual(max(turns), 24)
+        self.assertIn(7, turns)
+        self.assertIn("ranked_spans", region)
+        ranked_turns = {turn for span in region["ranked_spans"][:3] for turn in span["turns"]}
+        self.assertIn(7, ranked_turns)
+        self.assertIn(24, ranked_turns)
+
+    def test_marker_parser_expands_from_ranked_spans_to_full_envelope(self):
+        messages = [
+            {"turn": 2, "source_ordinal": 2, "actor": "agent", "text": "I propose option A because it preserves lineage."},
+            *[
+                {"turn": index, "source_ordinal": index, "actor": "agent", "text": "implementation detail"}
+                for index in range(3, 20)
+            ],
+            {"turn": 20, "source_ordinal": 20, "actor": "user", "text": "Yes, choose option A."},
+        ]
+        marker = {
+            "turn": 20,
+            "source_ordinal": 20,
+            "strength": "hard",
+            "state": "accepted",
+            "origin": "user",
+            "trigger_class": "explicit_commitment",
+            "issue_hint": "lineage option",
+            "trigger_quote": "choose option A",
+        }
+        candidates = self.parser.parse("rollout-1", messages, marker=marker)
+        self.assertTrue(candidates)
+        self.assertEqual(candidates[0]["state"], "accepted")
+        self.assertIn(2, candidates[0]["source"]["envelope_turns"])
+        self.assertEqual(candidates[0]["source"]["retrieval_strategy"], "delta_only_components")
+
+    def test_marker_parser_can_join_parent_lineage_proposal_to_child_acceptance(self):
+        child = [
+            {
+                "rollout_id": "child-rollout",
+                "turn": 4,
+                "source_ordinal": 40,
+                "actor": "user",
+                "timestamp": "2026-09-29T10:04:00Z",
+                "text": "Yes, that's the right approach.",
+            }
+        ]
+        parent = [
+            {
+                "rollout_id": "parent-rollout",
+                "turn": 18,
+                "source_ordinal": 180,
+                "actor": "agent",
+                "timestamp": "2026-09-29T10:00:00Z",
+                "text": "I propose we use lineage-aware retrieval for decision capture because the decision began in the parent task.",
+            }
+        ]
+        marker = {
+            "turn": 4,
+            "strength": "hard",
+            "state": "accepted",
+            "origin": "user",
+            "trigger_class": "contextual_acceptance",
+            "issue_hint": "lineage retrieval",
+            "trigger_quote": "that's the right approach",
+        }
+        candidates = self.parser.parse("child-rollout", child, marker=marker, lineage_messages=parent)
+        self.assertTrue(candidates)
+        coordinates = candidates[0]["source"]["source_coordinates"]
+        self.assertEqual({coordinate["rollout_id"] for coordinate in coordinates}, {"parent-rollout", "child-rollout"})
+
+    def test_stepped_forward_capture_stops_at_marker_when_decision_is_complete(self):
+        marker = {
+            "turn": 2,
+            "strength": "hard",
+            "state": "accepted",
+            "origin": "user",
+            "trigger_class": "explicit_commitment",
+            "issue_hint": "capture strategy",
+            "trigger_quote": "Use structured markers",
+        }
+        messages = [
+            {"turn": 2, "source_ordinal": 20, "actor": "user", "text": "Issue: locating decisions. Use structured markers for decision capture."},
+            {"turn": 3, "source_ordinal": 30, "actor": "agent", "text": "I will now recap the decision."},
+        ]
+        candidates = self.parser.parse_stepped("rollout-1", messages, marker=marker)
+        self.assertTrue(candidates)
+        self.assertEqual(candidates[0]["source"]["retrieval_trace"]["selected_stage"], "marker")
+        self.assertEqual(candidates[0]["source"]["retrieval_trace"]["forward_turns"], 0)
+
+    def test_earlier_acceptance_does_not_approve_a_future_proposal(self):
+        marker = {
+            "turn": 2,
+            "strength": "hard",
+            "state": "accepted",
+            "origin": "user",
+            "trigger_class": "contextual_acceptance",
+            "issue_hint": "capture strategy",
+            "trigger_quote": "that's the right approach",
+        }
+        messages = [
+            {"turn": 2, "source_ordinal": 20, "actor": "user", "text": "Yes, that's the right approach."},
+            {
+                "turn": 3,
+                "source_ordinal": 30,
+                "actor": "agent",
+                "text": "I propose we use structured markers and curator verification because that preserves provenance.",
+            },
+            {"turn": 6, "source_ordinal": 60, "actor": "agent", "text": "Unrelated later material."},
+        ]
+        candidates = self.parser.parse_stepped("rollout-1", messages, marker=marker)
+        self.assertFalse(any(c["state"] == "accepted" for c in candidates))
 
 
 if __name__ == "__main__":

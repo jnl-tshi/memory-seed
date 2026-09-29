@@ -11,7 +11,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the offline P0.2 decision-capture evaluation.")
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--codex-home", type=Path, required=True)
-    parser.add_argument("--output", type=Path, default=Path("hosted/evaluation/results"))
+    parser.add_argument("--output", type=Path, default=Path("hosted/evaluation/revision-diagnostics"))
     args = parser.parse_args()
     report = run_evaluation(args.repo.resolve(), args.codex_home.resolve(), args.output.resolve())
     print(json.dumps({"feasible": report["feasible"], "gates": report["gates"]}, indent=2, sort_keys=True))
