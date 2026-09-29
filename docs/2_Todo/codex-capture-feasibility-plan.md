@@ -2,22 +2,42 @@
 title: "Codex capture feasibility tranche"
 date: "2026-09-21"
 priority: P0
-status: offline-evaluation-complete
-next_action: "At the live approval gate, obtain a disposable GitHub OAuth application identifier and permission to begin device-flow sign-in."
-blocked_by: "The authenticated identity and human-approval trial requires live user consent; marker-assisted source-window recall also missed its 95% feasibility gate."
+status: prospective-extraction-in-progress
+next_action: "Validate retained-state extraction, causal replay, lifecycle handling, and field-level semantic equivalence before the sign-in checkpoint."
+blocked_by: "No OAuth action is authorized; semantic equivalence and genuine prospective recall remain unmeasured."
 source:
   - "docs/2_Todo/hosted-memory-mvp-programme.md"
 ---
 
 # Codex capture feasibility tranche
 
-Status: **OFFLINE P0.2 COMPLETE; AUTHENTICATED TRIAL NOT STARTED.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md), not a separate programme. The evidence-first local implementation and evaluation are in [`hosted/`](../../hosted/README.md). Work is stopped before GitHub sign-in or an approval mutation.
+Status: **PROSPECTIVE EXTRACTION REVISION IN PROGRESS; AUTHENTICATED TRIAL NOT STARTED.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md). The earlier local capture implementation is landed; the revised extraction experiment below is not complete. No sign-in or approval mutation may begin.
 
-## Offline finding (2026-09-29)
+## Accepted revision (2026-09-29)
+
+JNL approved the following contract, recorded in `mse_ad9xz2f1kpyygw9b`:
+
+1. Begin at the marker and retain extracted components. Expansion processes only previously unseen source messages; it does not run NLP over the accumulated prefix again.
+2. Close a draft only with a clear issue, chosen action, scope, and grounded acceptance. Preserve stated reasons and conditions. References such as “that approach” remain incomplete until resolved.
+3. Resolve missing context from earlier session/lineage evidence in bounded steps. Reveal later evidence only as it arrives; earlier acceptance cannot authorize a newly introduced proposal.
+4. Clarification can remain within the original decision only before implementation and intervening decisions. A changed choice after either boundary requires a new evolving/replacing decision; never silently rewrite the earlier decision.
+5. Compare extracted decisions with known records by meaning, allowing different wording. Evaluate issue, action, scope, acceptance/actor, conditions and reasons separately. Word overlap is not semantic equivalence. Keep gold content hidden from extraction.
+
+### Current implementation and remaining buckets
+
+- Evidence: corpus identity/splits remain frozen; prior retrieval results are diagnostic, not extraction accuracy.
+- Parser: experimental per-coordinate extraction cache and causal agreement assembly implemented; targeted regression tests cover delta-only processing and explicit lifecycle boundaries. This is call-local state, not yet a persistent live subscription.
+- Lifecycle: explicit boundary flags halt expansion. Deriving those flags from actual captured tool/marker events, safely interpreting pre-implementation clarifications, and generating curator-reviewed evolving/replacing drafts remain to be integrated.
+- Evaluation: preserve the historical report. The revised runner labels gold-anchor envelope coverage as an oracle diagnostic, exposes unmeasured recall/semantic gates as null, and requires a separate output directory.
+- Remaining: causal event-by-event corpus replay without post-record leakage; exact source-span scoring; blind field-level semantic adjudication; live retained-state integration and reliability; independent review and one final full suite before landing.
+
+The bounded parser currently abstains on language it cannot resolve. It must not be presented as full semantic extraction or production memory. Stop before requesting the OAuth identifier, device flow, human approval mutation, or token storage.
+
+## Historical offline finding (2026-09-29; corrected interpretation)
 
 - The frozen corpus contains 103 formal records: 100 typed Decisions and three Documentation controls. The permitted partitions are 80 development decisions, 15 clean descriptive held-out cases, and 13 audit-only controls, contaminated rows, or post-audit amendments.
-- Valid marker recovery, three-run deterministic output, unmarked historical detection (80.6%), accepted-state precision on synthetic controls (100%), replay deduplication, pause/no-backfill semantics, and p95 local capture latency (23.64 ms) passed their gates.
-- Marker-assisted source-window recall was **89.6%**, below the 95% gate. Seven verified cases span more turns than the approved current/two-prior/one-following region. This is recorded as a feasibility miss; the parser remains an inert curator aid.
+- The prior report recorded valid marker recovery, deterministic output, synthetic accepted-state precision, replay deduplication, pause/no-backfill semantics, and 23.64 ms p95 local capture latency. These are historical results, not validation of the revised parser.
+- **89.6% (60/67)** checked whether gold-cited turns fit a four-turn envelope around a gold-selected anchor. It did not reproduce session-to-window-to-span retrieval or prove extraction correctness. The reported **80.6%** checked candidate presence in gold-selected windows, not genuine unmarked discovery recall. Both original recall-gate claims require a new measurement design; the frozen report remains as historical evidence.
 - [`hosted/evaluation/REPORT.md`](../../hosted/evaluation/REPORT.md) records the results and limitations. [`hosted/evaluation/LIVE-TRIAL.md`](../../hosted/evaluation/LIVE-TRIAL.md) is prepared but has not requested an OAuth identifier, started device flow, presented/executed an approval mutation, or stored a token.
 
 ## Outcome and boundary

@@ -6,10 +6,14 @@ import re
 from typing import Any, Iterable
 
 
-PARSER_VERSION = "p0.2-rules-v1"
+PARSER_VERSION = "p0.2-rules-v3-incremental"
 SPACY_PIPELINE = "en_core_web_sm==3.8.0"
-MAX_MESSAGES = 20
-MAX_CHARACTERS = 8000
+SAFETY_LOOKBACK_TURNS = 20
+FORWARD_TURNS = 3
+SPAN_WIDTH_TURNS = 3
+MAX_RANKED_SPANS = 3
+MAX_MESSAGES = 200
+MAX_CHARACTERS = 50000
 _PROPOSAL_CUES = re.compile(
     r"\b(?:i propose|we should|let'?s|use|adopt|choose|implement|the approach is|recommend)\b",
     re.IGNORECASE,
@@ -43,6 +47,54 @@ def _selected_action(text: str) -> str:
     return cleaned[:500]
 
 
+def _lexical_tokens(text: str) -> set[str]:
+    return {
+        token.lower()
+        for token in re.findall(r"[A-Za-z0-9_\-]{3,}", text)
+        if token.lower() not in {"the", "and", "that", "this", "with", "from", "would", "should"}
+    }
+
+
+def _rank_spans(messages: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    """Rank compact spans inside the safety envelope without consulting gold evidence."""
+    by_turn: dict[int, list[dict[str, Any]]] = {}
+    for message in messages:
+        by_turn.setdefault(int(message["turn"]), []).append(message)
+    turns = sorted(by_turn)
+    query_tokens = _lexical_tokens(query)
+    spans: list[dict[str, Any]] = []
+    for start in range(len(turns)):
+        selected_turns = turns[start:start + SPAN_WIDTH_TURNS]
+        if not selected_turns:
+            continue
+        selected = [message for turn in selected_turns for message in by_turn[turn]]
+        text = "\n".join(str(message.get("text", "")) for message in selected)
+        document_tokens = _lexical_tokens(text)
+        lexical = len(query_tokens & document_tokens) / len(query_tokens) if query_tokens else 0.0
+        score = lexical
+        score += 0.08 * bool(_PROPOSAL_CUES.search(text))
+        score += 0.08 * bool(_AGREEMENT_CUES.search(text))
+        score += 0.04 * bool(re.search(r"\b(?:because|reason|therefore|so that|to avoid)\b", text, re.I))
+        score += 0.02 * any(message.get("collaboration_mode") == "plan" for message in selected)
+        spans.append({
+            "turns": selected_turns,
+            "source_ordinals": sorted({int(message.get("source_ordinal", -1)) for message in selected}),
+            "score": round(score, 6),
+        })
+    spans.sort(key=lambda span: (-span["score"], -max(span["turns"]), span["turns"]))
+    ranked: list[dict[str, Any]] = []
+    covered: set[int] = set()
+    for span in spans:
+        span_turns = set(span["turns"])
+        if span_turns & covered:
+            continue
+        ranked.append(span)
+        covered.update(span_turns)
+        if len(ranked) == MAX_RANKED_SPANS:
+            break
+    return ranked
+
+
 class DecisionParser:
     def __init__(self) -> None:
         self.backend = "rules"
@@ -51,6 +103,8 @@ class DecisionParser:
             from spacy.matcher import DependencyMatcher, Matcher  # type: ignore
 
             self._nlp = spacy.load("en_core_web_sm")
+            if spacy.__version__ != "3.8.16" or self._nlp.meta.get("version") != "3.8.0":
+                raise RuntimeError("P0.2 requires spacy==3.8.16 and en_core_web_sm==3.8.0")
             self._matcher = Matcher(self._nlp.vocab)
             self._dependency_matcher = DependencyMatcher(self._nlp.vocab)
             self._matcher.add(
@@ -89,13 +143,29 @@ class DecisionParser:
         messages: list[dict[str, Any]],
         *,
         marker_turn: int,
+        marker: dict[str, Any] | None = None,
+        lineage_messages: list[dict[str, Any]] | None = None,
+        lookback_turns: int = SAFETY_LOOKBACK_TURNS,
+        forward_turns: int = FORWARD_TURNS,
     ) -> dict[str, Any]:
         selected = [
-            message for message in messages
+            {"rollout_id": rollout_id, **message} for message in messages
             if isinstance(message.get("turn"), int)
-            and marker_turn - 2 <= message["turn"] <= marker_turn + 1
-            and message.get("actor") in {"user", "agent"}
-        ][:MAX_MESSAGES]
+            and marker_turn - lookback_turns <= message["turn"] <= marker_turn + forward_turns
+            and (message.get("actor") in {"user", "agent"} or message.get("task_boundary")
+                 or message.get("implementation_started") or message.get("decision_marker"))
+        ]
+        selected.extend(
+            message for message in (lineage_messages or [])
+            if isinstance(message.get("turn"), int) and message.get("actor") in {"user", "agent"}
+        )
+        selected.sort(key=lambda message: (
+            str(message.get("timestamp", "")),
+            str(message.get("rollout_id", rollout_id)),
+            int(message.get("turn", 0)),
+            int(message.get("source_ordinal", -1)),
+        ))
+        selected = selected[:MAX_MESSAGES]
         bounded: list[dict[str, Any]] = []
         used = 0
         for message in selected:
@@ -107,91 +177,145 @@ class DecisionParser:
             bounded.append({**message, "text": clipped})
             used += len(clipped)
         digest = hashlib.sha256(_canonical(bounded).encode("utf-8")).hexdigest()
-        return {"rollout_id": rollout_id, "messages": bounded, "region_sha256": digest}
+        query = " ".join(
+            value for value in (
+                str(marker.get("issue_hint", "")) if marker else "",
+                str(marker.get("trigger_quote", "")) if marker else "",
+            ) if value
+        )
+        return {
+            "rollout_id": rollout_id,
+            "messages": bounded,
+            "region_sha256": digest,
+            "retrieval_strategy": "bounded_envelope_with_diagnostic_span_ranking",
+            "ranked_spans": _rank_spans(bounded, query),
+            "envelope_turns": sorted({int(message["turn"]) for message in bounded}),
+        }
+
+    def extract_component(self, message: dict[str, Any]) -> dict[str, Any]:
+        from .incremental import extract_component
+        return extract_component(self, message)
 
     def parse(
-        self,
-        rollout_id: str,
-        messages: list[dict[str, Any]],
-        *,
+        self, rollout_id: str, messages: list[dict[str, Any]], *,
         marker: dict[str, Any] | None = None,
+        lineage_messages: list[dict[str, Any]] | None = None,
+        lookback_turns: int = SAFETY_LOOKBACK_TURNS,
+        forward_turns: int = FORWARD_TURNS,
     ) -> list[dict[str, Any]]:
+        from .incremental import ExtractionState
         if not messages:
             return []
-        marker_turn = int(marker["turn"]) if marker and isinstance(marker.get("turn"), int) else int(messages[-1].get("turn", 0))
-        region = self.region(rollout_id, messages, marker_turn=marker_turn)
-        visible = region["messages"]
-        marker_quote = str(marker.get("trigger_quote", "")) if marker else ""
-        proposals = [message for message in visible if _PROPOSAL_CUES.search(str(message.get("text", "")))]
-        if marker and marker.get("issue_hint") and not proposals:
-            proposals = [message for message in visible if message.get("actor") in {"user", "agent"}][-1:]
+        turn = int(marker["turn"]) if marker else int(messages[-1].get("turn", 0))
+        region = self.region(rollout_id, messages, marker_turn=turn, marker=marker,
+                             lineage_messages=lineage_messages,
+                             lookback_turns=lookback_turns, forward_turns=forward_turns)
+        state = ExtractionState(self, rollout_id)
+        state.feed(region["messages"])
+        return state.assemble(marker)
+
+    @staticmethod
+    def _candidate_is_complete(candidate: dict[str, Any], marker: dict[str, Any]) -> bool:
+        return bool(candidate.get("complete") and candidate.get("state") == "accepted")
+
+    def parse_stepped(
+        self, rollout_id: str, messages: list[dict[str, Any]], *,
+        marker: dict[str, Any],
+        lineage_messages: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Replay available evidence; NLP sees each coordinate at most once.
+
+        The caller supplies only observed events. Earlier context can resolve an
+        anchor; future turns are revealed one turn at a time, never eagerly.
+        State is scoped to this call; durable incremental subscriptions are not
+        yet implemented.
+        """
+        from .incremental import ExtractionState, coordinate, utc_time
+        state = ExtractionState(self, rollout_id)
+        visible = [{"rollout_id": rollout_id, **m} for m in messages
+                   if m.get("actor") in {"user", "agent"} or m.get("task_boundary")
+                   or m.get("implementation_started") or m.get("decision_marker")]
+        visible.sort(key=lambda m: int(m['source_ordinal']))
+        anchors = [m for m in visible if m["rollout_id"] == rollout_id
+                   and m.get("turn") == marker["turn"]
+                   and ("source_ordinal" not in marker or m.get("source_ordinal") == marker["source_ordinal"])
+                   and marker.get("trigger_quote")
+                   and marker["trigger_quote"] in str(m.get("text", ""))]
+        if len(anchors) != 1:
+            return []
+        anchor = anchors[0]
+        anchor_index = visible.index(anchor)
+        marker_turn = int(marker["turn"])
+        history = visible[:anchor_index]
+        # Task/decision boundaries bound historical lookup as well as forward reads.
+        boundaries = [i for i, m in enumerate(history)
+                      if m.get("task_boundary") or m.get("decision_marker")]
+        if boundaries:
+            history = history[max(boundaries) + 1:]
+        future = visible[anchor_index + 1:]
+        stages = [("marker", [anchor])]
+        for back in (1, 3, 5, 12, 20):
+            stages.append((f"backward_{back}", [
+                m for m in history if marker_turn - back <= int(m["turn"]) <= marker_turn]))
+        # Cross-rollout chronology must be explicit; missing timestamps abstain.
+        parents = [m for m in (lineage_messages or [])
+                   if utc_time(m) and utc_time(anchor)
+                   and utc_time(m) <= utc_time(anchor)]
+        if parents and not boundaries:
+            stages.append(("lineage_safety_envelope", parents))
+        stop_reason = "available_evidence_exhausted"
+        for turn in sorted({int(m["turn"]) for m in future
+                            if int(m["turn"]) <= marker_turn + 20}):
+            delta = []
+            boundary = False
+            for message in [m for m in future if int(m["turn"]) == turn]:
+                if (message.get("task_boundary") or message.get("decision_marker")
+                        or message.get("implementation_started")):
+                    boundary = True
+                    stop_reason = "lifecycle_boundary_requires_new_decision"
+                    break
+                delta.append(message)
+            if delta:
+                stages.append((f"forward_{turn - marker_turn}", delta))
+            if boundary:
+                break
+        attempts: list[dict[str, Any]] = []
         candidates: list[dict[str, Any]] = []
-        for proposal in proposals:
-            proposal_text = str(proposal.get("text", ""))
-            if _HYPOTHETICAL_CUES.search(proposal_text):
-                continue
-            agreement = None
-            rejection = None
-            for message in visible:
-                if message.get("actor") != "user" or int(message.get("source_ordinal", -1)) <= int(proposal.get("source_ordinal", -1)):
+        used_chars = 0
+        for stage, offered in stages:
+            delta = []
+            for raw in offered:
+                message = {"rollout_id": rollout_id, **raw}
+                if coordinate(message) in state.components:
                     continue
-                text = str(message.get("text", ""))
-                if _AMBIGUOUS_ACK.match(text):
-                    continue
-                if _REJECTION_CUES.search(text):
-                    rejection = message
-                if marker_quote and marker_quote in text:
-                    agreement = message
-                    break
-                if _AGREEMENT_CUES.search(text) and not _TENTATIVE_CUES.search(text):
-                    agreement = message
-                    break
-            if marker and marker.get("state") == "accepted" and agreement is None:
+                size = len(str(message.get("text", "")))
+                if len(state.components) + len(delta) >= MAX_MESSAGES or used_chars + size > MAX_CHARACTERS:
+                    stop_reason = "budget_exhausted"
+                    continue  # never clip evidence into a different assertion
+                delta.append(message)
+                used_chars += size
+            if not delta:
                 continue
-            state = "accepted" if agreement is not None and rejection is None else "proposed"
-            if rejection is not None:
-                state = "rejected"
-            action_source = agreement if agreement is not None else proposal
-            action = _selected_action(str(action_source.get("text", "")))
-            quote = marker_quote if marker_quote and agreement is not None else (
-                _AGREEMENT_CUES.search(str(agreement.get("text", ""))).group(0) if agreement and _AGREEMENT_CUES.search(str(agreement.get("text", ""))) else None
-            )
-            rule_path = "marker>proposal>grounded_agreement" if marker and state == "accepted" else (
-                "cue>proposal>grounded_agreement" if state == "accepted" else "cue>proposal"
-            )
-            ordinals = [int(proposal.get("source_ordinal", 0))]
-            if agreement is not None:
-                ordinals.append(int(agreement.get("source_ordinal", 0)))
-            reasons = [clause for clause in _clauses(proposal_text) if re.search(r"\b(?:because|so that|to avoid|therefore)\b", clause, re.I)]
-            conditions = [clause for clause in _clauses(proposal_text) if re.search(r"\b(?:if|unless|when|only)\b", clause, re.I)]
-            candidates.append(
-                {
-                    "candidate_id": _candidate_id(rollout_id, ordinals, rule_path, action),
-                    "schema_version": "p0.2-draft-v1",
-                    "parser_version": PARSER_VERSION,
-                    "parser_backend": self.backend,
-                    "state": state,
-                    "issue": str(marker.get("issue_hint")) if marker else None,
-                    "proposal": proposal_text,
-                    "selected_action": action,
-                    "agreement_quote": quote,
-                    "reason": reasons[0] if reasons else None,
-                    "conditions": conditions,
-                    "modality": "tentative" if _TENTATIVE_CUES.search(proposal_text) else "committed" if state == "accepted" else "proposed",
-                    "negated": rejection is not None,
-                    "rejected_alternatives": [str(rejection.get("text"))] if rejection else [],
-                    "deciding_actor": "user" if agreement is not None else str(proposal.get("actor", "unknown")),
-                    "source": {
-                        "rollout_id": rollout_id,
-                        "source_ordinals": sorted(set(ordinals)),
-                        "region_sha256": region["region_sha256"],
-                        "messages": visible,
-                    },
-                    "rule_path": rule_path,
-                    "linguistic_rules": self._linguistic_rules(proposal_text),
-                    "authoritative": False,
-                    "curator_verification_required": True,
-                }
-            )
-        unique = {candidate["candidate_id"]: candidate for candidate in candidates}
-        return [unique[key] for key in sorted(unique)]
+            before = state.extraction_calls
+            state.feed(delta)
+            candidates = state.assemble(marker)
+            complete = [c for c in candidates if self._candidate_is_complete(c, marker)]
+            attempts.append({"stage": stage, "delta_messages": state.extraction_calls - before,
+                             "delta_characters": sum(len(str(m.get("text", ""))) for m in delta),
+                             "cumulative_messages": len(state.components),
+                             "complete_candidates": len(complete)})
+            if complete:
+                candidates = complete
+                stop_reason = "complete"
+                break
+        for candidate in candidates:
+            candidate["source"]["retrieval_trace"] = {
+                "selected_stage": attempts[-1]["stage"] if attempts else "none",
+                "forward_turns": max([int(a["stage"].split("_")[1]) for a in attempts
+                                      if a["stage"].startswith("forward_")] or [0]),
+                "messages_used": len(state.components), "characters_used": used_chars,
+                "total_messages_processed": state.extraction_calls, "attempts": attempts,
+                "fallback_used": any(a["stage"] == "lineage_safety_envelope" for a in attempts),
+                "stop_reason": stop_reason,
+            }
+        return candidates

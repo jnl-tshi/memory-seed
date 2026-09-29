@@ -27,7 +27,7 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
 
 1. **P0.1 authority — integrated.** Constitution v2.0, the edition contract, ADR evolution, and
    lifecycle consolidation form the baseline for the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md).
-2. **P0.2 capture feasibility — discovery in progress.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md) to use synthetic data to prove Codex event access, authenticated identity,
+2. **P0.2 capture feasibility — prospective extraction revision in progress.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md). Local capture is implemented; delta-only extraction, lifecycle handling, and semantic comparison remain under validation. Stop before sign-in. The complete tranche covers Codex event access, authenticated identity,
    ordering and replay, pause/queue behavior, and approval delivery. Hosted code lives in a self-contained
    top-level `hosted/` folder for local development only. It is excluded from the published package (see the
    [repository boundary](hosted-memory-mvp-programme.md#repository-boundary)).
@@ -58,8 +58,8 @@ the documentation amendment alone.
 Each tranche's design discovery must settle these open decisions before its implementation starts. The
 [programme's open decisions](hosted-memory-mvp-programme.md#open-decisions) hold the full wording.
 
-- **P0.2:** the Codex capture discovery choices in the
-  [tranche plan](codex-capture-feasibility-plan.md#design-discovery-decisions-for-jnl). The spike must also
+- **P0.2:** execute the approved capture/extraction choices in the
+  [tranche plan](codex-capture-feasibility-plan.md#accepted-revision-2026-09-29), then request separate sign-in approval. The spike must also
   verify two policies settled on 2026-09-23: that Codex can show a human-confirmed approval prompt (otherwise
   use the signed-page fallback), and that it separates user input from agent and tool items (otherwise every
   replacement stays pending).

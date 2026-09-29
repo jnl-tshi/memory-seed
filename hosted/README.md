@@ -12,13 +12,13 @@ checkpoints, replay, rotation, leases, and pause/resume gaps, and emits inert de
 Run targeted tests:
 
 ```powershell
-python -m pytest tests/test_mcp_decision_mark.py tests/test_hosted_decision_capture.py tests/test_p02_corpus.py tests/test_decision_marking_control_plane.py experiments/decision-chat-alignment/test_align_decisions.py
+python -m pytest tests/test_mcp_decision_mark.py tests/test_hosted_decision_capture.py tests/test_p02_incremental.py tests/test_p02_corpus.py tests/test_decision_marking_control_plane.py experiments/decision-chat-alignment/test_align_decisions.py
 ```
 
-Run the owner-local, synthetic-safe evaluation without printing raw evidence:
+Run the owner-local historical diagnostic without printing raw evidence (this does not establish prospective recall or semantic equivalence):
 
 ```powershell
-python -m hosted.evaluation.run_p02 --codex-home "$env:USERPROFILE\.codex" --output hosted/evaluation/results
+python -m hosted.evaluation.run_p02 --codex-home "$env:USERPROFILE\.codex" --output hosted/evaluation/revision-diagnostics
 ```
 
 The live adapter accepts only the explicitly listed CLI versions in `capture/codex_rollout.py`. Unknown versions,
@@ -28,3 +28,14 @@ to expose encrypted or hidden reasoning.
 The optional spaCy dependency is isolated under `experiments/spacy/`. Without it, the parser reports the
 deterministic rules-only backend. Neither backend can promote a draft; a curator must verify evidence, actor,
 and atomicity.
+
+The revised parser caches per-message components during one stepped replay. It does not yet maintain
+that state across live polling calls. A draft closes only with source-grounded issue, action, scope,
+and user acceptance; unresolved references remain incomplete. Explicit lifecycle boundary flags stop
+expansion but are not yet inferred from tool events. Generic reference resolution and evolving/replacing
+decision generation remain open work. See the [current plan](../docs/2_Todo/codex-capture-feasibility-plan.md).
+
+The original `evaluation/results` directory is frozen. Revised reports distinguish oracle-anchor
+turn-envelope coverage from genuine detection recall, and leave unmeasured recall/semantic gates null.
+No lexical similarity threshold can certify equivalent meaning. The authenticated trial remains unstarted.
+The [semantic review rubric](evaluation/SEMANTIC-REVIEW.md) defines the required field-by-field comparison.
