@@ -102,6 +102,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 
 - Use tests before behavior changes.
 - `python -m pytest` from the repo root runs BOTH suites - `tests/` and `memory-trace/tests/` - because `pythonpath = ["memory-trace"]` in `pyproject.toml` makes the Trace package importable. Do not gate on `pytest tests` alone: that is what let three Trace failures sit on `main` from 2026-07-28 until a push finally ran CI's Verify job.
+- `pyproject.toml` `addopts` carries `-n auto`, so bare `python -m pytest` is parallel (requires `pip install -e ".[dev]"` for pytest-xdist). Use `-n0` to run serially when debugging one test.
 - To reproduce CI's Trace step exactly: `python -m unittest discover -s memory-trace/tests -p "test_*.py"`.
 - Read the suite's own exit code, never a pipeline's - `pytest ... | tail` reports tail's status, which has hidden a failing suite behind a chained `&&`.
 - While iterating, run the targeted tests for the modules you touched. Run the full `python -m pytest` once, at the stable stopping point before landing, in the background, and act on its completion rather than polling it turn by turn. A two-week Codex review (2026-09-15 to 09-28) found three 23-40 minute full runs in one session and 560 `wait` calls across the window.
