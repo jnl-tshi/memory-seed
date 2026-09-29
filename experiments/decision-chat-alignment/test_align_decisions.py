@@ -449,6 +449,30 @@ class AlignmentTests(unittest.TestCase):
         self.assertNotIn("mse_deadbeef", compact)
         self.assertNotIn(".memory-seed/sessions", compact)
 
+    def test_decision_marker_preserves_canonical_payload_and_source_ordinal(self) -> None:
+        marker = {
+            "strength": "hard", "state": "accepted", "origin": "user",
+            "trigger_class": "contextual_acceptance", "issue_hint": "capture strategy",
+            "trigger_quote": "that's the right approach",
+        }
+        for payload in (
+            {"type": "function_call", "name": "memory_decision_mark", "arguments": json.dumps(marker)},
+            {"type": "custom_tool_call", "name": "memory_decision_mark", "input": marker},
+        ):
+            rows = [
+                {"timestamp": "2026-09-29T10:00:00Z", "ordinal": 0, "type": "event_msg", "payload": {"type": "task_started", "turn_id": "turn-1"}},
+                {"timestamp": "2026-09-29T10:00:01Z", "ordinal": 7, "type": "response_item", "payload": payload},
+            ]
+            with self.subTest(payload_type=payload["type"]), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "rollout.jsonl"
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                blocks = alignment.parse_rollout(path, self._meta())
+                item = blocks[0].items[0]
+                self.assertEqual(item.source_ordinal, 7)
+                self.assertEqual(item.role, "tool")
+                expected = json.dumps(marker, sort_keys=True, separators=(",", ":"))
+                self.assertEqual(item.text, "memory_decision_mark " + expected)
+
     def test_public_session_path_removes_user_profile_prefix(self) -> None:
         public = alignment.public_session_path(
             "C:/Users/example/.codex/sessions/2026/09/24/rollout.jsonl"

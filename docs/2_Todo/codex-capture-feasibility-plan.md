@@ -2,16 +2,23 @@
 title: "Codex capture feasibility tranche"
 date: "2026-09-21"
 priority: P0
-status: discovery-in-progress
-next_action: "Complete interactive design discovery with JNL, then approve a bounded synthetic-data implementation plan."
-blocked_by: "Target Codex workflow, capture boundary, identity binding, and approval interaction are unresolved."
+status: offline-evaluation-complete
+next_action: "At the live approval gate, obtain a disposable GitHub OAuth application identifier and permission to begin device-flow sign-in."
+blocked_by: "The authenticated identity and human-approval trial requires live user consent; marker-assisted source-window recall also missed its 95% feasibility gate."
 source:
   - "docs/2_Todo/hosted-memory-mvp-programme.md"
 ---
 
 # Codex capture feasibility tranche
 
-Status: **ACTIVE P0.2 DISCOVERY.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md), not a separate programme. Implementation begins only after the [tranche discovery gate](0_NEXT_STEPS.md#tranche-entry-gate--design-discovery-first) is completed with JNL.
+Status: **OFFLINE P0.2 COMPLETE; AUTHENTICATED TRIAL NOT STARTED.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md), not a separate programme. The evidence-first local implementation and evaluation are in [`hosted/`](../../hosted/README.md). Work is stopped before GitHub sign-in or an approval mutation.
+
+## Offline finding (2026-09-29)
+
+- The frozen corpus contains 103 formal records: 100 typed Decisions and three Documentation controls. The permitted partitions are 80 development decisions, 15 clean descriptive held-out cases, and 13 audit-only controls, contaminated rows, or post-audit amendments.
+- Valid marker recovery, three-run deterministic output, unmarked historical detection (80.6%), accepted-state precision on synthetic controls (100%), replay deduplication, pause/no-backfill semantics, and p95 local capture latency (23.64 ms) passed their gates.
+- Marker-assisted source-window recall was **89.6%**, below the 95% gate. Seven verified cases span more turns than the approved current/two-prior/one-following region. This is recorded as a feasibility miss; the parser remains an inert curator aid.
+- [`hosted/evaluation/REPORT.md`](../../hosted/evaluation/REPORT.md) records the results and limitations. [`hosted/evaluation/LIVE-TRIAL.md`](../../hosted/evaluation/LIVE-TRIAL.md) is prepared but has not requested an OAuth identifier, started device flow, presented/executed an approval mutation, or stored a token.
 
 ## Outcome and boundary
 

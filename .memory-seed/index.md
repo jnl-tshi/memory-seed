@@ -150,6 +150,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/data_architecture.md`
 - `.memory-seed/skills/local_compilation.md`
 - `.memory-seed/skills/code_search.md`
+- `.memory-seed/skills/decision_marking.md`
 - `.memory-seed/skills/memory_consolidation.md`
 - `.memory-seed/skills/memory_doctor.md`
 - `.memory-seed/skills/release_publishing.md`

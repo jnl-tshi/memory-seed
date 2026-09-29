@@ -55,6 +55,15 @@ skills:
       - routine semantic or symbol lookup (use code_search.md and Semble)
       - a simple question asks what one document says (read that document directly)
 
+  - skill: decision_marking.md
+    required: true
+    load_when:
+      - deciding whether a conversation turn is a hard or soft decision signal
+      - calling or interpreting memory_decision_mark
+      - evaluating decision-marker triggers, exclusions, or exact trigger quotes
+    do_not_load_when:
+      - no material choice, commitment, correction, or proposal is present
+
   - skill: agent_collaboration.md
     required: true
     load_when:

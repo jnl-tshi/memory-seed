@@ -832,6 +832,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/compact_mermaid_diagrams.md",
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
+                ".memory-seed/skills/decision_marking.md",
                 ".memory-seed/skills/design_discovery.md",
                 ".memory-seed/skills/developer-rendered-ui-debugging.md",
                 ".memory-seed/skills/document_ingestion.md",

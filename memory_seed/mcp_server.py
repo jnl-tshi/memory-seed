@@ -718,6 +718,46 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_decision_mark",
+        "description": (
+            "Leave a structured, non-authoritative decision breadcrumb in the surrounding Codex rollout. "
+            "Read-only: the invocation is the evidence marker; this tool does not write repository files or memory. "
+            "A curator must validate the quoted source and candidate before promotion."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "strength": {"type": "string", "enum": ["hard", "soft"]},
+                "state": {"type": "string", "enum": ["accepted", "proposed"]},
+                "origin": {"type": "string", "enum": ["user", "agent"]},
+                "trigger_class": {
+                    "type": "string",
+                    "enum": [
+                        "explicit_commitment",
+                        "contextual_acceptance",
+                        "correction",
+                        "option_selection",
+                        "agent_inference",
+                    ],
+                },
+                "issue_hint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Short non-authoritative label for the issue being decided.",
+                },
+                "trigger_quote": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Short exact phrase to validate against the nearby source turn.",
+                },
+            },
+            "required": ["strength", "state", "origin", "trigger_class", "issue_hint", "trigger_quote"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_session_checkpoint",
         "description": (
             "Inspect evidence-backed session-record checkpoint debt, or resolve one pending checkpoint with the "
@@ -948,6 +988,50 @@ def call_tool(
     today: date | None = None,
 ) -> dict[str, Any]:
     args = arguments or {}
+    if name == "memory_decision_mark":
+        import hashlib
+        import json
+
+        allowed = {"strength", "state", "origin", "trigger_class", "issue_hint", "trigger_quote"}
+        issues: list[str] = []
+        unsupported = sorted(set(args) - allowed)
+        if unsupported:
+            issues.append("unsupported argument(s): " + ", ".join(unsupported))
+        for field in sorted(allowed):
+            value = args.get(field)
+            if not isinstance(value, str) or not value.strip():
+                issues.append(f"{field} must be a non-empty string")
+        enums = {
+            "strength": {"hard", "soft"},
+            "state": {"accepted", "proposed"},
+            "origin": {"user", "agent"},
+            "trigger_class": {
+                "explicit_commitment", "contextual_acceptance", "correction",
+                "option_selection", "agent_inference",
+            },
+        }
+        for field, accepted in enums.items():
+            value = args.get(field)
+            if isinstance(value, str) and value not in accepted:
+                issues.append(f"{field} must be one of: {', '.join(sorted(accepted))}")
+        if isinstance(args.get("issue_hint"), str) and len(args["issue_hint"]) > 200:
+            issues.append("issue_hint must be at most 200 characters")
+        if isinstance(args.get("trigger_quote"), str) and len(args["trigger_quote"]) > 500:
+            issues.append("trigger_quote must be at most 500 characters")
+        if args.get("strength") == "hard" and args.get("state") != "accepted":
+            issues.append("hard markers require state=accepted")
+        if args.get("trigger_class") == "agent_inference" and args.get("strength") != "soft":
+            issues.append("agent_inference markers require strength=soft")
+        if issues:
+            return {"ok": False, "written": False, "authoritative": False, "issues": issues}
+        canonical = json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return {
+            "ok": True,
+            "written": False,
+            "authoritative": False,
+            "schema_version": "memory-decision-mark-v1",
+            "marker_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        }
     if name == "memory_session_checkpoint":
         from .session_checkpoint import inspect_checkpoint, resolve_checkpoint
 
