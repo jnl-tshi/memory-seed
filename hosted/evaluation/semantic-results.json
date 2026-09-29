@@ -1,0 +1,72 @@
+{
+  "schema": "p02-held-out-semantic-review-v1",
+  "review_kind": "independent_blind_ai_review",
+  "human_gold": false,
+  "split": "held_out",
+  "cases": 14,
+  "fields": [
+    "issue",
+    "action",
+    "scope",
+    "acceptance_actor",
+    "conditions",
+    "reasons"
+  ],
+  "labels": {
+    "E": "equivalent",
+    "D": "different",
+    "I": "insufficient_evidence"
+  },
+  "reconciliation_policy": "Preserve both reviewer vectors. Count a consensus label only when both reviewers agree; otherwise count a conflict. Do not use held-out disagreements to tune either frozen parser.",
+  "summary": {
+    "legacy": {
+      "cases_with_candidates": 14,
+      "cases_without_candidates": 0,
+      "complete_matches_reviewer_1": 0,
+      "complete_matches_reviewer_2": 0,
+      "candidate_index_disagreements": 2,
+      "field_counts": {
+        "issue": {"E": 0, "D": 0, "I": 14, "conflict": 0},
+        "action": {"E": 1, "D": 8, "I": 3, "conflict": 2},
+        "scope": {"E": 0, "D": 0, "I": 14, "conflict": 0},
+        "acceptance_actor": {"E": 2, "D": 9, "I": 0, "conflict": 3},
+        "conditions": {"E": 0, "D": 13, "I": 0, "conflict": 1},
+        "reasons": {"E": 3, "D": 3, "I": 6, "conflict": 2}
+      }
+    },
+    "revised": {
+      "cases_with_candidates": 2,
+      "cases_without_candidates": 12,
+      "complete_matches_reviewer_1": 0,
+      "complete_matches_reviewer_2": 0,
+      "candidate_index_disagreements": 0,
+      "field_counts": {
+        "issue": {"E": 0, "D": 0, "I": 2, "conflict": 0},
+        "action": {"E": 0, "D": 0, "I": 2, "conflict": 0},
+        "scope": {"E": 0, "D": 0, "I": 2, "conflict": 0},
+        "acceptance_actor": {"E": 2, "D": 0, "I": 0, "conflict": 0},
+        "conditions": {"E": 0, "D": 2, "I": 0, "conflict": 0},
+        "reasons": {"E": 1, "D": 0, "I": 1, "conflict": 0}
+      }
+    }
+  },
+  "reviewed_candidates": [
+    {"case_id": "ms-38098d7a:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IIIDDE"}, "reviewer_2": {"candidate_index": 0, "vector": "IIIDDE"}},
+    {"case_id": "ms-38098d7a:d1", "arm": "revised", "reviewer_1": {"candidate_index": 0, "vector": "IIIEDE"}, "reviewer_2": {"candidate_index": 0, "vector": "IIIEDE"}},
+    {"case_id": "ms-3cad2a35:d2", "arm": "legacy", "reviewer_1": {"candidate_index": 2, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 2, "vector": "IIIDDI"}},
+    {"case_id": "mse_a58avhtbcy9djpa0:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIIDE"}},
+    {"case_id": "mse_eszq6qxf2jck32e8:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIDDD"}},
+    {"case_id": "mse_fx1gm0x6p1sts4y2:d1", "arm": "revised", "reviewer_1": {"candidate_index": 0, "vector": "IIIEDI"}, "reviewer_2": {"candidate_index": 0, "vector": "IIIEDI"}},
+    {"case_id": "mse_fx1gm0x6p1sts4y2:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIEDD"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIDDD"}},
+    {"case_id": "mse_nttx32yw5ejypz5m:d2", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIDDI"}},
+    {"case_id": "mse_nw47r0vpcj5tr2pj:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIDDI"}},
+    {"case_id": "mse_ssxkdsjq8d0knk4v:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDI"}, "reviewer_2": {"candidate_index": 1, "vector": "IDIDEI"}},
+    {"case_id": "mse_v7pdg66vgfbctyfj:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDE"}, "reviewer_2": {"candidate_index": 0, "vector": "IDIDDE"}},
+    {"case_id": "mse_vjb1kgdq26c5b38y:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 2, "vector": "IIIEDI"}, "reviewer_2": {"candidate_index": 2, "vector": "IIIEDI"}},
+    {"case_id": "mse_vpqwta8c6m8yj6nk:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IIIDDD"}, "reviewer_2": {"candidate_index": 0, "vector": "IIIDDD"}},
+    {"case_id": "mse_z61np2tq3zkg01ew:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 0, "vector": "IDIDDE"}, "reviewer_2": {"candidate_index": 1, "vector": "IDIIDE"}},
+    {"case_id": "mse_z8tp67yhcrtkq110:d1", "arm": "legacy", "reviewer_1": {"candidate_index": 1, "vector": "IEIEDI"}, "reviewer_2": {"candidate_index": 1, "vector": "IEIEDI"}},
+    {"case_id": "mse_ztcsrx4hw0b6kxdv:d2", "arm": "legacy", "reviewer_1": {"candidate_index": 1, "vector": "IDIDDD"}, "reviewer_2": {"candidate_index": 1, "vector": "IIIDDD"}}
+  ],
+  "complete_match_conclusion": "Both reviewers found zero complete semantic matches for either arm. The revised arm improved source retrieval but did not demonstrate improved semantic decision detection."
+}

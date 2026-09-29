@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-23
+Updated: 2026-09-29
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
@@ -27,7 +27,7 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
 
 1. **P0.1 authority — integrated.** Constitution v2.0, the edition contract, ADR evolution, and
    lifecycle consolidation form the baseline for the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md).
-2. **P0.2 capture feasibility — prospective extraction revision in progress.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md). Local capture is implemented; delta-only extraction, lifecycle handling, and semantic comparison remain under validation. Stop before sign-in. The complete tranche covers Codex event access, authenticated identity,
+2. **P0.2 capture feasibility — prospective extraction revision in progress.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md). Local capture is implemented. The offline oracle-anchor replay found better cited-evidence retrieval and less repeated processing, but zero complete semantic matches for either frozen arm; actual decision detection, lifecycle handling, and live retained-state integration remain unvalidated. Stop before sign-in. The complete tranche covers Codex event access, authenticated identity,
    ordering and replay, pause/queue behavior, and approval delivery. Hosted code lives in a self-contained
    top-level `hosted/` folder for local development only. It is excluded from the published package (see the
    [repository boundary](hosted-memory-mvp-programme.md#repository-boundary)).
