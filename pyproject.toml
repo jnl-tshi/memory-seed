@@ -49,7 +49,11 @@ memory_trace = "memory-trace/memory_trace"
 [tool.pytest.ini_options]
 # Pytest's cacheprovider can hang on shutdown in Windows OneDrive worktrees
 # after tests pass. Keep validation deterministic by disabling repo-local cache.
-addopts = ["-p", "no:cacheprovider"]
+#
+# `-n auto` (pytest-xdist, in the `dev` extra) makes parallel the default: a serial
+# full run takes 23-40 minutes, a parallel one ~5. Pass `-n0` to run serially, e.g.
+# when debugging a single test or a failure that only reproduces under xdist.
+addopts = ["-p", "no:cacheprovider", "-n", "auto"]
 # `memory-trace/` is a source root, not an installed package, so a bare `pytest`
 # from the repo root failed to collect its 23 test modules with "No module named
 # 'memory_trace'". CI runs that suite through `unittest discover` with the package
