@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
@@ -477,6 +478,31 @@ class CoreMiscTests(unittest.TestCase):
         self.assertEqual(resolved.workspace_root, cwd.resolve())
         self.assertEqual(resolved.memory_dir, legacy.resolve())
         self.assertTrue(resolved.legacy)
+
+    def test_resolve_runtime_ignores_lowercase_agents_folder(self):
+        # `.agents` is the persona/skills folder; on case-insensitive filesystems it
+        # used to satisfy the `.AGENTS` legacy check.
+        cwd = self.make_project()
+        (cwd / ".agents" / "skills").mkdir(parents=True)
+        nested = cwd / "src"
+        nested.mkdir()
+
+        resolved = resolve_runtime(nested)
+
+        self.assertFalse(resolved.legacy)
+        self.assertEqual(resolved.memory_dir, nested.resolve() / MEMORY_DIR_NAME)
+
+    def test_resolve_runtime_never_adopts_a_legacy_runtime_at_the_home_folder(self):
+        home = self.make_project()
+        (home / ".AGENTS" / "sessions").mkdir(parents=True)
+        project = home / "Documents" / "notes"
+        project.mkdir(parents=True)
+
+        with mock.patch("memory_seed.core.Path.home", return_value=home):
+            resolved = resolve_runtime(project)
+
+        self.assertFalse(resolved.legacy)
+        self.assertEqual(resolved.workspace_root, project.resolve())
 
     def test_iter_session_documents_discovers_legacy_and_per_user_sessions(self):
         cwd = self.make_project()

@@ -6,6 +6,10 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
+- [2026-09-29] **Runtime discovery no longer mistakes a `.agents` folder for the legacy `.AGENTS` runtime.**
+  - On case-insensitive filesystems (Windows, default macOS), the legacy check also matched `.agents`: Memory Seed's own persona folder, and the user-level skills folder other agents keep in the home directory.
+  - A command run in a folder without `.memory-seed/` could therefore adopt `~/.agents` as its runtime. A test fixture's session log and the identity-offer stamp had been written there.
+  - The legacy folder must now be named exactly `.AGENTS` on disk, and discovery never adopts a legacy runtime at or above the home folder.
 - [2026-09-28] **Merge cleanup no longer leaves `.git/worktrees/<name>` stubs behind.**
   - On Windows, `git worktree remove` can deregister a worktree and delete its checkout, but fail to delete `ORIG_HEAD`, `logs/` and `refs/` in its admin directory. Git ignores what's left. 142 such stubs had built up in this repository.
   - `session merge-branch` now removes that exact stub after proving it:

@@ -10646,6 +10646,30 @@ def _base32_crockford(data: bytes) -> str:
     return "".join(chars)
 
 
+def _home_dir() -> Path | None:
+    try:
+        return Path.home().resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def _legacy_runtime_dir(candidate: Path) -> Path | None:
+    """The legacy runtime folder in ``candidate``, matched by its exact on-disk name.
+
+    ``.AGENTS`` is the legacy runtime. On case-insensitive filesystems (Windows,
+    default macOS) a plain ``is_dir()`` also matches ``.agents``, which is Memory
+    Seed's own persona folder and the cross-agent skills folder other tools use.
+    """
+    legacy = candidate / LEGACY_MEMORY_DIR_NAME
+    if not legacy.is_dir():
+        return None
+    try:
+        names = {entry.name for entry in os.scandir(candidate)}
+    except OSError:
+        return None
+    return legacy if LEGACY_MEMORY_DIR_NAME in names else None
+
+
 def resolve_runtime(cwd: str | Path = ".") -> Runtime:
     start = Path(cwd).resolve()
     if start.exists() and start.is_file():
@@ -10660,9 +10684,14 @@ def resolve_runtime(cwd: str | Path = ".") -> Runtime:
                 legacy=False,
             )
 
+    home = _home_dir()
     for candidate in (start, *start.parents):
-        memory_dir = candidate / LEGACY_MEMORY_DIR_NAME
-        if memory_dir.is_dir():
+        if home is not None and _is_relative_to_casefold(home, candidate):
+            # Never adopt a legacy runtime at or above the home folder: ~/.agents is the
+            # shared user-level skills folder other agents use, not a Memory Seed project.
+            break
+        memory_dir = _legacy_runtime_dir(candidate)
+        if memory_dir is not None:
             return Runtime(
                 workspace_root=candidate,
                 memory_dir=memory_dir.resolve(),
