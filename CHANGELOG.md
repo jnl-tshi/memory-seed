@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed
+
+- [2026-09-29] **The MCP server that `init` and `update` register is pinned to the package version.**
+  - Agent configs (`.mcp.json`, `.codex/config.toml`, Cursor, Gemini, Copilot and VS Code) now launch `uvx --from memory-seed==<version> memory-seed-mcp`.
+  - Previously they launched an unpinned `--from memory-seed`, and `uvx` could keep serving an old cached build: Codex respawned a 2.21.0 server after 2.22 was installed.
+  - `update` rewrites the pin, and `doctor` reports an unpinned or older entry as stale until `update` runs.
+
 ### Fixed
 
 - [2026-09-29] **Runtime discovery no longer mistakes a `.agents` folder for the legacy `.AGENTS` runtime.**
