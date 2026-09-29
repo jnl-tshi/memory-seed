@@ -93,6 +93,16 @@ move on to other items - do not infer consent from the plan that scheduled the t
 **is** sufficient for anything that is not a STOP category; this rule narrows nothing else. It only
 stops stale approval standing in for a decision the user still owns.
 
+### Put the approvals in the plan
+
+Because consent must be live, collect it where the work runs. When a plan contains STOP-category or
+gated actions, end the plan with an **approval block**. List each action exactly as it will run: the
+amendment text, the merge target and `--user-approved` landing, the files to delete, the decision a
+delegated worker will append. The user then approves that block in the session that executes it. Consent
+given in a parent or planning thread, or implied by config, does not carry into a worker, and a gate will
+correctly refuse it. Asking once, up front and in the right place, replaces the two or three round trips
+of discovering each gate mid-task.
+
 ## Procedure
 
 1. Identify the action, affected files/systems, reversibility, and whether the user already

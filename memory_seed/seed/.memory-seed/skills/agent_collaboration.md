@@ -46,6 +46,9 @@ Load this skill when the task involves any of:
 - Orchestrator prepares Task Packet entries for each worker.
 - Each code-writing worker gets a separate worktree unless the task is strictly sequential.
 - Validators review from the integration branch or final diff, not from a worker's unmerged assumptions.
+- Spawning is not idempotent. Before re-dispatching a worker that seems slow or silent, list the live
+  agents or threads and reuse or stop the existing one. A duplicate worker repeats orientation and
+  tests, competes for the same approvals, and can leave its own dirty worktree behind.
 
 #### Continuous monitoring contract
 
@@ -585,8 +588,8 @@ Before a branch can land, the orchestrator must:
    merge done elsewhere (for example a GitHub PR) is followed by `memory-seed worktree home --agent
    <agent> --park`. An **overflow** worktree is left and removed (see **Leave The Worktree Before
    Cleanup** below). Branch deletion remains a separate decision.
-9. Append the handoff record with branch, worktree, merge commit, validation, review result, and
-   retained risks.
+9. Append the handoff record with branch, worktree, merge commit, validation, review result, landing
+   state (see **Output**), and retained risks.
 
 Under `merge_trigger: manual`, step 5 is a hold. A dry-run is always allowed; a failed integrated-tree
 validation leaves the branch and worktree intact.
@@ -827,6 +830,12 @@ When a conflict is resolved, the handoff must state which side won, why, and wha
 Return a concise handoff with:
 
 - branch and worktree used
+- landing state, as three separate facts re-read from git and never inferred:
+  - committed on the branch (commit ID);
+  - merged to the integration branch (merge commit ID, or `no`);
+  - pushed (`yes` or `no`).
+
+  Report a scheduled task, automation, or merge from its live state, not its intended one.
 - files changed
 - validation run
 - conflicts encountered and resolution owner
