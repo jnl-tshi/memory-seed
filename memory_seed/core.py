@@ -10085,6 +10085,10 @@ SEED_FILES = [
         ".memory-seed/skills/code_search.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "decision_marking.md",
+        ".memory-seed/skills/decision_marking.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "graphify_analysis.md",
         ".memory-seed/skills/graphify_analysis.md",
     ),
@@ -10437,6 +10441,7 @@ def install_git_hooks(cwd: Path | str = ".") -> list[str]:
     return [f"prepare-commit-msg: installed ({hook_path})"]
 
 CORE_SKILL_NAMES = (
+    "decision_marking.md",
     "session_logging.md",
     "history_retrieval.md",
     "orientation.md",
@@ -10510,6 +10515,7 @@ SKILL_DESCRIPTIONS = {
     "adr_sweep.md": "Review ADR coverage and freshness with evidence-backed advisory recommendations.",
     "agent_collaboration.md": "Coordinate branch, worktree, and multi-agent handoff workflows.",
     "code_search.md": "Use precise repository search and symbol lookup before broad reads.",
+    "decision_marking.md": "Leave non-authoritative hard or soft decision breadcrumbs in supported agent rollouts.",
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
     "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
     "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",

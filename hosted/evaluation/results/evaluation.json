@@ -1,0 +1,127 @@
+{
+  "authority": "inert drafts only; curator verification required",
+  "corpus": {
+    "corpus_sha256": "86566e4d68482ce10b8cc1441e795bf5b2c9df84462c0120c09b795ee8ebf46c",
+    "counts": {
+      "audit_only": 13,
+      "audit_only_formal": 8,
+      "development": 80,
+      "documentation_controls": 3,
+      "formal_records": 103,
+      "heldout_descriptive": 15,
+      "postaudit_amendments": 5,
+      "typed_decisions": 100
+    },
+    "limitations": [
+      "retrospective decision-known corpus",
+      "accepted/proposed is not gold-labelled",
+      "15 clean descriptive held-out rows; 14 verified recall denominators",
+      "post-audit amendments are audit-only"
+    ],
+    "manifest_sha256": "bc5757d00e6dff2aef037b8b6e4fb6fd9d2bed1c560e58ea0652752980535c2f",
+    "schema_version": "p0.2-corpus-manifest-v1",
+    "source_artifacts": [
+      {
+        "path": "experiments/decision-chat-alignment/GOLD-SET.jsonl",
+        "rows": 50,
+        "sha256": "3b295a483beaa7317ccc0142317286b009a25704100bb36617a695783dd0d134"
+      },
+      {
+        "path": "experiments/decision-chat-alignment/cohort-100/development-gold.jsonl",
+        "rows": 33,
+        "sha256": "6c8dc5fefba947bdd820e5d0335d1d1ede49e7c4f680f25cf438cea55331cf16"
+      },
+      {
+        "path": "experiments/decision-chat-alignment/cohort-100/heldout-gold.jsonl",
+        "rows": 20,
+        "sha256": "3b39bba10c1ac522d3afcf1d3d8a0264b43ce4d5c19a383c7b9323d2b4430754"
+      }
+    ]
+  },
+  "feasible": false,
+  "gates": {
+    "accepted_precision_at_least_90_percent": true,
+    "byte_identical_three_runs": true,
+    "marker_assisted_recall_at_least_95_percent": false,
+    "marker_recovery_100_percent": true,
+    "no_duplicate_replay": true,
+    "no_paused_backfill": true,
+    "p95_below_30_seconds": true,
+    "unmarked_recall_at_least_80_percent": true
+  },
+  "live_adapter": {
+    "events_recovered": 31,
+    "expected_events": 31,
+    "gates": {
+      "marker_recovery": true,
+      "no_paused_backfill": true,
+      "p95_below_30_seconds": true,
+      "replay_deduplicated": true
+    },
+    "marker_events_expected": 30,
+    "marker_events_recovered": 30,
+    "median_local_capture_latency_ms": 20.586,
+    "p95_local_capture_latency_ms": 23.644,
+    "paused_resume_queue_count": 31,
+    "replay_queue_count": 31,
+    "synthetic_only": true
+  },
+  "negative_controls": {
+    "accepted_precision": 1.0,
+    "cases": 8,
+    "false_accepts": [],
+    "parser_backend": "en_core_web_sm==3.8.0",
+    "predictions": [
+      {
+        "case_id": "accepted-explicit",
+        "expected": "accepted",
+        "predicted": "accepted"
+      },
+      {
+        "case_id": "proposal-only",
+        "expected": "proposed",
+        "predicted": "proposed"
+      },
+      {
+        "case_id": "rejected-alternative",
+        "expected": "not_accepted",
+        "predicted": "not_accepted"
+      },
+      {
+        "case_id": "hypothetical",
+        "expected": "not_accepted",
+        "predicted": "not_accepted"
+      },
+      {
+        "case_id": "assistant-without-user",
+        "expected": "proposed",
+        "predicted": "proposed"
+      },
+      {
+        "case_id": "ambiguous-ack",
+        "expected": "proposed",
+        "predicted": "proposed"
+      },
+      {
+        "case_id": "copied-history",
+        "expected": "not_accepted",
+        "predicted": "proposed"
+      },
+      {
+        "case_id": "posthoc-record",
+        "expected": "not_accepted",
+        "predicted": "not_accepted"
+      }
+    ]
+  },
+  "oauth_trial_started": false,
+  "schema_version": "p0.2-evaluation-v1",
+  "source_windows": {
+    "available_rollout_ids": 25,
+    "eligible_verified_rows": 67,
+    "marker_assisted_source_window_recall": 0.8955223880597015,
+    "parser_backend": "en_core_web_sm==3.8.0",
+    "unavailable_case_ids": [],
+    "unmarked_source_window_recall": 0.8059701492537313
+  }
+}

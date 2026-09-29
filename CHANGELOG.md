@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Added
+
+- [2026-09-29] **P0.2 proves an evidence-first local Codex decision-capture path.**
+  - The read-only `memory_decision_mark` MCP tool leaves hard/soft breadcrumbs in rollouts without writing memory.
+  - A self-contained, non-packaged `hosted/` experiment validates rollout versions, checkpoints complete JSONL lines into a disposable SQLite queue, and emits source-linked inert drafts for curator review.
+  - The frozen 103-record corpus and synthetic reliability controls are reproducible. Offline evaluation records one visible feasibility miss: marker-assisted source-window recall is 89.6% against the 95% gate.
+
 ### Fixed
 
 - [2026-09-29] **Runtime discovery no longer mistakes a `.agents` folder for the legacy `.AGENTS` runtime.**

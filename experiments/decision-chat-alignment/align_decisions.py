@@ -433,6 +433,26 @@ def compact_tool_text(name: str, raw_input: str) -> str:
     return " ".join([name, *found])
 
 
+def marker_tool_text(name: str, raw_input: object) -> str | None:
+    """Preserve the allowlisted decision marker without broad tool-argument exposure."""
+    if name != "memory_decision_mark":
+        return None
+    value = raw_input
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(value, dict):
+        return None
+    required = {
+        "strength", "state", "origin", "trigger_class", "issue_hint", "trigger_quote"
+    }
+    if set(value) != required or not all(isinstance(value[key], str) for key in required):
+        return None
+    return name + " " + json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
 def parse_rollout(path: Path, meta: SessionMeta) -> list[TurnBlock]:
     blocks: dict[int, TurnBlock] = {}
     turn_number = 0
@@ -531,10 +551,16 @@ def parse_rollout(path: Path, meta: SessionMeta) -> list[TurnBlock]:
             elif payload_type in {"custom_tool_call", "function_call"}:
                 role = "tool"
                 name = str(payload.get("name") or payload_type)
-                raw_input = payload.get("input") or payload.get("arguments") or ""
-                if not isinstance(raw_input, str):
-                    raw_input = json.dumps(raw_input, ensure_ascii=False, sort_keys=True)
-                text = compact_tool_text(name, raw_input)
+                if "input" in payload:
+                    raw_input = payload.get("input")
+                elif "arguments" in payload:
+                    raw_input = payload.get("arguments")
+                else:
+                    raw_input = ""
+                text = marker_tool_text(name, raw_input) or compact_tool_text(
+                    name,
+                    raw_input if isinstance(raw_input, str) else json.dumps(raw_input, ensure_ascii=False, sort_keys=True),
+                )
             if role == "user" and is_replayed_transcript(text):
                 continue
             if not role or not text.strip():

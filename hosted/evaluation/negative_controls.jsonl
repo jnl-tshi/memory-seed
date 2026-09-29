@@ -1,0 +1,8 @@
+{"case_id":"accepted-explicit","expected":"accepted","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"I propose using the SQLite queue because it provides restart safety."},{"turn":2,"source_ordinal":2,"actor":"user","text":"Yes, use the SQLite queue."}]}
+{"case_id":"proposal-only","expected":"proposed","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"We should use a SQLite queue."}]}
+{"case_id":"rejected-alternative","expected":"not_accepted","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"I propose uploading every raw event."},{"turn":2,"source_ordinal":2,"actor":"user","text":"No, do not upload raw events."}]}
+{"case_id":"hypothetical","expected":"not_accepted","messages":[{"turn":1,"source_ordinal":1,"actor":"user","text":"Hypothetically, if we were to use a hosted parser, what would happen?"}]}
+{"case_id":"assistant-without-user","expected":"proposed","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"Let's adopt the dependency parser."}]}
+{"case_id":"ambiguous-ack","expected":"proposed","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"I propose option A."},{"turn":2,"source_ordinal":2,"actor":"agent","text":"I also propose option B."},{"turn":3,"source_ordinal":3,"actor":"user","text":"Okay."}]}
+{"case_id":"copied-history","expected":"not_accepted","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"The old log says: 'Yes, use SQLite'. This is replayed history, not a new decision."}]}
+{"case_id":"posthoc-record","expected":"not_accepted","messages":[{"turn":1,"source_ordinal":1,"actor":"agent","text":"Status report: the decision record was written successfully."}]}
