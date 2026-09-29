@@ -23,7 +23,9 @@ Use this skill when preparing or publishing a Memory Seed package release.
 
 1. Run the full test suite.
 2. Run `memory-seed doctor`.
-3. Bump every version surface together: `pyproject.toml`, the control-plane `VERSION`, and the
+3. Bump every version surface together: `pyproject.toml`, `PACKAGE_VERSION` in `memory_seed/core.py`
+   (it pins the MCP server that `init`/`update` write; a test requires it to match `pyproject.toml`),
+   the control-plane `VERSION`, and the
    `memory-system-version:` frontmatter in the repo-root routing files (`AGENTS.md`, `CLAUDE.md`,
    `GEMINI.md`), their seed twins, `agent-rules.md` (live + seed), and the seeded skill files. The
    root routing files are the historical miss; a guard test asserts they match `get_version()`.

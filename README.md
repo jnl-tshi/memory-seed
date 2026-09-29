@@ -67,6 +67,10 @@ For agent-native memory search over MCP:
 }
 ```
 
+`memory-seed init` writes this entry into each agent's config pinned to its own version
+(`memory-seed==X.Y.Z`), so `uvx` cannot keep serving a stale cached build; `memory-seed update`
+moves the pin.
+
 Validate the search workflow manually:
 
 ```powershell

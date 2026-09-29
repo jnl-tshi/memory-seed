@@ -29,6 +29,9 @@ from .text_files import (
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
 VERSION = "2.23"
+# The published package version (pyproject.toml). Pins the MCP server that `init`
+# and `update` write into agent configs; tests/test_mcp_merge.py guards the match.
+PACKAGE_VERSION = "2.23.0"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -10568,7 +10571,10 @@ _COPILOT_STOP_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --copil
 _COPILOT_FILE_TOUCH_COMMAND = "python3 .memory-seed/hooks/file-touch-decisions.py --copilot"
 
 _MCP_SERVER_COMMAND = "uvx"
-_MCP_SERVER_ARGS = ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
+# Pinned so `uvx` cannot keep serving a stale cached build: an unpinned
+# `--from memory-seed` respawned a 2.21.0 server after 2.22 was installed
+# (2026-09-23). `update` rewrites the pin, so it moves with each upgrade.
+_MCP_SERVER_ARGS = ["--from", f"memory-seed=={PACKAGE_VERSION}", "memory-seed-mcp", "--stdio"]
 _MCP_SERVER_KEY = "memory-seed"
 # Commands the _merge_*_mcp upserts will overwrite. Anything else on our key is
 # left alone, which is what lets a checkout point .mcp.json at its own build

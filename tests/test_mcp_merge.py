@@ -7,12 +7,23 @@ from pathlib import Path
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    PACKAGE_VERSION,
     doctor,
     init_project,
 )
 
+_PYPROJECT_VERSION = tomllib.loads(
+    (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
+# What init/update must write: the MCP server pinned to the package being released.
+PINNED_ARGS = ["--from", f"memory-seed=={_PYPROJECT_VERSION}", "memory-seed-mcp", "--stdio"]
+
 
 class McpMergeTests(unittest.TestCase):
+    def test_package_version_matches_pyproject(self):
+        # Bumped with every release; a mismatch would pin agent configs to the wrong build.
+        self.assertEqual(PACKAGE_VERSION, _PYPROJECT_VERSION)
+
     def make_project(self):
         path = Path(tempfile.mkdtemp(prefix="memory-seed-mcp-"))
         self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
@@ -29,7 +40,7 @@ class McpMergeTests(unittest.TestCase):
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
         self.assertNotIn("type", entry)
 
         # The dead settings.json mcpServers block must not be created.
@@ -46,7 +57,7 @@ class McpMergeTests(unittest.TestCase):
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
         self.assertNotIn("type", entry)
 
     def test_init_installs_mcp_for_gemini(self):
@@ -59,7 +70,7 @@ class McpMergeTests(unittest.TestCase):
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
 
     def test_mcp_merges_are_idempotent(self):
         from memory_seed.core import (
@@ -97,7 +108,7 @@ class McpMergeTests(unittest.TestCase):
         data = json.loads(mcp_path.read_text())
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
 
     def test_mcp_merge_preserves_unrelated_mcp_server(self):
         import json
@@ -226,7 +237,7 @@ class McpMergeTests(unittest.TestCase):
         self.assertIn("memory-seed", data["mcp_servers"])
         entry = data["mcp_servers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
 
     def test_codex_mcp_merge_updates_stale_args(self):
         import tomllib
@@ -248,7 +259,7 @@ class McpMergeTests(unittest.TestCase):
         data = tomllib.loads(config_path.read_text(encoding="utf-8"))
         entry = data["mcp_servers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
-        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+        self.assertEqual(entry["args"], PINNED_ARGS)
 
     def test_codex_mcp_merge_preserves_existing_config(self):
         import tomllib

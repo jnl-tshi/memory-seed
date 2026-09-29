@@ -18,6 +18,8 @@ class ProcessMatchingTests(unittest.TestCase):
             ProcessInfo(102, "uvx.exe", None, ("uvx", "--from", "memory-seed", "memory-seed-mcp", "--stdio")),
             ProcessInfo(103, "uv.exe", None, ("uv", "tool", "uvx", "--from", "memory-seed", "memory-seed-mcp")),
             ProcessInfo(104, "pipx.exe", None, ("pipx", "run", "memory-seed", "memory-seed-mcp")),
+            # the version-pinned launch that init/update now write
+            ProcessInfo(106, "uvx.exe", None, ("uvx", "--from", "memory-seed==2.23.0", "memory-seed-mcp", "--stdio")),
             ProcessInfo(
                 105,
                 "python.exe",
@@ -35,7 +37,7 @@ class ProcessMatchingTests(unittest.TestCase):
 
         matches = find_managed_processes("memory-seed", snapshots=snapshots, current_pid=999)
 
-        self.assertEqual([process.pid for process in matches], [101, 102, 103, 104, 105])
+        self.assertEqual([process.pid for process in matches], [101, 102, 103, 104, 106, 105])
         self.assertTrue(all(process.package == "memory-seed" for process in matches))
 
     def test_finds_memory_trace_matches_with_same_rules(self):
