@@ -89,6 +89,18 @@ def test_freeze_opaque_ids_config_hashes_and_gold_stripping():
     assert frozen["dataset_hash"]
 
 
+def test_marker_accepts_source_coordinates_without_evaluation_metadata():
+    value = dataset()
+    value["cases"][0]["marker"] = {
+        "rollout_id": "r", "turn": 1, "source_ordinal": 1,
+        "strength": "high", "state": "accepted", "origin": "user",
+    }
+    frozen = freeze_dataset(value, config())
+    packet = extraction_packets(frozen)[0]
+    assert packet["request"]["marker"] == value["cases"][0]["marker"]
+    assert "gold_record" not in json.dumps(packet, ensure_ascii=False)
+
+
 @pytest.mark.parametrize("location,metadata", [
     ("message", {"gold_record": {"title": "private"}}),
     ("marker", {"gold_title": "private"}),

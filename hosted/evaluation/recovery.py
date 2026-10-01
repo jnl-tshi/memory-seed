@@ -27,7 +27,7 @@ _SAFE_MESSAGE_FIELDS = frozenset({
     "task_boundary", "decision_marker", "implementation_started",
 })
 _SAFE_MARKER_FIELDS = frozenset({
-    "turn", "source_ordinal", "strength", "state", "origin", "trigger_class",
+    "rollout_id", "turn", "source_ordinal", "strength", "state", "origin", "trigger_class",
     "issue_hint", "trigger_quote",
 })
 
