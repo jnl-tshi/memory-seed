@@ -1,0 +1,393 @@
+{
+  "schema_version": "recovery-public-summary-v1",
+  "date": "2026-10-01",
+  "status": "blocked_unmerged",
+  "evidence_mode": "gold_selected_development_reconstruction",
+  "source_case_count": 5,
+  "fresh_positive_count": 0,
+  "real_negative_count": 0,
+  "prompt_trials": [
+    {
+      "prompt_version": "p0.2-semantic-prompt-v1",
+      "dataset_hash": "e4411d9dfa534c9d5095cc3c640fa93a7225fd1559546b85059702a20e4d9a6b",
+      "gate": {
+        "passed": false,
+        "reasons": [
+          "diagnostic-1: lineage unavailable for one or more messages",
+          "diagnostic-1: source review unavailable or not exactly two reviewers",
+          "diagnostic-2: lineage unavailable for one or more messages",
+          "diagnostic-2: source review unavailable or not exactly two reviewers",
+          "diagnostic-3: lineage unavailable for one or more messages",
+          "diagnostic-3: source review unavailable or not exactly two reviewers",
+          "diagnostic-4: lineage unavailable for one or more messages",
+          "diagnostic-4: source review unavailable or not exactly two reviewers",
+          "diagnostic-5: lineage unavailable for one or more messages",
+          "diagnostic-5: source review unavailable or not exactly two reviewers",
+          "exposure audit unavailable",
+          "fewer than 30 reviewed real negatives",
+          "fewer than 30 supported fresh positives"
+        ],
+        "status": "inconclusive",
+        "thresholds": {
+          "false_acceptance": 0,
+          "precision": 0.95,
+          "recovery": 0.8,
+          "review_conflicts": 0,
+          "wrong_actor": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "A",
+          "case_results": [
+            {
+              "case_id": "case-0001",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0002",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0003",
+              "correct_unique_complete": 0,
+              "outputs": 3,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0004",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0005",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            }
+          ],
+          "cases": 5,
+          "conflicts": 5,
+          "correct_unique_complete": 0,
+          "false_acceptance": 0,
+          "negative_output_false_positives": 0,
+          "positive_cases": 5,
+          "precision": 0,
+          "recovered_positive_cases": 0,
+          "recovery": 0,
+          "total_outputs": 7,
+          "wrong_actor": 0
+        },
+        {
+          "run_id": "B",
+          "case_results": [
+            {
+              "case_id": "case-0001",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0002",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0003",
+              "correct_unique_complete": 0,
+              "outputs": 3,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0004",
+              "correct_unique_complete": 0,
+              "outputs": 0,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0005",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            }
+          ],
+          "cases": 5,
+          "conflicts": 6,
+          "correct_unique_complete": 0,
+          "false_acceptance": 0,
+          "negative_output_false_positives": 0,
+          "positive_cases": 5,
+          "precision": 0,
+          "recovered_positive_cases": 0,
+          "recovery": 0,
+          "total_outputs": 6,
+          "wrong_actor": 0
+        }
+      ],
+      "control": {
+        "case_results": [
+          {
+            "case_id": "case-0001",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0002",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0003",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0004",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0005",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          }
+        ],
+        "cases": 5,
+        "conflicts": 0,
+        "correct_unique_complete": 0,
+        "false_acceptance": 0,
+        "negative_output_false_positives": 0,
+        "positive_cases": 5,
+        "precision": null,
+        "recovered_positive_cases": 0,
+        "recovery": 0,
+        "total_outputs": 0,
+        "wrong_actor": 0
+      }
+    },
+    {
+      "prompt_version": "p0.2-semantic-prompt-v2",
+      "dataset_hash": "e2c8e1f3dc7e7f00105463aaf197d28a748e50d376f0417ed461fd41c3b62160",
+      "gate": {
+        "passed": false,
+        "reasons": [
+          "diagnostic-1: lineage unavailable for one or more messages",
+          "diagnostic-1: source review unavailable or not exactly two reviewers",
+          "diagnostic-2: lineage unavailable for one or more messages",
+          "diagnostic-2: source review unavailable or not exactly two reviewers",
+          "diagnostic-3: lineage unavailable for one or more messages",
+          "diagnostic-3: source review unavailable or not exactly two reviewers",
+          "diagnostic-4: lineage unavailable for one or more messages",
+          "diagnostic-4: source review unavailable or not exactly two reviewers",
+          "diagnostic-5: lineage unavailable for one or more messages",
+          "diagnostic-5: source review unavailable or not exactly two reviewers",
+          "exposure audit unavailable",
+          "fewer than 30 reviewed real negatives",
+          "fewer than 30 supported fresh positives",
+          "one or more run cases are invalid or unavailable"
+        ],
+        "status": "inconclusive",
+        "thresholds": {
+          "false_acceptance": 0,
+          "precision": 0.95,
+          "recovery": 0.8,
+          "review_conflicts": 0,
+          "wrong_actor": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "A",
+          "case_results": [
+            {
+              "case_id": "case-0001",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0002",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0003",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0004",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0005",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            }
+          ],
+          "cases": 5,
+          "conflicts": 4,
+          "correct_unique_complete": 0,
+          "false_acceptance": 0,
+          "negative_output_false_positives": 0,
+          "positive_cases": 5,
+          "precision": 0,
+          "recovered_positive_cases": 0,
+          "recovery": 0,
+          "total_outputs": 5,
+          "wrong_actor": 0
+        },
+        {
+          "run_id": "B",
+          "case_results": [
+            {
+              "case_id": "case-0001",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            },
+            {
+              "case_id": "case-0002",
+              "correct_unique_complete": 0,
+              "outputs": 0,
+              "status": "invalid"
+            },
+            {
+              "case_id": "case-0003",
+              "correct_unique_complete": 0,
+              "outputs": 0,
+              "status": "invalid"
+            },
+            {
+              "case_id": "case-0004",
+              "correct_unique_complete": 0,
+              "outputs": 0,
+              "status": "invalid"
+            },
+            {
+              "case_id": "case-0005",
+              "correct_unique_complete": 0,
+              "outputs": 1,
+              "status": "valid"
+            }
+          ],
+          "cases": 5,
+          "conflicts": 2,
+          "correct_unique_complete": 0,
+          "false_acceptance": 0,
+          "negative_output_false_positives": 0,
+          "positive_cases": 5,
+          "precision": 0,
+          "recovered_positive_cases": 0,
+          "recovery": 0,
+          "total_outputs": 2,
+          "wrong_actor": 0
+        }
+      ],
+      "control": {
+        "case_results": [
+          {
+            "case_id": "case-0001",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0002",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0003",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0004",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          },
+          {
+            "case_id": "case-0005",
+            "correct_unique_complete": 0,
+            "outputs": 0,
+            "status": "valid"
+          }
+        ],
+        "cases": 5,
+        "conflicts": 0,
+        "correct_unique_complete": 0,
+        "false_acceptance": 0,
+        "negative_output_false_positives": 0,
+        "positive_cases": 5,
+        "precision": null,
+        "recovered_positive_cases": 0,
+        "recovery": 0,
+        "total_outputs": 0,
+        "wrong_actor": 0
+      }
+    }
+  ],
+  "validation": {
+    "targeted": {
+      "status": "passed",
+      "passed": 45
+    },
+    "full_suite": {
+      "status": "failed",
+      "passed": 2211,
+      "failed": 4,
+      "skipped": 1,
+      "seconds": 264.19,
+      "failures": [
+        "test_link_audit.py::LinkAuditTests::test_cli_apply_creates_stub_and_reapply_is_idempotent",
+        "test_handoff_wiring.py::HandoffWiringTests::test_collaboration_table_uses_the_logged_handoff_labels",
+        "test_subagent_orientation.py::SubagentOrientationLiteTests::test_every_stop_category_is_restated",
+        "test_subagent_orientation.py::SubagentOrientationLiteTests::test_live_and_seed_are_byte_identical"
+      ]
+    },
+    "full_suite_followup": "Three Windows xdist serialization failures passed serially (26 subtests). The fourth, link-audit stderr polluted by dependency progress, also reproduces on unchanged main; passes with process-only HF_HUB_DISABLE_PROGRESS_BARS=1. Original full suite remains failed."
+  },
+  "review": {
+    "status": "blocked",
+    "original_final_findings": "Both fixed: arbitrary source metadata leakage; imported-control provenance mismatch.",
+    "residual": "recovery._SAFE_MARKER_FIELDS excludes rollout_id, rejecting coordinates supported by SemanticState.",
+    "ruling": "Accepted as a compatibility blocker. One final fix-wave cap reached; no second code fix or integration without user direction."
+  },
+  "private_score_sha256": {
+    "v1": "c186e59b7dfd26bd4d4ff4f2fa8b05692cfd6ce9148cd4978147718519655b29",
+    "v2": "dca8e6c23748505bad1a24a6fcbdc3820b8c0780c518f90e96090e874026aff2"
+  },
+  "limitations": [
+    "Five previously examined gold-selected cases, not retrieval, discovery, or fresh accuracy.",
+    "Trial 1 masking was weakened by fixed arm order and repeated output hashes; corrected for trial 2.",
+    "Independent source audit judged only one of five references fully recoverable from supplied snippets.",
+    "Trial 2 B had three invalid responses; none repaired or counted as successes.",
+    "No observed false acceptance or wrong actor among valid reviewed outputs is not a precision or safety proof."
+  ],
+  "next_steps": [
+    "Obtain authorization for one narrow rollout_id compatibility fix and regression test/review.",
+    "No further prompt tuning under this bounded experiment: two versions showed no complete-recovery improvement.",
+    "Prepare fully supported source windows and a certified fresh cohort before a separately scoped accuracy experiment.",
+    "Live integration, automatic discovery, OAuth, provider API, training and automatic promotion remain unimplemented or gated."
+  ]
+}
