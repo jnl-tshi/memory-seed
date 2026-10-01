@@ -1,6 +1,9 @@
 # Decision reconstruction recovery trial
 
-Status: implementation in progress; no accuracy claim.
+Status: offline implementation saved, unmerged; final review blocked by marker
+coordinate compatibility. Two development prompt versions each recovered 0/5
+complete decisions in both runs; tuning stopped under the bounded rule.
+Fresh accuracy gate inconclusive. See [RECOVERY-RESULTS.md](RECOVERY-RESULTS.md).
 
 The user approved comparing frozen deterministic extraction with semantic
 interpretation by existing Codex agents, followed by independent evidence review.

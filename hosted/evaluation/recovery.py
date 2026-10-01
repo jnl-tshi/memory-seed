@@ -22,6 +22,14 @@ DATASET_SCHEMA = "recovery-dataset-v1"
 RUN_SCHEMA = "recovery-run-v1"
 PACKET_SCHEMA = "recovery-review-packets-v1"
 _REVIEW_FIELDS = ("issue", "selected_action", "scope", "agreement_quote", "reason", "conditions", "deciding_actor")
+_SAFE_MESSAGE_FIELDS = frozenset({
+    "rollout_id", "turn", "source_ordinal", "actor", "text", "timestamp",
+    "task_boundary", "decision_marker", "implementation_started",
+})
+_SAFE_MARKER_FIELDS = frozenset({
+    "turn", "source_ordinal", "strength", "state", "origin", "trigger_class",
+    "issue_hint", "trigger_quote",
+})
 
 
 def _canonical(value: Any) -> str:
@@ -119,6 +127,23 @@ def _source_reviews(case: dict) -> tuple[bool, list[str]]:
     return not reasons, reasons
 
 
+def _check_input_fields(messages: Any, marker: Any, *, context: str) -> None:
+    if not isinstance(messages, list):
+        raise ValueError(f"{context} messages must be a list")
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            raise ValueError(f"{context} message {index} must be an object")
+        unexpected = set(message) - _SAFE_MESSAGE_FIELDS
+        if unexpected:
+            raise ValueError(f"unexpected evaluation metadata in {context} message {index}: {sorted(unexpected)}")
+    if marker is not None:
+        if not isinstance(marker, dict):
+            raise ValueError(f"{context} marker must be an object")
+        unexpected = set(marker) - _SAFE_MARKER_FIELDS
+        if unexpected:
+            raise ValueError(f"unexpected evaluation metadata in {context} marker: {sorted(unexpected)}")
+
+
 def freeze_dataset(dataset: dict, model_config: dict) -> dict:
     """Validate and freeze source data, preserving order behind opaque case IDs."""
     if not isinstance(dataset, dict) or not isinstance(dataset.get("cases"), list):
@@ -127,7 +152,8 @@ def freeze_dataset(dataset: dict, model_config: dict) -> dict:
         raise ValueError("model_config.model must be nonempty")
     if not isinstance(model_config.get("reasoning_effort"), str) or not model_config["reasoning_effort"]:
         raise ValueError("model_config.reasoning_effort must be nonempty")
-    roots = _resolve_roots(dataset.get("lineage", {}))
+    lineage = deepcopy(dataset.get("lineage", {}))
+    roots = _resolve_roots(lineage)
     prior = dataset.get("previously_examined_roots", [])
     if not isinstance(prior, list) or any(not isinstance(x, str) or not x for x in prior):
         raise ValueError("previously_examined_roots must be a list of root IDs")
@@ -152,6 +178,7 @@ def freeze_dataset(dataset: dict, model_config: dict) -> dict:
         messages = raw.get("messages")
         if not isinstance(messages, list):
             raise ValueError("case messages must be a list")
+        _check_input_fields(messages, raw.get("marker"), context=f"case {cid}")
         gold = raw.get("gold_record")
         if not isinstance(gold, dict) or not gold:
             raise ValueError("gold_record must be a nonempty object")
@@ -208,7 +235,7 @@ def freeze_dataset(dataset: dict, model_config: dict) -> dict:
     config_id = _digest({"model_config": model_copy, "prompt_version": PROMPT_VERSION})
     material = {"schema_version": DATASET_SCHEMA, "prompt_version": PROMPT_VERSION,
                 "model_config": model_copy, "config_id": config_id,
-                "lineage": deepcopy(dataset["lineage"]), "previously_examined_roots": deepcopy(prior),
+                "lineage": lineage, "previously_examined_roots": deepcopy(prior),
                 "cases": frozen_cases, "eligibility": eligibility}
     return _seal(material, "dataset_hash")
 
@@ -226,6 +253,7 @@ def extraction_packets(frozen: dict) -> list[dict]:
     frozen = _checked_frozen(frozen)
     packets = []
     for case in frozen["cases"]:
+        _check_input_fields(case.get("messages"), case.get("marker"), context=case["opaque_case_id"])
         state = SemanticState(frozen["config_id"])
         request = state.make_request(deepcopy(case["messages"]), deepcopy(case.get("marker")))
         packets.append({"case_id": case["opaque_case_id"], "request": request})
@@ -284,6 +312,7 @@ def _checked_control(frozen: dict, control: dict) -> dict:
             or control.get("dataset_hash") != frozen["dataset_hash"]
             or control.get("config_id") != frozen["config_id"]
             or control.get("revision") != "95514648be7dae6652d217fd8bfbcade897e19d3"
+            or control.get("parser_backend") != "en_core_web_sm==3.8.0"
             or [c.get("case_id") for c in control.get("cases", [])] != expected):
         raise ValueError("control run does not match frozen pinned baseline")
     return control
@@ -299,45 +328,53 @@ def review_packets(frozen: dict, runs: list[dict], control: dict | None = None) 
         raise ValueError("run IDs must be distinct and independent")
     if control is not None:
         _checked_control(frozen, control)
+    rows = []
+    for case_index, source_case in enumerate(frozen["cases"]):
+        arms = [(f"arm-{index+1}", run, run["cases"][case_index]) for index, run in enumerate(runs)]
+        if control is not None:
+            arms.append(("arm-control", control, control["cases"][case_index]))
+        rows.extend((source_case, arm, run, result) for arm, run, result in arms)
+    run_hashes = {f"arm-{index+1}": run["run_hash"] for index, run in enumerate(runs)}
+    if control is not None:
+        run_hashes["arm-control"] = control["run_hash"]
+    output_binding = _digest(sorted(run_hashes.values()))
+    rows.sort(key=lambda row: _digest({"dataset_hash": frozen["dataset_hash"],
+                                       "output_binding": output_binding,
+                                       "case_id": row[0]["opaque_case_id"], "arm": row[1]}))
+
     items = []
     key_items = []
-    # Interleave by opaque case ID and arm; only this scorer key reveals the mapping.
-    for ci, source_case in enumerate(frozen["cases"]):
-        arms = [(f"arm-{ri+1}", run, run["cases"][ci]) for ri, run in enumerate(runs)]
-        if control is not None:
-            arms.append(("arm-control", control, control["cases"][ci]))
-        for arm, run, result in arms:
-            item_id = f"review-{len(items)+1:04d}"
-            local_candidates = []
-            candidate_map = {}
-            for candidate_index, candidate in enumerate(result.get("candidates", []), 1):
-                local_id = f"candidate-{candidate_index:04d}"
-                candidate_map[local_id] = candidate.get("candidate_id")
-                local = {key: deepcopy(candidate[key]) for key in (
-                    "issue", "selected_action", "scope", "agreement_quote", "reason", "conditions",
-                    "deciding_actor", "state", "unresolved_references", "complete",
-                ) if key in candidate}
-                # Same reviewer-visible shape in both arms; never leak semantic
-                # validator flags or parser-only metadata as an arm label.
-                local["field_evidence"] = deepcopy(candidate.get("field_evidence"))
-                local["source_evidence"] = deepcopy(candidate.get("source_evidence"))
-                local["candidate_id"] = local_id
-                local_candidates.append(local)
-            items.append({"item_id": item_id, "output_hash": run["run_hash"],
-                          "status": result["status"],
-                          "messages": deepcopy(source_case["messages"]),
-                          "gold_record": deepcopy(source_case["gold_record"]),
-                          "candidates": local_candidates})
-            key_items.append({"item_id": item_id, "arm": arm,
-                              "case_id": source_case["opaque_case_id"],
-                              "run_hash": run["run_hash"], "candidate_ids": candidate_map})
-    packet_material = {"schema_version": PACKET_SCHEMA, "dataset_hash": frozen["dataset_hash"], "items": items}
+    for source_case, arm, run, result in rows:
+        item_id = f"review-{len(items)+1:04d}"
+        local_candidates = []
+        candidate_map = {}
+        for candidate_index, candidate in enumerate(result.get("candidates", []), 1):
+            local_id = f"candidate-{candidate_index:04d}"
+            candidate_map[local_id] = candidate.get("candidate_id")
+            # Semantic and control candidates use the same fields. Field-level
+            # evidence stays in sealed runs so its arm-specific shape cannot
+            # identify the reviewer-visible arm; exact messages remain here.
+            local = {key: deepcopy(candidate.get(key)) for key in (
+                "issue", "selected_action", "scope", "agreement_quote", "reason", "conditions",
+                "deciding_actor", "state", "unresolved_references", "complete",
+            )}
+            local["candidate_id"] = local_id
+            local_candidates.append(local)
+        items.append({"item_id": item_id, "status": result["status"],
+                      "messages": deepcopy(source_case["messages"]),
+                      "gold_record": deepcopy(source_case["gold_record"]),
+                      "candidates": local_candidates})
+        key_items.append({"item_id": item_id, "arm": arm,
+                          "case_id": source_case["opaque_case_id"],
+                          "run_hash": run["run_hash"], "candidate_ids": candidate_map})
+    packet_material = {"schema_version": PACKET_SCHEMA, "dataset_hash": frozen["dataset_hash"],
+                       "output_binding": output_binding, "items": items}
     packet_hash = _digest(packet_material)
     packet = {**packet_material, "packet_hash": packet_hash}
     return {"schema_version": PACKET_SCHEMA, "dataset_hash": frozen["dataset_hash"],
             "packet_hash": packet_hash, "packets": items,
             "key": {"dataset_hash": frozen["dataset_hash"],
-                    "packet_hash": packet_hash, "items": key_items}}
+                    "packet_hash": packet_hash, "run_hashes": run_hashes, "items": key_items}}
 
 
 def _normalized_source(repo: str | os.PathLike, relative: str, revision: str) -> tuple[bytes, str]:
@@ -349,16 +386,39 @@ def _normalized_source(repo: str | os.PathLike, relative: str, revision: str) ->
     return normalized, hashlib.sha256(normalized).hexdigest()
 
 
+def _attest_imported_module(module: Any, repo: str | os.PathLike, relative: str,
+                            expected_bytes: bytes) -> None:
+    expected_path = (Path(repo) / relative).resolve()
+    spec = getattr(module, "__spec__", None)
+    origins = [getattr(module, "__file__", None), getattr(spec, "origin", None)]
+    origins = [origin for origin in origins if origin]
+    if not origins:
+        raise ValueError(f"imported module origin unavailable for {relative}")
+    for origin in origins:
+        actual_path = Path(origin).resolve()
+        if os.path.normcase(str(actual_path)) != os.path.normcase(str(expected_path)):
+            raise ValueError(f"imported module origin is outside checked repository for {relative}: {actual_path}")
+        actual_bytes = actual_path.read_bytes().replace(b"\r\n", b"\n")
+        if actual_bytes != expected_bytes:
+            raise ValueError(f"imported module bytes differ from pinned source for {relative}")
+
+
 def frozen_control(frozen: dict, repo: str | os.PathLike) -> dict:
     """Run the pinned rules parser over the exact frozen messages and marker."""
     frozen = _checked_frozen(frozen)
     revision = "95514648be7dae6652d217fd8bfbcade897e19d3"
-    _, parser_hash = _normalized_source(repo, "hosted/capture/parser.py", revision)
-    _, incremental_hash = _normalized_source(repo, "hosted/capture/incremental.py", revision)
-    from hosted.capture.parser import DecisionParser
+    parser_bytes, parser_hash = _normalized_source(repo, "hosted/capture/parser.py", revision)
+    incremental_bytes, incremental_hash = _normalized_source(repo, "hosted/capture/incremental.py", revision)
+    import hosted.capture.parser as parser_module
+    import hosted.capture.incremental as incremental_module
+    _attest_imported_module(parser_module, repo, "hosted/capture/parser.py", parser_bytes)
+    _attest_imported_module(incremental_module, repo, "hosted/capture/incremental.py", incremental_bytes)
     from hosted.evaluation.paired_replay import cue_marker
 
-    parser = DecisionParser()
+    parser = parser_module.DecisionParser()
+    if parser.backend != "en_core_web_sm==3.8.0":
+        raise RuntimeError("frozen control requires parser backend en_core_web_sm==3.8.0; got "
+                           f"{parser.backend!r}")
     controls = []
     for case_data in frozen["cases"]:
         messages = deepcopy(case_data["messages"])
@@ -377,7 +437,8 @@ def frozen_control(frozen: dict, repo: str | os.PathLike) -> dict:
         normalized_candidates = []
         for raw in raw_candidates:
             item = {key: deepcopy(raw[key]) for key in (
-                "issue", "selected_action", "scope", "agreement_quote", "reason", "conditions", "deciding_actor"
+                "issue", "selected_action", "scope", "agreement_quote", "reason", "conditions",
+                "deciding_actor", "state", "unresolved_references"
             ) if key in raw}
             item["candidate_id"] = "control_" + _digest({"case_id": case_data["opaque_case_id"],
                                                         "source": raw.get("source", {}).get("source_coordinates"),
@@ -471,11 +532,7 @@ def score(frozen: dict, runs: list[dict], reviews: list[dict], control: dict | N
         _checked_run(frozen, run)
     review_bundle = review_packets(frozen, runs, control)
     packet = {"schema_version": PACKET_SCHEMA, "dataset_hash": frozen["dataset_hash"],
-              "items": review_bundle["packets"]}
-    packet["packet_hash"] = _digest(packet)
-    # review_packets hashes material before packet_hash, so reconstruct exactly.
-    packet["packet_hash"] = _digest({"schema_version": PACKET_SCHEMA,
-                                      "dataset_hash": frozen["dataset_hash"], "items": review_bundle["packets"]})
+              "items": review_bundle["packets"], "packet_hash": review_bundle["packet_hash"]}
     items, judgments = _validate_reviews(packet, reviews)
     key_by_item = {x["item_id"]: x for x in review_bundle["key"]["items"]}
     item_by_id = {x["item_id"]: x for x in items}
@@ -509,7 +566,8 @@ def score(frozen: dict, runs: list[dict], reviews: list[dict], control: dict | N
                     negative_outputs += n_outputs
                 complete_values = [candidate_reviews.get(candidate["candidate_id"], {}).get("complete", False)
                                    for candidate in item["candidates"]]
-                correct_case = bool(positive and any(complete_values))
+                case_conflicted = any(j["conflict"] for j in candidate_reviews.values())
+                correct_case = bool(positive and any(complete_values) and not case_conflicted)
                 if correct_case:
                     recovered_cases += 1
                     correct_outputs += 1  # at most one correct recovery per positive case

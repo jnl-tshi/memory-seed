@@ -4,6 +4,11 @@ This is an **offline reconstruction experiment**, not a live decision detector.
 The existing capture adapter and frozen deterministic parser are unchanged.
 Semantic drafts are inert and still require curator verification.
 
+Current outcome: [RECOVERY-RESULTS.md](RECOVERY-RESULTS.md). Implementation is
+unmerged, with one marker-coordinate compatibility fix awaiting authorization.
+Two development prompt versions did not improve complete recovery; no further
+tuning or live integration is authorized by this experiment.
+
 ## Privacy and execution
 
 Keep datasets, source text, prompts, model responses and review packets in an
@@ -86,4 +91,3 @@ marker placement or full-stream discovery.
 Hash binding detects accidental changes; it does not prove that source labels,
 reviewer independence or exposure-completeness declarations are truthful.
 Those remain independently auditable experiment inputs.
-

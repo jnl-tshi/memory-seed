@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from types import SimpleNamespace
 
 from hosted.evaluation.recovery import (
     freeze_dataset, extraction_packets, import_run, review_packets, score,
@@ -88,6 +89,29 @@ def test_freeze_opaque_ids_config_hashes_and_gold_stripping():
     assert frozen["dataset_hash"]
 
 
+@pytest.mark.parametrize("location,metadata", [
+    ("message", {"gold_record": {"title": "private"}}),
+    ("marker", {"gold_title": "private"}),
+])
+def test_freeze_rejects_evaluation_metadata_in_extractor_inputs(location, metadata):
+    value = dataset()
+    if location == "message":
+        value["cases"][0]["messages"][0].update(metadata)
+    else:
+        value["cases"][0]["marker"] = {"turn": 1, "trigger_quote": "cue", **metadata}
+    with pytest.raises(ValueError, match="metadata|unsupported|unexpected"):
+        freeze_dataset(value, config())
+
+
+def test_request_export_rechecks_safe_input_fields():
+    import hosted.evaluation.recovery as recovery_module
+    frozen = freeze_dataset(dataset(), config())
+    frozen["cases"][0]["messages"][0]["kind"] = "positive"
+    forged = recovery_module._seal(frozen, "dataset_hash")
+    with pytest.raises(ValueError, match="metadata|unsupported|unexpected"):
+        extraction_packets(forged)
+
+
 def test_canonical_hash_integrity_detects_tampering():
     frozen = freeze_dataset(dataset(), config())
     changed = deepcopy(frozen)
@@ -136,6 +160,14 @@ def test_missing_review_or_lineage_means_ineligible_not_fake_eligibility():
     frozen = freeze_dataset(value, config())
     assert not frozen["eligibility"]["eligible"]
     assert frozen["eligibility"]["reasons"]
+
+
+def test_omitted_lineage_is_normalized_and_ineligible():
+    value = dataset()
+    value.pop("lineage")
+    frozen = freeze_dataset(value, config())
+    assert frozen["lineage"] == {}
+    assert not frozen["eligibility"]["eligible"]
 
 
 def test_source_reviews_require_exact_booleans_and_independent_ids():
@@ -200,7 +232,7 @@ def test_two_runs_reviews_conflict_and_precision_denominator_duplicates():
     docs = make_reviews(frozen, runs, conflict=True)
     report = score(frozen, runs, docs)
     assert report["gate"]["status"] != "pass"
-    assert report["runs"][0]["conflicts"]
+    assert sum(run["conflicts"] for run in report["runs"]) > 0
 
 
 def test_wrong_actor_and_false_acceptance_are_hard_failures():
@@ -213,7 +245,7 @@ def test_wrong_actor_and_false_acceptance_are_hard_failures():
     docs = make_reviews(frozen, runs)
     docs[0]["items"][0]["candidate_judgments"][0]["wrong_actor"] = True
     report = score(frozen, runs, docs)
-    assert report["runs"][0]["wrong_actor"] > 0
+    assert sum(run["wrong_actor"] for run in report["runs"]) > 0
     assert report["gate"]["status"] != "pass"
 
 
@@ -277,15 +309,35 @@ def test_review_packet_binds_evidence_runs_and_masks_candidate_metadata():
     output = review_packets(frozen, runs)
     item = output["packets"][0]
     assert item["messages"] == frozen["cases"][0]["messages"]
-    assert item["output_hash"] in [run["run_hash"] for run in runs]
+    assert "output_hash" not in item
+    assert not any(run["run_hash"] in json.dumps(output["packets"]) for run in runs)
     candidate = item["candidates"][0]
     assert candidate["candidate_id"] == "candidate-0001"
     assert "authoritative" not in candidate
     assert output["key"]["items"][0]["candidate_ids"]["candidate-0001"]
+    same_outputs_new_run = make_run(frozen, "run-c")
+    rebound = review_packets(frozen, [runs[0], same_outputs_new_run])
+    assert rebound["packets"] == output["packets"]
+    assert rebound["packet_hash"] != output["packet_hash"]
     tampered = make_reviews(frozen, runs)
     tampered[0]["packet_hash"] = "0" * 64
     with pytest.raises(ValueError, match="packet hash"):
         score(frozen, runs, tampered)
+
+
+def test_review_packet_items_are_deterministically_blinded_and_interleaved():
+    value = dataset([case("one"), case("two", rollout="other")],
+                    lineage={"r": {"session_id": "s-r", "parent_session_id": None},
+                             "other": {"session_id": "s-other", "parent_session_id": None}})
+    frozen = freeze_dataset(value, config())
+    runs = [make_run(frozen, "a"), make_run(frozen, "b")]
+    first = review_packets(frozen, runs)
+    second = review_packets(frozen, runs)
+    assert first["packets"] == second["packets"]
+    arms = [row["arm"] for row in first["key"]["items"]]
+    assert arms != ["arm-1", "arm-2", "arm-1", "arm-2"]
+    assert all(set(c) == set(first["packets"][0]["candidates"][0])
+               for row in first["packets"] for c in row["candidates"])
 
 
 def test_every_extra_output_stays_in_precision_denominator():
@@ -311,16 +363,82 @@ def test_every_extra_output_stays_in_precision_denominator():
     assert report["runs"][0]["precision"] == .5
 
 
-def test_control_runs_pinned_parser_and_score_reports_it_separately():
+def test_control_runs_pinned_parser_and_score_reports_it_separately(monkeypatch):
+    import hosted.capture.parser as parser_module
+
+    class ReviewParser:
+        backend = "en_core_web_sm==3.8.0"
+
+        def parse_stepped(self, rollout, messages, *, marker, lineage_messages):
+            msg = messages[-1]
+            return [{"issue": "storage", "selected_action": "use SQLite", "scope": "storage",
+                     "agreement_quote": msg["text"], "reason": None, "conditions": [],
+                     "deciding_actor": "user", "state": "accepted", "complete": True,
+                     "source": {"source_coordinates": [{"rollout_id": rollout, "turn": msg["turn"],
+                                                          "source_ordinal": msg["source_ordinal"]}],
+                                "messages": [msg]}}]
+
+    monkeypatch.setattr(parser_module, "DecisionParser", ReviewParser)
     frozen = freeze_dataset(dataset(), config())
     control = frozen_control(frozen, Path(__file__).resolve().parents[1])
     assert control["revision"] == "95514648be7dae6652d217fd8bfbcade897e19d3"
     assert control["file_hashes"]
     assert control["cases"][0]["evidence_mode"] == "oracle_selected_evidence_reconstruction"
     runs = [make_run(frozen, "run-a"), make_run(frozen, "run-b")]
+    bundle = review_packets(frozen, runs, control)
+    shapes = {frozenset(candidate) for item in bundle["packets"] for candidate in item["candidates"]}
+    assert len(shapes) == 1
+    assert all("field_evidence" not in candidate and "source_evidence" not in candidate
+               for item in bundle["packets"] for candidate in item["candidates"])
+    assert all(item["messages"] == frozen["cases"][0]["messages"] for item in bundle["packets"])
+    assert runs[0]["cases"][0]["candidates"][0]["field_evidence"]
+    assert control["cases"][0]["candidates"][0]["source_evidence"]
     docs = make_reviews(frozen, runs, control=control)
     report = score(frozen, runs, docs, control)
     assert report["control"]["splits"]["fresh"]["total_outputs"] >= 0
+
+
+def test_control_requires_exact_spacy_backend(monkeypatch):
+    import hosted.capture.parser as parser_module
+    monkeypatch.setattr(parser_module, "DecisionParser", lambda: SimpleNamespace(backend="rules"))
+    frozen = freeze_dataset(dataset(), config())
+    with pytest.raises(RuntimeError, match="en_core_web_sm==3.8.0"):
+        frozen_control(frozen, Path(__file__).resolve().parents[1])
+
+
+def test_control_rejects_parser_module_from_another_checkout(monkeypatch, tmp_path):
+    import hosted.capture.parser as parser_module
+    monkeypatch.setattr(parser_module, "__file__", str(tmp_path / "other" / "parser.py"))
+    monkeypatch.setattr(parser_module, "DecisionParser", lambda: pytest.fail("constructed parser before origin check"))
+    frozen = freeze_dataset(dataset(), config())
+    with pytest.raises(ValueError, match="origin|checkout|module"):
+        frozen_control(frozen, Path(__file__).resolve().parents[1])
+
+
+def test_any_candidate_conflict_blocks_case_recovery_credit():
+    small = _large_eligible_dataset()
+    small["cases"] = small["cases"][:1]
+    frozen = freeze_dataset(small, config())
+    packet = extraction_packets(frozen)[0]
+    response = _threshold_response(packet, True)
+    extra = deepcopy(response["candidates"][0])
+    extra["candidate_id"] = "extra"
+    extra["reason"] = "because this is an additional output"
+    proposal = packet["request"]["messages"][0]
+    citation = {"rollout_id": proposal["rollout_id"], "turn": proposal["turn"],
+                "source_ordinal": proposal["source_ordinal"], "start": 0,
+                "end": len(proposal["text"]), "quote": proposal["text"]}
+    extra["field_evidence"]["reason"] = [citation]
+    response["candidates"].append(extra)
+    runs = [import_run(frozen, rid, {packet["case_id"]: response}) for rid in ("a", "b")]
+    docs = make_reviews(frozen, runs)
+    # First candidate has matching complete reviews; the second candidate conflicts.
+    docs[1]["items"][0]["candidate_judgments"][1]["complete_match"] = False
+    report = score(frozen, runs, docs)
+    conflicted = [run for run in report["runs"] if run["splits"]["fresh"]["conflicts"]]
+    assert len(conflicted) == 1
+    assert conflicted[0]["recovered_positive_cases"] == 0
+    assert conflicted[0]["correct_unique_complete"] == 0
 
 
 def test_cli_freeze_requests_import_and_review_packet_happy_path(tmp_path):

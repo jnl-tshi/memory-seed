@@ -59,6 +59,24 @@ def setup_request(messages, marker=None):
     return state, request
 
 
+def test_request_contract_uses_bundle_preservation_prompt_revision():
+    required_revision = (
+        "Preserve the whole decision at its approved scope. When one user approval covers a coherent "
+        "multi-step plan for one issue, reconstruct that approved bundle, including all material "
+        "supported modes, conditions, exclusions, scope limits, and stated reasons; do not replace it "
+        "with disconnected partial candidates. Keep genuinely separate decisions separate. Before "
+        "returning, check every material requirement in the approval's referenced proposal against "
+        "the candidate fields and conditions. Preserve requirements rather than summarizing them "
+        "away. Missing source evidence must stay explicitly unresolved or incomplete; never fill a "
+        "gap from general knowledge or infer approval from agent narration."
+    )
+    _, request = setup_request([])
+
+    assert PROMPT_VERSION == "p0.2-semantic-prompt-v2"
+    assert request["prompt_version"] == "p0.2-semantic-prompt-v2"
+    assert request["extraction_instructions"].endswith(required_revision)
+
+
 def test_request_retry_is_identical_and_sources_are_defensively_copied():
     source = msg(1, "agent", "Issue: durable capture. Use SQLite for the queue.")
     state = SemanticState("cfg")
