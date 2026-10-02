@@ -96,3 +96,20 @@ def test_questions_complete_overrides_session_and_window_boundary_stop():
     assert at_window_end.stop_reason == "window_exhausted"
     at_window_end.mark_questions_complete()
     assert at_window_end.stop_reason == "answered_all_questions"
+
+
+def test_tool_calls_are_not_disclosed_or_counted_against_window_budget():
+    source = [message(0, 0, "earlier", actor="user"),
+              message(0, 1, "x" * 50_001, actor="tool"),
+              message(1, 2, "answer", actor="assistant")]
+    disclosure = AdaptiveDisclosure(source, ("r", 1, 2))
+    assert disclosure.batches[0]["messages"] == [source[2]]
+    assert disclosure.expand()["messages"] == [source[0]]
+    assert disclosure.summary()["disclosed_source_characters"] == len("earlieranswer")
+
+
+def test_tool_call_cannot_be_the_decision_window_anchor():
+    source = [message(0, 0, "decision", actor="user"),
+              message(0, 1, "tool", actor="tool")]
+    with pytest.raises(ValueError, match="anchor.*dialogue"):
+        AdaptiveDisclosure(source, ("r", 0, 1))

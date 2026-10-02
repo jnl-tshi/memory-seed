@@ -68,6 +68,20 @@ def test_two_turn_expansion_missing_reason_and_incomplete_explanation():
     assert run.summary()["expansion_count"] == 1
 
 
+def test_replay_excludes_tool_calls_and_rejects_their_citations():
+    tool = msg(0, "Tool output that is not dialogue.", ordinal=1, actor="tool")
+    source = msg(1, "Use the proposed plan.", ordinal=2)
+    run = replay([msg(0, "Proposal.", ordinal=0), tool, source])
+    initial = run.request()
+    assert initial["messages"] == [source]
+    claim = answers(issue={"value": "tool claim", "citations": [cite(tool, "Tool output")]})
+    with pytest.raises(ValueError, match="disclosed|source|citation"):
+        run.import_response(response(initial, claim))
+    assert run.request() == initial
+    run.import_response(response(initial, answers()))
+    assert [message["actor"] for message in run.request()["messages"]] == ["user"]
+
+
 def test_twenty_turn_exhaustion_retains_gaps_and_final_batch_can_complete():
     sources = [msg(t, f"text {t}") for t in range(31)]
     run = replay(sources)
