@@ -2,6 +2,11 @@
 
 Updated: 2026-10-02. Status: offline experimental path implemented; accuracy gate inconclusive.
 
+The two-case [temporal diagnostic](ADAPTIVE-TEMPORAL-DIAGNOSTIC.md) now separates
+decision-time dialogue, contemporaneous external context, and later log
+enrichment. It is a historical, single-inspection analysis, not a scored
+accuracy result; the fresh gate below remains unchanged.
+
 This is a new approach after the stopped prompt-only recovery trial. It does **not** supersede that trial's observed zero complete recoveries on its five historically examined diagnostic cases. No model was run against the new path in this implementation, and no new complete-decision rate is claimed.
 
 ## What is implemented
