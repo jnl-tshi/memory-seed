@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from hosted.capture.evaluation import _load_alignment_parser, _rollout_paths
+from hosted.capture.disclosure import DIALOGUE_ACTORS
 from hosted.capture.evidence_ledger import EvidenceLedger
 from hosted.evaluation.adaptive_arms import prepare_arms
 from hosted.evaluation.adaptive_replay import AdaptiveReplay
@@ -51,7 +52,8 @@ def audit_case(messages: list[dict], anchor: tuple[str, int, int],
     if not gold_refs:
         raise ValueError("case needs adjudicated source references")
     gold = {coordinate(ref) for ref in gold_refs}
-    available = {coordinate(message) for message in messages}
+    available = {coordinate(message) for message in messages
+                 if message["actor"] in DIALOGUE_ACTORS}
     arms = prepare_arms(messages, anchor, case_id, CONFIG)
     replay = AdaptiveReplay(messages, anchor, case_id, arms["configuration_hash"])
     seen: set[tuple[str, int, int]] = set()

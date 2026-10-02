@@ -6,7 +6,7 @@ import json
 from copy import deepcopy
 from typing import Any
 
-from hosted.capture.disclosure import AdaptiveDisclosure, MAX_SOURCE_CHARACTERS
+from hosted.capture.disclosure import AdaptiveDisclosure, DIALOGUE_ACTORS, MAX_SOURCE_CHARACTERS
 from hosted.capture.evidence_ledger import EvidenceLedger
 from hosted.evaluation.adaptive_replay import AdaptiveReplay, MAX_REQUEST_CHARACTERS
 
@@ -95,7 +95,8 @@ def prepare_arms(messages: list[dict], anchor: tuple[str, int, int] | dict,
     disclosure = AdaptiveDisclosure(clean_messages, anchor)
     _, anchor_turn, anchor_ordinal = disclosure.anchor
     causal = sorted((m for m in clean_messages
-                     if (m["turn"], m["source_ordinal"]) <= (anchor_turn, anchor_ordinal)),
+                     if m["actor"] in DIALOGUE_ACTORS
+                     and (m["turn"], m["source_ordinal"]) <= (anchor_turn, anchor_ordinal)),
                     key=lambda m: (m["turn"], m["source_ordinal"]))
 
     replay = AdaptiveReplay(clean_messages, disclosure.anchor, candidate_id, config_hash)

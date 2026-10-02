@@ -1,12 +1,12 @@
 # Adaptive decision evidence reconstruction — implementation status
 
-Date: 2026-10-01. Status: offline experimental path implemented; accuracy gate inconclusive.
+Updated: 2026-10-02. Status: offline experimental path implemented; accuracy gate inconclusive.
 
 This is a new approach after the stopped prompt-only recovery trial. It does **not** supersede that trial's observed zero complete recoveries on its five historically examined diagnostic cases. No model was run against the new path in this implementation, and no new complete-decision rate is claimed.
 
 ## What is implemented
 
-- `hosted/capture/disclosure.py`: current Codex turn plus two preceding turn numbers per expansion, at most twenty preceding turns/ten expansions, same-rollout/session boundary, exact source coordinates and an atomic source-character cap. It records expansion, request usage and stop reason without estimating tokens or price.
+- `hosted/capture/disclosure.py`: user/assistant dialogue from the current Codex turn plus two preceding turn numbers per expansion, at most twenty preceding turns/ten expansions, same-rollout/session boundary, exact source coordinates and an atomic source-character cap. Tool events still define turns but their content is excluded from every decision window and its character budget (2026-10-02 amendment). It records expansion, request usage and stop reason without estimating tokens or price.
 - `hosted/capture/evidence_ledger.py`: controlled cited answers for issue, selected action, deciding actor, acceptance, scope, conditions, proposal reference, topic origin and reason. Exact source spans, user-authored commitment, chronology, and multi-span antecedent links are checked. Missing reason does not erase an otherwise established choice. Structural checks are not semantic verification or memory authority.
 - `hosted/evaluation/adaptive_replay.py`: provider-independent round-by-round request/response protocol. Each request sends only the new source batch and bounded cited state; responses are validated, repeat imports are idempotent, and missing provider token counts remain unavailable.
 - `hosted/evaluation/adaptive_arms.py`: deterministic paired source packets for adaptive, fixed twenty-turn, and full causal-session views. The full view is unavailable rather than clipped if it exceeds a safety cap; character-budget-limited fixed spans are labelled partial.

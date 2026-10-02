@@ -75,7 +75,7 @@ def test_frozen_replay_source_hash_must_match():
         MODULE.verify_source_hash({}, "r", "abc")
 
 
-def test_tool_call_bulk_can_block_causal_dialogue_without_silent_clipping():
+def test_tool_call_bulk_is_excluded_from_the_reconstruction_window():
     blocks = [SimpleNamespace(turn_number=turn, items=[
         SimpleNamespace(role="user", source_ordinal=turn * 2, text=f"turn {turn}"),
         SimpleNamespace(role="tool", source_ordinal=turn * 2 + 1,
@@ -87,5 +87,16 @@ def test_tool_call_bulk_can_block_causal_dialogue_without_silent_clipping():
     evidence = [{"rollout_id": "r", "turn": 0, "source_ordinal": 0}]
     assert MODULE.audit_case(dialogue, anchor, evidence, "case")["oracle_gold_covered"]
     result = MODULE.audit_case(with_tools, anchor, evidence, "case")
+    assert result["oracle_gold_covered"] is True
+    assert result["stop_reason"] != "character_budget"
+
+
+def test_tool_only_gold_is_reported_unavailable_not_as_covered():
+    source = inventory(2)
+    source.append({"rollout_id": "r", "turn": 0, "source_ordinal": 99,
+                   "actor": "tool", "text": "tool-only evidence"})
+    result = MODULE.audit_case(source, ("r", 1, 1),
+                               [{"rollout_id": "r", "turn": 0, "source_ordinal": 99}], "case")
+    assert result["source_refs_present"] == 0
+    assert result["unavailable_gold_refs"] == 1
     assert result["oracle_gold_covered"] is False
-    assert result["stop_reason"] == "character_budget"

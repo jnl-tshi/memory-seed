@@ -9,10 +9,12 @@ It does not reopen that trial's prompt-revision budget or its failed accuracy cl
 For a decision candidate at a current Codex turn, inspect that turn and then
 look backward in batches of two historical turns. Preserve the original Codex
 turn grouping: a user input and the assistant messages/tool events under its
-task-started boundary count as one turn. Inspect no more than twenty preceding
-turns, ten expansion batches, and never cross the session start. The current
-turn is available initially, so the maximum is twenty preceding turns plus
-the current turn, matching the historical lookback. The code must also cap
+task-started boundary count as one turn. Only user and assistant dialogue is
+disclosed as evidence; tool calls remain part of turn grouping but not the
+window or its character budget (user amendment, 2026-10-02). Inspect no more
+than twenty preceding turns, ten expansion batches, and never cross the session
+start. The current turn is available initially, so the maximum is twenty
+preceding turns plus the current turn, matching the historical lookback. The code must also cap
 source characters and serialized requests; a huge turn can exhaust the text
 budget earlier without clipping a quoted source silently.
 

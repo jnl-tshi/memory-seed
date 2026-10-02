@@ -10,6 +10,7 @@ from typing import Any
 MAX_PRECEDING_TURNS = 20
 MAX_EXPANSIONS = 10
 MAX_SOURCE_CHARACTERS = 50_000
+DIALOGUE_ACTORS = frozenset({"user", "assistant", "agent"})
 
 
 def _canonical(value: Any) -> str:
@@ -20,10 +21,11 @@ def _canonical(value: Any) -> str:
 
 
 class AdaptiveDisclosure:
-    """Disclose the anchor turn, then at most twenty preceding turns in pairs.
+    """Disclose dialogue at the anchor turn, then twenty preceding turns in pairs.
 
     ``anchor`` is ``(rollout_id, turn, source_ordinal)``. Every batch remains
     available in ``batches``; callers can transmit only the most recent batch.
+    Tool and other non-dialogue actors never enter a batch or its budget.
     """
 
     def __init__(self, messages: list[dict], anchor: tuple[str, int, int] | dict):
@@ -41,6 +43,7 @@ class AdaptiveDisclosure:
             raise ValueError("invalid anchor coordinate")
         self.anchor = (rollout, turn, ordinal)
         self._messages: dict[tuple[str, int, int], dict] = {}
+        seen_coordinates: set[tuple[str, int, int]] = set()
         for raw in messages:
             if not isinstance(raw, dict):
                 raise ValueError("each message must be an object")
@@ -53,11 +56,15 @@ class AdaptiveDisclosure:
                 raise ValueError("message requires actor and text strings")
             _canonical(msg)
             coord = (rollout, msg["turn"], msg["source_ordinal"])
-            if coord in self._messages:
+            if coord in seen_coordinates:
                 raise ValueError("repeated source coordinate")
-            self._messages[coord] = msg
+            seen_coordinates.add(coord)
+            # Preserve inventory validation, but keep tool activity outside the
+            # evidence window and its character accounting.
+            if msg["actor"] in DIALOGUE_ACTORS:
+                self._messages[coord] = msg
         if self.anchor not in self._messages:
-            raise ValueError("anchor coordinate is not present in messages")
+            raise ValueError("anchor coordinate is not present in dialogue messages")
         # Source after the anchor coordinate is outside this immutable view.
         self._messages = {c: m for c, m in self._messages.items() if (c[1], c[2]) <= (turn, ordinal)}
         self._batches: list[dict] = []

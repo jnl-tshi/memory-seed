@@ -134,3 +134,15 @@ def test_huge_earlier_turn_makes_full_unavailable_without_truncation():
     assert fixed_summary["source_span_status"] == "partial"
     assert fixed_summary["source_span_stop_reason"] == "character_budget"
     assert fixed_summary["arm"] == "fixed_window"
+
+
+def test_tool_calls_are_absent_from_every_arm_and_do_not_block_earlier_dialogue():
+    messages = inventory(2)
+    messages.insert(2, {"rollout_id": "r", "turn": 0, "source_ordinal": 100,
+                        "actor": "tool", "text": "x" * 50_001})
+    result = run(messages, ("r", 2, 5))
+    for arm in result["arms"].values():
+        assert arm["request"] is not None
+        assert all(message["actor"] != "tool" for message in arm["request"]["messages"])
+    assert len(packet(result, "full_window")["messages"]) == 6
+    assert packet(result, "fixed_window")["turns"] == [0, 1, 2]
