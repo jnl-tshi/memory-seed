@@ -10,9 +10,12 @@ It preserves source coordinates and accessible payloads in a disposable SQLite q
 checkpoints, replay, rotation, leases, and pause/resume gaps, and emits inert decision drafts only.
 
 `curator/advisory.py` is an offline, provider-neutral contract for secondary review of an *already accepted*
-write-agent decision. It reuses dialogue-only, twenty-turn disclosure to check cited topic/link suggestions
-and clear-conflict flags. It neither accepts a hosted write nor authenticates a member, queues a job, shares
-raw evidence, or applies suggestions. The separate hosted SQL service remains unbuilt.
+write-agent decision. It compares the claim with a caller-provided, permission-filtered set of existing
+decisions and current topics first. A specific unanswered source question is required before it opens the
+dialogue-only, twenty-turn window. Advice can cite exact accepted-claim, existing-record, or disclosed-source
+quotes, and always requires review. It neither accepts a hosted write nor authenticates a member, retrieves
+candidate records, queues a job, shares raw evidence, or applies suggestions. The separate hosted SQL service
+remains unbuilt.
 
 Run targeted tests:
 

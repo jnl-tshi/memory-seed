@@ -24,6 +24,12 @@ def _cite(message: dict, quote: str) -> dict:
             "end": start + len(quote), "quote": quote}
 
 
+def _cite_claim(message: dict, quote: str) -> dict:
+    start = message["text"].index(quote)
+    return {"kind": "accepted_claim", "start": start,
+            "end": start + len(quote), "quote": quote}
+
+
 def _case(name: str, messages: list[dict], *, topics: list[str] | None = None,
           links: list[dict] | None = None, advice: dict | None = None,
           wait_batches: int = 0, unresolved: bool = False,
@@ -52,7 +58,7 @@ def _fixtures() -> list[dict]:
     proposal = _msg(1, "Option B builds on the capture decision.")
     approval = _msg(3, "Do it: use option B for the parser.")
     parser = _msg(3, "Use option B for the parser.")
-    evidence = [_cite(parser, "parser")]
+    evidence = [_cite_claim(parser, "parser")]
     link = {"target_id": "prior-1", "kind": "related"}
     return [
         _case("clean", [parser], topics=["parser"]),
@@ -64,7 +70,7 @@ def _fixtures() -> list[dict]:
             expected={("topic_suggestions", "remove", "capture")}),
         _case("missing-link", [proposal, approval], advice={"link_suggestions": [
             {"action": "add", **link, "reason": "Builds on prior choice",
-             "citations": [_cite(proposal, "capture decision")]}]}, wait_batches=1,
+             "citations": [_cite(proposal, "capture decision")]}]}, wait_batches=2,
             expected={("link_suggestions", "add", "prior-1", "related")}),
         _case("stale-link", [parser], links=[link], advice={"link_suggestions": [
             {"action": "remove", **link, "reason": "Link does not fit", "citations": evidence}]},
@@ -85,15 +91,17 @@ def _fixtures() -> list[dict]:
 
 def run_trial() -> dict:
     topics = {"capture": "Capture", "parser": "Parser", "billing": "Billing"}
-    records = {"prior-1": {"title": "Capture decision"}}
+    records = {"prior-1": {"claim": "Use the capture method.", "title": "Capture decision"}}
     cases = []
     latencies = []
     correct = false = missed = unresolved = invalid_accepted = invalid_rejected = calls = 0
+    records_only = source_checks = 0
     tokens = {"prompt_tokens": 0, "completion_tokens": 0}
     for case in _fixtures():
         def reviewer(_claim, _batch, state):
             ready = not case["unresolved"] and state["review_call"] >= case["wait_batches"]
             return {"needs_more_context": not ready,
+                    "source_questions": ["Which earlier choice does this refer to?"] if not ready else [],
                     "topic_suggestions": case["advice"].get("topic_suggestions", []) if ready else [],
                     "link_suggestions": case["advice"].get("link_suggestions", []) if ready else [],
                     "conflict_flags": case["advice"].get("conflict_flags", []) if ready else []}
@@ -121,6 +129,8 @@ def run_trial() -> dict:
         false += len(found - case["expected"])
         missed += len(case["expected"] - found)
         unresolved += report["status"] == "incomplete"
+        source_checks += report["source_check_requested"]
+        records_only += not report["source_check_requested"]
         calls += report["review_calls"]
         for key in tokens:
             tokens[key] += report["usage"][key]
@@ -131,6 +141,7 @@ def run_trial() -> dict:
             "false_suggestions": false, "missed_suggestions": missed,
             "unresolved_cases": unresolved, "invalid_citations_accepted": invalid_accepted,
             "invalid_citations_rejected": invalid_rejected,
+            "records_only_cases": records_only, "source_check_cases": source_checks,
             "review_calls": calls, "median_local_delay_ms": round(median(latencies), 3),
             "max_local_delay_ms": round(max(latencies), 3), "model_tokens": tokens},
             "limitations": ["Scripted reviewer and hand-authored gold labels cannot measure model accuracy.",
