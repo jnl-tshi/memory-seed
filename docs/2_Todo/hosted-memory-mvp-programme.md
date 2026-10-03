@@ -23,8 +23,9 @@ older hosted, next-generation Trace, curator, provenance and workbench programme
 ## Outcome
 
 Prove a team-capable hosted memory service for AI-assisted software developers. A developer continues using
-their existing working agent. An authenticated Codex-first adapter captures the accessible work evidence once;
-an event-driven curator turns grounded evidence into governed project memory; authenticated MCP retrieval gives
+their existing working agent. The write agent explicitly submits first-hand decisions through a guarded write;
+an authenticated Codex-first adapter captures accessible supporting evidence once. An asynchronous curator
+sense-checks accepted records, principally suggesting current topics and links; authenticated MCP retrieval gives
 the working agent the right memory and approval requests without requiring a new chatbot or dashboard.
 
 ## Product boundary
@@ -47,12 +48,14 @@ the working agent the right memory and approval requests without requiring a new
 2. A developer opts that project into capture while working through an existing coding agent.
 3. The local adapter emits ordered, idempotent deltas for accessible conversation, tool calls, tool results and
    exposed reasoning summaries. It never claims access to hidden raw reasoning.
-4. The hosted service verifies identity, project, repository and branch context, stores the accepted event once,
-   and queues an event-driven curator run.
-5. The curator produces evidence-grounded Decision or Documentation candidates, controlled topics and supported
-   relationships. Deterministic validation applies permissions, authority and mutation policy.
-6. Ordinary safe records become curated memory. Reversals or elevated decisions become exact pending mutations.
-7. The working agent retrieves curated memory first and presents pending approvals on a proven authenticated
+4. The write agent explicitly submits its decision with first-hand provenance and source coordinates. The hosted
+   service verifies identity, project, repository and branch context and applies the same deterministic write,
+   authority and mutation guards before accepting an ordinary record. Reversals or elevated decisions remain
+   exact pending mutations.
+5. Acceptance queues a separate, non-blocking curator review. The curator compares the record's topics and
+   links with current project candidates, proposes cited corrections and flags clear conflicts in actor, timing,
+   scope or source support. It does not rewrite or silently update the accepted record.
+6. The working agent retrieves curated memory first and presents pending approvals on a proven authenticated
    interaction. The server validates the approving identity, scope and exact change.
 
 ## Capture contract
@@ -94,6 +97,7 @@ The initial SQL model must cover only the required entities:
 - integration/client, capture session and immutable event;
 - evidence item and permission-aware evidence span;
 - curated record, record kind, append-only version and source/origin metadata;
+- explicit write-agent submission and accepted-write receipt, distinct from later advisory curator suggestions;
 - controlled topic attribution and supported lifecycle relationship;
 - branch identity, branch observation and branch outcome;
 - proposal/pending mutation, approval decision and exact authorizing identity;
@@ -157,23 +161,32 @@ Whether merge adoption is automatic or batch-approved remains open and must not 
 
 ## Curator pipeline
 
-The curator is event-driven over accepted deltas, not a periodic full-history scan:
+The curator is event-driven **after** an accepted write-agent decision, not a periodic full-history scan or
+the primary author of decision prose:
 
-1. normalize, deduplicate, redact prohibited fields and bound the evidence window;
-2. retrieve plausible existing decisions/topics/edges so comparison is bounded rather than all-pairs;
-3. make typed judgments through a provider-neutral interface;
-4. write evidence-grounded record prose through a separate provider-neutral interface;
-5. validate structured output, evidence quotations, supported relationship kinds, authority and permissions;
-6. commit an ordinary record, hold a pending mutation, or abstain with a reason.
+1. load the accepted record and a current, permission-filtered topic/link candidate set;
+2. propose missing, stale or incorrect topics and supported `related`/`evolves`/`replaces` links, each with
+   evidence and a reason; do not infer governance authority from a topic;
+3. use the decision-known reverse locator only when source history is needed to check a link or a clear claim
+   conflict. Inspect dialogue in two-turn batches, at most twenty preceding historical turns, excluding tool
+   calls; stop and flag unresolved evidence at the limit;
+4. validate source coordinates, exact quotations, target existence, provenance, permissions and applicable
+   lifecycle guards; return a reviewable suggestion or conflict flag, never an automatic edit.
 
-Jev is an initial candidate for typed durable-content, topic and bounded-edge judgments. It does not write
-narrative. Cerebras Qwen3.8 27B is an initial candidate for Decision/Documentation prose. Vendor latency,
-throughput and price claims are hypotheses, not end-to-end service commitments. Provider confidence is never
-authority. Fakes and deterministic baselines must exercise the complete pipeline without a paid provider.
+First-hand authored values remain distinct from later reconstructed suggestions. An unavailable source is
+reported as incomplete, not converted into support. Retrospective decision discovery is paused as a product
+deliverable; the historical locator and evaluation artifacts remain research inputs.
+
+Earlier Jev and Cerebras prose-writer candidates remain historical research, not defaults for this narrowed
+secondary role. P1 compares topic, link and conflict-review candidates with deterministic baselines before any
+provider choice. Provider confidence is never authority. Fakes and deterministic baselines must exercise the
+complete advisory path without a paid provider.
 
 ## Governance and autonomy
 
-- New ordinary records may be autonomous when their evidence, scope, identity and authority pass validation.
+- A write agent may submit a new ordinary record directly when its evidence, scope, identity and authority
+  pass the write guards. Curator unavailability does not roll back an accepted write; its later advice is
+  reviewable and cannot itself change shared memory.
 - Ordinary replacement may be autonomous only from clear actual user direction, captured evidence and sufficient
   authority. Ritual approval wording is unnecessary, but an inferred broader goal or an agent claiming user
   intent is insufficient. "User direction" means only events the client emits as user input, with authorship
@@ -246,14 +259,15 @@ release gates; its candidate architecture and model examples do not pre-approve 
    queue drain and authenticated approval delivery without collecting private production data.
 3. **P0.3 Authenticated substrate:** tenant/project/membership/delegation, immutable event store, branch registry,
    retention states and audit skeleton.
-4. **P0.4 Thin slice:** one captured user decision becomes one evidence-linked curated record and is returned by
-   authenticated MCP to a team member with the right permissions.
+4. **P0.4 Thin slice:** one explicit write-agent decision passes the guarded hosted write, is returned by
+   authenticated MCP to an authorized team member, and receives a separate advisory topic/link review.
 
 ### P1 — prove curator safety and team readiness
 
 5. Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md) on reviewed, provenance-checked
-   labels. Compare stable-schema classifiers (Model2Vec + Logistic Regression, Model2Vec + XGBoost, SetFit)
-   with deterministic and generalized candidates per task, and evaluate the prose writer separately. Dynamic
+   topic, link and conflict-review labels. Compare stable-schema classifiers (Model2Vec + Logistic Regression,
+   Model2Vec + XGBoost, SetFit) with deterministic and generalized candidates per task. Decision-prose generation
+   is not a primary curator task. Dynamic
    Area/Activity attribution must receive each project's current candidate hierarchy; within-project label-ID
    accuracy is not cross-project evidence. Freeze temporal and held-out tests, add independent-project and
    unseen-ontology tests when data exists, and measure calibration, abstention, high-risk errors and full-pipeline
@@ -279,8 +293,9 @@ task-specific results and measured queue load justify it. The [decision-knowledg
   reconnect, duplicate replay, pause and unavailable fields pass.
 - **Approval delivery:** an exact pending mutation is reliably surfaced through the authorized user's working
   agent on a defined authenticated interaction; no claim of arbitrary MCP push.
-- **Curator quality:** labelled and sealed sets measure durable-content, topic, relationship, faithfulness,
-  citation, abstention and high-risk false positives. Numerical thresholds are selected before autonomous use.
+- **Curator quality:** labelled and sealed sets measure useful and false topic/link suggestions, citation
+  validity, clear-conflict flags, abstention, review delay and token use. Provider outputs do not gain write
+  authority; numerical thresholds precede any later autonomous use.
 - **Privacy/security:** tenant/project negative controls, role/delegation tests, owner-only raw-access denial
   (including against the lead and through raw fallback), excerpt checks, injection fixtures, tombstoned
   removal, dispute reports, deletion and audit pass before private-project release.
@@ -310,12 +325,13 @@ adds no tranche and changes no record kind. Each discovery below should weigh it
 
 - **P0.2:** keep each decision's agreement span and user/agent attribution in the synthetic golden sessions.
   This also covers the prospective first-hand capture that the decision-to-chat alignment study recommended.
-- **P0.4:** treat decision atomicity (one issue, one chosen option, one scope, with an agreement quote) and
-  40–120 character verbatim grounding quotes as candidate curator acceptance rules. Keep Decision and
+- **P0.4:** assess decision atomicity (one issue, one chosen option, one scope, with an agreement quote) and
+  40–120 character verbatim grounding quotes as candidate **write-time** acceptance rules. The later curator
+  may flag clear conflicts but does not act as the primary decision writer. Keep Decision and
   Documentation as the only record kinds.
-- **P1.5:** consider record-kind (fact / decision / documentation / none), decision-split and
-  premise-extraction tasks. Treat the tournament's `supports` label as a field on the record rather than a
-  new relationship kind.
+- **P1.5:** record-kind, decision-split and premise-extraction tasks are historical research options,
+  not current curator-delivery requirements. Any renewed trial needs a separate discovery; a `supports`
+  assessment is not a new authored relationship kind.
 
 The Fact kind and `rests_on` premise tracking are parked in
 [`8_Deferred`](../8_Deferred/fact-items-and-premise-tracking-proposal.md).
