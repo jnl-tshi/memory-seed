@@ -4,7 +4,7 @@ date: "2026-09-21"
 priority: P1
 status: accepted-subplan
 parent_plan: "docs/2_Todo/hosted-memory-mvp-programme.md"
-next_action: "After the P0 thin slice, begin a dedicated design discovery with JNL; settle the evaluation design before dataset assembly or benchmarking."
+next_action: "After the P0 thin slice, discover and freeze a secondary topic/link/conflict-review evaluation before dataset assembly or benchmarking."
 blocked_by:
   - "P0.4 captured-decision and authenticated-retrieval thin slice"
 source: "User-supplied decision-intelligence proposal pack, 2026-09-21"
@@ -24,17 +24,22 @@ conversation; the reviewed tranche-specific design governs execution.
 
 **ACTIVE P1 SUBPLAN** of the [hosted MVP programme](hosted-memory-mvp-programme.md), not a replacement for its capture-first P0 sequence. This file retains the supplied proposal details below as candidate designs; the following gates control execution.
 
-- **Scope:** Evaluate each task separately. For stable global labels, start with Model2Vec plus Logistic Regression, Model2Vec plus XGBoost, and SetFit. Include deterministic baselines, Jev, Laya zero-shot, Laya fine-tuned, and a small language-model comparison only when the evaluation protocol and data permissions justify them. No candidate is the default in advance.
+- **Scope:** Prioritize secondary review of write-agent-authored records: missing or stale topics, supported or incorrect links, and clear source-conflict flags. Evaluate each task separately. For stable global labels, start with Model2Vec plus Logistic Regression, Model2Vec plus XGBoost, and SetFit. Include deterministic baselines and generalized candidates only when the evaluation protocol and data permissions justify them. Retrospective decision discovery and curator-authored decision prose are paused as delivery tracks. No candidate is the default in advance.
 - **Dynamic topics:** Supply the current project's Area/Activity names, descriptions, hierarchy, and candidate set at inference time. Compare candidate-conditioned systems; a classifier trained on this project's topic IDs is a within-project baseline, not evidence of hosted transfer.
 - **Dataset gate:** Inventory label provenance and ambiguity before calling the historical corpus a gold set. Keep decision-time features only; prevent future metadata and candidate-selection leakage. Freeze a reviewed test set and hard negatives. Unseen-project, unseen-ontology, and new-topic tests require independent projects; the local Memory Seed corpus alone cannot satisfy those gates.
-- **Measurements:** Per-task precision/recall, macro F1, calibration, abstention coverage, high-risk false positives, latency, throughput, memory, and cost. Select numerical thresholds before autonomous use and compare the complete curator pipeline, including candidate retrieval and validation.
+- **Measurements:** Per-task useful and false suggestions, citation accuracy, calibration, abstention coverage, high-risk false positives, post-write review delay, throughput, token use and cost. Select numerical thresholds before any autonomous use and compare the complete advisory pipeline, including candidate retrieval and validation.
 - **Authority:** Experimental labels such as `supports`, `contradicts`, or `unrelated` do not become authored lifecycle edges. Production edges remain `related`, `evolves`, and `replaces` unless the governed contract changes. A model may propose ADR relevance or conflict; it cannot authorize an ADR or Constitution mutation.
 - **Acceptance:** Publish a reproducible per-task result table and an evidence-backed recommendation that names task-specific winners, abstention thresholds, cross-project limits, and whether any persistent specialist worker is warranted. Record a no-adoption result when no candidate clears the gate.
 - **Non-goals:** No provider purchase, paid call, model training, private-data upload, or production model deployment is authorized by this planning document.
 
 The source text below is retained as proposal evidence. Where its examples suggest a production winner or broader edge vocabulary, the execution brief and live programme govern.
 
-## Source-alignment discovery and forward-curator data gate
+## Historical source-alignment and forward-extraction research — paused
+
+The following decision-known locator evidence and forward-extraction protocol are retained as research
+history, not the current hosted delivery path or a P1 prerequisite. The active curator begins with an
+already accepted, first-hand write-agent decision and may reuse the locator for targeted link and conflict
+checks. Any renewed forward-detection or fact-extraction work requires its own discovery and evaluation gate.
 
 The [Codex decision-to-chat experiment](../../experiments/decision-chat-alignment/COHORT-100-REPORT.md)
 tests a **decision-known reverse locator**: given an existing decision, find the earlier raw turns that
@@ -85,9 +90,9 @@ grant a general hosted agent access to another member's transcript. This documen
 authorize a hosted API, storage change, model training, or production deployment; P0.4 and the tranche-entry discovery remain
 gates.
 
-## Next offline experiment: agent audit and bounded September cohort
+## Historical next offline extraction experiment: agent audit and bounded September cohort (paused)
 
-This is the handoff for the next source-alignment and information-extraction data experiment, not the
+This was the handoff for a source-alignment and information-extraction data experiment, not the
 P1 model tournament. It preserves the frozen 100-decision measurements above. The existing cohort's
 decision timestamps run from **2026-05-26 23:32 to 2026-09-24 14:38 Europe/London**. The new cohort
 uses only **2026-09-01 00:00 through 2026-09-24 14:39 Europe/London (exclusive end)**, entirely before

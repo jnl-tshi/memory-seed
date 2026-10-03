@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-09-29
+Updated: 2026-10-03
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
@@ -27,24 +27,22 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
 
 1. **P0.1 authority — integrated.** Constitution v2.0, the edition contract, ADR evolution, and
    lifecycle consolidation form the baseline for the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md).
-2. **P0.2 capture feasibility — bounded adaptive reconstruction implemented offline, not validated.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md). Local capture is implemented. The offline oracle-anchor replay found better cited-evidence retrieval and less repeated processing, but zero complete semantic matches for either frozen arm. The [stopped semantic recovery trial](../../hosted/evaluation/RECOVERY-RESULTS.md) recovered 0/5 complete decisions in both runs for two prompt versions. The marker-coordinate bug has been fixed and a new [bounded adaptive path](../../hosted/evaluation/ADAPTIVE-RESULTS.md) now provides two-turn disclosure, cited question/reference ledger, source-arm packets, and blinded comparison without model/provider or live changes. Fresh accuracy data is unavailable; actual decision detection, lifecycle handling, and live retained-state integration remain unvalidated. Stop before sign-in. The complete tranche covers Codex event access, authenticated identity,
+2. **P0.2 capture feasibility — first-hand submission and secondary review, offline only.** Follow the [bounded tranche plan](codex-capture-feasibility-plan.md). The write agent explicitly submits decisions; the curator reviews accepted records afterward, concentrating on topic/link suggestions and clear-conflict flags. The existing [bounded adaptive path](../../hosted/evaluation/ADAPTIVE-RESULTS.md) is retained as a decision-known, dialogue-only source locator, not a forward detector. Historical source reachability and failed semantic reconstruction trials do not establish validation accuracy. An offline advisory contract and synthetic trial precede a service path; stop before sign-in. The complete tranche still covers Codex event access, authenticated identity,
    ordering and replay, pause/queue behavior, and approval delivery. Hosted code lives in a self-contained
    top-level `hosted/` folder for local development only. It is excluded from the published package (see the
    [repository boundary](hosted-memory-mvp-programme.md#repository-boundary)).
-3. **P0.3–P0.4 useful loop.** Build the minimum authenticated SQL event/curated-memory substrate, then capture
-   one user decision and return one evidence-linked record to an authorized team member over MCP. Prove
-   permission-filtered retrieval and provider fail-closed behavior.
+3. **P0.3–P0.4 useful loop.** Build the minimum authenticated SQL event/curated-memory substrate, then accept
+   one guarded write-agent decision, return it to an authorized team member over MCP, and run an asynchronous
+   advisory topic/link review. Prove permission-filtered retrieval and provider fail-closed behavior.
 4. **P1 curator quality and team readiness.** Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md)
-   on reviewed labels: Model2Vec + Logistic Regression, Model2Vec + XGBoost, and SetFit are fixed-schema
+   on reviewed topic/link/conflict-review labels: Model2Vec + Logistic Regression, Model2Vec + XGBoost, and SetFit are fixed-schema
    baselines, with generalized candidates tested by task. Dynamic Area/Activity assignment needs the current
    candidate hierarchy and independent-project evaluation; the local corpus alone cannot prove transfer.
    Select a model only after calibration, abstention, high-risk error, privacy, latency, and cost gates. Add
    guarded replacement/approval, branch applicability, retention/export, and retrieval parity for a team pilot.
-   The [bounded source-alignment handoff](decision-layer-model-tournament-plan.md#next-offline-experiment-agent-audit-and-bounded-september-cohort)
-   prepares evidence before that tranche: agent-audit 20 existing cases, then sample 100 unseen Codex decisions
-   from the September 1–24 interval without widening the raw-text date range. Keep a lineage-grouped test split,
-   record token costs, and annotate decision-relevant fact spans for the information-extraction track. This is
-   offline dataset research, not permission to start the P1 tournament or hosted implementation before its gates.
+   Historical source-alignment and retrospective extraction remain paused research, not a P1 delivery gate.
+   Evaluate decision-known source locating separately from curator suggestion quality; this is not permission
+   to start the P1 tournament or hosted implementation before its gates.
 5. **P2 experience.** Consider focused Trace and
    [decision storyline retrieval](../8_Deferred/decision-storyline-retrieval-proposal.md) once the service loop works.
    A [persistent Laya worker](../8_Deferred/laya-local-decision-worker-proposal.md) remains deferred until
@@ -58,8 +56,8 @@ the documentation amendment alone.
 Each tranche's design discovery must settle these open decisions before its implementation starts. The
 [programme's open decisions](hosted-memory-mvp-programme.md#open-decisions) hold the full wording.
 
-- **P0.2:** execute the approved capture/extraction choices in the
-  [tranche plan](codex-capture-feasibility-plan.md#accepted-revision-2026-09-29), then request separate sign-in approval. The spike must also
+- **P0.2:** execute the approved first-hand submission and advisory-review offline choices in the
+  [tranche plan](codex-capture-feasibility-plan.md), then request separate sign-in approval. The spike must also
   verify two policies settled on 2026-09-23: that Codex can show a human-confirmed approval prompt (otherwise
   use the signed-page fallback), and that it separates user input from agent and tool items (otherwise every
   replacement stays pending).

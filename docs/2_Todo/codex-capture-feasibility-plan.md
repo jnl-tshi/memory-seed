@@ -2,18 +2,38 @@
 title: "Codex capture feasibility tranche"
 date: "2026-09-21"
 priority: P0
-status: prospective-extraction-in-progress
-next_action: "Validate retained-state extraction, causal replay, lifecycle handling, and field-level semantic equivalence before the sign-in checkpoint."
-blocked_by: "No OAuth action is authorized; semantic equivalence and genuine prospective recall remain unmeasured."
+status: first-hand-submission-offline-trial
+next_action: "Complete the bounded offline post-write advisory trial, then separately design authenticated submission and approval delivery before any sign-in."
+blocked_by: "No OAuth action is authorized; hosted write identity, owner-only source access, and curator quality remain unvalidated."
 source:
   - "docs/2_Todo/hosted-memory-mvp-programme.md"
 ---
 
 # Codex capture feasibility tranche
 
-Status: **PROSPECTIVE EXTRACTION REVISION IN PROGRESS; AUTHENTICATED TRIAL NOT STARTED.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md). The earlier local capture implementation is landed; the revised extraction experiment below is not complete. No sign-in or approval mutation may begin.
+Status: **FIRST-HAND SUBMISSION PIVOT; OFFLINE ADVISORY TRIAL ONLY; AUTHENTICATED TRIAL NOT STARTED.** This is a bounded subplan of the [Hosted Memory MVP Programme](hosted-memory-mvp-programme.md). The earlier local capture implementation is landed. No sign-in or approval mutation may begin.
 
-## Accepted revision (2026-09-29)
+## Accepted pivot (2026-10-03)
+
+The write agent, with decision-time context, explicitly authors and submits a decision. The guarded hosted write
+accepts an ordinary record before the curator runs. The curator is a secondary, asynchronous sense check:
+it compares topics and `related`/`evolves`/`replaces` links against current project candidates, proposes
+cited changes for an authorized reviewer, and flags clear actor, timing, scope or source-support conflicts.
+It does not author decision prose, silently mutate accepted records, or gate every ordinary write.
+
+Use the existing decision-known adaptive locator only for targeted source checks. It discloses user/assistant
+dialogue in two-turn batches, at most twenty preceding historical turns, excluding tool calls. If support is
+not found within that bound, leave the review incomplete and flag it; source reachability is not semantic
+validation. Preserve first-hand authored values separately from later reconstructed curator suggestions.
+
+P0.2 first proves this as an offline, provider-neutral contract and [synthetic trial](../../hosted/evaluation/ADVISORY-TRIAL.md).
+That trial exercises the handoff and catches one deliberately false but correctly cited suggestion; it
+does not measure model accuracy. The live submission
+surface, authenticated identity, owner-only raw-evidence access, durable advisory queue, and approval path
+remain separate design and feasibility gates. Do not import local Markdown sessions into hosted SQL implicitly.
+Historical retrospective extraction work below remains diagnostic rather than a product deliverable.
+
+## Historical accepted extraction revision (2026-09-29; now diagnostic only)
 
 JNL approved the following contract, recorded in `mse_ad9xz2f1kpyygw9b`:
 
@@ -31,7 +51,7 @@ JNL approved the following contract, recorded in `mse_ad9xz2f1kpyygw9b`:
 - Evaluation: preserve the historical report. The revised runner labels gold-anchor envelope coverage as an oracle diagnostic, exposes unmeasured recall/semantic gates as null, and requires a separate output directory.
 - Remaining: causal event-by-event corpus replay without post-record leakage; exact source-span scoring; blind field-level semantic adjudication; live retained-state integration and reliability; independent review and one final full suite before landing.
 
-The bounded parser currently abstains on language it cannot resolve. It must not be presented as full semantic extraction or production memory. Stop before requesting the OAuth identifier, device flow, human approval mutation, or token storage.
+The bounded parser currently abstains on language it cannot resolve. It must not be presented as full semantic extraction or production memory, nor treated as the primary capture path after the pivot. Stop before requesting the OAuth identifier, device flow, human approval mutation, or token storage.
 
 ## Historical offline finding (2026-09-29; corrected interpretation)
 

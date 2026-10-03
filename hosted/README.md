@@ -9,6 +9,11 @@ The `capture/` package is an experimental, fail-closed adapter for validated Cod
 It preserves source coordinates and accessible payloads in a disposable SQLite queue, handles completed-line
 checkpoints, replay, rotation, leases, and pause/resume gaps, and emits inert decision drafts only.
 
+`curator/advisory.py` is an offline, provider-neutral contract for secondary review of an *already accepted*
+write-agent decision. It reuses dialogue-only, twenty-turn disclosure to check cited topic/link suggestions
+and clear-conflict flags. It neither accepts a hosted write nor authenticates a member, queues a job, shares
+raw evidence, or applies suggestions. The separate hosted SQL service remains unbuilt.
+
 Run targeted tests:
 
 ```powershell
