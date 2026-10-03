@@ -21,7 +21,9 @@ it compares topics and `related`/`evolves`/`replaces` links against current proj
 cited changes for an authorized reviewer, and flags clear actor, timing, scope or source-support conflicts.
 It does not author decision prose, silently mutate accepted records, or gate every ordinary write.
 
-Use the existing decision-known adaptive locator only for targeted source checks. It discloses user/assistant
+Compare the accepted decision with permission-filtered existing decision candidates first. The offline
+contract does not yet retrieve those candidates from a hosted store. Use the existing decision-known
+adaptive locator only when the comparison names an unresolved source question. It discloses user/assistant
 dialogue in two-turn batches, at most twenty preceding historical turns, excluding tool calls. If support is
 not found within that bound, leave the review incomplete and flag it; source reachability is not semantic
 validation. Preserve first-hand authored values separately from later reconstructed curator suggestions.

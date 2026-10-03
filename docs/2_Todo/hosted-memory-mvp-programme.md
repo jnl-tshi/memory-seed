@@ -164,14 +164,15 @@ Whether merge adoption is automatic or batch-approved remains open and must not 
 The curator is event-driven **after** an accepted write-agent decision, not a periodic full-history scan or
 the primary author of decision prose:
 
-1. load the accepted record and a current, permission-filtered topic/link candidate set;
-2. propose missing, stale or incorrect topics and supported `related`/`evolves`/`replaces` links, each with
-   evidence and a reason; do not infer governance authority from a topic;
-3. use the decision-known reverse locator only when source history is needed to check a link or a clear claim
-   conflict. Inspect dialogue in two-turn batches, at most twenty preceding historical turns, excluding tool
-   calls; stop and flag unresolved evidence at the limit;
-4. validate source coordinates, exact quotations, target existence, provenance, permissions and applicable
-   lifecycle guards; return a reviewable suggestion or conflict flag, never an automatic edit.
+1. load the accepted record and a bounded, current, permission-filtered set of existing decisions and topics;
+2. compare records first for duplicates, contradictions, missing/stale topics, and supported
+   `related`/`evolves`/`replaces` candidates. Ground ordinary advice in the accepted claim or cited existing
+   decision and give a reason; do not infer governance authority from a topic;
+3. open the decision-known reverse locator only after naming a specific unresolved question whose answer needs
+   source history. Inspect dialogue in two-turn batches, at most twenty preceding historical turns, excluding
+   tool calls; stop and flag unresolved evidence at the limit. Do not read raw history for a routine comparison;
+4. validate record/source quotations, target existence, provenance, permissions and applicable lifecycle guards;
+   return a reviewable suggestion or conflict flag, never an automatic edit.
 
 First-hand authored values remain distinct from later reconstructed suggestions. An unavailable source is
 reported as incomplete, not converted into support. Retrospective decision discovery is paused as a product

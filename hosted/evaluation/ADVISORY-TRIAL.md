@@ -4,9 +4,12 @@ Date: 2026-10-03. Run: `python -X utf8 -m hosted.evaluation.advisory_trial`.
 
 This is a synthetic, scripted contract trial of `hosted/curator/advisory.py`, **not** a model-quality
 evaluation or a hosted-service pilot. Each case begins with an already accepted first-hand write
-receipt. The reviewer sees only newly disclosed dialogue batches; advice is returned for review and
-never applied to a record, topic, or link. The submission declares first-hand provenance; each
-suggestion declares reconstructed provenance.
+receipt. The reviewer first sees the accepted claim, current topic candidates, and existing decision
+candidates. It sees no dialogue unless it names an unresolved source question; any later call receives
+only the next newly disclosed dialogue batch. Advice is returned for review and never applied to a
+record, topic, or link. The submission declares first-hand provenance; each suggestion declares
+reconstructed provenance. Accepted-claim and existing-record quotes can ground ordinary advice without
+opening raw history.
 
 | Measure | Result | Meaning |
 |---|---:|---|
@@ -16,13 +19,15 @@ suggestion declares reconstructed provenance.
 | Missed fixture suggestions | 0 | Scripted reviewer, not a generalization claim |
 | Incomplete at bound | 1 | Source at turn 0 was outside the twenty-preceding-turn cap from turn 25 |
 | Invalid citations accepted / rejected | 0 / 1 | Deliberately forged quote was rejected; tool-only citation rejection is separately unit-tested |
-| Review calls | 20 | One or more dialogue batches per case; no model calls |
-| Local median / max delay | 0.154 / 0.702 ms | One scripted run; not hosted queue/provider latency |
+| Record-only / source-check cases | 6 / 2 | The forged-citation control was rejected at record comparison |
+| Review calls | 22 | Record comparison plus source batches only when requested; no model calls |
+| Local delay | Not a service measure | Scripted in-process execution omits queue and provider time |
 | Model tokens | 0 input / 0 output | No model was used; this is not a production token estimate |
 
 The deliberately false suggestion demonstrates the boundary: a valid citation proves that a quote
-exists in a disclosed source, **not** that it supports a topic or link. Semantic suggestion precision,
-cross-project topic freshness, and conflict-flag accuracy remain unmeasured. The trial does not prove
+exists in a cited source, **not** that it supports a topic or link. Semantic suggestion precision,
+candidate-decision retrieval recall, cross-project topic freshness, and conflict-flag accuracy remain
+unmeasured. The trial does not prove
 authentication, owner-only access, persistence, retries, approval delivery, or production latency.
 
 Next bounded evaluation: freeze independently reviewed, root-disjoint first-hand decision cases;

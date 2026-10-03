@@ -8,6 +8,8 @@ from hosted.capture.disclosure import AdaptiveDisclosure
 
 
 _CITATION_KEYS = frozenset({"rollout_id", "turn", "source_ordinal", "start", "end", "quote"})
+_CLAIM_CITATION_KEYS = frozenset({"kind", "start", "end", "quote"})
+_RECORD_CITATION_KEYS = frozenset({"kind", "record_id", "start", "end", "quote"})
 _ITEM_KEYS = {
     "topic_suggestions": frozenset({"action", "topic", "reason", "citations"}),
     "link_suggestions": frozenset({"action", "target_id", "kind", "reason", "citations"}),
@@ -39,33 +41,59 @@ def _submission(value: dict) -> dict:
         raise ValueError("links must be a list of target/kind pairs")
     if not isinstance(result.get("anchor"), dict):
         raise ValueError("anchor must be a source coordinate")
+    anchor = result["anchor"]
+    if (set(anchor) != {"rollout_id", "turn", "source_ordinal"}
+            or not isinstance(anchor["rollout_id"], str) or not anchor["rollout_id"]
+            or type(anchor["turn"]) is not int or anchor["turn"] < 0
+            or type(anchor["source_ordinal"]) is not int or anchor["source_ordinal"] < 0):
+        raise ValueError("anchor has invalid source coordinates")
     return result
 
 
-def _citation(value: Any, disclosed: dict[tuple[str, int, int], dict]) -> dict:
-    if not isinstance(value, dict) or set(value) != _CITATION_KEYS:
+def _citation(value: Any, disclosed: dict[tuple[str, int, int], dict],
+              records: dict, claim: dict) -> dict:
+    if not isinstance(value, dict):
         raise ValueError("citation has invalid shape")
-    if (not isinstance(value["rollout_id"], str) or not value["rollout_id"]
-            or type(value["turn"]) is not int or type(value["source_ordinal"]) is not int):
-        raise ValueError("citation coordinate has invalid type")
-    coord = (value["rollout_id"], value["turn"], value["source_ordinal"])
-    message = disclosed.get(coord)
-    if message is None:
-        raise ValueError("undisclosed citation")
+    if value.get("kind") == "accepted_claim" and set(value) == _CLAIM_CITATION_KEYS:
+        source_text = claim["claim"]
+    elif value.get("kind") == "existing_record" and set(value) == _RECORD_CITATION_KEYS:
+        record_id = value["record_id"]
+        if not isinstance(record_id, str) or record_id not in records:
+            raise ValueError("citation references unknown existing record")
+        record = records[record_id]
+        if not isinstance(record, dict) or not isinstance(record.get("claim"), str):
+            raise ValueError("cited existing record requires claim text")
+        source_text = record["claim"]
+    elif set(value) == _CITATION_KEYS:
+        if (not isinstance(value["rollout_id"], str) or not value["rollout_id"]
+                or type(value["turn"]) is not int or type(value["source_ordinal"]) is not int):
+            raise ValueError("citation coordinate has invalid type")
+        coord = (value["rollout_id"], value["turn"], value["source_ordinal"])
+        message = disclosed.get(coord)
+        if message is None:
+            raise ValueError("undisclosed citation")
+        source_text = message["text"]
+    else:
+        raise ValueError("citation has invalid shape")
     start, end, quote = value["start"], value["end"], value["quote"]
     if (type(start) is not int or type(end) is not int or start < 0 or end <= start
-            or not isinstance(quote, str) or not quote or message["text"][start:end] != quote):
-        raise ValueError("citation quote does not match disclosed source")
+            or not isinstance(quote, str) or not quote or source_text[start:end] != quote):
+        raise ValueError("citation quote does not match cited source")
     return deepcopy(value)
 
 
 def _response(value: Any, disclosed: dict, topics: dict, records: dict, claim: dict) -> dict:
-    allowed = {"needs_more_context", *list(_ITEM_KEYS), "usage"}
+    allowed = {"needs_more_context", "source_questions", *list(_ITEM_KEYS), "usage"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("reviewer response has invalid shape")
     if type(value.get("needs_more_context")) is not bool:
         raise ValueError("needs_more_context must be boolean")
-    result = {"needs_more_context": value["needs_more_context"]}
+    questions = value.get("source_questions", [])
+    if (not isinstance(questions, list) or any(not isinstance(q, str) or not q.strip() for q in questions)
+            or (value["needs_more_context"] and not questions)
+            or (not value["needs_more_context"] and questions)):
+        raise ValueError("source_questions must name each unresolved question")
+    result = {"needs_more_context": value["needs_more_context"], "source_questions": deepcopy(questions)}
     for group, keys in _ITEM_KEYS.items():
         items = value.get(group)
         if not isinstance(items, list):
@@ -78,7 +106,7 @@ def _response(value: Any, disclosed: dict, topics: dict, records: dict, claim: d
             if not isinstance(item["citations"], list) or not item["citations"]:
                 raise ValueError("advice requires cited evidence")
             copied = deepcopy(item)
-            copied["citations"] = [_citation(c, disclosed) for c in item["citations"]]
+            copied["citations"] = [_citation(c, disclosed, records, claim) for c in item["citations"]]
             if group == "topic_suggestions":
                 _text(copied.get("action"), "topic action")
                 _text(copied.get("topic"), "topic")
@@ -123,7 +151,7 @@ def review_accepted_decision(
     submission: dict, messages: list[dict], candidate_topics: dict[str, str],
     existing_records: dict[str, dict], reviewer: Callable[[dict, dict, dict], dict],
 ) -> dict:
-    """Review an already accepted write with only newly disclosed dialogue batches.
+    """Compare an accepted write with records first; disclose dialogue only on request.
 
     The caller must authenticate the accepted-write receipt and owner-scoped source.
     This pure offline function cannot establish either and never applies advice.
@@ -131,20 +159,17 @@ def review_accepted_decision(
     claim = _submission(submission)
     if not isinstance(candidate_topics, dict) or not isinstance(existing_records, dict):
         raise ValueError("candidate topics and existing records must be mappings")
-    disclosure = AdaptiveDisclosure(messages, claim["anchor"])
     advice: dict[str, list] = {key: [] for key in _ITEM_KEYS}
     seen: dict[str, set[tuple]] = {key: set() for key in _ITEM_KEYS}
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     disclosed: dict[tuple[str, int, int], dict] = {}
     calls = 0
-    batch = disclosure.batches[0] if disclosure.batches else None
-    needs_more = True
-    while batch is not None:
-        for message in batch["messages"]:
-            coord = (message["rollout_id"], message["turn"], message["source_ordinal"])
-            disclosed[coord] = message
-        state = {"review_call": calls, "previous_advice": deepcopy(advice)}
-        response = _response(reviewer(deepcopy(claim), deepcopy(batch), state), disclosed,
+
+    def review(context: dict, phase: str, questions: list[str]) -> dict:
+        nonlocal calls
+        state = {"review_call": calls, "phase": phase,
+                 "source_questions": deepcopy(questions), "previous_advice": deepcopy(advice)}
+        response = _response(reviewer(deepcopy(claim), deepcopy(context), state), disclosed,
                              candidate_topics, existing_records, claim)
         calls += 1
         for group in _ITEM_KEYS:
@@ -156,17 +181,39 @@ def review_accepted_decision(
                     advice[group].append(item)
         for key in usage:
             usage[key] += response["usage"][key]
-        needs_more = response["needs_more_context"]
-        if not needs_more:
-            disclosure.mark_questions_complete()
-            break
-        batch = disclosure.expand()
-    summary = disclosure.summary()
+        return response
+
+    record_context = {"kind": "records", "candidate_topics": deepcopy(candidate_topics),
+                      "existing_records": deepcopy(existing_records)}
+    response = review(record_context, "records", [])
+    source_check_requested = response["needs_more_context"]
+    disclosure = None
+    # An empty owner-authorized source leaves the question unresolved; it
+    # cannot silently turn a requested check into a completed review.
+    if source_check_requested and messages != []:
+        disclosure = AdaptiveDisclosure(messages, claim["anchor"])
+        batch = disclosure.batches[0] if disclosure.batches else None
+        while batch is not None:
+            for message in batch["messages"]:
+                coord = (message["rollout_id"], message["turn"], message["source_ordinal"])
+                disclosed[coord] = message
+            response = review({"kind": "dialogue", **batch}, "source", response["source_questions"])
+            if not response["needs_more_context"]:
+                disclosure.mark_questions_complete()
+                break
+            batch = disclosure.expand()
+    needs_more = response["needs_more_context"]
+    summary = disclosure.summary() if disclosure is not None else {
+        "stop_reason": "source_unavailable" if source_check_requested else "record_comparison_complete",
+        "expansion_calls": 0,
+        "disclosed_source_messages": 0, "disclosed_source_characters": 0}
     return {
         "record_id": claim["record_id"], "accepted_write_id": claim["accepted_write_id"],
         "source_owner_id": claim["source_owner_id"],
         "claim_provenance": claim["provenance"], "advisory_only": True,
         "status": "incomplete" if needs_more else "reviewed",
+        "source_check_requested": source_check_requested,
+        "source_questions_remaining": response["source_questions"],
         "stop_reason": summary["stop_reason"], "review_calls": calls,
         **advice, "usage": usage,
         "window": {"expansion_calls": summary["expansion_calls"],
