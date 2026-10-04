@@ -221,3 +221,30 @@ Reason was not recorded in the schema-v1 event.
 #### Impact
 
 mse_dqwvb8gxnn88ch3b:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_9f92801a12b3712934fa",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_dqwvb8gxnn88ch3b:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+The hosted assertion model keeps write-time declarations authoritative unless explicitly retracted.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

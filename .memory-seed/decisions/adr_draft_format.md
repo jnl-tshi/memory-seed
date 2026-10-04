@@ -233,3 +233,30 @@ JNL explicitly approved the typed DRAFTS plan and directed its implementation in
 #### Impact
 
 mse_c4xmkemz549dvp15:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_1241c895f10d099cac45",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_c4xmkemz549dvp15:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+The importer preserves Decision and Documentation record structure without changing the ADR.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

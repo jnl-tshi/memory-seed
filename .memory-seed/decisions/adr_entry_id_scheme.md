@@ -137,3 +137,30 @@ Approved by JNL 2026-08-07 from the screening shortlist.
 #### Impact
 
 ms-a4282580:d2 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_afa857ec042a1ba54494",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "ms-a4282580:d2"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+Imported mse_ and legacy ms- identifiers remain stable; hosted public IDs are an additional surface.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

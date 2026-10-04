@@ -162,14 +162,18 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Project type: reusable local AI memory-system seed plus a separately scoped hosted team edition.
 - This checkout opts into an optional, deterministic Graphify project index after successful local `session merge-branch` integration. Its scope is visible project Markdown and supported code, including docs, experiments, business, demos, package, and tests; dot-prefixed paths (including `.memory-seed/`), generated data, and bulky data files are excluded. The ignored `graphify-out/` remains derived and checkout-local; use `python -m memory_seed.graphify_refresh status` before relying on it. A failed refresh warns without undoing the merge, and any Graphify fork requires separate user approval. See `experiments/graphify-merge-refresh/README.md`.
 - Current priority: execute the capture-first [hosted Memory MVP programme](../docs/2_Todo/hosted-memory-mvp-programme.md)
-  without weakening the complete, network-independent local OSS edition.
+  through the accepted [PostgreSQL data-model and authority-transfer plan](../docs/2_Todo/hosted-postgresql-data-model-and-authority-transfer-plan.md)
+  without weakening the complete, network-independent local OSS edition. Its order is R0 crosswalk, R1 secure
+  substrate, R2 corpus parity, R3 transfer rehearsal, R4 capture/evidence, R5 useful loop, then a human-gated R6 pilot.
 - Hosted next gate: P0.1 is integrated and P0.2 local capture is implemented. The active P0.2 direction is explicit first-hand write-agent decisions followed by asynchronous, advisory curator topic/link review. Its offline contract compares existing decision/topic candidates first and opens the bounded source window only for a named unresolved question; the candidate-retrieval service, authenticated submission, owner-only evidence access, queueing and approval delivery remain unbuilt. OAuth/sign-in remains unstarted and human-gated.
 - Recovery experiment: historical retrospective extraction is paused as a product deliverable. Its oracle-anchored source reachability did not establish semantic decision accuracy; two development prompt versions recovered 0/5 complete decisions in both runs. The bounded, dialogue-only adaptive locator remains available for decision-known checks, not forward discovery. See [prior outcome](../hosted/evaluation/RECOVERY-RESULTS.md), [adaptive diagnostic](../hosted/evaluation/ADAPTIVE-RESULTS.md), and [post-write contract trial](../hosted/evaluation/ADVISORY-TRIAL.md). No live integration or automatic curator writes.
   The [decision-layer model tournament](../docs/2_Todo/decision-layer-model-tournament-plan.md) is a P1
   subplan after the authenticated decision loop, with Laya worker and storyline retrieval deferred.
-- Authority boundary: local OSS is Markdown-authoritative; hosted is SQL-authoritative with complete
-  Markdown export. The editions share semantics but have no repository settlement, bidirectional sync,
-  or dual-writer mode.
+- Authority boundary: local OSS remains Markdown-authoritative while the hosted database is built and shadowed.
+  A project advances `local_authoritative -> shadowing -> cutover_ready -> hosted_authoritative` only after
+  parity, concurrency, final-delta, and restore gates plus explicit lead approval at the P1 pilot. Hosted SQL
+  then becomes authoritative with complete Markdown export. The editions share semantics but have no repository
+  settlement, bidirectional sync, dual writes, or implicit reverse transfer.
 - Retrieval Specification M0-M3 and the reconstructable Task Packet compiler are delivered as of 2026-09-01. Six immutable core v1 profiles live under `.memory-seed/retrieval-profiles/`; semantic Task Dispatch plus measured binding and a pinned corpus revision reconstructs a complete ephemeral packet through shared CLI/MCP/core code. Trace/Evidence Envelope and advanced selectors remain planned; this adds no registry, dispatch engine, authority, provider lookup, or network dependency.
 - Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed; v2.17.0 released; Memory Trace packaging now ships through the root `memory-seed[trace]` extra with the `memory-trace` command.
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1,

@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — navigation and sequencing guide**
-Updated: 2026-10-03
+Updated: 2026-10-04
 
 The hosted Memory Seed programme is now the primary product workstream. The local OSS edition remains
 complete and Markdown-authoritative; the separate hosted edition will be SQL-authoritative and expose a
@@ -31,10 +31,13 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
    ordering and replay, pause/queue behavior, and approval delivery. Hosted code lives in a self-contained
    top-level `hosted/` folder for local development only. It is excluded from the published package (see the
    [repository boundary](hosted-memory-mvp-programme.md#repository-boundary)).
-3. **P0.3–P0.4 useful loop.** Build the minimum authenticated SQL event/curated-memory substrate, then accept
-   one guarded write-agent decision, return it to an authorized team member over MCP, and run an asynchronous
-   advisory topic/link review. Prove permission-filtered retrieval and provider fail-closed behavior.
-4. **P1 curator quality and team readiness.** Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md)
+3. **P0.3–P0.4 PostgreSQL parity and useful loop.** Execute the
+   [hosted PostgreSQL data-model and authority-transfer plan](hosted-postgresql-data-model-and-authority-transfer-plan.md)
+   in order: R0 crosswalk, R1 secure substrate, R2 full-corpus parity, R3 transfer rehearsal, R4 capture/evidence,
+   and R5 the authenticated useful loop. R1-R5 use sequential SDD Task Packets with a fresh implementer and
+   independent review per task plus a whole-workstream review. Markdown stays authoritative throughout these
+   stages; there are no dual writes.
+4. **P1 curator quality, team readiness, and gated authority transfer.** Run the [decision-layer model tournament](decision-layer-model-tournament-plan.md)
    on reviewed topic/link/conflict-review labels: Model2Vec + Logistic Regression, Model2Vec + XGBoost, and SetFit are fixed-schema
    baselines, with generalized candidates tested by task. Dynamic Area/Activity assignment needs the current
    candidate hierarchy and independent-project evaluation; the local corpus alone cannot prove transfer.
@@ -42,7 +45,9 @@ within the agreed tranche scope; repeat discovery when a materially new tranche 
    guarded replacement/approval, branch applicability, retention/export, and retrieval parity for a team pilot.
    Historical source-alignment and retrospective extraction remain paused research, not a P1 delivery gate.
    Evaluate decision-known source locating separately from curator suggestion quality; this is not permission
-   to start the P1 tournament or hosted implementation before its gates.
+   to bypass the tranche gates. R6 moves the hosted service to the primary surface only after a
+   managed-PostgreSQL rehearsal and explicit lead approval of the exact manifest, restore receipt, and authority
+   epoch; reverse transfer remains a separate explicit operation.
 5. **P2 experience.** Consider focused Trace and
    [decision storyline retrieval](../8_Deferred/decision-storyline-retrieval-proposal.md) once the service loop works.
    A [persistent Laya worker](../8_Deferred/laya-local-decision-worker-proposal.md) remains deferred until
