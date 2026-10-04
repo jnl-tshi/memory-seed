@@ -250,6 +250,12 @@ discovery conversation with JNL, challenge the proposal's assumptions, resolve t
 choices and acceptance criteria, and write a bounded detailed plan. This programme sets sequence and
 release gates; its candidate architecture and model examples do not pre-approve implementation details.
 
+The accepted [Hosted PostgreSQL Data Model and Authority-Transfer Plan](hosted-postgresql-data-model-and-authority-transfer-plan.md)
+is the canonical execution refinement for P0.3, P0.4, and the P1 authority handoff. It defines the tables and
+columns, complete historical metadata crosswalk, RLS and epoch-fencing invariants, parity/import/restore gates,
+and the ordered R0-R6 workstreams. Its R1-R5 implementation tasks use sequential SDD; R6 remains a human-gated
+pilot transition rather than an automatically dispatched task.
+
 ## Programme sequence
 
 ### P0 — prove authority, capture and one useful loop
@@ -258,10 +264,12 @@ release gates; its candidate architecture and model examples do not pre-approve 
    lifecycle consolidation are in the project baseline.
 2. **P0.2 Codex feasibility spike:** follow the [capture feasibility tranche plan](codex-capture-feasibility-plan.md) to prove accessible event kinds, ordering, idempotency, identity refresh, pause,
    queue drain and authenticated approval delivery without collecting private production data.
-3. **P0.3 Authenticated substrate:** tenant/project/membership/delegation, immutable event store, branch registry,
-   retention states and audit skeleton.
-4. **P0.4 Thin slice:** one explicit write-agent decision passes the guarded hosted write, is returned by
-   authenticated MCP to an authorized team member, and receives a separate advisory topic/link review.
+3. **P0.3 Authenticated substrate and parity:** execute plan R0-R4: classify the full Markdown/session corpus,
+   establish the secure PostgreSQL foundation, prove repeatable semantic-lossless shadow import and export,
+   rehearse authority transfer and restore without moving authority, then land owner-only capture/evidence.
+4. **P0.4 Thin slice:** execute plan R5 so one explicit write-agent Decision passes the guarded hosted write,
+   is returned by authenticated MCP to an authorized team member with provenance and lifecycle status, and
+   receives a separate advisory topic/link review.
 
 ### P1 — prove curator safety and team readiness
 
@@ -275,8 +283,9 @@ release gates; its candidate architecture and model examples do not pre-approve 
    cost before choosing a provider or resident worker.
 6. Add guarded replacement, elevated approval and branch applicability behavior.
 7. Complete privacy, retention, deletion, export, secret-handling and payload-size decisions.
-8. Prove retrieval parity, permission isolation and a seconds-scale team pilot. Select a numerical p95 only from
-   measured workloads.
+8. Prove retrieval parity and permission isolation, then execute plan R6 for a seconds-scale team pilot.
+   Hosted PostgreSQL becomes the primary surface only after explicit approval of the exact import manifest,
+   tested restore receipt, and next authority epoch. Select a numerical p95 only from measured workloads.
 
 ### P2 — focused experience, after service value
 

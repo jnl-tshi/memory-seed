@@ -183,3 +183,30 @@ Every public session-write surface must review the same complete concern context
 #### Impact
 
 Extends the accepted MCP gate into one shared append preflight while preserving the zero-write first call and parent-first transaction.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_f01667d1daf16bb98e38",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_17d0qqh34a07qp5b:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+The plan uses the existing mandatory ADR review envelope and does not change it.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

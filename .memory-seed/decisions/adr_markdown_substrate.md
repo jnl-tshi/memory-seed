@@ -266,3 +266,30 @@ Accepted under JNL's explicit constitutional authorization on 2026-09-19; the lo
 #### Impact
 
 mse_kn36asmf96bf5tk1:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_1fc931f3016b259ee9a3",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_kn36asmf96bf5tk1:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+Markdown remains authoritative until the explicit hosted cutover, so the ADR needs no revision.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

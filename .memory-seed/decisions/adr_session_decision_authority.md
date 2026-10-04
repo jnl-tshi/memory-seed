@@ -175,3 +175,30 @@ CLI parity and the standalone recorder preserve the existing split: session entr
 #### Impact
 
 The review retained the governing decision; the original impact was not otherwise recorded.
+
+### reviewed-no-change - 2026-10-04T13:49:00
+
+```json
+{
+  "decision_ref": "mse_2w2dyj7bzk18j1dd:d1",
+  "event_id": "adre_f1c959ba208b804e7688",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_17d0qqh34a07qp5b:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_2w2dyj7bzk18j1dd"
+}
+```
+
+#### Decision
+
+Retain mse_2w2dyj7bzk18j1dd:d1 as the governing decision.
+
+#### Reason
+
+Session decisions remain authoritative corpus records through migration.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.
