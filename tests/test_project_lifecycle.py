@@ -819,6 +819,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/retrieval-profiles/bug-investigation/v1.yaml",
                 ".memory-seed/retrieval-profiles/bug-investigation/v2.yaml",
                 ".memory-seed/retrieval-profiles/design-discovery/v1.yaml",
+                ".memory-seed/retrieval-profiles/design-discovery/v2.yaml",
                 ".memory-seed/retrieval-profiles/implementation/v1.yaml",
                 ".memory-seed/retrieval-profiles/implementation/v2.yaml",
                 ".memory-seed/retrieval-profiles/refactoring/v1.yaml",

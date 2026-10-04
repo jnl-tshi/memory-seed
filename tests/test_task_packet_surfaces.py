@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import copy
+import hashlib
 import io
 import json
 import os
@@ -16,10 +18,70 @@ from unittest.mock import patch
 from memory_seed.cli import _atomic_export_json, main as cli_main
 from memory_seed.mcp_server import MUTATING_TOOL_NAMES, TOOLS, call_tool, handle_jsonrpc_message
 from memory_seed.retrieval import canonical_retrieval_json
-from memory_seed.task_packet import canonical_task_packet_json, compile_task_packet
+from memory_seed.task_packet import activate_task_packet, canonical_task_packet_json, compile_task_packet
 
 
 class TaskPacketSurfaceTests(unittest.TestCase):
+    def discovery_receipt(self, root: Path) -> dict:
+        content = "# Evidence\n\nCanonical source."
+        return {
+            "schema": "memory-seed/discovery-receipt", "version": 1,
+            "profile": {"id": "design-discovery", "profile_version": 2},
+            "pack_fingerprint": "sha256:" + "a" * 64,
+            "required_count": 1, "assessed_count": 1, "missing_refs": [],
+            "optional_assessed_count": 0, "conflict_refs": [], "complete": True,
+            "required_evidence": [{
+                "id": "docs/evidence.md", "kind": "markdown", "source": "docs/evidence.md",
+                "line_range": [1, 3],
+                "content_digest": "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            }],
+        }
+
+    def test_declared_design_work_requires_a_complete_fresh_discovery_receipt(self):
+        root = self.make_project()
+        dispatch = self.dispatch()
+        dispatch["design_discovery"] = {
+            "required": True, "receipt": self.discovery_receipt(root), "bypass_reason": None,
+        }
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertTrue(packet["dispatch"]["design_discovery"]["receipt"]["complete"])
+
+        incomplete = copy.deepcopy(dispatch)
+        incomplete["design_discovery"]["receipt"]["complete"] = False
+        with self.assertRaisesRegex(Exception, "mandatory authority review is incomplete"):
+            compile_task_packet(incomplete, self.binding(root), root)
+
+        (root / "docs" / "evidence.md").write_text("# Evidence\n\nChanged.\n", encoding="utf-8")
+        with self.assertRaisesRegex(Exception, "authority evidence changed"):
+            compile_task_packet(dispatch, self.binding(root), root)
+
+    def test_routine_packet_records_an_explicit_discovery_bypass(self):
+        root = self.make_project()
+        dispatch = self.dispatch()
+        dispatch["design_discovery"] = {
+            "required": False, "receipt": None,
+            "bypass_reason": "Routine implementation of an already assessed design.",
+        }
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        self.assertFalse(packet["dispatch"]["design_discovery"]["required"])
+
+    def test_activation_revalidates_the_discovery_receipt(self):
+        root = self.make_project()
+        dispatch = self.dispatch()
+        dispatch["execution"].update(
+            write_intent="writing", allowed_files=["docs/evidence.md"]
+        )
+        dispatch["design_discovery"] = {
+            "required": True, "receipt": self.discovery_receipt(root), "bypass_reason": None,
+        }
+        binding = self.binding(root)
+        binding.update(working_branch="main", worktree=str(root.resolve()), integration_artifact="branch")
+        packet = compile_task_packet(dispatch, binding, root)
+        self.assertTrue(activate_task_packet(packet, root)["activated"])
+        (root / "docs" / "evidence.md").write_text("# Evidence\n\nChanged.\n", encoding="utf-8")
+        with self.assertRaisesRegex(Exception, "authority evidence changed"):
+            activate_task_packet(packet, root)
+
     def test_planning_evidence_additive_dispatch_has_cli_mcp_parity_and_structured_failure(self):
         from memory_seed.task_packet import prepare_planning_evidence
         root = self.make_project()

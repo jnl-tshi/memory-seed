@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.discovery import DiscoveryError, discovery_assess, discovery_evidence
+from memory_seed.discovery import DiscoveryError, _required_review, discovery_assess, discovery_evidence
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -74,14 +74,14 @@ class DiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="memory-seed-discovery-"))
         self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
-        profile = (REPO / ".memory-seed" / "retrieval-profiles" / "design-discovery" / "v1.yaml").read_text(
+        profile = (REPO / ".memory-seed" / "retrieval-profiles" / "design-discovery" / "v2.yaml").read_text(
             encoding="utf-8"
         )
         files = {
             "docs/CONSTITUTION.md": CONSTITUTION,
             ".memory-seed/sessions/2026-09/2026-09-01.md": SESSIONS,
             ".memory-seed/topics.yaml": TOPICS,
-            ".memory-seed/retrieval-profiles/design-discovery/v1.yaml": profile,
+            ".memory-seed/retrieval-profiles/design-discovery/v2.yaml": profile,
         }
         for relative, text in files.items():
             path = self.root / relative
@@ -135,6 +135,8 @@ class DiscoveryTests(unittest.TestCase):
         )
         self.assertIn("constitution:v2#evidence-first", [row["ref"] for row in summary["constitution"]])
         self.assertNotIn("docs/CONSTITUTION.md", [row["ref"] for row in summary["constitution"]])
+        self.assertEqual(result["profile"], {"id": "design-discovery", "profile_version": 2})
+        self.assertEqual(result["required_review_count"], len(result["required_review"]))
 
     def test_an_area_without_history_is_a_finding_not_an_error(self):
         result = self.evidence(topics=[])
@@ -148,10 +150,19 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_verdicts_become_the_append_envelope(self):
         pack = self.evidence()["pack"]
+        required = {item["ref"] for item in self.evidence()["required_review"]}
+        verdicts = [
+            {"ref": ref, "relation": "governed-by", "why": "governs the design"}
+            if ref.startswith("constitution:") else {"ref": ref, "relation": "no-edge"}
+            for ref in required
+        ]
+        verdicts = [item for item in verdicts if item["ref"] not in {
+            "mse_discovery0002:d1", "mse_discovery0001:d1", "constitution:v2#evidence-first", "adr_evidence_ranking"
+        }]
         answer = discovery_assess(
             self.root,
             pack=pack,
-            verdicts=[
+            verdicts=[*verdicts,
                 {"ref": "mse_discovery0002:d1", "relation": "refines", "why": "adds per-item reasons", "applies_to": ["d1"]},
                 {"ref": "mse_discovery0001:d1", "relation": "related", "applies_to": ["d2"]},
                 {"ref": "constitution:v2#evidence-first", "relation": "governed-by", "why": "packs show evidence first"},
@@ -179,20 +190,30 @@ class DiscoveryTests(unittest.TestCase):
             answer["authority_table"],
         )
         self.assertEqual(answer["adr_outcomes_needed"], [])
+        self.assertTrue(answer["discovery_receipt"]["complete"])
+        self.assertEqual(answer["discovery_receipt"]["missing_refs"], [])
 
     def test_an_adr_verdict_links_its_head_and_flags_the_review(self):
         pack = self.evidence()["pack"]
+        required = {item["ref"] for item in self.evidence()["required_review"]}
+        verdicts = [
+            {"ref": ref, "relation": "governed-by", "why": "governs"}
+            if ref.startswith("constitution:") else {"ref": ref, "relation": "no-edge"}
+            for ref in required if ref != "adr_evidence_ranking"
+        ]
         answer = discovery_assess(
             self.root,
             pack=pack,
-            verdicts=[{"ref": "adr_evidence_ranking", "relation": "builds-on", "why": "extends the ranking"}],
+            verdicts=[*verdicts, {"ref": "adr_evidence_ranking", "relation": "builds-on", "why": "extends the ranking"}],
         )
         self.assertEqual(
             answer["links"]["d1"]["evolves"],
             [{"ref": "mse_discovery0001", "type": "builds-on", "why": "extends the ranking"}],
         )
         self.assertEqual([item["adr_id"] for item in answer["adr_outcomes_needed"]], ["adr_evidence_ranking"])
-        self.assertTrue(answer["authority_answer"][0]["adr_outcome_needed"])
+        self.assertTrue(next(
+            row for row in answer["authority_answer"] if row["ref"] == "adr_evidence_ranking"
+        )["adr_outcome_needed"])
 
     def test_closed_list_why_and_kind_rules_fail_closed(self):
         pack = self.evidence()["pack"]
@@ -221,7 +242,36 @@ class DiscoveryTests(unittest.TestCase):
                     {"ref": "mse_discovery0001:d1", "relation": "refines", "why": "b", "applies_to": ["d2"]},
                 ],
             )
-        self.assertIn("refined twice", " ".join(caught.exception.issues))
+        self.assertIn("more than one verdict", " ".join(caught.exception.issues))
+
+    def test_assessment_requires_every_bounded_authority_item_once(self):
+        evidence = self.evidence()
+        required = [item["ref"] for item in evidence["required_review"]]
+        with self.assertRaises(DiscoveryError) as missing:
+            discovery_assess(self.root, pack=evidence["pack"], verdicts=[])
+        self.assertIn("missing verdicts for required review", " ".join(missing.exception.issues))
+        ref = required[0]
+        relation = "governed-by" if ref.startswith("constitution:") else "no-edge"
+        verdict = {"ref": ref, "relation": relation, "why": "governs"} if relation == "governed-by" else {"ref": ref, "relation": relation}
+        with self.assertRaises(DiscoveryError) as duplicate:
+            discovery_assess(self.root, pack=evidence["pack"], verdicts=[verdict, verdict])
+        self.assertIn("more than one verdict", " ".join(duplicate.exception.issues))
+
+    def test_required_review_is_balanced_bounded_and_keeps_pins(self):
+        evidence = [
+            {"id": "constitution:v2#authority", "kind": "constitution", "selected_by": ["required.constitution"]},
+            *({"id": f"adr_{index}", "kind": "adr", "selected_by": ["selectors.related_adrs"]}
+              for index in range(10)),
+            *({"id": f"mse_balance{index:08d}:d1", "kind": "decision", "selected_by": ["required.related_decisions"]}
+              for index in range(10)),
+            {"id": "mse_pinned0001:d1", "kind": "decision", "selected_by": ["selectors.pinned"]},
+        ]
+        required = _required_review({"evidence": evidence})
+        authority = [item for item in required if item["kind"] != "constitution"]
+        self.assertEqual(len(authority), 12)
+        self.assertGreaterEqual(sum(item["kind"] == "adr" for item in authority), 4)
+        self.assertGreaterEqual(sum(item["kind"] == "decision" for item in authority), 4)
+        self.assertIn("mse_pinned0001:d1", {item["ref"] for item in required})
 
     def test_a_stale_pack_is_refused(self):
         pack = self.evidence()["pack"]

@@ -18,8 +18,9 @@ Two read-only steps, both built on existing machinery:
     evidence in the pack (a closed candidate list), and graph distance never
     becomes a relation: only a verdict does.
 
-Nothing here writes memory.  ``no-edge`` verdicts are authoring-time evidence
-and are not persisted (``mse_a7zs346tqznzpexn``: no new store).
+Nothing here writes authoritative memory. ``no-edge`` verdicts are authoring-time
+evidence and are not persisted as graph edges (``mse_a7zs346tqznzpexn``). Both
+steps emit privacy-minimal operational events to the repository telemetry store.
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-DISCOVERY_PROFILE = ("design-discovery", 1)
+DISCOVERY_PROFILE = ("design-discovery", 2)
+DISCOVERY_REQUIRED_AUTHORITY_LIMIT = 12
+DISCOVERY_REQUIRED_KIND_FLOOR = 4
 RELATIONS = ("replaces", "refines", "builds-on", "related", "no-edge", "conflicts", "governed-by")
 # The relation each evidence kind may take.  Links target session decisions;
 # an ADR verdict links to the ADR's authoritative decision.  A Constitution
@@ -152,7 +155,7 @@ def discovery_evidence(
             raise
         # Advisory by design: an area with no recorded history is a finding,
         # not an error - the Discovery Record says so and planning continues.
-        return {
+        result = {
             "ok": True,
             "empty": True,
             "request": request,
@@ -166,8 +169,15 @@ def discovery_evidence(
             ],
             "pack": None,
             "summary": {"adrs": [], "decisions": [], "constitution": []},
+            "profile": {"id": profile[0], "profile_version": profile[1]},
+            "pack_fingerprint": None,
+            "required_review": [],
+            "required_review_count": 0,
         }
-    return {
+        _record_discovery_usage(cwd, "discovery_evidence", result)
+        return result
+    required_review = _required_review(pack)
+    result = {
         "ok": True,
         "empty": False,
         "request": request,
@@ -175,7 +185,74 @@ def discovery_evidence(
         "warnings": pack["warnings"],
         "pack": pack,
         "summary": _summarize(pack, cwd),
+        "profile": {"id": profile[0], "profile_version": profile[1]},
+        "pack_fingerprint": pack["fingerprint"],
+        "required_review": required_review,
+        "required_review_count": len(required_review),
     }
+    _record_discovery_usage(cwd, "discovery_evidence", result)
+    return result
+
+
+def _required_review(pack: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return the bounded authority records every assessment must answer.
+
+    Constitution clauses and explicit pins are never dropped.  The 12-record
+    authority cap applies only to ADRs and decisions; it reserves four slots
+    for each kind when available, then follows the resolver's stable order.
+    """
+    evidence = list(pack.get("evidence") or [])
+    clauses = [item for item in evidence if item.get("kind") == "constitution"]
+    authority = [item for item in evidence if item.get("kind") in {"adr", "decision"}]
+    pinned = [
+        item for item in authority
+        if any(str(reason).startswith("selectors.pinned") or str(reason).startswith("required.pinned")
+               for reason in item.get("selected_by", []))
+    ]
+    selected: list[Mapping[str, Any]] = []
+
+    def add(items: Sequence[Mapping[str, Any]], limit: int | None = None) -> None:
+        for item in items:
+            if any(existing.get("id") == item.get("id") for existing in selected):
+                continue
+            if limit is not None and len(selected) >= limit:
+                return
+            selected.append(item)
+
+    add(pinned)
+    # A future caller may pin more than the normal cap. Explicitly requested
+    # authority remains mandatory, even when that expands the review set.
+    floor_target = max(DISCOVERY_REQUIRED_AUTHORITY_LIMIT, len(selected))
+    for kind in ("adr", "decision"):
+        have = sum(1 for item in selected if item.get("kind") == kind)
+        add(
+            [item for item in authority if item.get("kind") == kind],
+            len(selected) + max(0, DISCOVERY_REQUIRED_KIND_FLOOR - have),
+        )
+    add(authority, floor_target)
+    required = [*clauses, *selected]
+    return [
+        {
+            "ref": str(item["id"]),
+            "kind": str(item["kind"]),
+            "reason": (
+                "governing Constitution clause" if item["kind"] == "constitution"
+                else "explicitly pinned authority" if item in pinned
+                else "bounded ranked authority review"
+            ),
+        }
+        for item in required
+    ]
+
+
+def _record_discovery_usage(cwd: str | Path, kind: str, payload: Mapping[str, Any]) -> None:
+    try:
+        from .attention import record_discovery_event
+        from .core import resolve_runtime
+
+        record_discovery_event(resolve_runtime(cwd).memory_dir, kind, payload)
+    except Exception:
+        return
 
 
 def _summarize(pack: Mapping[str, Any], cwd: str | Path) -> dict[str, list[dict[str, Any]]]:
@@ -339,6 +416,9 @@ def discovery_assess(
     refines_taken = existing_refines_targets(runtime.memory_dir / "sessions")
 
     issues: list[str] = []
+    required_review = _required_review(pack)
+    required_refs = {item["ref"] for item in required_review}
+    seen_refs: set[str] = set()
     rows: list[dict[str, Any]] = []
     links: dict[str, dict[str, list[Any]]] = {}
     consulted: list[str] = []
@@ -362,6 +442,10 @@ def discovery_assess(
         if item is None:
             issues.append(f"{label}.ref {ref!r} is not in the evidence pack; verdicts name only retrieved evidence")
             continue
+        if ref in seen_refs:
+            issues.append(f"{label}.ref {ref!r} has more than one verdict")
+            continue
+        seen_refs.add(ref)
         if relation not in RELATIONS:
             issues.append(f"{label}.relation must be one of {', '.join(RELATIONS)}")
             continue
@@ -428,6 +512,9 @@ def discovery_assess(
                 **_applicability(state, ref, task_topics, cwd),
             }
         )
+    missing_refs = sorted(required_refs - seen_refs)
+    if missing_refs:
+        issues.append("missing verdicts for required review: " + ", ".join(missing_refs))
     if issues:
         raise DiscoveryError("the authority answer has problems", issues=issues)
 
@@ -456,7 +543,26 @@ def discovery_assess(
         ordinal: {kind: values for kind, values in value.items() if values}
         for ordinal, value in sorted(links.items())
     }
-    return {
+    receipt = {
+        "schema": "memory-seed/discovery-receipt",
+        "version": 1,
+        "profile": {"id": DISCOVERY_PROFILE[0], "profile_version": DISCOVERY_PROFILE[1]},
+        "pack_fingerprint": pack["fingerprint"],
+        "required_count": len(required_refs),
+        "assessed_count": len(required_refs),
+        "missing_refs": [],
+        "optional_assessed_count": len(seen_refs - required_refs),
+        "conflict_refs": sorted(item["ref"] for item in conflicts),
+        "complete": True,
+        "required_evidence": [
+            {
+                key: item[key]
+                for key in ("id", "kind", "source", "line_range", "content_digest")
+            }
+            for item in pack["evidence"] if item["id"] in required_refs
+        ],
+    }
+    result = {
         "ok": True,
         "pack_fingerprint": pack["fingerprint"],
         "authority_answer": rows,
@@ -467,11 +573,15 @@ def discovery_assess(
         "governing_clauses": governing,
         "conflicts": conflicts,
         "adr_outcomes_needed": adr_outcomes,
+        "required_review": required_review,
+        "discovery_receipt": receipt,
         "note": (
             "Pass `decisions` (add topics/origin and any ADR outcomes) and `consulted` to "
             "memory_session_append when the plan is approved. no-edge verdicts are not persisted."
         ),
     }
+    _record_discovery_usage(cwd, "discovery_assess", result)
+    return result
 
 
 _AUTHORITY_ORDER = {"constitution": 0, "adr": 1, "decision": 2, "session": 2, "markdown": 3}

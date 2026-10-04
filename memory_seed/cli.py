@@ -106,6 +106,8 @@ def _run_discovery(args: argparse.Namespace) -> int:
                     print(f"  {row['ref']}{distance}  {row.get('title', '')}")
             if result["search_hits"]:
                 print("Search hits pinned: " + ", ".join(hit["ref"] for hit in result["search_hits"]))
+            print(f"Required review ({result['required_review_count']}): " +
+                  ", ".join(item["ref"] for item in result["required_review"]))
             if args.pack_out:
                 print(f"Pack written to {args.pack_out}; next: memory-seed discovery assess --pack-file {args.pack_out} --verdicts-file <json>")
             return 0
@@ -1528,6 +1530,19 @@ def main(argv: list[str] | None = None) -> int:
     discovery_assess_parser.add_argument("--json", action="store_true", help="emit the full JSON result")
     discovery_assess_parser.add_argument("--cwd", default=".")
 
+    telemetry_parser = subparsers.add_parser(
+        "telemetry", help="inspect or migrate repository-scoped workflow telemetry"
+    )
+    telemetry_sub = telemetry_parser.add_subparsers(dest="telemetry_command", required=True)
+    telemetry_migrate = telemetry_sub.add_parser(
+        "migrate", help="copy legacy worktree-local events into the Git-common lifetime store"
+    )
+    telemetry_migrate.add_argument("--apply", action="store_true", help="perform the additive copy (default: dry run)")
+    telemetry_migrate.add_argument("--cwd", default=".")
+    for telemetry_command in ("summary", "health"):
+        operation = telemetry_sub.add_parser(telemetry_command)
+        operation.add_argument("--cwd", default=".")
+
     constitution_parser = subparsers.add_parser(
         "constitution",
         help="inspect how topics map to Constitution clauses",
@@ -1729,6 +1744,21 @@ def main(argv: list[str] | None = None) -> int:
                 canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
+
+    if args.command == "telemetry":
+        from .attention import load_workflow_telemetry, migrate_repository_telemetry, telemetry_health
+
+        memory_dir = resolve_runtime(args.cwd).memory_dir
+        if args.telemetry_command == "migrate":
+            result = migrate_repository_telemetry(args.cwd, dry_run=not args.apply)
+        elif args.telemetry_command == "summary":
+            report = load_workflow_telemetry(memory_dir)
+            result = {"totals": report["totals"], "by_day": report["by_day"],
+                      "event_count": len(report["events"])}
+        else:
+            result = telemetry_health(memory_dir)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0 if result.get("ok", True) else 1
 
     if args.command == "discovery":
         return _run_discovery(args)
