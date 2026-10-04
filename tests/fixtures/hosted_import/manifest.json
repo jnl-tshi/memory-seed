@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "purpose": "Representative R0 import fixtures spanning current and legacy Markdown authority shapes.",
+  "coverage": [
+    "archive-snapshot",
+    "constitution",
+    "legacy-session",
+    "living-adr",
+    "project-actors",
+    "session-diagram-sidecar",
+    "session-link-sidecar",
+    "session-topic-sidecar",
+    "topic-catalog",
+    "typed-session"
+  ],
+  "files": {
+    "source/.memory-seed/archive/fixture.md": "22189cb938f483ecf47f341d26db48c303c19f02fb7555b0d702cae0cf7f44e0",
+    "source/.memory-seed/decisions/adr_fixture.md": "48e7231fa95e02ee990130572d45fbacd40ae26f634b16dd269e280cd02a5752",
+    "source/.memory-seed/project.yaml": "bf430e8f5d6127457841ea8b9922fde299402c5b5c072617be340ecbb3c02294",
+    "source/.memory-seed/sessions/2025-12-31.md": "2fcf6bdf328233267733c617fd2d0351b3349d47af78f0716e89c3d669f55537",
+    "source/.memory-seed/sessions/2026-01/2026-01-01.md": "3a123c073adcc72bf1424c1ac0bdca6c369b4dec6ffe32f99b18d827131fddae",
+    "source/.memory-seed/sessions/diagrams/2026-01/2026-01-01.md": "890157c386f53de315bc75146a5a45488992629e72c36fad1695ff1d9754c5de",
+    "source/.memory-seed/sessions/links/2026-01/2026-01-01.md": "adf822e6429bdd627a9707d4bbe64bc92946e32ee2329e74f2d27633ea919acb",
+    "source/.memory-seed/sessions/topics/2026-01/2026-01-01.md": "36e75973e4275b86c86fb404af8b930b0d3ad7a2a96fe216854ceae31ca2d88d",
+    "source/.memory-seed/topics.yaml": "f8d042c006f93abb8ed5e345a5d38cb9c75ea2bfa2509ba30a73c90ad0f7907d",
+    "source/docs/CONSTITUTION.md": "a8dfe2bc0c0f8df0f47bbdf5affb62b4b40ad34114bc53457bea3f50139974c7"
+  }
+}

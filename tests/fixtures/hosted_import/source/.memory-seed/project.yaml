@@ -1,0 +1,10 @@
+participants:
+  - slug: jean
+    initials: JNL
+    display_name: Jean Nathan Tshibuyi
+merge_trigger: automatic
+graphify_merge_refresh: true
+delivery_quality:
+  high_impact_min_assertion_strength: 0.8
+  high_impact_min_evidence_completeness: 0.8
+

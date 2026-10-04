@@ -1,0 +1,15 @@
+schema_version: "3"
+topics:
+  area:
+    architecture:
+      label: Architecture
+      description: System structure.
+      status: active
+      aliases: []
+      children:
+        schema:
+          label: Schema
+          description: Data structures and migrations.
+          status: active
+          aliases:
+            - data-model
