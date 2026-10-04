@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "principles": [
+    "Member principals, agent principals, authorship origin, and provenance source are separate dimensions.",
+    "Legacy agent_name is a display/persona label, never an authentication identity.",
+    "USER is an unresolved legacy placeholder retained for provenance and grants no hosted access.",
+    "Only project participants seed member identities and tenant/project membership."
+  ],
+  "dimensions": {
+    "user_initials": {
+      "target": "record_origins.member_id",
+      "values": {
+        "JNL": {
+          "classification": "member_alias",
+          "member_slug": "jean"
+        },
+        "USER": {
+          "classification": "legacy_placeholder",
+          "member_slug": null,
+          "grants_access": false
+        }
+      }
+    },
+    "agent_types": {
+      "target": "record_origins.agent_principal_id",
+      "values": {
+        "claude": {
+          "classification": "agent_family",
+          "provider": "anthropic"
+        },
+        "claude-opus-4-8": {
+          "classification": "agent_variant",
+          "provider": "anthropic",
+          "family": "claude"
+        },
+        "claude-sonnet-4-6": {
+          "classification": "agent_variant",
+          "provider": "anthropic",
+          "family": "claude"
+        },
+        "codex": {
+          "classification": "agent_family",
+          "provider": "openai"
+        }
+      }
+    },
+    "legacy_agent_names": {
+      "target": "record_origins.agent_display_label",
+      "values": {
+        "Claude Fable 5": {
+          "classification": "persona_label",
+          "agent_type": "claude"
+        },
+        "Claude Opus 5": {
+          "classification": "persona_label",
+          "agent_type": "claude"
+        },
+        "Claude Sonnet 5": {
+          "classification": "persona_label",
+          "agent_type": "claude"
+        },
+        "Codex": {
+          "classification": "persona_label",
+          "agent_type": "codex"
+        },
+        "developer": {
+          "classification": "role_label",
+          "agent_type": null
+        },
+        "orchestrator": {
+          "classification": "role_label",
+          "agent_type": null
+        },
+        "solo-founder": {
+          "classification": "role_label",
+          "agent_type": null
+        },
+        "<null>": {
+          "classification": "missing_legacy_label",
+          "agent_type": null
+        }
+      }
+    },
+    "decision_origins": {
+      "target": "record_origins.actor_kind",
+      "values": {
+        "agent": {
+          "classification": "agent_authored"
+        },
+        "user": {
+          "classification": "member_authored"
+        }
+      }
+    },
+    "provenance_sources": {
+      "target": "record_origins.source_kind",
+      "values": {
+        "derived": {
+          "classification": "reconstructed",
+          "precedence": 10
+        },
+        "reconstructed": {
+          "classification": "reconstructed",
+          "precedence": 10
+        },
+        "write-time": {
+          "classification": "first_hand",
+          "precedence": 20
+        },
+        "human-amendment": {
+          "classification": "reviewed_explicit_amendment",
+          "precedence": 30
+        }
+      }
+    },
+    "member_slugs": {
+      "target": "members.external_slug",
+      "values": {
+        "jean": {
+          "classification": "member_principal"
+        }
+      }
+    },
+    "member_initials": {
+      "target": "member_aliases.alias",
+      "values": {
+        "JNL": {
+          "classification": "member_alias",
+          "member_slug": "jean"
+        }
+      }
+    },
+    "member_display_names": {
+      "target": "members.display_name",
+      "values": {
+        "Jean Nathan Tshibuyi": {
+          "classification": "display_name",
+          "member_slug": "jean"
+        }
+      }
+    }
+  }
+}

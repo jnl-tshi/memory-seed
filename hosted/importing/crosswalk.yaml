@@ -1,0 +1,1134 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "authority_rules": [
+    "One writable authority per edition; local OSS remains Markdown-authoritative and hosted team state is PostgreSQL-authoritative.",
+    "Session decisions remain authoritative evidence; ADR current views are derived from append-only ADR events.",
+    "Topic sidecars are the sole topic authority. Inline session topics are retained only as authored historical metadata.",
+    "Derived assertions never silently override write-time assertions; explicit reviewed retraction is required.",
+    "Legacy ms- identifiers remain immutable and valid alongside mse_ identifiers."
+  ],
+  "required_families": [
+    "sessions",
+    "session-link-sidecars",
+    "session-topic-sidecars",
+    "session-diagram-sidecars",
+    "living-adrs",
+    "topic-catalog",
+    "project-actors",
+    "constitution",
+    "archive-snapshots"
+  ],
+  "fields": [
+    {
+      "source": "adrs.current_view.authoritative_decision",
+      "classification": "derived_projection",
+      "target": "adrs.current_decision_record_id",
+      "rationale": "The current view is reconstructed from the append-only ADR event ledger."
+    },
+    {
+      "source": "adrs.current_view.body_markdown",
+      "classification": "derived_projection",
+      "target": "adrs.current_view_markdown",
+      "rationale": "The current view is reconstructed from the append-only ADR event ledger."
+    },
+    {
+      "source": "adrs.current_view.status",
+      "classification": "derived_projection",
+      "target": "adrs.status",
+      "rationale": "The current view is reconstructed from the append-only ADR event ledger."
+    },
+    {
+      "source": "adrs.event.body_issues",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.constitution_refs",
+      "classification": "authoritative",
+      "target": "adr_constitution_bindings + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.constitution_refs.*",
+      "classification": "authoritative",
+      "target": "adr_constitution_bindings + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.constitution_refs.*.ref",
+      "classification": "authoritative",
+      "target": "adr_constitution_bindings + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.constitution_refs.*.role",
+      "classification": "authoritative",
+      "target": "adr_constitution_bindings + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.decision",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.decision_ref",
+      "classification": "authoritative",
+      "target": "adr_memberships.record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.event_id",
+      "classification": "authoritative",
+      "target": "adr_events.external_event_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.evolution",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.expected_authoritative_decision",
+      "classification": "authoritative",
+      "target": "adr_events.expected_authoritative_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.founding_quote",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.founding_source",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.impact",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.impact_evidence",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.impact_provenance",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.kind",
+      "classification": "authoritative",
+      "target": "adr_events.kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.matched_decisions",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.matched_decisions.*",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.predecessors",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.predecessors.*",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.predecessors.*.decision",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.predecessors.*.relation_assertion",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.reason",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.replacement_adr",
+      "classification": "authoritative",
+      "target": "adr_events.replacement_adr_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.source",
+      "classification": "authoritative",
+      "target": "record_origins.source_kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.supporting_decisions",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.supporting_decisions.*",
+      "classification": "authoritative",
+      "target": "adr_memberships + adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.timestamp",
+      "classification": "authoritative",
+      "target": "adr_events.occurred_at",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.update_entry_id",
+      "classification": "authoritative",
+      "target": "adr_events.update_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.event.why",
+      "classification": "authoritative",
+      "target": "adr_events.payload_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.adr_id",
+      "classification": "authoritative",
+      "target": "adrs.external_adr_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.agent_type",
+      "classification": "authoritative",
+      "target": "record_origins.agent_principal_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.created_at",
+      "classification": "authoritative",
+      "target": "adrs.created_at",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.format",
+      "classification": "authoritative",
+      "target": "project_artifacts.media_type",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.schema_version",
+      "classification": "authoritative",
+      "target": "adrs.schema_version",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.source",
+      "classification": "authoritative",
+      "target": "record_origins.source_kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.title",
+      "classification": "authoritative",
+      "target": "adrs.title",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.topics",
+      "classification": "authoritative",
+      "target": "adr_topic_memberships.topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "adrs.frontmatter.user_initials",
+      "classification": "authoritative",
+      "target": "record_origins.member_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "archive.artifact.raw_bytes",
+      "classification": "historical_non_authoritative",
+      "target": "project_artifacts.raw_bytes",
+      "rationale": "Archive snapshots are retained as immutable artifacts and never promoted into live authority."
+    },
+    {
+      "source": "archive.artifact.relative_path",
+      "classification": "historical_non_authoritative",
+      "target": "project_artifacts.relative_path",
+      "rationale": "Archive snapshots are retained as immutable artifacts and never promoted into live authority."
+    },
+    {
+      "source": "constitution.clause.anchor",
+      "classification": "authoritative",
+      "target": "constitution_clauses.anchor",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "constitution.clause.topic",
+      "classification": "authoritative",
+      "target": "constitution_clauses.topic_slug",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "constitution.frontmatter.adopted",
+      "classification": "authoritative",
+      "target": "constitution_versions.ratified_at",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "constitution.frontmatter.status",
+      "classification": "authoritative",
+      "target": "constitution_versions.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "constitution.frontmatter.version",
+      "classification": "authoritative",
+      "target": "constitution_versions.version",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.assertion.adr_id",
+      "classification": "authoritative",
+      "target": "diagram_artifacts.adr_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.assertion.diagram_status",
+      "classification": "authoritative",
+      "target": "diagram_artifacts.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.assertion.entry_id",
+      "classification": "authoritative",
+      "target": "diagram_artifacts.record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.assertion.grounded_in",
+      "classification": "authoritative",
+      "target": "diagram_artifact_sources.record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.assertion.note",
+      "classification": "authoritative",
+      "target": "diagram_artifacts.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "diagrams.file.diagram_date",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming domain authority."
+    },
+    {
+      "source": "diagrams.file.tags",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming domain authority."
+    },
+    {
+      "source": "links.assertion.classified_by",
+      "classification": "authoritative",
+      "target": "relationship_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.classify_pending",
+      "classification": "authoritative",
+      "target": "relationship_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.*.agreement",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.*.confidence",
+      "classification": "authoritative",
+      "target": "relationship_assertions.confidence",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.*.ref",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.*.tier",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.agreement",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.confidence",
+      "classification": "authoritative",
+      "target": "relationship_assertions.confidence",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.ref",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.replaces",
+      "classification": "authoritative",
+      "target": "relationship_assertions.kind + relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_confidence.tier",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.*.quote",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.*.ref",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.*.why",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.quote",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.ref",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.replaces",
+      "classification": "authoritative",
+      "target": "relationship_assertions.kind + relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_evidence.why",
+      "classification": "authoritative",
+      "target": "relationship_assertions.evidence_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.edge_status",
+      "classification": "authoritative",
+      "target": "relationship_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.entry_id",
+      "classification": "authoritative",
+      "target": "relationship_assertions.from_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.evolves",
+      "classification": "authoritative",
+      "target": "relationship_assertions.kind + relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.note",
+      "classification": "authoritative",
+      "target": "relationship_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.related_entries",
+      "classification": "authoritative",
+      "target": "relationship_assertions.kind + relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.replaces",
+      "classification": "authoritative",
+      "target": "relationship_assertions.kind + relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.retracts",
+      "classification": "authoritative",
+      "target": "relationship_assertions.retracted_by_assertion_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.assertion.source",
+      "classification": "authoritative",
+      "target": "record_origins.source_kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "links.file.link_date",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming relationship authority."
+    },
+    {
+      "source": "links.file.tags",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming relationship authority."
+    },
+    {
+      "source": "project.delivery_quality",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.adr_conflict",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.constitutional_conflict",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.failed_hypothesis_threshold",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.high_impact_min_assertion_strength",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.high_impact_min_evidence_completeness",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.individual_decision_conflict",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.schema_version",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.delivery_quality.tests_before_behavior_change",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.graphify_merge_refresh",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.merge_trigger",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.participants",
+      "classification": "structural_container",
+      "target": null,
+      "rationale": "Participant container is represented by member rows."
+    },
+    {
+      "source": "project.participants.display_name",
+      "classification": "authoritative",
+      "target": "members.display_name",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "project.participants.initials",
+      "classification": "authoritative",
+      "target": "member_aliases.alias",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "project.participants.slug",
+      "classification": "authoritative",
+      "target": "members.external_slug",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.agent_name",
+      "classification": "authoritative",
+      "target": "record_origins.agent_display_label",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.agent_type",
+      "classification": "authoritative",
+      "target": "record_origins.agent_principal_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.branch",
+      "classification": "authoritative",
+      "target": "record_origins.source_branch",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.chain_id",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.closed_record_digest",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.closed_record_id",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.commits",
+      "classification": "authoritative",
+      "target": "record_commit_links.commit_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.continuity",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.continuity.from",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.continuity.kind",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.continuity.to",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.decision_id",
+      "classification": "authoritative",
+      "target": "external_identifiers.external_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.decision_origins",
+      "classification": "authoritative",
+      "target": "record_origins.actor_kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.decision_origins.*",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.detail_digest",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.disposition",
+      "classification": "authoritative",
+      "target": "memory_records.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.entry_id",
+      "classification": "authoritative",
+      "target": "memory_entries.external_entry_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.evolves",
+      "classification": "authoritative",
+      "target": "relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.project_path",
+      "classification": "authoritative",
+      "target": "record_origins.project_path",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.receipt_digest",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.receipt_id",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.record_id",
+      "classification": "authoritative",
+      "target": "external_identifiers.external_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.related_entries",
+      "classification": "authoritative",
+      "target": "relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.replaces",
+      "classification": "authoritative",
+      "target": "relationship_assertions.to_record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.session_path",
+      "classification": "authoritative",
+      "target": "record_origins.source_path",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.subproject_path",
+      "classification": "authoritative",
+      "target": "record_origins.subproject_path",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.topics",
+      "classification": "superseded_topic_source",
+      "target": "record_versions.source_metadata_json",
+      "rationale": "Inline topics are retained as authored evidence but do not override authoritative topic sidecars."
+    },
+    {
+      "source": "sessions.entry.topics.activity",
+      "classification": "superseded_topic_source",
+      "target": "record_versions.source_metadata_json",
+      "rationale": "Inline topics are retained as authored evidence but do not override authoritative topic sidecars."
+    },
+    {
+      "source": "sessions.entry.topics.area",
+      "classification": "superseded_topic_source",
+      "target": "record_versions.source_metadata_json",
+      "rationale": "Inline topics are retained as authored evidence but do not override authoritative topic sidecars."
+    },
+    {
+      "source": "sessions.entry.user_initials",
+      "classification": "authoritative",
+      "target": "record_origins.member_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.entry.workstream_id",
+      "classification": "authoritative",
+      "target": "record_origins.provenance_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.file.created_at",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.default_user_initials",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.hash_id",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.schema_version",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.session_date",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.tags",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.file.user",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Session-file wrapper metadata is preserved with the raw artifact."
+    },
+    {
+      "source": "sessions.record.A",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Alternatives",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.D",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Decision",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Disposition",
+      "classification": "authoritative",
+      "target": "memory_records.status + record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.F",
+      "classification": "authoritative",
+      "target": "record_artifact_links + record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Files",
+      "classification": "authoritative",
+      "target": "record_artifact_links + record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.R",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Rationale",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.S",
+      "classification": "authoritative",
+      "target": "record_artifact_links + record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Scope",
+      "classification": "authoritative",
+      "target": "record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Sources",
+      "classification": "authoritative",
+      "target": "record_artifact_links + record_versions.body_markdown",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.T",
+      "classification": "authoritative",
+      "target": "record_validations",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.Tests",
+      "classification": "authoritative",
+      "target": "record_validations",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.heading.kind",
+      "classification": "authoritative",
+      "target": "memory_records.kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.heading.ordinal",
+      "classification": "authoritative",
+      "target": "memory_records.source_ordinal",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "sessions.record.heading.title",
+      "classification": "authoritative",
+      "target": "memory_records.title",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.entry_id",
+      "classification": "authoritative",
+      "target": "topic_assertions.record_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.note",
+      "classification": "authoritative",
+      "target": "topic_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.source",
+      "classification": "authoritative",
+      "target": "record_origins.source_kind",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.topics",
+      "classification": "authoritative",
+      "target": "topic_assertions.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.topics.activity",
+      "classification": "authoritative",
+      "target": "topic_assertions.topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.assertion.topics.area",
+      "classification": "authoritative",
+      "target": "topic_assertions.topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics.file.tags",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming topic authority."
+    },
+    {
+      "source": "topics.file.topic_date",
+      "classification": "file_wrapper",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Dated sidecar wrapper metadata is retained without becoming topic authority."
+    },
+    {
+      "source": "topics_index.schema_version",
+      "classification": "authoritative",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics",
+      "classification": "structural_container",
+      "target": null,
+      "rationale": "Container shape is represented by the rows generated for its descendants."
+    },
+    {
+      "source": "topics_index.topics.*.*",
+      "classification": "authoritative",
+      "target": "topics.slug + topics.parent_topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.aliases",
+      "classification": "authoritative",
+      "target": "topic_aliases.alias",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children",
+      "classification": "structural_container",
+      "target": null,
+      "rationale": "Container shape is represented by the rows generated for its descendants."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*",
+      "classification": "authoritative",
+      "target": "topics.slug + topics.parent_topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.aliases",
+      "classification": "authoritative",
+      "target": "topic_aliases.alias",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children",
+      "classification": "structural_container",
+      "target": null,
+      "rationale": "Container shape is represented by the rows generated for its descendants."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children.*",
+      "classification": "authoritative",
+      "target": "topics.slug + topics.parent_topic_id",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children.*.aliases",
+      "classification": "authoritative",
+      "target": "topic_aliases.alias",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children.*.description",
+      "classification": "authoritative",
+      "target": "topics.description",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children.*.label",
+      "classification": "authoritative",
+      "target": "topics.label",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.children.*.status",
+      "classification": "authoritative",
+      "target": "topics.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.description",
+      "classification": "authoritative",
+      "target": "topics.description",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.label",
+      "classification": "authoritative",
+      "target": "topics.label",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.children.*.status",
+      "classification": "authoritative",
+      "target": "topics.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.description",
+      "classification": "authoritative",
+      "target": "topics.description",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.label",
+      "classification": "authoritative",
+      "target": "topics.label",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.*.*.status",
+      "classification": "authoritative",
+      "target": "topics.status",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.activity",
+      "classification": "authoritative",
+      "target": "topics.axis",
+      "rationale": "Preserved with its source authority and provenance."
+    },
+    {
+      "source": "topics_index.topics.area",
+      "classification": "authoritative",
+      "target": "topics.axis",
+      "rationale": "Preserved with its source authority and provenance."
+    }
+  ]
+}
