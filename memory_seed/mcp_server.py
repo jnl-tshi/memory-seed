@@ -67,6 +67,7 @@ MUTATING_TOOL_NAMES = frozenset(
         "memory_adr_reviewed",
         "memory_link_retract",
         "memory_decision_provenance_bind",
+        "memory_telemetry_migrate",
     }
 )
 
@@ -291,8 +292,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "memory_discovery_assess",
         "description": (
-            "Record the Discovery Record's authority answer: one verdict {ref, relation, why, applies_to} per "
-            "evidence item of a discovery pack (relation: replaces, refines, builds-on, related, no-edge, "
+            "Record the Discovery Record's authority answer: one verdict {ref, relation, why, applies_to} for "
+            "every item in required_review (optional evidence may also be assessed; relation: replaces, refines, builds-on, related, no-edge, "
             "conflicts, governed-by). Refs must be in the pack. Returns the decisions[].links envelope and "
             "consulted list for the plan-approval memory_session_append, the ADR outcomes that append will "
             "require, conflicts to raise with the user, and a Markdown authority table. Read-only; no-edge is "
@@ -308,6 +309,26 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["pack", "verdicts"],
             "additionalProperties": False,
         },
+    },
+    {
+        "name": "memory_telemetry_migration_preview",
+        "description": "Preview the additive import of this worktree's legacy telemetry into the repository Git-common lifetime store. Read-only; legacy files are retained.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_telemetry_migrate",
+        "description": "Additively copy this worktree's legacy telemetry into the repository Git-common lifetime store. Idempotent; legacy files are retained.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_telemetry_summary",
+        "description": "Return rebuildable lifetime workflow telemetry counts from Git-common and unimported legacy sources. Read-only.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
+    },
+    {
+        "name": "memory_telemetry_health",
+        "description": "Report durable telemetry store health, shard/event counts, and legacy import state. Read-only.",
+        "inputSchema": {"type": "object", "properties": {"cwd": {"type": "string", "default": "."}}, "additionalProperties": False},
     },
     {
         "name": "memory_task_packet_preview",
@@ -1256,6 +1277,25 @@ def call_tool(
             return {"ok": False, "error": exc.to_dict()}
         except (DiscoveryProfileError, ValueError) as exc:
             return {"ok": False, "error": str(exc)}
+
+    if name in {
+        "memory_telemetry_migration_preview", "memory_telemetry_migrate",
+        "memory_telemetry_summary", "memory_telemetry_health",
+    }:
+        from .attention import load_workflow_telemetry, migrate_repository_telemetry, telemetry_health
+
+        if not isinstance(args, dict) or set(args) - {"cwd"}:
+            return {"ok": False, "error": "telemetry tools accept only cwd"}
+        memory_dir = resolve_runtime(args.get("cwd", ".")).memory_dir
+        if name == "memory_telemetry_migration_preview":
+            return migrate_repository_telemetry(args.get("cwd", "."), dry_run=True)
+        if name == "memory_telemetry_migrate":
+            return migrate_repository_telemetry(args.get("cwd", "."))
+        if name == "memory_telemetry_health":
+            return telemetry_health(memory_dir)
+        report = load_workflow_telemetry(memory_dir)
+        return {"ok": True, "totals": report["totals"], "by_day": report["by_day"],
+                "event_count": len(report["events"])}
 
     if name == "memory_search":
         query = _required_str(args, "query")

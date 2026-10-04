@@ -840,9 +840,11 @@ def _task_packet_coverage(root: Path, memory_dir: Path, day: str) -> dict[str, A
     """
     from datetime import date as _date, timedelta
 
-    from .attention import load_task_packet_usage
+    from .attention import load_task_packet_usage, load_workflow_telemetry, telemetry_health
 
     usage = load_task_packet_usage(memory_dir)
+    workflow = load_workflow_telemetry(memory_dir)
+    health = telemetry_health(memory_dir)
     today = (usage.get("by_day") or {}).get(day) or {"totals": {}, "by_handoff": {}}
 
     uncovered: list[str] = []
@@ -863,12 +865,36 @@ def _task_packet_coverage(root: Path, memory_dir: Path, day: str) -> dict[str, A
             continue
         trailer = any(body.lower().startswith("memory-implements:") for body in bodies)
         (covered if trailer or _activation_artifact_exists(root, branch) else uncovered).append(branch)
+    discovery_events = [event for event in workflow["events"] if event.get("tool") in {
+        "discovery_evidence", "discovery_assess"
+    }]
+    discovery_today = [
+        event for event in discovery_events
+        if (_parse_ts := event.get("ts")) and str(_parse_ts)[:10] == day
+    ]
+    packet_events = [event for event in workflow["events"] if event.get("tool") in {
+        "task_packet_compile", "task_packet_preview", "task_packet_render", "task_packet_activate"
+    }]
     return {
         "lifetime": usage["totals"],
         "today": today["totals"],
         "today_by_handoff": today["by_handoff"],
         "agent_merges_covered": covered,
         "agent_merges_without_packet": uncovered,
+        "telemetry_health": health,
+        "discovery": {
+            "lifetime": {kind: sum(1 for event in discovery_events if event.get("tool") == kind)
+                         for kind in ("discovery_evidence", "discovery_assess")},
+            "today": {kind: sum(1 for event in discovery_today if event.get("tool") == kind)
+                      for kind in ("discovery_evidence", "discovery_assess")},
+            "complete_assessments": sum(1 for event in discovery_events
+                                        if event.get("tool") == "discovery_assess" and event.get("complete")),
+            "packet_correlations": sum(1 for event in packet_events if event.get("discovery_pack_fingerprint")),
+            "activation_correlations": sum(1 for event in packet_events
+                                            if event.get("tool") == "task_packet_activate"
+                                            and event.get("discovery_pack_fingerprint")),
+            "packet_bypasses": sum(1 for event in packet_events if event.get("discovery_bypass")),
+        },
     }
 
 
@@ -1451,6 +1477,22 @@ def format_esr_report(report: EsrReport) -> str:
                 "No review or spawned-session packets today: any reviewer or next session spawned today was "
                 "seeded without one (handoff points 5-6)."
             )
+        discovery = coverage.get("discovery", {})
+        lines.append(
+            "Design Discovery lifetime: "
+            f"evidence {discovery.get('lifetime', {}).get('discovery_evidence', 0)}, "
+            f"assess {discovery.get('lifetime', {}).get('discovery_assess', 0)}, "
+            f"complete {discovery.get('complete_assessments', 0)}; "
+            f"packet correlations {discovery.get('packet_correlations', 0)}, "
+            f"activation correlations {discovery.get('activation_correlations', 0)}, "
+            f"explicit bypasses {discovery.get('packet_bypasses', 0)}."
+        )
+        health = coverage.get("telemetry_health", {})
+        lines.append(
+            f"Durable telemetry: {'healthy' if health.get('ok') else 'unavailable'}; "
+            f"{health.get('durable_event_count', 0)} events across {health.get('event_shards', 0)} shards; "
+            f"legacy imported: {health.get('legacy_imported', False)}."
+        )
     lines.append("")
 
     lines.append("## Worktrees")

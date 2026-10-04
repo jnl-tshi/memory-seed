@@ -6,6 +6,15 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- [2026-10-04] **Design Discovery v2 makes prior-authority review enforceable.**
+  - Evidence lookup marks every governing Constitution clause, every explicit pin, and a balanced set of up to 12 prior ADRs/decisions as mandatory review.
+  - Assessment refuses missing or duplicate mandatory verdicts and emits a source-bound receipt.
+  - Task Packets can require that receipt for design work or record an explicit routine-work bypass; compile and activation reject incomplete, conflicting, or stale receipts.
+- [2026-10-04] **Workflow telemetry survives worktree cleanup.**
+  - Retrieval, Design Discovery, and Task Packet events use append-only per-writer shards in the repository Git-common directory.
+  - `telemetry migrate|summary|health` and matching MCP tools provide additive legacy import, reporting, and health checks; legacy files are retained.
+  - ESR reports discovery coverage, discovery-to-packet correlations, bypasses, durable event counts, and legacy import state.
+
 - [2026-09-29] **P0.2 proves an evidence-first local Codex decision-capture path.**
   - The read-only `memory_decision_mark` MCP tool leaves hard/soft breadcrumbs in rollouts without writing memory.
   - A self-contained, non-packaged `hosted/` experiment validates rollout versions, checkpoints complete JSONL lines into a disposable SQLite queue, and emits source-linked inert drafts for curator review.

@@ -101,10 +101,14 @@ Capture a concise, proportionate record in the existing planning or decision sur
      - optionally a free-text `--query`, whose `memory_search` hits are pinned.
 
      It returns the related decisions, the ADRs that own the area, and only the Constitution clauses
-     that govern it.
+     that govern it. The v2 profile also returns `required_review`: every governing Constitution clause,
+     every explicit pin, and a balanced ranked set of at most 12 ADR/decision records (four slots reserved
+     for each kind when available). Explicit pins may expand that cap.
    - **Record the relations:** write one verdict per item that bears on the design, and run
      `discovery assess` (MCP `memory_discovery_assess`). It accepts only evidence the lookup returned. It
      prints the authority table and lists the ADRs whose review the plan-approval write will require.
+     It refuses duplicate verdicts or any missing `required_review` item and returns a fingerprinted
+     `discovery_receipt`; optional evidence can still be assessed when it matters.
    - **Raise conflicts:** turn every `conflicts` row into a question for the user before approval.
 3. Inventory capabilities and reuse paths before proposing a new component, policy, workflow, or data
    structure.
@@ -122,6 +126,9 @@ Capture a concise, proportionate record in the existing planning or decision sur
      to their ancestors from the start.
    - Implementation entries later `evolves` that design entry.
    - `no-edge` verdicts stay in the Discovery Record prose; they are not stored as relations.
+   - Mark design work with `dispatch.design_discovery.required: true` and carry the unchanged receipt.
+     Routine already-assessed work uses `required: false`, a null receipt, and a concrete bypass reason.
+     Compile and activation refuse incomplete, conflicting, or stale required receipts.
 7. At the Plan Gate of a multi-task plan, add one fenced ```` ```json ```` block with
    `"schema": "memory-seed/plan-dispatch"`: shared dispatch `defaults`, one objective per task, and the
    `implementation_plan` below. `task-packet from-plan` (or `memory_task_packet_from_plan`) turns it into

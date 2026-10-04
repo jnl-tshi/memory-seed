@@ -117,8 +117,9 @@ carrying the lite skill, scope, acceptance, evidence and the packet fingerprint.
 | 7 | Link / topic / ADR swarm worker | Exempt: closed-list batch files are the contract | — |
 
 Every compile, render, activation and governance load is logged, with its handoff label when the caller
-passes one (`--handoff`, or the MCP `handoff` argument; otherwise `unspecified`). Logging needs the
-retrieval log gitignored, which `init`/`update` register. ESR reports agent merges that carry no packet
+passes one (`--handoff`, or the MCP `handoff` argument; otherwise `unspecified`). Events use append-only,
+per-writer shards in the repository Git-common directory, so worktree removal does not erase them; legacy
+worktree-local logs are imported additively and retained. ESR reports agent merges that carry no packet
 evidence (no `Memory-Implements` trailer and no surviving activation). Nothing is blocked; a skipped
 packet is visible.
 
@@ -382,6 +383,11 @@ topic-tree, policy, or profile change, compilation reports affected assessment I
 reasons. Reassess those records and keep unaffected records for the same plan scope. Do not rebind
 stale evidence merely to clear a check. Plan-scoped reuse never bypasses Evidence Pack corpus pinning,
 exact-source verification, measured runtime binding, or the existing context ledgers.
+
+For a design task, also set `dispatch.design_discovery` to `{required: true, receipt: <the complete
+discovery receipt>, bypass_reason: null}`. For routine work already covered by an assessed decision, set
+`required: false`, `receipt: null`, and a concrete bypass reason. Required receipts are revalidated at
+compile and activation against their exact source identities; they never grant authority.
 
 Before a supplemental gap read, `validate_task_packet_supplemental_fetch(packet, source, line_range,
 token_estimate=..., prior_debits=...)` rejects overlap with already materialized evidence/governance

@@ -116,6 +116,7 @@ CORE_RETRIEVAL_PROFILES = (
     ("architecture", 2),
     # Design Discovery's authority lookup (`memory-seed discovery evidence`).
     ("design-discovery", 1),
+    ("design-discovery", 2),
 )
 
 
@@ -12374,6 +12375,15 @@ def init_project(
     for action in install_git_hooks(target_root):
         created.append(f"git-hook: {action}")
 
+    # Additive operational migration: Git-common telemetry is outside the
+    # tracked tree, legacy files stay in place, and failures never block init.
+    try:
+        from .attention import migrate_repository_telemetry
+
+        migrate_repository_telemetry(target_root)
+    except Exception:
+        pass
+
     return InitResult(
         changed=True,
         planned=planned,
@@ -12461,6 +12471,13 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     for action in install_git_hooks(target_root):
         if ": installed" in action or ": refreshed" in action:
             created.append(f"git-hook: {action}")
+
+    try:
+        from .attention import migrate_repository_telemetry
+
+        migrate_repository_telemetry(target_root)
+    except Exception:
+        pass
 
     return InitResult(
         changed=bool(created or backed_up or archived),

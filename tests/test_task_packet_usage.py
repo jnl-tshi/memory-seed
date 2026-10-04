@@ -15,9 +15,12 @@ from memory_seed.attention import (
     compact_if_needed,
     load_attention,
     load_task_packet_usage,
+    migrate_legacy_telemetry,
+    migrate_repository_telemetry,
+    telemetry_root,
 )
 from memory_seed.cli import main as cli_main
-from memory_seed.mcp_server import call_tool
+from memory_seed.mcp_server import MUTATING_TOOL_NAMES, TOOLS, call_tool
 from memory_seed.task_packet import activate_task_packet, compile_task_packet, load_task_packet_governance
 from tests.pilot_task_packet_fixture import build_fixture_runtime, runtime_binding, semantic_dispatch
 
@@ -124,7 +127,7 @@ class TaskPacketUsageTests(unittest.TestCase):
             self.assertIn(entry, lines)
         self.assertIn(".gitignore", result.created)
 
-    def test_compaction_keeps_usage_counts(self):
+    def test_git_common_store_keeps_raw_usage_events_instead_of_compacting(self):
         root = self.make_runtime()
         memory_dir = root / ".memory-seed"
         compile_task_packet(semantic_dispatch(), runtime_binding(root), root, handoff="review")
@@ -132,11 +135,12 @@ class TaskPacketUsageTests(unittest.TestCase):
             for index in range(5001):
                 handle.write(json.dumps({"schema": 1, "ts": "2026-09-25T00:00:00+00:00",
                                          "tool": "memory_search", "entry_id": f"mse_x{index:08d}"}) + "\n")
-        self.assertTrue(compact_if_needed(memory_dir))
+        self.assertFalse(compact_if_needed(memory_dir))
         usage = load_task_packet_usage(memory_dir)
         self.assertEqual(usage["totals"], {"task_packet_compile": 1})
         self.assertEqual(usage["by_handoff"], {"review": 1})
-        self.assertEqual(usage["events"], [])
+        self.assertEqual(len(usage["events"]), 1)
+        self.assertTrue(list((telemetry_root(memory_dir) / "events").glob("*.jsonl")))
 
     def test_governance_load_records_its_handoff_on_both_surfaces(self):
         root = self.make_runtime()
@@ -168,7 +172,7 @@ class TaskPacketUsageTests(unittest.TestCase):
         compile_task_packet(semantic_dispatch(), runtime_binding(root), root, handoff="review")
         self.assertEqual(len(self.events(root)), 1)
 
-    def test_compaction_keeps_per_day_counts(self):
+    def test_lifetime_store_keeps_per_day_counts_without_truncation(self):
         root = self.make_runtime()
         memory_dir = root / ".memory-seed"
         compile_task_packet(semantic_dispatch(), runtime_binding(root), root, handoff="review")
@@ -177,12 +181,76 @@ class TaskPacketUsageTests(unittest.TestCase):
             for index in range(5001):
                 handle.write(json.dumps({"schema": 1, "ts": "2026-09-25T00:00:00+00:00",
                                          "tool": "memory_search", "entry_id": f"mse_x{index:08d}"}) + "\n")
-        self.assertTrue(compact_if_needed(memory_dir))
+        self.assertFalse(compact_if_needed(memory_dir))
         from datetime import datetime
 
         day = datetime.fromisoformat(event["ts"]).astimezone().date().isoformat()
         by_day = load_task_packet_usage(memory_dir)["by_day"]
         self.assertEqual(by_day[day], {"totals": {"task_packet_compile": 1}, "by_handoff": {"review": 1}})
+
+    def test_legacy_migration_is_additive_idempotent_and_preserves_source(self):
+        root = self.make_runtime()
+        memory_dir = root / ".memory-seed"
+        legacy = memory_dir / LOG_NAME
+        legacy.write_text(
+            json.dumps({"schema": 1, "ts": "2026-09-25T00:00:00+00:00",
+                        "tool": "task_packet_compile", "entry_id": "sha256:legacy",
+                        "handoff": "review"}) + "\n",
+            encoding="utf-8",
+        )
+        original = legacy.read_bytes()
+        preview = migrate_legacy_telemetry(memory_dir, dry_run=True)
+        self.assertEqual(preview["imported"], 1)
+        first = migrate_legacy_telemetry(memory_dir)
+        second = migrate_legacy_telemetry(memory_dir)
+        self.assertEqual(first["imported"], 1)
+        self.assertEqual(second["imported"], 0)
+        self.assertEqual(legacy.read_bytes(), original)
+        self.assertEqual(load_task_packet_usage(memory_dir)["totals"], {"task_packet_compile": 1})
+
+    def test_telemetry_cli_exposes_dry_run_apply_summary_and_health(self):
+        root = self.make_runtime()
+        legacy = root / ".memory-seed" / LOG_NAME
+        legacy.write_text(json.dumps({"schema": 1, "ts": "2026-09-25T00:00:00+00:00",
+                                      "tool": "task_packet_compile", "entry_id": "sha256:legacy",
+                                      "handoff": "review"}) + "\n", encoding="utf-8")
+        for args in (
+            ["telemetry", "migrate", "--cwd", str(root)],
+            ["telemetry", "migrate", "--apply", "--cwd", str(root)],
+            ["telemetry", "summary", "--cwd", str(root)],
+            ["telemetry", "health", "--cwd", str(root)],
+        ):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(cli_main(args), 0)
+            self.assertIsInstance(json.loads(output.getvalue()), dict)
+
+        names = {tool["name"] for tool in TOOLS}
+        self.assertTrue({
+            "memory_telemetry_migration_preview", "memory_telemetry_migrate",
+            "memory_telemetry_summary", "memory_telemetry_health",
+        } <= names)
+        self.assertIn("memory_telemetry_migrate", MUTATING_TOOL_NAMES)
+        self.assertNotIn("memory_telemetry_migration_preview", MUTATING_TOOL_NAMES)
+        self.assertTrue(call_tool("memory_telemetry_health", {"cwd": str(root)})["ok"])
+
+    def test_repository_migration_scans_registered_worktrees(self):
+        root = self.make_runtime()
+        linked = root.parent / "linked-runtime"
+        self.addCleanup(lambda: shutil.rmtree(linked, ignore_errors=True))
+        subprocess.run(["git", "-C", str(root), "worktree", "add", "-b", "linked-telemetry", str(linked)],
+                       check=True, capture_output=True)
+        legacy = linked / ".memory-seed" / LOG_NAME
+        legacy.write_text(json.dumps({"schema": 1, "ts": "2026-09-25T00:00:00+00:00",
+                                      "tool": "task_packet_render", "entry_id": "sha256:linked",
+                                      "handoff": "spawned-session"}) + "\n", encoding="utf-8")
+        original = legacy.read_bytes()
+        result = migrate_repository_telemetry(root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["registered_worktrees"], 2)
+        self.assertEqual(result["events_imported"], 1)
+        self.assertEqual(legacy.read_bytes(), original)
+        self.assertEqual(load_task_packet_usage(root / ".memory-seed")["totals"], {"task_packet_render": 1})
 
 
 if __name__ == "__main__":

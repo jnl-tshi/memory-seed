@@ -85,6 +85,7 @@ _DISPATCH_KEYS = frozenset(
         "memory_update_policy",
         "memory_checkpoints",
         "planning_evidence",
+        "design_discovery",
         "packet_version",
     }
 )
@@ -675,6 +676,8 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     }
     if "planning_evidence" in dispatch:
         normalized["planning_evidence"] = _normalize_planning_evidence(dispatch["planning_evidence"])
+    if "design_discovery" in dispatch:
+        normalized["design_discovery"] = _normalize_design_discovery(dispatch["design_discovery"])
     packet_version = dispatch.get("packet_version", TASK_PACKET_VERSION)
     if type(packet_version) is not int or packet_version not in TASK_PACKET_VERSIONS:
         _fail("packet_version", "must be integer 1 or 2")
@@ -705,6 +708,91 @@ _PLANNING_DERIVED_KEYS = frozenset({
     "authority_granted", "freshness",
 })
 _SOURCE_IDENTITY_KEYS = ("id", "kind", "source", "line_range", "content_digest")
+
+
+def _normalize_design_discovery(value: Any) -> dict[str, Any]:
+    declaration = _mapping(value, "design_discovery")
+    keys = frozenset({"required", "receipt", "bypass_reason"})
+    _exact_keys(declaration, "design_discovery", keys, required=keys)
+    required = declaration["required"]
+    if type(required) is not bool:
+        _fail("design_discovery.required", "must be a boolean")
+    bypass = declaration["bypass_reason"]
+    receipt = declaration["receipt"]
+    if not required:
+        if receipt is not None:
+            _fail("design_discovery.receipt", "must be null when discovery is bypassed")
+        return {
+            "required": False,
+            "receipt": None,
+            "bypass_reason": _string(bypass, "design_discovery.bypass_reason"),
+        }
+    if bypass is not None:
+        _fail("design_discovery.bypass_reason", "must be null when discovery is required")
+    receipt = _mapping(receipt, "design_discovery.receipt")
+    receipt_keys = frozenset({
+        "schema", "version", "profile", "pack_fingerprint", "required_count",
+        "assessed_count", "missing_refs", "optional_assessed_count", "conflict_refs",
+        "complete", "required_evidence",
+    })
+    _exact_keys(receipt, "design_discovery.receipt", receipt_keys, required=receipt_keys)
+    if receipt["schema"] != "memory-seed/discovery-receipt" or receipt["version"] != 1:
+        _fail("design_discovery.receipt", "requires discovery receipt v1", code="invalid_discovery_receipt")
+    profile = _mapping(receipt["profile"], "design_discovery.receipt.profile")
+    _exact_keys(profile, "design_discovery.receipt.profile", frozenset({"id", "profile_version"}),
+                required=frozenset({"id", "profile_version"}))
+    if profile["id"] != "design-discovery" or type(profile["profile_version"]) is not int or profile["profile_version"] < 2:
+        _fail("design_discovery.receipt.profile", "requires design-discovery v2 or later",
+              code="invalid_discovery_receipt")
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", str(receipt["pack_fingerprint"])) is None:
+        _fail("design_discovery.receipt.pack_fingerprint", "must be a SHA-256 fingerprint")
+    for name in ("required_count", "assessed_count", "optional_assessed_count"):
+        _nonnegative_int(receipt[name], f"design_discovery.receipt.{name}")
+    if receipt["complete"] is not True or receipt["missing_refs"] != []:
+        _fail("design_discovery.receipt", "mandatory authority review is incomplete",
+              code="incomplete_discovery")
+    if receipt["conflict_refs"] != []:
+        _fail("design_discovery.receipt", "contains unresolved conflicts", code="discovery_conflict")
+    evidence = receipt["required_evidence"]
+    if not isinstance(evidence, list) or len(evidence) != receipt["required_count"]:
+        _fail("design_discovery.receipt.required_evidence", "must contain every mandatory evidence identity")
+    for item in evidence:
+        item = _mapping(item, "design_discovery.receipt.required_evidence")
+        _exact_keys(item, "design_discovery.receipt.required_evidence", frozenset(_SOURCE_IDENTITY_KEYS),
+                    required=frozenset(_SOURCE_IDENTITY_KEYS))
+        _string(item["id"], "design_discovery.receipt.required_evidence.id")
+        _string(item["kind"], "design_discovery.receipt.required_evidence.kind")
+        _path_string(item["source"], "design_discovery.receipt.required_evidence.source")
+        line_range = item["line_range"]
+        if (not isinstance(line_range, list) or len(line_range) != 2
+                or any(type(number) is not int or number < 1 for number in line_range)
+                or line_range[0] > line_range[1]):
+            _fail("design_discovery.receipt.required_evidence.line_range", "must be an inclusive positive range")
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", str(item["content_digest"])) is None:
+            _fail("design_discovery.receipt.required_evidence.content_digest", "must be a SHA-256 digest")
+    return {"required": True, "receipt": copy.deepcopy(dict(receipt)), "bypass_reason": None}
+
+
+def _validate_design_discovery(dispatch: Mapping[str, Any], cwd: str | Path) -> None:
+    declaration = dispatch.get("design_discovery")
+    if not isinstance(declaration, Mapping) or not declaration.get("required"):
+        return
+    receipt = declaration["receipt"]
+    root = resolve_runtime(cwd).workspace_root.resolve()
+    stale: list[str] = []
+    for item in receipt["required_evidence"]:
+        try:
+            source = (root / item["source"]).resolve()
+            source.relative_to(root)
+            content = _source_slice(source, item["line_range"])
+            digest = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if digest != item["content_digest"]:
+                stale.append(item["id"])
+        except (OSError, ValueError, TypeError):
+            stale.append(str(item.get("id")))
+    if stale:
+        _fail("design_discovery.receipt", "authority evidence changed; rerun Design Discovery",
+              code="stale_discovery_receipt", details={"stale_refs": sorted(stale)})
 
 
 def _planning_digest(value: Any) -> str:
@@ -2500,6 +2588,7 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
     _exact_keys(packet, "packet", packet_keys, required=packet_keys)
     canonical_task_packet_json(packet)
     dispatch = normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
+    _validate_design_discovery(dispatch, cwd)
     if dispatch != packet["dispatch"]:
         _fail("packet.dispatch", "is not the compiler-normalized dispatch", code="fingerprint_mismatch", stage="activation")
     if packet.get("dispatch_fingerprint") != task_dispatch_fingerprint(dispatch):
@@ -2713,6 +2802,7 @@ def _compile_task_packet(
 ) -> dict[str, Any]:
     """Compile one deterministic, fully materialized Task Packet."""
     normalized_dispatch = normalize_task_dispatch(dispatch)
+    _validate_design_discovery(normalized_dispatch, cwd)
     normalized_binding = normalize_runtime_binding(
         binding,
         write_intent=normalized_dispatch["execution"]["write_intent"],

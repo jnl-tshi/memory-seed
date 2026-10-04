@@ -89,11 +89,14 @@ Settled in the 2026-09-23 hosted design discovery
   - retire the stalled [Task Packet hardening plan](task-packet-hardening-progressive-provenance-plan.md) to
     `7_Replaced/` with a pointer to the completed plan: its compiler items are delivered and its Seed Pod
     steps lapsed;
-  - make P0.2 workers the first real consumers of v2 packets.
+  - P0.2 paired replay became the first recorded real consumer of v2 packets on 2026-09-29; retain the
+    remaining calibration and broader field-usage checks rather than repeating that milestone.
 - [Task Packets at agent handoff points](task-packet-handoff-integration-plan.md): implemented 2026-09-25. It
   generates dispatches from plan tasks, renders packets as spawn prompts, makes packets mandatory at
   handoff points 3-6, and logs usage with an ESR coverage report. The reviewer dogfood (point 5) passed;
-  remaining: dogfood with the first P0.2 implementation workers, then move the plan to `5_Completed/`.
+  P0.2 paired replay subsequently recorded compile, render, activation and review/spawned-session handoffs;
+  remaining: broaden field usage and close the plan after the new durable telemetry has accumulated enough
+  real-work evidence.
 - [Task Packet calibration](task-packet-calibration-harness-plan.md): freeze the representative
   development population and sealed holdout, then run M2-M5. This includes calibrating the 4,000-token
   per-source cap for followed `S:` sources.

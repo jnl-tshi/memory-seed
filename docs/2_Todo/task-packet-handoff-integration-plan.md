@@ -72,8 +72,9 @@ The pieces already exist:
     activated packet, and reviews or spawned sessions with no render event.
   - Nothing is blocked.
 - **D4 — Usage events go to the retrieval log as their own kinds.**
-  - `task_packet_compile`, `_preview`, `_render`, `_activate` and `_governance_load` are appended to
-    `.memory-seed/.retrieval-log.jsonl`.
+  - **Evolved 2026-10-04:** `task_packet_compile`, `_preview`, `_render`, `_activate` and
+    `_governance_load` are appended to per-writer lifetime shards under the repository Git-common
+    directory. Legacy `.memory-seed/.retrieval-log.jsonl` files are copied additively and retained.
   - Each event records the packet fingerprint, packet version, profile, write intent and declared handoff
     point.
   - These events are excluded from attention ranking.
@@ -82,8 +83,8 @@ The pieces already exist:
 
 1. **Measure the default path, not just the tool.** Events must be recorded from the CLI, the MCP server and
    the Python API alike. Otherwise ESR under-reports usage for agents that call the library.
-2. **Telemetry stays derived and local.** The log is gitignored and rebuildable, never authoritative, and
-   ESR reports never write memory. Logging must never make a compile fail.
+2. **Telemetry stays derived and local.** Git-common telemetry is operational and rebuildable, never
+   authoritative, and ESR reports never write memory. Logging must never make a compile fail.
 3. **Attention stays clean.** `attention.py` counts only `memory_get_chunk` as a fetch. The new kinds must
    not change any attention score; add a test that asserts this.
 4. **The plan schema is reused, not forked.** The structured block validates with the existing
