@@ -1,8 +1,11 @@
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 import unicodedata
 from pathlib import Path
+from unittest.mock import patch
 
 from memory_seed.text_files import (
     repair_text_encoding,
@@ -90,6 +93,54 @@ class TextFilesTests(unittest.TestCase):
             issues = scan_text_encoding(root)
 
         self.assertEqual(issues, [])
+
+    def test_encoding_scan_prunes_excluded_directories_before_descent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            excluded = root / ".codex" / "worktrees" / "worker" / "bad.md"
+            excluded.parent.mkdir(parents=True)
+            excluded.write_bytes(b"alpha\r\n")
+            included = root / "docs" / "bad.md"
+            included.parent.mkdir()
+            included.write_bytes(b"alpha\r\n")
+            visited: list[Path] = []
+            original_walk = os.walk
+
+            def recording_walk(*args, **kwargs):
+                for directory, child_directories, filenames in original_walk(*args, **kwargs):
+                    visited.append(Path(directory).relative_to(root))
+                    yield directory, child_directories, filenames
+
+            with (
+                patch("memory_seed.text_files.os.walk", side_effect=recording_walk),
+                patch("pathlib.Path.rglob", side_effect=AssertionError("recursive glob descended eagerly")),
+            ):
+                issues = scan_text_encoding(root)
+
+        self.assertEqual({issue.path for issue in issues}, {included})
+        self.assertNotIn(Path(".codex/worktrees"), visited)
+
+    def test_encoding_scan_skips_gitignored_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(
+                ["git", "init", "--quiet"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            (root / ".gitignore").write_bytes(b"ignored/\n")
+            ignored = root / "ignored" / "bad.md"
+            ignored.parent.mkdir()
+            ignored.write_bytes(b"alpha\r\n")
+            included = root / "docs" / "bad.md"
+            included.parent.mkdir()
+            included.write_bytes(b"alpha\r\n")
+
+            issues = scan_text_encoding(root)
+
+        self.assertEqual({issue.path for issue in issues}, {included})
 
     def test_encoding_scan_excludes_hash_named_generated_assets_only(self):
         with tempfile.TemporaryDirectory() as tmp:
