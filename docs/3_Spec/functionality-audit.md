@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.20
+memory-system-version: 2.23
 tags:
   - memory-seed
   - audit
@@ -8,79 +8,83 @@ tags:
 
 # Memory Seed - Functionality Audit
 
-> **Historical addendum 2026-07-13:** retained for provenance; its former stale as-of condition is
-> superseded by the 2026-07-16 reconciliation and current roadmap appendix below.
-> For the newer surface see `CHANGELOG.md` (Unreleased): lifecycle-edge link sidecars +
-> `memory-seed link audit` + the end-of-turn Lifecycle Link Sweep, `session append` /
-> `session reorder` / `session entry-id` (the `memory_entry_id` MCP tool named in the original
-> addendum was removed 2026-07-19; `memory_session_append` is now the MCP write path and its
-> `dry_run` supplies the canonical id), `memory-seed esr`,
-> `memory-seed hooks install` (prepare-commit-msg trailer stamping), Memory Trace worktree
-> switcher + commit-accurate Trail merges + `--static-root` + serve-time asset hashing, and the
-> browserless golden-fixture harness. Test counts have grown accordingly (413 core + 92 trace as
-> of 2026-07-13).
->
-> **Historical addendum 2026-07-13 (later):** also unreleased at that time - a project-local `integration_mode`
-> (`local-merge` | `pr`) in `project.yaml` read by `read_integration_mode` and surfaced by `esr`
-> (foundation for a configurable PR/branch-protection workflow); and a deterministic **entry DRAFT
-> format lint** (`core.entry_body_format_issues` / `check_entry_format`) that `session append`
-> enforces at write time and `links check` reports corpus-wide as `malformed-entry-format`
-> (structural only - bare labels, missing section heading, multi-decision under a singular
-> `### Decision`, `D:` without `R:`). See `docs/5_Completed/configurable-integration-mode-plan.md` and
-> `docs/5_Completed/openssf-credibility-proposals.md`.
->
-> **Reconciliation 2026-07-16:** the long-horizon Wave 1 surface is shipped-but-unreleased: deterministic
-> `topics suggest --from`, timeline Evidence Packs, Trail continuity lanes, `superseding_head` plus a
-> full-corpus-gated lineage boost, all configurable integration-mode phases, and inert
-> `link audit --date <date> --apply` stubs with warning/ESR visibility. The four fully complete plans now
-> live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and the
-> lifecycle-link plan remains active for evaluation with optional steps 4–5 deferred.
+> **Current reconciliation — 2026-10-18.** This revision supersedes the audit's former July/August
+> current-state claims. It covers the released local OSS surface through `2.23.0`, the post-`2.23.0`
+> checkout work recorded under `CHANGELOG.md`'s Unreleased section, and the separately scoped hosted
+> team-edition programme. Historical roadmap material remains in Appendix A for provenance only.
 
-**As of:** 2026-07-16 - control-plane and published package `2.18.0`, plus the shipped-but-unreleased
-long-horizon Wave 1 surface.
-**Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
+**As of:** 2026-10-18 — control plane `2.23`; checkout package `2.23.0`; latest published package
+`2.22.0`; post-`2.23.0` work remains unreleased.
+
+**Scope:** current local OSS and hosted-edition functionality, subsystem relationships, data flows,
+verification surfaces, known debt, and the active roadmap. Source/config files remain implementation
+truth; the roadmap describes sequenced intent rather than shipped behaviour.
+
+### Audit provenance
+
+- The 2026-07-13 audit established the original CLI, MCP, lifecycle-link, integration-mode, DRAFT-format,
+  Memory Trace, and verification inventory.
+- The 2026-07-16 reconciliation made Wave 1 the then-current baseline and moved earlier roadmap material
+  into the historical appendix.
+- Later focused updates added worktree reconciliation, session checkpoints, automatic lifecycle-link
+  classification, Reflection Board retirement, and selected `2.23.0` capabilities, but left the document's
+  header, roadmap, edition boundary, CLI/MCP inventory, and test counts stale. This reconciliation closes
+  those gaps without rewriting the historical appendix.
 
 ---
 
 ## 1. What Memory Seed is
 
-Memory Seed is a **portable, local-first, Markdown-first memory and control-plane system for AI coding agents**, distributed as a Python package (`memory-seed`). It has no server and no database: durable memory lives in plain Markdown + YAML under a `.memory-seed/` runtime directory, discovered by walking upward from the working directory. A small CLI installs and maintains the control plane; an optional stdio **MCP server** exposes ranked retrieval over the session logs. It is vendor-neutral - one canonical `AGENTS.md` plus thin per-agent routing files, and auto-merged hook/MCP config for Claude Code, Codex, Cursor, Gemini, and GitHub Copilot.
+Memory Seed is the model-independent memory substrate for preserving project decisions, evidence, and
+reasoning across humans and AI agents. It now has an explicit edition boundary:
+
+- The **OSS/local edition** is portable, local-first, Markdown-authoritative, and distributed as the
+  `memory-seed` Python package. It needs no server, database, account, or network. Durable memory lives in
+  Markdown + YAML under the nearest `.memory-seed/` runtime. The CLI maintains the control plane, the
+  optional stdio MCP server exposes retrieval and guarded workflow tools, and Memory Trace provides a local
+  read-only review UI.
+- The **hosted team edition** is a separate service programme under `hosted/`. Its target authority is SQL
+  with complete human-readable Markdown export. It never silently converts a local repository into a
+  synchronized replica, and it is excluded from the published OSS package. Through R1-R5 of the current
+  transfer plan, Markdown remains authoritative; SQL authority begins only at the human-gated R6 cutover.
+
+Both editions share semantic contracts where useful, but they do not share writable persistence authority.
+The local routing model remains vendor-neutral: one canonical `AGENTS.md`, thin per-agent routing files, and
+merged hook/MCP configuration for Claude Code, Codex, Cursor, Gemini, and GitHub Copilot.
 
 ---
 
 ## 2. System map
 
-At the highest level, Memory Seed has **one source of truth**: the human-verifiable Markdown
-Sessions and ADRs that the Memory Seed Core interprets as the canonical knowledge graph. Memory
-Trace gives people a review interface over that same knowledge, while REST, MCP, and CLI expose it
-to tools, orchestrators, and workers. Humans and agents therefore inspect the same durable context
-through different interfaces rather than maintaining separate memories.
+At the highest level, each edition has exactly one authoritative substrate. The local edition interprets
+human-verifiable Markdown sessions, sidecars, and ADRs as the canonical memory graph. Memory Trace, CLI,
+MCP, Graphify, caches, and indexes are derived views over those files. The hosted edition's target substrate
+is PostgreSQL; Markdown is a complete export rather than a second writer. Transfers between editions are
+explicit, staged, and receipt-backed.
 
 ### Conceptual architecture
 
 ```mermaid
-flowchart TD
-  TRACE["Memory Trace<br>human interface"]
-  MARKDOWN["Markdown Sessions / ADRs<br>human-verifiable durable layer"]
-  CORE["Memory Seed Core<br>canonical knowledge graph"]
-
-  subgraph Interfaces["Adapters and interfaces"]
-    direction LR
-    REST["REST"]
-    MCP["MCP"]
-    CLI["CLI"]
+flowchart LR
+  subgraph Local["OSS / local edition"]
+    direction TB
+    MARKDOWN["Markdown sessions,<br/>sidecars and ADRs"] --> CORE["Memory Seed core"]
+    CORE --> LOCALUI["CLI · MCP · Memory Trace"]
   end
 
-  CONSUMERS["Orchestrator + Workers<br>agent consumers"]
+  subgraph Hosted["Hosted team edition"]
+    direction TB
+    SQL["PostgreSQL authority"] --> SERVICE["Hosted service"]
+    SERVICE --> EXPORT["Complete Markdown export"]
+  end
 
-  TRACE --> MARKDOWN
-  MARKDOWN --> CORE
-  CORE --> REST
-  CORE --> MCP
-  CORE --> CLI
-  REST --> CONSUMERS
-  MCP --> CONSUMERS
-  CLI --> CONSUMERS
+  TRANSFER["Explicit transfer contract<br/>plus cutover receipt"]
+  USERS["Humans and agents"]
+
+  MARKDOWN --> TRANSFER
+  TRANSFER --> SQL
+  LOCALUI --> USERS
+  SERVICE --> USERS
 ```
 
 ### Implementation map
@@ -173,6 +177,10 @@ graph TD
 ```
 ## 3. Feature inventory (current)
 
+Unless a bullet explicitly says **Unreleased** or **Planned**, this section describes behaviour present in
+the `2.23.0` checkout. Versioned historical qualifiers are retained only where they explain when a contract
+entered the product; they are not release-status labels.
+
 ### A. Distribution & packaging
 - Python package `memory-seed` (`pyproject.toml`, setuptools), Python >= 3.11, published to PyPI via GitHub Release -> `.github/workflows/publish.yml` with an OIDC **manual-approval `pypi` gate**.
 - **Verification gates.** `.github/workflows/verify.yml` runs on pushes to `main`, pull requests, and reusable-workflow calls: the full root `pytest tests` suite, repository `links check`, all Memory Trace tests, and the React `npm ci`/typecheck/build gate. The React build must leave `memory-trace/memory_trace/static/react/` unchanged, proving packaged assets are current; `publish.yml` calls the same workflow before packaging.
@@ -232,24 +240,35 @@ graph TD
 | `init [--agents ...] [--no-agent-prompt] [--dry-run] [--force]` | Copy control plane + routing into a project; prompts on a TTY for opt-out agent integration selection unless skipped. |
 | `update [--dry-run]` | Forward-only refresh of control-plane files; archives replaced versions; preserves generated/local memory. |
 | `doctor` | Health check: missing files, version mismatches, bootstrap completeness, non-fatal warnings. |
-| `retrieval-spec preview --spec-file ...` | Preview one inline Retrieval Specification without writing memory. Profile-aware preview/resolve are also exposed by MCP. |
-| `task-packet preview\|compile --dispatch-file ... --binding-file ...` | Reconstruct the same canonical Task Packet through the shared compiler; preview prints it, compile may atomically export a derived JSON artifact. |
+| `retrieval-spec preview\|resolve --spec-file ...` | Validate or resolve inline/profile-aware Retrieval Specifications into deterministic Evidence Packs. |
+| `task-packet preview\|compile\|render\|from-plan\|governance-load ...` | Compile deterministic Task Packets, render client-neutral worker prompts, derive task dispatches from approved plans, and load digest-pinned worker governance. |
+| `discovery evidence\|assess ...` | Build a bounded Design Discovery authority pack, then require one source-bound verdict per governing clause, ADR, decision, or explicit pin. |
+| `telemetry migrate\|summary\|health` | Inspect or additively migrate Git-common workflow telemetry that survives worktree cleanup. |
+| `constitution topics [--topic ...]` | Show the derived topic-to-Constitution-clause map used by bounded evidence retrieval. |
 | `compact [--days N] [--output]` | Summarise recent session activity; writes only with `--output`. |
 | `agents list \| add <a> \| remove <a>` | Show selected/ignored agents or reconfigure installed agent integrations (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date ...]` | Print (and optionally create) the active grouped session-log target; flat or per-user depending on the resolved user and participant gate. |
+| `session append\|reorder\|entry-id\|checkpoint ...` | Author guarded DRAFTS entries, repair same-day chronology, derive canonical IDs, and inspect or mechanically resolve session-record checkpoint debt. |
 | `session fuse --branch <branch> [--base <ref>] [--apply]` | Dry-run or apply branch-local session entries/sidecars into the current integration tree; apply requires an in-progress merge and validates branch provenance, chronology, immutable existing entries, and sidecar parent entries. |
 | `session merge-branch --branch <branch> [--dry-run]` | One-step branch integration: fuse dry-run gate, `git merge --no-ff --no-commit`, session-path reset, fuse apply, stage, commit, then cleanup of the exact clean registered source worktree when one exists. Git removal is primary; an already-deregistered directory is removed only after repository, branch, administrative-pointer, directory-identity, and path-type revalidation. Dirty, locked, still-registered, replaced, unreadable, or otherwise unproven paths are retained, and pending cleanup is an incomplete task outcome; branches are never deleted. Requires a clean integration working tree. |
+| `session prepare-pr\|open-pr\|integrate --branch <branch>` | Run mode-aware integration: local merge/fuse under `local-merge`, or guarded push and pull-request preparation under `pr`; manual merge triggers require live approval. |
 | `branch status [--json]` | Read-only: report current Git branch/worktree posture and warn when distinct feature work should move to a task branch with `--no-ff` integration. |
+| `worktree guard\|status\|home ...` | Enforce agent namespace safety and manage the persistent per-agent home worktree, including claim, overflow, park, release, resume, and status. |
+| `adr promote\|revise\|transition\|reviewed\|show\|list\|check ...` | Maintain append-only ADR ledgers and derived current heads without rewriting decision history. |
 | `ranking-ab --signal <name> [--query <q> ...] [--json]` | Run a deterministic full-corpus ranking signal comparison off/on; require directional wins and unchanged no-affected-hit controls where defined; fail closed on missing evidence. |
-| `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
-| `topics list` | Show the controlled topic vocabulary from `.memory-seed/topics.yaml` (canonical slugs, aliases, status). |
-| `topics check` | Validate the vocabulary and entry `topics:` usage: unknown/malformed/duplicate/collision errors, deprecated-use and >3-count warnings, unused-topic info; exit 1 on any error. Separate from `links check` - topics are membership, not an edge kind. |
+| `links check\|chain\|graph-diff ...` | Validate session-memory integrity, inspect decision refinement chains, and snapshot/compare the effective lifecycle graph. |
+| `topics list\|check\|suggest\|amend ...` | Inspect and validate the controlled vocabulary, suggest topics from evidence, or append a corrected decision-topic snapshot. |
 | `migrate sessions-layout [--dry-run]` | Split legacy flat session files into grouped per-user files using `project.yaml` participants; preserves entry IDs, backs up before removing migrated sources. |
 | `migrate sessions-month-layout [--dry-run]` | Explicitly move old flat/day session files and old diagram sidecars into `YYYY-MM/` folders with backups; never automatic. |
 | `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |
 | `link show <entry_id>` | Read-only: print an entry's stored outbound `related_entries`, computed inbound backlinks, `supersedes`/`superseded_by`, `inbound_relation_count`, and `importance_score`. |
 | `link commits <entry_id>` | Read-only: print commit links from the entry's `commits:` field plus commits carrying the `Memory-Entry:` trailer. |
+| `link audit\|batch-plan\|batch-collect\|batch-finalize\|batch-apply\|batch-gc\|verify\|retract ...` | Discover lifecycle gaps, coordinate two-run classification, apply only mechanically valid agreement, optionally verify, and append retractions without editing history. |
+| `docs check\|index` | Validate lifecycle lanes, pointers, metadata, and links; regenerate marker-scoped lane indexes. |
+| `quality report` | Measure the current corpus quality surface while preserving unavailable/not-applicable states. |
+| `provenance check\|show\|bind ...` | Inspect and append reference-only decision-to-Git provenance bindings. |
+| `esr` / `situate` | Run end-of-turn health and session-start orientation reports from measured repository state. |
 | `hooks status [--json]` | Read-only: report whether the `prepare-commit-msg` trailer hook is current, missing, stale, broken, or blocked by a foreign hook. |
 | `hooks repair` | Install or refresh only missing or Memory Seed-managed trailer hooks; foreign hooks are reported and left untouched. |
 | `processes [--json]` | Read-only: list active package-owned Memory Seed processes. |
@@ -261,46 +280,33 @@ graph TD
 | `help` (or no args) | Full command reference. |
 
 ```mermaid
-graph TD
-  subgraph SetupTier["Project setup"]
+flowchart TD
+  subgraph Setup["Setup and health"]
     direction LR
-    INIT["init"] ~~~ UPDATE["update"]
-    DOCTOR["doctor"] ~~~ VERSION["version / help"]
+    INSTALL["init · update · agents · skills"] --> HEALTH["doctor · docs · encoding"]
   end
 
-  subgraph MemoryTier["Memory operations"]
+  subgraph Memory["Memory and governance"]
     direction LR
-    USER["user"] ~~~ SESSION["session target / fuse"]
-    COMPACT["compact"] ~~~ LINKS["links / link"]
+    SESSION["session · links · topics"] --> ADR["adr · provenance · constitution"]
+    ADR --> RETRIEVAL["retrieval-spec · quality · compact"]
   end
 
-  subgraph GitTier["Git guardrails"]
+  subgraph Collaboration["Planning and collaboration"]
     direction LR
-    BRANCH["branch status"] ~~~ AGENTS["agents"]
+    ORIENT["situate · discovery"] --> PACKET["task-packet"]
+    PACKET --> GIT["branch · worktree · hooks"]
+    GIT --> LAND["session integrate / open-pr"]
   end
 
-  subgraph OpsTier["Operational safety"]
+  subgraph Operations["Operations"]
     direction LR
-    PROCESSES["processes"] ~~~ SHUTDOWN["shutdown"]
-    UPGRADE["upgrade"] ~~~ ENCODING["encoding"]
+    PROCESS["processes · shutdown · upgrade"] --> CLOSE["esr · telemetry"]
   end
 
-  subgraph UiTier["UI bridge"]
-    direction LR
-    TRACE["memory-trace<br>separate command"]
-  end
-
-  SetupTier ~~~ MemoryTier
-  MemoryTier ~~~ GitTier
-  OpsTier ~~~ UiTier
-
-  INIT --> DOCTOR
-  UPDATE --> DOCTOR
-  SESSION --> LINKS
-  LINKS --> COMPACT
-  BRANCH --> AGENTS
-  PROCESSES --> SHUTDOWN
-  SHUTDOWN --> UPGRADE
+  HEALTH --> SESSION
+  RETRIEVAL --> ORIENT
+  LAND --> CLOSE
 ```
 
 ### C. Agent-selective install (`core.py`)
@@ -345,7 +351,7 @@ graph TD
 - `agent-rules.md` (compact startup contract: discovery, read order, authority rules, change gates, **Working Principles**, **End Of Turn** pointers), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology - bootstrap-generated), `policy.md` (constraints only - bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
 - Nearest-runtime discovery (`resolve_runtime`) supports nested sub-project runtimes; legacy `.AGENTS/` remains a code-level fallback.
 - **Lazy-skill extraction (new in 2.13).** Detailed procedures that used to live directly in `agent-rules.md` were moved out into seeded skills - `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`, `memory_hygiene.md`, `subproject_runtime.md` - so `agent-rules.md` now keeps startup-safe summaries plus explicit skill pointers, and seeded ESR commands point at `end_of_turn.md` for the full checklist.
-- **Session-first worktree reconciliation (unreleased).** The core `worktree_reconciliation.md` skill
+- **Session-first worktree reconciliation (shipped in 2.22.0).** The core `worktree_reconciliation.md` skill
   starts each dirty, stale, detached, or deregistered cleanup review from the candidate's own measured
   Memory Seed orientation and branch-local session storyline, then uses Git to verify reachability,
   divergence, dirty content, duplication, registration, and removal safety. It requires one descriptive
@@ -353,12 +359,17 @@ graph TD
   deletion target, branch preservation by default, and post-removal registration/path verification.
 - **Working Principles gained guard-preservation bullets (new in 2.14).** Follow-up to a fan-out evaluation of a third-party code-simplification plugin proposal (rejected as redundant with the built-in `code-review`/`simplify` skills and the existing orphan sweep): a decision-ladder-before-adding-code habit, and a reminder not to strip terse validation/ownership guards (a date-format check, an `is_ours` MCP-ownership check, an `isinstance` guard) without understanding what they protect against. Landed in Working Principles rather than a new skill file, since the risk applies to any incidental edit, not just tasks that self-identify as "code simplification." Backed by new regression tests for the two guards a codebase audit found genuinely untested (`_valid_session_date`; the `is_ours` check in the claude/cursor/gemini MCP-merge functions).
 - **Mermaid usage guidance bullet (new in 2.14).** A third new Working Principles bullet: default to plain text; reserve Mermaid for genuinely spatial, temporal, or concurrent structure; keep blocks small; check syntax *and* semantic freshness (roadmap diagrams must be updated when shipped work changes status). From `docs/5_Completed/mermaid-usage-guidance-plan.md`. `session_logging.md`'s Reason Rules simultaneously gained the failed-approaches rule: an attempted-and-failed or incompatible approach must be logged under `A` even unprompted (`docs/5_Completed/failed-approaches-logging-plan.md`).
-- **Visible branch history guidance (unreleased).** Working Principles now tell agents to load
+- **Visible branch history guidance (shipped).** Working Principles tell agents to load
   `agent_collaboration.md` before distinct feature/proposal/fix/refactor/test/docs work where the
   user expects the Git graph to show branch evolution. The default is task branch/worktree plus
   `git merge --no-ff`, unless the user explicitly chooses linear history, squash, rebase, or direct
   `main` work.
-- **Skill architecture governance (unreleased).** `agent-rules.md` was trimmed further into a
+- **Persistent per-agent home worktrees (shipped in 2.23.0).** `memory-seed worktree home` keeps one
+  long-lived `<namespace>/home` checkout per agent. A claim leases the home and checks out a task branch;
+  a second live session receives an overflow worktree. Successful integration parks the home detached at
+  the integration commit rather than deleting it. Dirty state blocks claim/park, inactive clean branches
+  require `--resume`, and stale-worktree cleanup never treats a home as removable.
+- **Skill architecture governance (shipped).** `agent-rules.md` was trimmed further into a
   startup-safe contract, while optional `skill_architecture.md` now owns skill/profile boundary
   guidance, trigger-registry discipline, and seed/live parity workflow. It belongs to the
   `governance` skill profile so normal projects do not install it unless they maintain Memory Seed
@@ -449,7 +460,7 @@ graph TD
   can still use the generic bootstrap anchors `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`,
   and `docs/reference/`.
 - **Fan-Out Recipe in `agent_collaboration` (new in 2.14).** A named "Explore / Plan / Implement / Validate" 9-gate pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, `review_loop`), and vendor-neutral capability-tier guidance (planning and review both frontier-tier). From `docs/5_Completed/agent-fanout-workflow-plan.md`.
-- **Branch history preservation (unreleased).** `agent_collaboration.md` now distinguishes worktree
+- **Branch history preservation (shipped).** `agent_collaboration.md` distinguishes worktree
   isolation from visible Git topology: a worktree alone does not create a branch in the graph.
   Distinct parallel writing tasks get separate branches/worktrees, and integration uses
   `git merge --no-ff` when branch-and-merge shape matters. The read-only `branch status` command
@@ -567,14 +578,31 @@ graph TD
 ```
 
 ### I. MCP memory retrieval and control preview
-- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections), `memory_get_chunk` (full text for one `chunk_id`), inline/profile-aware `memory_retrieval_spec_preview` and `memory_retrieval_spec_resolve`, and the read-only `memory_task_packet_preview` / `memory_task_packet_compile` pair. The Task Packet tools return derived artifacts inline and accept no export path. Authoring tools (unreleased) split into a read-only pair and a write pair: `memory_link_suggest` (rank older entries to link — paste-ready `related_entries`) and `memory_link_show` (one entry's graph node) remain read-only, while `memory_session_append` (author an entry through every write-time guard; `dry_run` pre-flights) and `memory_session_integrate` (merge + fuse a task branch) are the MCP **write** path. Together they close the write-side loop the retrieval tools open on the read side. The earlier read-only `memory_session_target` and `memory_entry_id` tools were removed and subsumed by `memory_session_append`'s `dry_run`. Topic-management tools are `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`, all read-only wrappers over the project-local topic index and `topics check` semantics. Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture), `memory_worktree_guard` (read-only agent namespace pre-write classification), and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Unreleased after 2.15: retrieval is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
-- `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
-- **MCP skill surface (unreleased).** `skills/index.md` routes `memory_search`/`memory_get_chunk` plus the authoring-support tools (`memory_link_suggest`/`memory_link_show`/`memory_session_append`) to `history_retrieval.md`, and routes `memory_branch_status`/`memory_worktree_guard`/`memory_session_fuse_preview` to `agent_collaboration.md`, which also documents `memory_session_integrate`. Topic MCP tools (`memory_topics_list`/`memory_topic_inspect`/`memory_topics_check`) support the same history-retrieval/session-authoring loop by letting an LLM inspect the controlled vocabulary before choosing entry topics. Most MCP tools are read-only, but MCP is no longer a read-only surface: `memory_link_suggest`/`memory_link_show` help an LLM fill `related_entries`, the topic tools help it choose/validate existing topics, and the collaboration tools help it diagnose branch posture, classify agent namespace safety, and preview fuse blockers/plans — while `memory_session_append` and `memory_session_integrate` write. Constitution v1.3 replaced the old "writes stay on the CLI" posture with **write-surface parity** (Invariant #2): a writing surface is legitimate provided it runs identical validation, so `memory_session_append` wraps the same `session_append_entry` guards as the CLI and `memory_session_integrate` wraps the same merge+fuse. Topic-index edits and root-write overrides still stay on the CLI/direct-file path with user approval where required.
+- **Current tool families.** Retrieval (`memory_search`, `memory_get_chunk`, Retrieval Specification
+  preview/resolve), guarded authoring/integration (`memory_session_append`, `memory_session_integrate`),
+  graph/topic/ADR inspection, worktree and branch posture, Design Discovery evidence/assessment, Task Packet
+  compilation/rendering/governance loading, provenance, telemetry, and ESR all expose the same core services
+  as the CLI. Read-only tools never grant write authority; write tools preserve the same structural guards as
+  their CLI counterparts. Design Discovery v2 and Git-common telemetry are post-`2.23.0` Unreleased work.
+- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections), `memory_get_chunk` (full text for one `chunk_id`), inline/profile-aware `memory_retrieval_spec_preview` and `memory_retrieval_spec_resolve`, and the read-only `memory_task_packet_preview` / `memory_task_packet_compile` pair. The Task Packet tools return derived artifacts inline and accept no export path. Authoring tools split into a read-only pair and a write pair: `memory_link_suggest` (rank older entries to link — paste-ready `related_entries`) and `memory_link_show` (one entry's graph node) remain read-only, while `memory_session_append` (author an entry through every write-time guard; `dry_run` pre-flights) and `memory_session_integrate` (merge + fuse a task branch) are the MCP **write** path. Together they close the write-side loop the retrieval tools open on the read side. The earlier read-only `memory_session_target` and `memory_entry_id` tools were removed and subsumed by `memory_session_append`'s `dry_run`. Topic-management tools are `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`, all read-only wrappers over the project-local topic index and `topics check` semantics. Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture), `memory_worktree_guard` (read-only agent namespace pre-write classification), `memory_worktree_home` (persistent home lifecycle), and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Since 2.16, retrieval is a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
+- `retrieval.py` (**shipped in 2.16.0 - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
+- **MCP skill surface (shipped).** `skills/index.md` routes tools to the same lazy-loaded runbooks as their CLI workflows. Most tools are read-only, but MCP is not a read-only surface: session append and integration are guarded writes, and Task Packet, ADR, discovery, provenance, and telemetry adapters reuse their core validation. Constitution v2.5's write-surface parity rule requires every memory write to pass identical validation regardless of surface. Topic-index edits and root-write overrides remain CLI/direct-file operations with the normal authorization gates.
 - `semantic_cache.py`: `extract_memory_chunks()` parses `sessions/*.md` into typed `MemoryChunk`s (entry- or section-granularity; `session_date` derived from filename; `entry_id` as `chunk_id`). `rank_memory_chunks()` combines **lexical + semantic + recency** signals:
   `final = (lexical_score + 3-max(semantic,0)) - recency_multiplier`, with semantic via Model2Vec (`model2vec:minishlab/potion-base-8M`, lexical fallback) and an exponential recency decay floored at `recency_floor`.
-- **Metadata + filters.** `memory_search`/`memory_get_chunk` expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries` (2.12); `memory_search` accepts `user`, `date_from`, and `date_to` filters applied before ranking. Unreleased after 2.14: `memory_get_chunk` also exposes `superseded_by`, `inbound_relation_count`, and `importance_score`; `memory_search` results carry stored `supersedes` and accept an opt-in `exclude_superseded` filter (default off) that drops superseded entries from a single query.
-- **Related-entry graph (new in 2.13, extended unreleased).** `build_related_entry_graph()` computes the bidirectional related-entry graph at read time - each entry's stored outbound `related_entries` plus computed inbound backlinks from every other entry that points at it, without ever editing a historical entry. Unreleased extensions add typed `supersedes` edges, computed `superseded_by`, raw `inbound_relation_count`, and supersession-aware `importance_score`; the Trace graph's combined node-degree field is named `connectivity` to avoid colliding with the inbound-only metric.
-- **Decision-level lifecycle edges + link-judgment swarm (unreleased, 2026-07-24/25).** Grammar v2 lets link-sidecar and entry-YAML refs name a decision on either end (`<entry_id>:dN`, comma multi-ordinal `:d1,d4`, `dN -> ` source arrow) across `replaces`/`evolves`/`related_entries`; decision edges are a distinct set, never projected up to their entry. The optional `link_swarm` skill runs a network-using fan-out of small models that judge `link audit` gaps at decision granularity — suggest-only, gated by a mechanical validator (quote-grounding, ordinal existence, forward-only) and a human scope approval (Invariants #1, #5). A 2026-07-25 campaign judged all 1,108 file-overlap never-linked pairs and landed 696 decision-level edges. Each machine-suggested edge carries a structured **`edge_confidence`** (`{ref, confidence, tier}`) tolerated by `links check` as an unknown key; the Trace graph and Trail **fade low-confidence edges** by opacity (`GraphEdge.confidence`/`RendererGraphEdge.confidence` on the `/api/v1` contract). Published edges are corrected only by an append-only **`retracts:`** block (the reader subtracts; `links check` validates malformed/dangling/forward-only) — never by editing the published block. Specs: `docs/3_Spec/draft/{decision-level-link-sidecar-refs,edge-confidence-metadata,link-retraction}.md`.
+- **Metadata + filters.** `memory_search`/`memory_get_chunk` expose session/user identity, source paths,
+  DRAFTS record kind, topics, source references, graph lineage, successor heads, and attention diagnostics.
+  Search accepts user/date/topic filters, preferred keywords, optional semantic ranking, opt-in attention
+  boost, and opt-in removal of replaced records. Supersession damping and bounded successor lift remain
+  default-on but never erase history.
+- **Related-entry graph (shipped and extended).** `build_related_entry_graph()` combines authored
+  `related_entries`, decision-granular sidecar edges, computed backlinks/inverses, ADR membership, refinement
+  chains, and append-only retractions. Derived importance/connectivity remain read-time projections rather
+  than historical rewrites.
+- **Automatic decision-level lifecycle classification (shipped in 2.23.0).** Two independently validated
+  classifier runs can write live, retractable `source: derived` edges with confidence and a grounding quote.
+  `replaces` and `refines` require agreement; weaker/disagreeing results fall back conservatively. Optional
+  human verification raises weight, and append-only retraction is the correction path. Decision edges never
+  get projected up to entry-level claims or move ADR heads automatically.
 - `mcp_validate.py` + `memory-seed-mcp-validate`: human-validatable search/fetch harness.
 
 ```mermaid
@@ -614,13 +642,13 @@ graph TD
 ```
 
 ### J. Session log model
-- Append-only dated files now write to `sessions/YYYY-MM/YYYY-MM-DD.md` or `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`; legacy `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` remain readable. Entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `project_path`, `subproject_path`, optional `related_entries`). Historical entries may still contain the retired `agent_name` key; readers ignore it. The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
+- Append-only dated files write to `sessions/YYYY-MM/YYYY-MM-DD.md` or `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`; legacy flat/day layouts remain readable. Entries carry identity, agent, project, branch, topic, source, and relationship metadata. Historical entries may still contain the retired `agent_name` key; readers ignore it. The current **DRAFTS** structure supports typed Decision and Documentation records under `### Records`: every record needs `D:` plus an indented `Scope:`; decisions also need `Disposition:` and `R:`; `A:`, `F:`, `T:`, and material-source `S:` remain contextual evidence. Strict ascending-time, append-at-end chronology is enforced by the sanctioned writer.
 - **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
 - **Integrity validation (new in 2.12, grouped-aware after current work).** `check_session_links()` / `memory-seed links check` scans for duplicate `entry_id`/`hash_id` and dangling refs, exiting non-zero as a CI gate. The legacy-flat `related_entries` scan gap was fixed in 2.14. It also validates `supersedes` refs (dangling/self/postdates/cycle), `commits:` hashes (malformed/unknown when git is present), and decision-diagram sidecars under both `sessions/diagrams/YYYY-MM-DD.md` and `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` (`malformed-diagram`, `orphan-diagram`, `diagram-date-mismatch`; sidecars always optional).
-- **Decision diagram sidecars (diagrams plan Phase 1; grouped after current work; trigger tightened, unreleased).** Authored reasoning diagrams append to `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` - one dated file per day, mirroring the grouped session-log convention for filesystem readability; legacy sidecars under `sessions/diagrams/YYYY-MM-DD.md` remain readable. Each diagram is a `## <timestamp> - <title>` heading block naming its `entry_id` in a fenced yaml block, followed by fenced mermaid block(s), never inlined in the append-only session log itself. Sidecars stay optional and still require the same spatial/temporal/concurrent bar as the Mermaid Working Principle, but branch/merge topology, old-to-new layout migrations, schema/compatibility flows, multi-agent concurrency, command lifecycle flows, and retrieval/data pipeline decisions are now **positive triggers** rather than an "only if it clearly helps" judgment call - when one applies and no sidecar is written, the entry must state why under `A:`/`Follow-up`. Authoring guidance lives in `session_logging.md` + `end_of_turn.md` (live + seed); metadata surfaces through `retrieval.entry_diagram_sidecars()` (opt-in `include_diagrams`, never set by the MCP tool contract) and the Memory Trace chunk view.
-- **Decision Harvest (session-logging, unreleased).** Before choosing an entry's shape, `session_logging.md`/`end_of_turn.md` now route through an explicit harvest step: list every durable choice made in the turn first, then pick single-DRAFT, multi-decision (`D1`/`D2`), or separate entries based on what was actually harvested - closing a gap where several distinct decisions were getting compressed into one broad `D:` record.
-- **Branch-session fuse (unreleased).** `memory-seed session fuse --branch <branch>` lets an orchestrator dry-run branch-local memory before promotion, then apply it only during an in-progress `git merge --no-ff --no-commit <branch>`. It imports branch-only entries when `branch:` matches the source branch, or when an aggregate recursively proves an unchanged child entry in the bounded `merge-base(base, source)..source` window: each carrier is a unique two-parent merge whose non-first parent carries the exact record, whose final trailer block has one `Memory-Entry` receipt, and whose own first-parent segment keeps exactly one byte-identical record. The declared child must be a current local branch ref; a deleted or renamed ref is a refusal with recovery guidance to restore that exact ref, not rewrite `branch:`. Missing, copied, altered, reintroduced, ambiguous, octopus, unrelated, or unreceipted inherited entries fail closed. Existing entries remain unmodified, IDs are present/unique, target chronology remains valid, paths can normalize to the grouped layout, and changed branch session/diagram files decode as UTF-8. A branch-delta decode failure blocks with the named file instead of silently omitting it; base-side decode failures remain non-blocking for already-present and sidecar-parent lookups. Diagram sidecars are accepted only when their parent entry already exists on the base/main tree or the parent branch entry is accepted for promotion in the same fuse; orphan or malformed sidecars block the fuse.
-- **One-step branch integration (unreleased).** `memory-seed session merge-branch --branch <branch> [--dry-run]` wraps the fuse dance into a single command after two real incidents where the manual dry-run/apply steps were skipped and raw git line-merges landed session entries out of chronological order. Sequence: fuse dry-run gate (issues abort before any merge state exists), `git merge --no-ff --no-commit`, conflict classification (a genuine non-session content conflict leaves the merge in progress for manual resolution - the one case `merge --abort` never runs against), reset of branch-touched session paths to base content (defeats both conflict markers and silent out-of-order auto-merges), fuse apply, stage, commit reusing git's prepared merge message, then cleanup of the exact clean registered worktree that held the merged branch. Every refusal from the reset step onward - a repair-must-land-on-base finding, a fuse-apply issue, an unmerged path after staging - now auto-runs `git merge --abort` and reports it; only a post-fuse `git commit` failure is left in progress by design, so the fused tree can be inspected before deciding how to proceed. Cleanup retries ordinary Git removal first. If Git deregisters the checkout but leaves files, an exact-target fallback revalidates the repository, merged branch, Git administrative pointer, unchanged directory identity, and reparse-point boundary before removing that directory. It preserves the branch and refuses dirty, locked, still-registered, replaced, unreadable, or otherwise unproven paths. CLI exits non-success and MCP reports `cleanup_complete: false` while cleanup remains pending, without invalidating the durable merge. Requires a clean working tree and refuses with the specific dirty paths named. The recorded decision that fuse stays an explicit command rather than a git merge driver (`mse_9c151e4gbkkv1w5v`) is preserved - this is choreography around the same explicit primitives, not automation inside git.
+- **Decision diagram sidecars (shipped).** Authored reasoning diagrams append to `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`; legacy paths remain readable. Full Mermaid blocks are keyed by entry and timestamp, so corrections append rather than rewrite. Spatial, temporal, topology, migration, compatibility, multi-agent, lifecycle, and retrieval-pipeline decisions are positive authoring triggers, with omission reasons recorded when no diagram is useful.
+- **Decision Harvest (shipped).** Before choosing an entry shape, `session_logging.md` and `end_of_turn.md` list every durable choice, classify Decision versus Documentation, and select one record, numbered records, or separate entries. Source attribution and lifecycle prompts prevent broad records from hiding distinct choices or their ancestry.
+- **Evidence-backed session checkpoints (shipped in 2.23.0).** Hook, CLI, and MCP share one evaluator for pending session-record debt after worktree or `HEAD` changes. A valid later record re-baselines it; mechanical clearance v1 is deliberately limited to proven tracked whitespace-only changes from a clean baseline.
+- **Branch-session fuse and one-step integration (shipped).** `session fuse` remains the lower-level preview/apply primitive. `session merge-branch` and `session integrate` compose fuse validation, `--no-ff` integration, session-tree reconstruction, guarded commit, and exact worktree cleanup or home parking. They fail closed on provenance, chronology, sidecar-parent, conflict, or cleanup uncertainty; branches are preserved.
 - **Evolution edges and artifact lineage (core shipped in 2.18.0; Trail continuity shipped 2026-07-15).** Implements `docs/5_Completed/evolution-edges-plan.md`: (1) a typed `evolves:` edge - "this entry extends that decision, which remains valid" - with a read-time-only computed `evolved_by` inverse that never dampens `importance_score` and never feeds `exclude_superseded` (the semantic line vs. `supersedes`); (2) append-only enforcement via the `authored-inverse-field` links-check guard (a stored `superseded_by:`/`evolved_by:` key is a named integrity error, not a silently ignored no-op); (3) the structured `continuity:` field (`kind: rename|migration|removal` with `from`/`to`; `to` forbidden on removal) recording artifact lineage as historical labels, validated structurally (`malformed-continuity`); (4) rarity-weighted `F:` file-overlap ranking in `link suggest`/`memory_link_suggest` with per-suggestion `shared_files` evidence, alias-resolved transitively through recorded renames (boost-only - hub files contribute ~nothing via idf, absent `F:` is never penalized); (5) computed `superseded_by`/`evolved_by` on every `memory_search` result; (6) Decision Harvest lifecycle prompts in the live/seed skills; and (7) derived Trail continuity lanes for rename, migration, and removal events without adding authored graph edges. Forward-only guards (`dangling`/`self`/`postdates`/`cycle`) run independently per edge kind.
 - **Supersession successor surfacing (shipped 2026-07-15).** Every retrieval result now exposes the terminal `superseding_head` for its supersession lineage. The default-on successor boost is lineage-bounded and graduated only after fixtures plus `memory-seed ranking-ab` proved all live replacements out-rank their retired predecessors with an unchanged unaffected-query control. See `docs/5_Completed/supersession-successor-surfacing-proposal.md`.
 - **Automatic lifecycle-link classification (shipped in 2.23.0).** `memory-seed link audit --date <date> --apply` still writes idempotent `classify_pending: true` stubs, but the optional two-run `link_swarm` now classifies those candidates automatically. `memory-seed link batch-apply --run-dir <run1> --agree-with <run2>` writes mechanically validated, live, retractable `source: derived` edges with a grounding quote and confidence. `replaces` and `refines` require agreement between both runs; weaker or disagreeing outcomes fall back conservatively. `memory-seed link verify <source> "<ref>" --by <initials>` is optional and raises a previously machine-classified edge to full retrieval weight. Stubs remain warnings only when no automatic run has resolved them.
@@ -872,6 +900,40 @@ graph TD
   CACHE --> READER
 ```
 
+### P. Hosted team edition (separate, non-packaged)
+
+- `hosted/` is a self-contained local-development surface for the separately governed team edition. It is
+  intentionally excluded from the published `memory-seed` package; the local OSS edition remains useful
+  offline with no account, server, database, or hosted dependency.
+- **P0.1 authority is integrated.** Constitution v2.5 and the edition contract keep ordinary local Markdown
+  authoritative while the hosted substrate is built and rehearsed. There is no repository synchronization,
+  hidden settlement, or dual-writer mode.
+- **P0.2 offline capture is implemented.** A write agent explicitly submits a first-hand decision marker;
+  capture validates version/checkpoint identity and queues JSONL events into disposable SQLite. Accepted
+  records remain source-linked and inert until governed use. The provider-neutral advisory curator compares
+  an accepted record with existing decision/topic candidates before opening any bounded source question.
+- The frozen evaluation corpus contains 103 formal records (100 Decisions and three Documentation controls)
+  plus synthetic reliability controls. Historical marker-assisted source-window recall was 89.6% (60/67),
+  below the 95% gate and not a measure of autonomous extraction. Historical source-alignment research is
+  paused; rejected label material must be rebuilt and independently reviewed before it can gate delivery.
+- **PostgreSQL R0 is complete; R1 is next.** `hosted/importing/` now carries the full-corpus field/actor
+  inventory and crosswalk. R1-R5 sequentially build the secure substrate, parity import/export, transfer
+  rehearsal, capture/evidence service, and authenticated useful loop while Markdown remains authoritative.
+  R6 is a separate human-gated managed-PostgreSQL pilot requiring the exact manifest, restore receipt, and
+  authority epoch to be approved before hosted authority can move.
+- Hosted raw evidence is owner-only; curated records may be shared under project policy. Removal is a
+  last-resort governed action that leaves a content-free tombstone.
+
+```mermaid
+flowchart LR
+  P01["P0.1 authority<br>integrated"] --> P02["P0.2 offline capture<br>implemented"]
+  P02 --> R0["R0 crosswalk<br>complete"]
+  R0 --> R1["R1 secure substrate<br>next"]
+  R1 --> R25["R2-R5 parity,<br>rehearsal, useful loop"]
+  R25 --> R6{"R6 explicit<br>lead approval"}
+  R6 --> HOSTED["Hosted authority"]
+```
+
 ---
 
 ## 4. Data-flow diagrams
@@ -1100,7 +1162,7 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 | `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
 | Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open - candidate hardening item. Note: Memory Trace's cache *does* use temp-file + atomic `os.replace`, so this gap is specifically about control-plane/session file writes, not the cache. |
 | Encoding drift / mojibake on Windows defaults | Corrupted Markdown, JSON, logs, or MCP payload readability | **Mitigated 2026-07-08** - `.editorconfig`, `.gitattributes`, UTF-8/LF/NFC helpers, MCP Unicode output, read-only checks, backup-first atomic repair for safe drift, production implicit-I/O checks, and non-fatal doctor summaries are implemented. Suspected mojibake remains intentionally manual. |
-| Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** - dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support all shipped through 2.12.0 |
+| Concurrent session authors | Multi-author Git conflicts or silently divergent chronology | **Mitigated in the local edition** - grouped shared/per-user layouts, participant gates, guarded append/checkpoint writers, deterministic integration, and branch-session fuse are shipped. Hosted concurrency is a separate SQL/authority-epoch concern covered by R1-R6. |
 
 ## 13. Glossary
 
@@ -1109,7 +1171,7 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - **Seed / live twin** - a template under `memory_seed/seed/` and its byte-identical copy in the repo's own `.memory-seed/` (parity enforced by tests).
 - **Routing file** - a thin per-agent file (`CLAUDE.md`, etc.) that points back to `AGENTS.md`.
 - **Trigger registry** - `skills/index.md`, the deterministic map deciding which skill runbooks to lazy-load.
-- **DRAFT** - the baseline session-entry shape: **D**ecision + **R**eason (mandatory), **A**lternatives / **F**iles / **T**ests (optional).
+- **DRAFTS record** - the typed record shape under `### Records`: every record has **D**ecision/Documentation text and **S**cope; Decisions also require **Disposition** and **R**eason. **A**lternatives, **F**iles, **T**ests, and material-source **S**ource references are contextual evidence.
 - **Chunk** - a `MemoryChunk` parsed from a session entry (`granularity="entry"`) or sub-heading (`"section"`); `chunk_id` is normally the `entry_id`.
 - **Persona** - a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
 - **Orphan skill** - a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
@@ -1208,64 +1270,35 @@ graph TD
 
 ## 14. Current roadmap appendix
 
-Sources: `docs/2_Todo/0_NEXT_STEPS.md`, `CHANGELOG.md`, and the completed-plan lane. Package `2.18.0`
-is published; the work below is merged locally and documented as shipped-but-unreleased until a user
-explicitly approves the 2.19 release/publish step.
+Sources: [`docs/2_Todo/0_NEXT_STEPS.md`](../2_Todo/0_NEXT_STEPS.md), the
+[`Hosted Memory MVP programme`](../2_Todo/hosted-memory-mvp-programme.md), the
+[`PostgreSQL data-model and authority-transfer plan`](../2_Todo/hosted-postgresql-data-model-and-authority-transfer-plan.md),
+`CHANGELOG.md`, and this checkout. The current lead is the Hosted Memory MVP; local OSS remains a supported,
+offline, Markdown-authoritative edition rather than a staging client for the hosted service.
 
-**Current condition (2026-08-11):** Wave 1 and B0a are complete. The React workspace carries the accepted
-graph/search/selection, Trail, reader, diagram, accessibility, and scale behavior over Cytoscape and the
-renderer-neutral projection. JNL approved the cutover, React owns `/`, and the vanilla fallback plus its
-parity-only harnesses are retired. Evidence-backed topology modes remain planned. Push/publish remains an
-explicit approval gate.
+### Current programme state (2026-10-18)
 
-**Newly planned, not implemented:** Constitution v1.1 permits narrowly scoped append-only Markdown
-sidecars to own declared lifecycles. The active semantic foundation will prove ADR promotion/lifecycle on
-three real decisions after B0b and BG1/BG2; current ADR status and every index/view remain derived. A later
-workflow-review workbench and one Decision projection depend on that proof. Evidence Envelope and Capability
-Status phases were folded into the existing evidence architecture. Publishability and a generic skill/router
-architecture remain deferred. A first-class
-[`Retrieval Specification`](../7_Replaced/declarative-retrieval-specification-proposal.md) has its M0-M3
-contracts implemented: inline requests and exact immutable project-local profiles resolve deterministically
-through composition, bounded overrides, runtime-local retrieval bounds, and Evidence Pack v2. Required
-clauses cannot be weakened. Task Dispatch file lists govern execution edits rather than memory reads; the
-compiler does not load or intersect project policy. The
-`memory-seed/task-dispatch` v1 compiler combines semantic dispatch, a measured existing-runtime binding,
-one exact profile version, and the pinned corpus revision into a complete derived Task Packet with
-single-copy materialized evidence and distinct input/output/cost accounting. Its input ledger is the
-compiler-accounted caller-supplied envelope, not provider total input or hidden platform overhead. CLI and read-only MCP adapters
-share the core compiler. Six core v1 profiles seed missing versions without overwriting existing versions
-or custom IDs. Trace/Evidence Envelope integration and advanced selectors remain planned; no registry,
-dispatch engine, authority, provider lookup, or network dependency was added.
-
-### Near term - current lead
-
-- **B0b Trail parity and acceptance** - complete as of the 2026-08-11 product-owner cutover. The living ADR
-  foundation shipped 2026-08-03; later semantic-record/ranking work still waits for BG1/BG2.
+- **P0.1 — integrated:** authority, edition boundaries, ADR evolution, and constitutional amendment rules.
+- **P0.2 — implemented offline:** first-hand marker capture, replay/idempotency, pause/no-backfill, evidence
+  linkage, disposable queueing, and advisory review. Historical source-alignment and retrospective
+  extraction remain paused research, not a P1 delivery gate; service/sign-in work has not begun.
+- **P0.3/P0.4 — active:** PostgreSQL R0 crosswalk is complete. R1 secure substrate is next, followed in
+  order by R2 full-corpus parity, R3 transfer rehearsal, R4 capture/evidence, and R5 the authenticated useful
+  loop. R1-R5 use sequential, independently reviewed SDD Task Packets and do not move authority.
+- **P1 — gated:** run the decision-layer model tournament and team-readiness work only on valid evidence.
+  R6 can begin only after a managed rehearsal and explicit lead approval of the exact import manifest,
+  restore receipt, and next authority epoch.
+- **Local OSS obligations continue:** memory-quality metrics require maintainer review; Task Packet telemetry
+  and calibration remain active; Memory Trace M3 is limited to bounded evidence-backed perspectives.
 
 ### Current implementation order
 
 ```mermaid
-graph TD
-  subgraph CurrentTier["Current lead"]
-    direction LR
-    B0B["B0b Trail parity<br>and acceptance"]
-  end
-  subgraph GuardTier["Standing gates"]
-    direction LR
-    QUALITY["Markdown authority<br>derived projections"] ~~~ RELEASE["2.19 publish<br>explicit approval"]
-  end
-  subgraph FollowOnTier["Sequenced follow-ons"]
-    direction LR
-    RETSPEC["Retrieval Specification<br>M0-M3 + Task Packet compiler"]
-    SEM["ADR sidecar foundation<br>SHIPPED 2026-08-03"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
-  end
-  CurrentTier ~~~ GuardTier
-  GuardTier ~~~ FollowOnTier
-  B0B ~~~ RETSPEC
-  RETSPEC --> SEM
-  B0B --> SEM
-  SEM --> REVIEW
-  SEM --> PROJ
+flowchart LR
+  P01["P0.1<br>done"] --> P02["P0.2 offline<br>done"] --> R0["R0<br>done"]
+  R0 --> R1["R1 secure<br>substrate"] --> R2["R2 parity"] --> R3["R3 rehearsal"]
+  R3 --> R4["R4 capture /<br>evidence"] --> R5["R5 authenticated<br>useful loop"]
+  R5 --> P1["P1 quality /<br>team readiness"] --> R6{"R6 human-gated<br>pilot"}
 ```
 
 ---
@@ -1275,9 +1308,10 @@ graph TD
 - `tests/` and `memory-trace/tests/` cover init/update/doctor, session schema and chronology, link
   sidecars (including inert stubs), ESR, integration-mode selection and PR preflight, topics, retrieval
   and full-corpus ranking gates, successor-head/boost behavior, MCP/retrieval parity, Evidence Packs,
-  Trail continuity, process controls, encoding checks, and live/seed parity. Current merged-head run:
-  **517 core tests with one known Windows-only skip, plus 121 Memory Trace tests** (verified
-  2026-07-16).
+  Trail continuity, process controls, encoding checks, and live/seed parity. On 2026-10-18 the repaired
+  Python 3.11.16 environment collected **2,094 core tests plus 222 Memory Trace tests (2,316 total)** with
+  `pytest --collect-only -q -n0`. This proves discovery/import health, not full-suite execution.
 - `memory-seed doctor` is the runtime health gate; `links check`, `topics check`, and the named
   `ranking-ab` signal gates are the corresponding corpus/contract checks. The local Memory Trace server
-  is verified separately against its served HTTP surface.
+  is verified separately against its served HTTP surface. Documentation-only audit changes should also run
+  `docs check`, `links check`, targeted documentation/version tests, and `git diff --check`.
