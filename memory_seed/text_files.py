@@ -4,6 +4,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unicodedata
 from dataclasses import dataclass
@@ -124,20 +125,114 @@ def write_json_file(path: Path, data: Any, *, indent: int = 2) -> None:
     write_text_file(path, text)
 
 
+def _git_visible_project_files(
+    root: Path,
+    *,
+    suffix: str | None,
+    extra_excluded_parts: frozenset[str],
+) -> list[Path] | None:
+    resolved_root = root.resolve()
+    try:
+        repository = subprocess.run(
+            ["git", "-C", str(resolved_root), "rev-parse", "--show-toplevel"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding=CANONICAL_ENCODING,
+            errors="surrogateescape",
+        )
+    except OSError:
+        return None
+    if repository.returncode != 0:
+        return None
+
+    repository_root = Path(repository.stdout.strip()).resolve()
+    try:
+        relative_root = resolved_root.relative_to(repository_root)
+    except ValueError:
+        return None
+    command = [
+        "git",
+        "-C",
+        str(repository_root),
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z",
+    ]
+    if relative_root.parts:
+        command.extend(["--", relative_root.as_posix()])
+    listing = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding=CANONICAL_ENCODING,
+        errors="surrogateescape",
+    )
+    if listing.returncode != 0:
+        return None
+
+    files: list[Path] = []
+    for listed_path in listing.stdout.split("\0"):
+        if not listed_path:
+            continue
+        candidate = repository_root / listed_path
+        try:
+            relative = candidate.relative_to(resolved_root)
+        except ValueError:
+            continue
+        if set(relative.parts) & extra_excluded_parts or _is_excluded_scan_path(relative):
+            continue
+        if not candidate.is_file():
+            continue
+        path = root / relative
+        if suffix is None or path.suffix.lower() == suffix:
+            files.append(path)
+    return sorted(files)
+
+
+def _iter_project_files(
+    root: Path,
+    *,
+    suffix: str | None = None,
+    extra_excluded_parts: frozenset[str] = frozenset(),
+):
+    git_files = _git_visible_project_files(
+        root,
+        suffix=suffix,
+        extra_excluded_parts=extra_excluded_parts,
+    )
+    if git_files is not None:
+        yield from git_files
+        return
+
+    for directory, child_directories, filenames in os.walk(root):
+        directory_path = Path(directory)
+        retained_directories: list[str] = []
+        for child_directory in child_directories:
+            relative = (directory_path / child_directory).relative_to(root)
+            if set(relative.parts) & extra_excluded_parts or _is_excluded_scan_path(relative):
+                continue
+            retained_directories.append(child_directory)
+        child_directories[:] = sorted(retained_directories)
+
+        for filename in filenames:
+            path = directory_path / filename
+            relative = path.relative_to(root)
+            if set(relative.parts) & extra_excluded_parts or _is_excluded_scan_path(relative):
+                continue
+            if suffix is None or path.suffix.lower() == suffix:
+                yield path
+
+
 def iter_project_text_files(root: Path) -> list[Path]:
     root = Path(root)
     if root.is_file():
         return [root] if _is_text_file(root) else []
     files: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        try:
-            relative = path.relative_to(root)
-        except ValueError:
-            relative = path
-        if _is_excluded_scan_path(relative):
-            continue
+    for path in _iter_project_files(root):
         if _is_text_file(path):
             files.append(path)
     return sorted(files)
@@ -185,7 +280,17 @@ def scan_text_file_encoding(path: Path) -> list[TextEncodingIssue]:
 def scan_implicit_text_io(root: Path) -> list[TextEncodingIssue]:
     issues: list[TextEncodingIssue] = []
     root = Path(root)
-    candidates = [root] if root.is_file() else sorted(root.rglob("*.py"))
+    candidates = (
+        [root]
+        if root.is_file()
+        else sorted(
+            _iter_project_files(
+                root,
+                suffix=".py",
+                extra_excluded_parts=frozenset({"tests"}),
+            )
+        )
+    )
     for path in candidates:
         if path.suffix.lower() != ".py":
             continue
