@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import tempfile
 import unicodedata
 from dataclasses import dataclass
@@ -60,6 +61,13 @@ MOJIBAKE_MARKERS = (
 REPAIR_BLOCKING_ISSUES = {"invalid-utf8", "likely-mojibake"}
 IMPLICIT_TEXT_IO_ALLOW_MARKER = "memory-seed: allow-implicit-text-io"
 STATIC_SCAN_EXCLUDED_PARTS = SCAN_EXCLUDED_PARTS | {"tests"}
+AGENT_WORKTREE_ROOTS = {".claude", ".codex", ".cursor", ".gemini"}
+# Match bundler outputs such as ``katex-HP8lGamR.js`` conservatively; the
+# mixed-case/digit check below keeps ordinary dashed source filenames visible.
+HASH_NAMED_GENERATED_ASSET = re.compile(
+    r"^.+-(?P<digest>[A-Za-z0-9_-]{8,})\.(?:css|js)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -304,11 +312,19 @@ def _is_excluded_scan_path(relative: Path) -> bool:
     parts = set(path_parts)
     if parts & SCAN_EXCLUDED_PARTS:
         return True
-    if len(path_parts) >= 2 and path_parts[0:2] == (".claude", "worktrees"):
-        return True
     for index, part in enumerate(path_parts[:-1]):
+        if part in AGENT_WORKTREE_ROOTS and path_parts[index + 1] == "worktrees":
+            return True
         if part == ".memory-seed" and path_parts[index + 1] in {"archive", "backups"}:
             return True
+    if "assets" in parts:
+        generated_match = HASH_NAMED_GENERATED_ASSET.fullmatch(relative.name)
+        if generated_match:
+            digest = generated_match.group("digest")
+            if any(character.isdigit() for character in digest) and any(
+                character.isupper() for character in digest
+            ):
+                return True
     return False
 
 

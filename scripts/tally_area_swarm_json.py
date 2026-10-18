@@ -47,7 +47,8 @@ for entry_id, label in agreed.items():
     if label not in NOT_A_CHILD:
         split[label].append(entry_id)
 out = sys.argv[1].replace(".json", f"_{pop}_split.json")
-json.dump(dict(split), open(out, "w"), indent=1)
+with open(out, "w", encoding="utf-8") as output_file:
+    json.dump(dict(split), output_file, indent=1)
 print(f"wrote {out}")
 for label, entries in sorted(split.items()):
     print(f"  {label:20} {len(entries):4}")
