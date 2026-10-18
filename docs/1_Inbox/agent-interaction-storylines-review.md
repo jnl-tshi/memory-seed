@@ -90,8 +90,8 @@ flowchart TD
 **Evaluation.** Bootstrap now separates three jobs that dense onboarding prose used to blur:
 locating the project, establishing durable decision authority, and stating executable constraints.
 The two trees optimize first contact for humans and agents; the authority map, ADR heads, and policy
-then explain relationships and rules that a tree cannot. The recorded alternative â€” letting a
-table replace the hierarchy â€” was rejected because it makes individual paths scannable without
+then explain relationships and rules that a tree cannot. The recorded alternative — letting a
+table replace the hierarchy — was rejected because it makes individual paths scannable without
 making the project shape easy to grasp.
 
 ---

@@ -77,6 +77,9 @@ class TextFilesTests(unittest.TestCase):
             root = Path(tmp)
             excluded = [
                 root / ".claude" / "worktrees" / "worker" / "bad.md",
+                root / ".codex" / "worktrees" / "worker" / "bad.md",
+                root / ".cursor" / "worktrees" / "worker" / "bad.md",
+                root / ".gemini" / "worktrees" / "worker" / "bad.md",
                 root / ".memory-seed" / "archive" / "2.1" / "bad.md",
                 root / ".memory-seed" / "backups" / "encoding" / "bad.md",
             ]
@@ -87,6 +90,24 @@ class TextFilesTests(unittest.TestCase):
             issues = scan_text_encoding(root)
 
         self.assertEqual(issues, [])
+
+    def test_encoding_scan_excludes_hash_named_generated_assets_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            assets = root / "web" / "static" / "assets"
+            assets.mkdir(parents=True)
+            suspect = "const glyph = '\u00c3'; const decomposed = 'A\u0303';\n"
+            (assets / "katex-HP8lGamR.js").write_bytes(suspect.encode("utf-8"))
+            handwritten = assets / "hand-authored.js"
+            handwritten.write_bytes(suspect.encode("utf-8"))
+
+            issues = scan_text_encoding(root)
+
+        self.assertEqual({issue.path.name for issue in issues}, {handwritten.name})
+        self.assertEqual(
+            {issue.kind for issue in issues},
+            {"likely-mojibake", "non-nfc"},
+        )
 
     def test_encoding_check_cli_json_reports_issue_paths(self):
         import contextlib
