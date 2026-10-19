@@ -30,6 +30,11 @@ All notable changes to Memory Seed are summarized here.
   - `update` rewrites the pin, and `doctor` reports an unpinned or older entry as stale until `update` runs.
 ### Fixed
 
+- [2026-10-19] **Hosted capture no longer replays paused JSONL bytes after a Linux append.**
+  - Source cursors now use stable device/inode identity instead of POSIX `ctime`, which changes whenever a file is appended.
+  - Existing three-part cursor identities migrate in place without being mistaken for a rotation.
+- [2026-10-19] **Session clean-advisory contract tests are stable across UTC midnight.**
+  - Synthetic stale entry timestamps are now written to the hook's current-day target, so the tests exercise advisory age rather than accidentally switching the target file.
 - [2026-09-29] **Runtime discovery no longer mistakes a `.agents` folder for the legacy `.AGENTS` runtime.**
   - On case-insensitive filesystems (Windows, default macOS), the legacy check also matched `.agents`: Memory Seed's own persona folder, and the user-level skills folder other agents keep in the home directory.
   - A command run in a folder without `.memory-seed/` could therefore adopt `~/.agents` as its runtime. A test fixture's session log and the identity-offer stamp had been written there.

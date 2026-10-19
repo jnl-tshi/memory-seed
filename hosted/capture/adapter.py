@@ -19,7 +19,23 @@ def _rollout_id(path: Path) -> str:
 
 def _identity(path: Path) -> str:
     stat = path.stat()
-    return f"{getattr(stat, 'st_dev', 0)}:{getattr(stat, 'st_ino', 0)}:{stat.st_ctime_ns}"
+    device = getattr(stat, "st_dev", 0)
+    inode = getattr(stat, "st_ino", 0)
+    if device or inode:
+        return f"{device}:{inode}"
+    return f"ctime:{stat.st_ctime_ns}"
+
+
+def _same_file_identity(recorded: str, current: str) -> bool:
+    if recorded == current:
+        return True
+    current_parts = current.split(":")
+    recorded_parts = recorded.split(":")
+    return (
+        len(current_parts) == 2
+        and len(recorded_parts) == 3
+        and recorded_parts[:2] == current_parts
+    )
 
 
 def _head(path: Path) -> str:
@@ -49,7 +65,10 @@ class CaptureAdapter:
         identity = _identity(path)
         head = _head(path)
         size = path.stat().st_size
-        rotated = size < cursor.byte_offset or identity != cursor.file_identity
+        rotated = size < cursor.byte_offset or not _same_file_identity(
+            cursor.file_identity,
+            identity,
+        )
         if not rotated and cursor.byte_offset > 0 and cursor.head_sha256 != head:
             with path.open("rb") as stream:
                 prefix = stream.read(min(cursor.byte_offset, 4096))
