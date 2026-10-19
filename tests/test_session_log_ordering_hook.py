@@ -48,9 +48,17 @@ class SessionLogOrderingHookTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _write_entry(self, cwd, when=None, title="entry", entry_id="mse_0123456789abcdef"):
+    def _write_entry(
+        self,
+        cwd,
+        when=None,
+        title="entry",
+        entry_id="mse_0123456789abcdef",
+        *,
+        target_day=None,
+    ):
         when = when or datetime.datetime.now()
-        day = when.strftime("%Y-%m-%d")
+        day = (target_day or when).strftime("%Y-%m-%d")
         target = self._flat_target(cwd, day)
         existing = target.read_text(encoding="utf-8") if target.exists() else ""
         target.write_text(
@@ -104,8 +112,9 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
     def test_time_alone_does_not_create_debt_or_escalation(self):
         cwd = self.make_git_project()
-        old = datetime.datetime.now() - datetime.timedelta(minutes=30)
-        self._write_entry(cwd, old)
+        moment = datetime.datetime.now().replace(second=0, microsecond=0)
+        old = moment - datetime.timedelta(minutes=30)
+        self._write_entry(cwd, old, target_day=moment)
         first = self._run(cwd, "--codex")
         second = self._run(cwd, "--codex")
         third = self._run(cwd, "--codex")
@@ -169,8 +178,9 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
     def test_clean_advisory_uses_entry_timestamp_not_file_mtime(self):
         cwd = self.make_git_project()
-        old = datetime.datetime.now() - datetime.timedelta(minutes=30)
-        target = self._write_entry(cwd, old)
+        moment = datetime.datetime.now().replace(second=0, microsecond=0)
+        old = moment - datetime.timedelta(minutes=30)
+        target = self._write_entry(cwd, old, target_day=moment)
         os.utime(target, None)
         out = self._run(cwd, "--codex")
         self.assertIn("SELF-CHECK", out)

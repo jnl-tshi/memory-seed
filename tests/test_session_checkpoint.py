@@ -25,8 +25,15 @@ class SessionCheckpointTests(unittest.TestCase):
         return root
 
     @staticmethod
-    def write_entry(root, now, entry_id="mse_0123456789abcdef", title="checkpoint"):
-        day = now.strftime("%Y-%m-%d")
+    def write_entry(
+        root,
+        now,
+        entry_id="mse_0123456789abcdef",
+        title="checkpoint",
+        *,
+        target_day=None,
+    ):
+        day = (target_day or now).strftime("%Y-%m-%d")
         target = root / ".memory-seed" / "sessions" / day[:7] / f"{day}.md"
         target.parent.mkdir(parents=True, exist_ok=True)
         prior = target.read_text(encoding="utf-8") if target.exists() else ""
@@ -438,10 +445,11 @@ class SessionCheckpointHookContractTests(unittest.TestCase):
     def test_clean_advisory_is_non_escalating_and_one_time(self):
         from memory_seed.session_checkpoint import inspect_checkpoint
 
-        now = datetime.now() - timedelta(minutes=16)
+        moment = datetime.now().replace(second=0, microsecond=0)
+        now = moment - timedelta(minutes=16)
         root = self.make_project()
-        self.write_entry(root, now)
-        inspect_checkpoint(root, now=now)
+        self.write_entry(root, now, target_day=moment)
+        inspect_checkpoint(root, now=moment)
 
         first = self.run_hook(root, "codex")
         second = self.run_hook(root, "codex")
@@ -455,10 +463,11 @@ class SessionCheckpointHookContractTests(unittest.TestCase):
 
         for agent in ("claude", "vscode", "codex", "gemini", "cursor", "copilot"):
             with self.subTest(agent=agent):
-                now = datetime.now() - timedelta(minutes=16)
+                moment = datetime.now().replace(second=0, microsecond=0)
+                now = moment - timedelta(minutes=16)
                 root = self.make_project()
-                self.write_entry(root, now)
-                inspect_checkpoint(root, now=now)
+                self.write_entry(root, now, target_day=moment)
+                inspect_checkpoint(root, now=moment)
 
                 data = self.run_hook(root, agent, {"hook_event_name": "Stop"} if agent in {"claude", "vscode"} else {})
 

@@ -911,6 +911,8 @@ graph TD
   capture validates version/checkpoint identity and queues JSONL events into disposable SQLite. Accepted
   records remain source-linked and inert until governed use. The provider-neutral advisory curator compares
   an accepted record with existing decision/topic candidates before opening any bounded source question.
+  Pause/resume remains no-backfill: stable device/inode cursor identity prevents POSIX appends from looking
+  like rotations, while legacy `device:inode:ctime` cursors migrate without replay.
 - The frozen evaluation corpus contains 103 formal records (100 Decisions and three Documentation controls)
   plus synthetic reliability controls. Historical marker-assisted source-window recall was 89.6% (60/67),
   below the 95% gate and not a measure of autonomous extraction. Historical source-alignment research is

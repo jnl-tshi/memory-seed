@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from hosted.capture.adapter import CaptureAdapter
@@ -134,6 +135,26 @@ class StoreAndAdapterTests(unittest.TestCase):
         self.adapter.poll([self.rollout])
         self.assertEqual(self.store.status()["queued"], 1)
         self.assertGreaterEqual(self.store.status()["gaps"], 1)
+
+    def test_legacy_ctime_identity_migrates_without_replay(self):
+        self.rollout.write_bytes(self.meta)
+        self.adapter.poll([self.rollout])
+        source_key = str(self.rollout.resolve())
+        cursor = self.store.cursor_for(source_key)
+        legacy_identity = ":".join([*cursor.file_identity.split(":")[:2], "0"])
+        self.store.set_boundary(
+            replace(cursor, file_identity=legacy_identity),
+            "legacy_identity",
+            cursor.byte_offset,
+        )
+
+        with self.rollout.open("ab") as stream:
+            stream.write(self.user)
+        self.adapter.poll([self.rollout])
+
+        migrated = self.store.cursor_for(source_key)
+        self.assertEqual(migrated.generation, cursor.generation)
+        self.assertEqual(self.store.status()["queued"], 2)
 
     def test_claims_are_lease_safe_across_store_instances(self):
         self.rollout.write_bytes(self.meta)
