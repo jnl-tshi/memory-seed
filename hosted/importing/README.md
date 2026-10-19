@@ -4,7 +4,7 @@ R0 freezes the source vocabulary that the hosted PostgreSQL import must preserve
 
 ## Artifacts
 
-- `inventory.json` records the completed R0 census: 104 session files, 1,282 session headings, 67 living ADRs with 290 events, 1,481 link assertions, 1,175 topic assertions, 117 diagram assertions, 30 Constitution clause anchors, and 113 archived files. It also records the complete observed field and actor vocabularies.
+- `inventory.json` records the 2.24.0 release-checkpoint census: 108 session files, 1,290 session headings, 67 living ADRs with 290 events, 1,489 link assertions, 1,183 topic assertions, 117 diagram assertions, 30 Constitution clause anchors, and 115 archived files. It also records the complete observed field and actor vocabularies.
 - `crosswalk.yaml` is JSON-compatible YAML. Every observed field has an explicit authority classification and PostgreSQL destination. Structural containers are the only entries allowed to have no column target.
 - `actors.yaml` keeps member identity, agent identity, authorship, provenance source, and legacy display labels separate. The legacy `USER` placeholder is preserved but cannot grant access.
 - `inventory.py` rescans live Markdown using the repository's canonical session-layout iterator and a dependency-free lexical block reader. The lexical reader intentionally accepts historical sidecars containing unquoted colons that generic YAML parsers reject.

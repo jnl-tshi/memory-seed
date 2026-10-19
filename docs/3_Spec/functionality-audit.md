@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.23
+memory-system-version: 2.24
 tags:
   - memory-seed
   - audit
@@ -8,13 +8,12 @@ tags:
 
 # Memory Seed - Functionality Audit
 
-> **Current reconciliation — 2026-10-18.** This revision supersedes the audit's former July/August
-> current-state claims. It covers the released local OSS surface through `2.23.0`, the post-`2.23.0`
-> checkout work recorded under `CHANGELOG.md`'s Unreleased section, and the separately scoped hosted
-> team-edition programme. Historical roadmap material remains in Appendix A for provenance only.
+> **Current reconciliation — 2026-10-19.** This revision supersedes the audit's former July/August
+> current-state claims. It covers the released local OSS surface through `2.24.0` and the separately
+> scoped hosted team-edition programme. Historical roadmap material remains in Appendix A for
+> provenance only.
 
-**As of:** 2026-10-18 — control plane `2.23`; checkout package `2.23.0`; latest published package
-`2.22.0`; post-`2.23.0` work remains unreleased.
+**As of:** 2026-10-19 — control plane `2.24`; checkout package and latest published package `2.24.0`.
 
 **Scope:** current local OSS and hosted-edition functionality, subsystem relationships, data flows,
 verification surfaces, known debt, and the active roadmap. Source/config files remain implementation
@@ -178,7 +177,7 @@ graph TD
 ## 3. Feature inventory (current)
 
 Unless a bullet explicitly says **Unreleased** or **Planned**, this section describes behaviour present in
-the `2.23.0` checkout. Versioned historical qualifiers are retained only where they explain when a contract
+the `2.24.0` checkout. Versioned historical qualifiers are retained only where they explain when a contract
 entered the product; they are not release-status labels.
 
 ### A. Distribution & packaging
@@ -583,7 +582,7 @@ graph TD
   graph/topic/ADR inspection, worktree and branch posture, Design Discovery evidence/assessment, Task Packet
   compilation/rendering/governance loading, provenance, telemetry, and ESR all expose the same core services
   as the CLI. Read-only tools never grant write authority; write tools preserve the same structural guards as
-  their CLI counterparts. Design Discovery v2 and Git-common telemetry are post-`2.23.0` Unreleased work.
+  their CLI counterparts. Design Discovery v2 and Git-common telemetry shipped in `2.24.0`.
 - `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections), `memory_get_chunk` (full text for one `chunk_id`), inline/profile-aware `memory_retrieval_spec_preview` and `memory_retrieval_spec_resolve`, and the read-only `memory_task_packet_preview` / `memory_task_packet_compile` pair. The Task Packet tools return derived artifacts inline and accept no export path. Authoring tools split into a read-only pair and a write pair: `memory_link_suggest` (rank older entries to link — paste-ready `related_entries`) and `memory_link_show` (one entry's graph node) remain read-only, while `memory_session_append` (author an entry through every write-time guard; `dry_run` pre-flights) and `memory_session_integrate` (merge + fuse a task branch) are the MCP **write** path. Together they close the write-side loop the retrieval tools open on the read side. The earlier read-only `memory_session_target` and `memory_entry_id` tools were removed and subsumed by `memory_session_append`'s `dry_run`. Topic-management tools are `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`, all read-only wrappers over the project-local topic index and `topics check` semantics. Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture), `memory_worktree_guard` (read-only agent namespace pre-write classification), `memory_worktree_home` (persistent home lifecycle), and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Since 2.16, retrieval is a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
 - `retrieval.py` (**shipped in 2.16.0 - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
 - **MCP skill surface (shipped).** `skills/index.md` routes tools to the same lazy-loaded runbooks as their CLI workflows. Most tools are read-only, but MCP is not a read-only surface: session append and integration are guarded writes, and Task Packet, ADR, discovery, provenance, and telemetry adapters reuse their core validation. Constitution v2.5's write-surface parity rule requires every memory write to pass identical validation regardless of surface. Topic-index edits and root-write overrides remain CLI/direct-file operations with the normal authorization gates.

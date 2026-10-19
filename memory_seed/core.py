@@ -28,10 +28,10 @@ from .text_files import (
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.23"
+VERSION = "2.24"
 # The published package version (pyproject.toml). Pins the MCP server that `init`
 # and `update` write into agent configs; tests/test_mcp_merge.py guards the match.
-PACKAGE_VERSION = "2.23.0"
+PACKAGE_VERSION = "2.24.0"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"

@@ -19,7 +19,7 @@ class ProcessMatchingTests(unittest.TestCase):
             ProcessInfo(103, "uv.exe", None, ("uv", "tool", "uvx", "--from", "memory-seed", "memory-seed-mcp")),
             ProcessInfo(104, "pipx.exe", None, ("pipx", "run", "memory-seed", "memory-seed-mcp")),
             # the version-pinned launch that init/update now write
-            ProcessInfo(106, "uvx.exe", None, ("uvx", "--from", "memory-seed==2.23.0", "memory-seed-mcp", "--stdio")),
+            ProcessInfo(106, "uvx.exe", None, ("uvx", "--from", "memory-seed==2.24.0", "memory-seed-mcp", "--stdio")),
             ProcessInfo(
                 105,
                 "python.exe",

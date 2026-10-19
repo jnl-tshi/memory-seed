@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.23
+memory-system-version: 2.24
 governing_adr: adr_session_decision_authority
 tags:
   - memory-seed

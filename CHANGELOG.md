@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.24.0 - 2026-10-19
+
 ### Added
 
 - [2026-10-04] **Design Discovery v2 makes prior-authority review enforceable.**

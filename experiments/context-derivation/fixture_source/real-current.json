@@ -1,13 +1,13 @@
 {
   "schema": "context-fixture-source.v1",
   "fixture_id": "real-current",
-  "base_sha": "81069fd0cdb46759b0cf1ca35ddb979e4003ca03",
-  "description": "Frozen slice of the three live ADRs and the seven session entries needed to validate their decision evidence.",
-  "maintenance_note": "No regeneration script exists - these sha256 pins are hand-updated by re-hashing each path at a chosen commit (see base_sha) whenever a source file drifts. Drifted and was hand-fixed 2026-08-12 (fdcefb3c) and again 2026-09-01 (see that day's session log) - both times discovered only because a test happened to fail, not proactively. If this drifts again, re-hash every path in adr_sources/session_sources against the current tree (not just the one the failing test names first - check all of them) and update base_sha to match.",
+  "base_sha": "e5bf059abdce4d1c9a83fd201fed932818d2e4cf",
+  "description": "Frozen slice of the three live ADRs and the eight session entries needed to validate their decision evidence.",
+  "maintenance_note": "No regeneration script exists - these sha256 pins are hand-updated by re-hashing each path at a chosen commit (see base_sha) whenever a source file drifts. Drifted and was hand-fixed 2026-08-12 (fdcefb3c), 2026-09-01 (see that day's session log), and 2026-10-19 during 2.24.0 release preparation. If this drifts again, re-hash every path in adr_sources/session_sources against the current tree (not just the one the failing test names first - check all of them) and update base_sha to match.",
   "adr_sources": [
     {
       "path": ".memory-seed/decisions/adr_mcp_decision_envelope_review.md",
-      "sha256": "701e266329b0ac33c38a3598ffaa397508c8d1daa3900479cc35ce82b23ff691"
+      "sha256": "c6cc72096a2e189b50b498306937a659869a06b8882219ab957eecb385e8ad13"
     },
     {
       "path": ".memory-seed/decisions/adr_parent_first_sidecar_transaction.md",
@@ -15,7 +15,7 @@
     },
     {
       "path": ".memory-seed/decisions/adr_session_decision_authority.md",
-      "sha256": "ce6bb14a939cdc79d8d9289da90e62795e523b1b978978ced15b572c27501ce9"
+      "sha256": "38387feffaf52c916db8b2040609d49bfe46a1e1461bb184e54f5ab7db1fb7d6"
     }
   ],
   "session_sources": [
@@ -43,6 +43,11 @@
       "path": ".memory-seed/sessions/2026-08/2026-08-10.md",
       "sha256": "e9cdf0e8389dd05a2450df6219ebbfd8d7cc1687763b325fca4af5c9985acbee",
       "entry_ids": ["mse_axkrkd339br970kw"]
+    },
+    {
+      "path": ".memory-seed/sessions/2026-10/2026-10-04.md",
+      "sha256": "5dc903fce7eb4b9981551e9e3230394503dc202df1edd4e2b84a7d329dd89f12",
+      "entry_ids": ["mse_2w2dyj7bzk18j1dd"]
     }
   ],
   "distractor_refs": [
