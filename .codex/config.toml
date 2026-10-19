@@ -1,3 +1,3 @@
 [mcp_servers.memory-seed]
 command = "uvx"
-args = ["--from", "memory-seed==2.23.0", "memory-seed-mcp", "--stdio"]
+args = ["--from", "memory-seed==2.24.0", "memory-seed-mcp", "--stdio"]

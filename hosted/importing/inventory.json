@@ -3,18 +3,18 @@
   "counts": {
     "adr_events": 290,
     "adrs": 67,
-    "archive_files": 113,
+    "archive_files": 115,
     "constitution_clauses": 30,
     "diagram_assertions": 117,
     "diagram_sidecar_files": 30,
-    "link_assertions": 1481,
-    "link_sidecar_files": 91,
+    "link_assertions": 1489,
+    "link_sidecar_files": 94,
     "project_manifests": 1,
-    "session_entries": 1282,
-    "session_files": 104,
-    "topic_assertions": 1175,
+    "session_entries": 1290,
+    "session_files": 108,
+    "topic_assertions": 1183,
     "topic_catalogs": 1,
-    "topic_sidecar_files": 96
+    "topic_sidecar_files": 99
   },
   "families": [
     "archive-snapshots",
@@ -230,11 +230,11 @@
       "claude": 756,
       "claude-opus-4-8": 25,
       "claude-sonnet-4-6": 20,
-      "codex": 539
+      "codex": 547
     },
     "decision_origins": {
-      "agent": 72,
-      "user": 100
+      "agent": 76,
+      "user": 107
     },
     "legacy_agent_names": {
       "<null>": 252,
@@ -259,14 +259,14 @@
       "derived": 926,
       "human-amendment": 4,
       "reconstructed": 2,
-      "write-time": 734
+      "write-time": 749
     },
     "user_initials": {
-      "JNL": 1336,
+      "JNL": 1344,
       "USER": 4
     }
   },
-  "captured_at": "2026-10-04",
-  "captured_from": "full live Markdown corpus at the completed R0 checkpoint",
+  "captured_at": "2026-10-19",
+  "captured_from": "full live Markdown corpus at the 2.24.0 release checkpoint",
   "classification_status": "zero_unknowns"
 }
