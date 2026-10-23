@@ -12936,9 +12936,14 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
         warnings.append(
             f".gitattributes merge rules for session memory are {attributes_state}: Git can "
             "silently splice concurrent session entries during a line-based merge. Run "
-            "`memory-seed update` to add them. They make a raw merge conflict instead of "
-            "corrupting; integrate with `memory-seed session merge-branch` (local) or "
-            "`memory-seed session open-pr` (pr mode)."
+            "`memory-seed update` to add them"
+            + (
+                " (a later rule or a nested .gitattributes re-enables merging; check "
+                "`git check-attr merge -- .memory-seed/sessions/x.md`)"
+                if attributes_state == "overridden" else ""
+            )
+            + ". They make a raw merge conflict instead of corrupting; integrate with "
+            "`memory-seed session merge-branch` (local) or `memory-seed session open-pr` (pr mode)."
         )
 
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
@@ -13272,43 +13277,85 @@ def _managed_gitattributes_block(newline: str) -> str:
     return newline.join(lines) + newline
 
 
+# One representative path per protected tree, for asking Git which merge
+# attribute actually applies after every rule and nested file is weighed.
+_MANAGED_GITATTRIBUTES_PROBES = (
+    ".memory-seed/sessions/2000-01/2000-01-01.md",
+    ".memory-seed/reflections/active/probe.md",
+)
+
+
+def _effective_merge_unset(target_root: Path) -> bool | None:
+    """True when Git resolves `merge: unset` for every protected tree, False
+    when a later or nested rule overrides it, None outside a Git checkout."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(target_root), "check-attr", "merge", "--", *_MANAGED_GITATTRIBUTES_PROBES],
+            capture_output=True, text=True, timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    values = [line.rsplit(":", 1)[-1].strip() for line in proc.stdout.splitlines() if line.strip()]
+    return len(values) == len(_MANAGED_GITATTRIBUTES_PROBES) and all(value == "unset" for value in values)
+
+
+def _read_gitattributes(path: Path) -> str:
+    # surrogateescape round-trips any foreign bytes, valid UTF-8 or not.
+    return path.read_bytes().decode("utf-8", errors="surrogateescape") if path.is_file() else ""
+
+
 def _managed_gitattributes_state(target_root: Path) -> str:
-    """Return 'current', 'missing' or 'stale' for the managed block, judged on
-    the rules themselves so an unmanaged copy of them also counts as current."""
+    """Return 'current', 'missing', 'stale' or 'overridden'. The rules count
+    wherever they appear, but only if Git still resolves them as effective."""
     path = target_root / ".gitattributes"
     if not path.is_file():
         return "missing"
-    text = path.read_bytes().decode("utf-8", errors="replace")
-    lines = [line.strip() for line in text.splitlines()]
-    if all(rule in lines for rule in MANAGED_GITATTRIBUTES_RULES):
-        return "current"
-    return "stale" if MANAGED_GITATTRIBUTES_BEGIN in lines else "missing"
+    lines = [line.strip() for line in _read_gitattributes(path).splitlines()]
+    if not all(rule in lines for rule in MANAGED_GITATTRIBUTES_RULES):
+        return "stale" if MANAGED_GITATTRIBUTES_BEGIN in lines else "missing"
+    if _effective_merge_unset(target_root) is False:
+        return "overridden"
+    return "current"
 
 
 def _ensure_managed_gitattributes(target_root: Path) -> bool:
     """Add or refresh the managed merge rules, leaving every byte outside the
-    managed block (including its line endings) untouched."""
-    if _managed_gitattributes_state(target_root) == "current":
+    managed block (including its line endings and any non-UTF-8 bytes)
+    untouched. An overridden block is moved to the end of the file, where it
+    outranks earlier rules in the same file."""
+    state = _managed_gitattributes_state(target_root)
+    if state == "current":
         return False
     path = target_root / ".gitattributes"
-    raw = path.read_bytes().decode("utf-8") if path.is_file() else ""
+    raw = _read_gitattributes(path)
     newline = "\r\n" if "\r\n" in raw else "\n"
     block = _managed_gitattributes_block(newline)
+    original = raw
     start = raw.find(MANAGED_GITATTRIBUTES_BEGIN)
     end = raw.find(MANAGED_GITATTRIBUTES_END, start + 1) if start >= 0 else -1
     if start >= 0 and end >= 0:
         stop = end + len(MANAGED_GITATTRIBUTES_END)
         if raw.startswith(newline, stop):
             stop += len(newline)
-        updated = raw[:start] + block + raw[stop:]
-    else:
-        prefix = raw
-        if prefix and not prefix.endswith(("\n", "\r\n")):
-            prefix += newline
-        if prefix:
-            prefix += newline
-        updated = prefix + block
-    path.write_bytes(updated.encode("utf-8"))
+        raw = raw[:start] + raw[stop:]
+        if state != "overridden":
+            # Refresh in place: same position, current rules.
+            updated = raw[:start] + block + raw[start:]
+            path.write_bytes(updated.encode("utf-8", errors="surrogateescape"))
+            return True
+    prefix = raw
+    if prefix and not prefix.endswith(("\n", "\r\n")):
+        prefix += newline
+    if prefix and not prefix.endswith(newline * 2):
+        prefix += newline
+    updated = prefix + block
+    if updated == original:
+        # Already last in this file, so the override comes from a nested
+        # .gitattributes that only the project owner can change; doctor says so.
+        return False
+    path.write_bytes(updated.encode("utf-8", errors="surrogateescape"))
     return True
 
 

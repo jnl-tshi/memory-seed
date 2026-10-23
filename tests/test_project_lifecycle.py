@@ -808,6 +808,50 @@ class ProjectLifecycleTests(unittest.TestCase):
 
         self.assertIn("merge: unset", out)
 
+    def test_managed_merge_rules_survive_non_utf8_foreign_bytes(self):
+        cwd = self.make_project()
+        foreign = b"# r\xe9gle h\xe9rit\xe9e (latin-1)\n*.png binary\n"
+        (cwd / ".gitattributes").write_bytes(foreign)
+
+        init_project(cwd=cwd)
+
+        written = (cwd / ".gitattributes").read_bytes()
+        self.assertTrue(written.startswith(foreign))
+        self.assertIn(b".memory-seed/sessions/** -merge\n", written)
+
+    def test_overridden_merge_rules_are_reported_and_moved_last(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        path = cwd / ".gitattributes"
+        path.write_text(path.read_text(encoding="utf-8") + ".memory-seed/sessions/** merge\n", encoding="utf-8")
+
+        self.assertIn("are overridden", " ".join(doctor(cwd=cwd).warnings))
+        result = update_project(cwd=cwd)
+
+        self.assertIn(".gitattributes", result.created)
+        out = subprocess.run(
+            ["git", "-C", str(cwd), "check-attr", "merge", "--", ".memory-seed/sessions/2026-10/x.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        self.assertIn("merge: unset", out)
+        self.assertTrue(path.read_text(encoding="utf-8").rstrip().endswith("memory-seed managed merge rules <<<"))
+        self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
+
+    def test_nested_override_is_reported_without_churn(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        (cwd / ".memory-seed" / "sessions").mkdir(parents=True, exist_ok=True)
+        (cwd / ".memory-seed" / "sessions" / ".gitattributes").write_text("* merge\n", encoding="utf-8")
+
+        self.assertIn("nested .gitattributes", " ".join(doctor(cwd=cwd).warnings))
+        self.assertNotIn(".gitattributes", update_project(cwd=cwd).created)
+
     def test_doctor_reports_unresolved_skill_references(self):
         cwd = self.make_project()
         init_project(cwd=cwd, skill_profiles={"coding"})
