@@ -355,6 +355,7 @@ class InitResult:
     created: list[str] = field(default_factory=list)
     backed_up: list[str] = field(default_factory=list)
     archived: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -10458,7 +10459,19 @@ CORE_SKILL_NAMES = (
     "memory_doctor.md",
     "memory_consolidation.md",
     "subproject_runtime.md",
+    # Task Packets keep delegated workers aligned with ADRs and decisions, so the
+    # collaboration skill that defines them ships with every runtime.
+    "agent_collaboration.md",
 )
+
+# Profiles that no longer exist. Project configs naming them are migrated by
+# `update`; asking for them explicitly gets this explanation instead.
+REMOVED_SKILL_PROFILES: dict[str, str] = {
+    "collaboration": (
+        "The 'collaboration' skill profile was removed: agent_collaboration.md "
+        "(Task Packets and handoffs) is now a core skill and is always installed."
+    ),
+}
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
@@ -10476,10 +10489,6 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
     "security": SkillProfile(
         "Security-sensitive review, secret handling, and permission-risk triage.",
         ("security_triage.md",),
-    ),
-    "collaboration": SkillProfile(
-        "Multi-agent, worktree, branch, and handoff coordination.",
-        ("agent_collaboration.md",),
     ),
     "planning": SkillProfile(
         "Proposal lifecycle management and evidence-backed consequential design discovery.",
@@ -11994,6 +12003,9 @@ def _normalise_profile_names(values: set[str] | Sequence[str] | None) -> set[str
     if not values:
         return set()
     profiles = {value.strip().lower() for value in values if value.strip()}
+    removed = sorted(profiles & set(REMOVED_SKILL_PROFILES))
+    if removed:
+        raise ValueError(" ".join(REMOVED_SKILL_PROFILES[name] for name in removed))
     unknown = sorted(profiles - set(SKILL_PROFILES))
     if unknown:
         raise ValueError(
@@ -12101,6 +12113,33 @@ def read_project_skill_selection(target_root: Path) -> SkillSelection:
         ignored=set(OPTIONAL_SKILL_NAMES) - installed,
         explicit=False,
     )
+
+
+def _legacy_skill_config_notes(target_root: Path) -> list[str]:
+    """Explain project.yaml skill entries that ``update`` will drop: removed
+    profiles, and core skills still listed as selected or ignored optionals."""
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return []
+    try:
+        block = _extract_yaml_block(read_text_file(path), "skills")
+    except OSError:
+        return []
+    if block is None:
+        return []
+    _saw, profiles = _read_top_level_list(block, "profiles")
+    _saw, selected = _read_top_level_list(block, "selected")
+    _saw, ignored = _read_top_level_list(block, "ignored")
+    notes = [
+        f"Removed profile '{name}' from skills.profiles. {REMOVED_SKILL_PROFILES[name]}"
+        for name in sorted(profiles & set(REMOVED_SKILL_PROFILES))
+    ]
+    for key, listed in (("selected", selected), ("ignored", ignored)):
+        for skill in sorted(listed & set(CORE_SKILL_NAMES)):
+            notes.append(
+                f"Removed {skill} from skills.{key}: it is now a core skill and is always installed."
+            )
+    return notes
 
 
 def _replace_top_level_block(text: str, key: str, block: str) -> str:
@@ -12402,9 +12441,20 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     planned = [seed_file.destination for seed_file in seed_files]
     if "proposal_lifecycle.md" in skill_selection.selected:
         planned.extend(PROPOSAL_LIFECYCLE_ARTIFACTS)
+    skill_config_notes = _legacy_skill_config_notes(target_root)
 
     if dry_run:
-        return InitResult(changed=False, planned=planned)
+        return InitResult(changed=False, planned=planned, notes=skill_config_notes)
+
+    if skill_config_notes:
+        # The reader already ignores removed profiles and core names, so
+        # rewriting from the parsed selection drops exactly those entries.
+        _write_project_skills(
+            target_root,
+            profiles=skill_selection.profiles,
+            selected=skill_selection.selected,
+            ignored=skill_selection.ignored,
+        )
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     created: list[str] = []
@@ -12480,11 +12530,12 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         pass
 
     return InitResult(
-        changed=bool(created or backed_up or archived),
+        changed=bool(created or backed_up or archived or skill_config_notes),
         planned=planned,
         created=created,
         backed_up=backed_up,
         archived=archived,
+        notes=skill_config_notes,
     )
 
 
@@ -12584,6 +12635,8 @@ def skill_status(cwd: str | Path = ".") -> SkillStatus:
 def add_skill(cwd: str | Path = ".", name: str = "") -> dict:
     target_root = Path(cwd).resolve()
     profile_name = name.strip().lower()
+    if profile_name in REMOVED_SKILL_PROFILES:
+        return {"changed": False, "message": REMOVED_SKILL_PROFILES[profile_name], "created": []}
     selection = read_project_skill_selection(target_root)
     profiles = set(selection.profiles)
     if profile_name in SKILL_PROFILES:
@@ -12681,6 +12734,44 @@ def remove_skill(cwd: str | Path = ".", skill: str = "") -> dict:
         "removed": removed,
         "backed_up": backed_up,
     }
+
+
+_SKILL_REFERENCE_RE = re.compile(r"[A-Za-z0-9_-]+\.md")
+
+
+def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
+    """Warn for each installed control-plane file that names an optional skill
+    which is not installed, so dangling routing is visible in doctor output."""
+    memory_dir = target_root / MEMORY_DIR_NAME
+    skills_dir = memory_dir / "skills"
+    sources = [memory_dir / "agent-rules.md"]
+    sources.extend(
+        path for path in sorted(skills_dir.glob("*.md")) if path.name != "index.md"
+    )
+    missing_by_skill: dict[str, list[str]] = {}
+    for source in sources:
+        if not source.is_file():
+            continue
+        try:
+            text = read_text_file(source)
+        except OSError:
+            continue
+        for skill in sorted(set(_SKILL_REFERENCE_RE.findall(text)) & set(OPTIONAL_SKILL_NAMES)):
+            if (skills_dir / skill).exists():
+                continue
+            rel = source.relative_to(target_root).as_posix()
+            missing_by_skill.setdefault(skill, []).append(rel)
+    warnings: list[str] = []
+    for skill, referrers in sorted(missing_by_skill.items()):
+        profiles = sorted(name for name, profile in SKILL_PROFILES.items() if skill in profile.skills)
+        warnings.append(
+            f"{', '.join(referrers)} reference{'s' if len(referrers) == 1 else ''} "
+            f".memory-seed/skills/{skill}, which is not installed. Agents told to load it "
+            f"will find nothing. Install it with `memory-seed skills add "
+            f"{profiles[0] if profiles else skill}`, or ignore this if the project "
+            "never needs that workflow."
+        )
+    return warnings
 
 
 def doctor(cwd: str | Path = ".") -> DoctorResult:
@@ -12796,6 +12887,13 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                     "in skills/index.md (orphan skill). Add a trigger entry referencing it, "
                     "or remove the file."
                 )
+
+    # Reference-closure check: installed rules and skills must not send agents to a
+    # skill file that isn't there. A missing core skill already fails through
+    # `missing`; a reference to an uninstalled optional skill is a warning naming
+    # the profile that provides it.
+    if skills_dir.is_dir():
+        warnings.extend(_unresolved_skill_reference_warnings(target_root))
 
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
     # files must route into it (be ours, or a foreign file carrying our managed block).

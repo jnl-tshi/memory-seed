@@ -646,6 +646,80 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertNotIn(".memory-seed/skills/code_search.md", result.created)
         self.assertTrue(doctor(cwd=cwd).control_plane_ok)
 
+    def test_task_packet_skill_is_core_for_any_profile_set(self):
+        # Gagiste (2026-10-23) chose these profiles and never received the
+        # Task Packet skill that its installed rules pointed to (MSI-012).
+        cwd = self.make_project()
+
+        init_project(cwd=cwd, skill_profiles={"coding", "security", "planning", "diagramming"})
+
+        self.assertIn("agent_collaboration.md", CORE_SKILL_NAMES)
+        self.assertNotIn("agent_collaboration.md", OPTIONAL_SKILL_NAMES)
+        self.assertNotIn("collaboration", SKILL_PROFILES)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "agent_collaboration.md").exists())
+        project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("agent_collaboration.md", project_yaml)
+        self.assertTrue(doctor(cwd=cwd).control_plane_ok)
+
+    def test_removed_collaboration_profile_is_explained_not_aliased(self):
+        cwd = self.make_project()
+
+        with self.assertRaisesRegex(ValueError, "agent_collaboration.md .* is now a core skill"):
+            init_project(cwd=cwd, skill_profiles={"collaboration"})
+
+        init_project(cwd=cwd)
+        result = add_skill(cwd=cwd, name="collaboration")
+        self.assertFalse(result["changed"])
+        self.assertIn("now a core skill", result["message"])
+
+    def test_update_migrates_legacy_collaboration_entries(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        text = project_yaml.read_text(encoding="utf-8")
+        text = text.replace("  profiles:\n", "  profiles:\n    - collaboration\n", 1)
+        text = text.replace("  ignored:\n", "  ignored:\n    - agent_collaboration.md\n", 1)
+        project_yaml.write_text(text, encoding="utf-8")
+        (cwd / ".memory-seed" / "skills" / "agent_collaboration.md").unlink()
+
+        preview = update_project(cwd=cwd, dry_run=True)
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(preview.notes, result.notes)
+        self.assertEqual(len(result.notes), 2)
+        self.assertTrue(any("Removed profile 'collaboration'" in note for note in result.notes))
+        self.assertTrue(any("skills.ignored" in note for note in result.notes))
+        migrated = project_yaml.read_text(encoding="utf-8")
+        self.assertNotIn("collaboration", migrated.split("skills:", 1)[1].split("ignored:", 1)[0])
+        self.assertNotIn("agent_collaboration.md", migrated)
+        self.assertIn("- coding", migrated)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "agent_collaboration.md").exists())
+        self.assertEqual(update_project(cwd=cwd).notes, [])
+
+    def test_doctor_reports_unresolved_skill_references(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        rules = cwd / ".memory-seed" / "agent-rules.md"
+        rules.write_text(
+            rules.read_text(encoding="utf-8")
+            + "\nLoad `.memory-seed/skills/release_publishing.md` before a release.\n",
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        self.assertTrue(result.control_plane_ok)
+        matching = [w for w in result.warnings if "release_publishing.md" in w]
+        self.assertEqual(len(matching), 1)
+        self.assertIn(".memory-seed/agent-rules.md", matching[0])
+        self.assertIn("memory-seed skills add release", matching[0])
+        self.assertFalse(any("code_search.md, which is not installed" in w for w in result.warnings))
+
+        (cwd / ".memory-seed" / "skills" / "agent_collaboration.md").unlink()
+        broken = doctor(cwd=cwd)
+        self.assertFalse(broken.control_plane_ok)
+        self.assertIn(".memory-seed/skills/agent_collaboration.md", broken.missing)
+
     def test_legacy_project_without_skills_block_preserves_installed_optionals(self):
         cwd = self.make_project()
         init_project(cwd=cwd, skill_profiles=set(SKILL_PROFILES))
