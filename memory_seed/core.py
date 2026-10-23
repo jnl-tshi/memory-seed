@@ -12775,6 +12775,40 @@ def remove_skill(cwd: str | Path = ".", skill: str = "") -> dict:
 _SKILL_REFERENCE_RE = re.compile(r"[A-Za-z0-9_-]+\.md")
 
 
+def _constitution_task_packet_warning(target_root: Path) -> str | None:
+    """Return a non-fatal warning when Task Packets lack ratified authority.
+
+    Mirrors the Task Packet compiler: the same two locations, in the same order,
+    and the same ratified-Version pattern, so doctor never disagrees with it.
+    """
+    from .constitution_projection import CONSTITUTION_VERSION_RE
+
+    version_example = "`**Version:** 1.0 — **RATIFIED YYYY-MM-DD**`"
+    constitution_path = next(
+        (path for path in (target_root / "docs" / "CONSTITUTION.md", target_root / "CONSTITUTION.md")
+         if path.is_file()),
+        None,
+    )
+    if constitution_path is None:
+        return (
+            "No ratified Constitution was found at docs/CONSTITUTION.md, so Task Packets "
+            "cannot be compiled. Create that file and ratify it with a Version line such as "
+            f"{version_example}."
+        )
+    try:
+        text = read_text_file(constitution_path)
+    except (OSError, UnicodeError):
+        text = ""
+    if CONSTITUTION_VERSION_RE.search(text):
+        return None
+    rel = constitution_path.relative_to(target_root).as_posix()
+    return (
+        f"The Constitution at {rel} is a draft, not yet ratified, so Task Packets cannot be "
+        "compiled. After user ratification, add a Version line such as "
+        f"{version_example}."
+    )
+
+
 def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
     """Warn for each installed control-plane file that names an optional skill
     which is not installed, so dangling routing is visible in doctor output."""
@@ -12881,6 +12915,9 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     bootstrap_complete = not bootstrap_missing
 
     warnings: list[str] = list(profile_warnings)
+    constitution_warning = _constitution_task_packet_warning(target_root)
+    if constitution_warning is not None:
+        warnings.append(constitution_warning)
     codex_status = _codex_mcp_status(target_root) if "codex" in selected else "absent"
     if "codex" in selected and (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
         warnings.append(

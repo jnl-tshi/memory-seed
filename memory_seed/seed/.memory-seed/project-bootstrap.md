@@ -97,9 +97,9 @@ Bootstrap is incomplete until these generated files also exist:
 .memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
 ```
 
-`docs/CONSTITUTION.md` is optional. Bootstrap detects and registers an existing Constitution, but
-does not invent one for every project. Create one only when the project has long-lived normative
-invariants that should formally constrain ordinary policy and ADRs.
+Bootstrap detects and registers an existing `docs/CONSTITUTION.md`. When none exists, offer the
+user the Constitution interview in Step 3 so they can choose between drafting one and continuing
+without Task Packets. A Constitution becomes governing authority only after the user ratifies it.
 
 Sub-project runtimes do not need their own root `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` unless the sub-project is meant to be opened independently as a repository.
 
@@ -205,14 +205,26 @@ accepted. Unconfirmed assumptions remain proposed and must not govern policy. Af
 written, a later revision should converge the founding head onto the real session decision rather
 than leave two authorities for the same concern.
 
-### Optional Constitution
+### Constitution
 
-- If a Constitution exists, record its path, version, status, and clause anchors in the authority
-  map. Only a document explicitly declared ratified governs lower control-plane files.
-- If none exists, record `Constitution: none declared`; do not create a dead link or imply authority.
-- Ask whether to create one only when project evidence exposes durable normative invariants that
-  ordinary ADR evolution should not be able to override.
-- A draft or candidate Constitution is evidence, not governing authority.
+- If `docs/CONSTITUTION.md` exists, record its path, version, status, and clause anchors in the
+  authority map. Only a document with explicit ratified Version metadata governs lower control-plane
+  files.
+- If no Constitution exists, offer the user a short interview that asks for:
+  1. the project's durable vision;
+  2. invariants that ordinary policy and ADRs must not override; and
+  3. principles that should guide future decisions.
+- Turn the answers into a concise `docs/CONSTITUTION.md` **DRAFT**. Give every clause a stable
+  `<!-- constitution-ref: constitution:v1#short-slug -->` anchor and either cite the project evidence
+  that supports it or label it **[candidate]**. State the authority order explicitly: ratified
+  Constitution, current concern-owning control file, accepted ADR heads, session evidence, then
+  derived projections.
+- Present the completed draft to the user for ratification. Never add a `RATIFIED` marker or ratify
+  on the user's behalf; until the user explicitly ratifies it, the draft is evidence rather than
+  governing authority.
+- If the user declines the interview or a Constitution, record `Constitution: none declared` without
+  a dead link or implied authority, and state that Task Packets are unavailable until a
+  `docs/CONSTITUTION.md` is ratified.
 
 ## Step 4: Create Or Repair Routing Files
 

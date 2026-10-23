@@ -406,6 +406,50 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue(complete.bootstrap_complete)
         self.assertEqual(complete.bootstrap_missing, [])
 
+    def test_doctor_warns_when_constitution_is_missing_without_failing_control_plane(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        result = doctor(cwd=cwd)
+
+        warning = next(w for w in result.warnings if "Constitution" in w)
+        self.assertIn("docs/CONSTITUTION.md", warning)
+        self.assertIn("Task Packets cannot be compiled", warning)
+        self.assertIn("**Version:** 1.0 — **RATIFIED YYYY-MM-DD**", warning)
+        self.assertTrue(result.control_plane_ok)
+
+    def test_doctor_warns_when_constitution_is_draft_without_failing_control_plane(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        constitution = cwd / "docs" / "CONSTITUTION.md"
+        constitution.parent.mkdir(parents=True)
+        constitution.write_text(
+            "# Constitution\n\n**Version:** 1.0 — **DRAFT**\n",
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        warning = next(w for w in result.warnings if "Constitution" in w)
+        self.assertIn("draft, not yet ratified", warning)
+        self.assertIn("Task Packets cannot be compiled", warning)
+        self.assertTrue(result.control_plane_ok)
+
+    def test_doctor_is_silent_when_constitution_is_ratified(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        constitution = cwd / "docs" / "CONSTITUTION.md"
+        constitution.parent.mkdir(parents=True)
+        constitution.write_text(
+            "# Constitution\n\n**Version:** 1.0 — **RATIFIED 2026-10-24**\n",
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        self.assertFalse(any("Constitution" in w for w in result.warnings))
+        self.assertTrue(result.control_plane_ok)
+
     def test_reusable_seed_docs_are_self_contained(self):
         checked = [
             Path("AGENTS.md"),
