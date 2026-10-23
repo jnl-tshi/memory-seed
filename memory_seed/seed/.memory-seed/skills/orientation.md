@@ -96,7 +96,9 @@ Run them in order — each step depends on the ones above it:
 1. **Check `checkout_posture`** — measured, and believe it over any banner or task packet claiming
    otherwise (`situate`'s `## Location` names the checkout you are actually in).
 2. **Check `integration_mode` and `merge_trigger`** — the landing contract for anything this session
-   produces, established before work starts rather than discovered at merge time.
+   produces, established before work starts rather than discovered at merge time. Under `pr` the
+   landing command is `memory-seed session open-pr` (never a raw `gh pr merge`); under `local-merge`
+   it is `memory-seed session merge-branch --branch <branch>`.
 3. **Classify intent → set `write_intent`** (`read-only` or `writing`).
 4. If `writing`: set `risk_tier`, then `orchestration_level` — the lowest that can do the work safely.
 5. **Derive `worktree_decision`** = f(`write_intent`, `checkout_posture`): writing into a `primary`

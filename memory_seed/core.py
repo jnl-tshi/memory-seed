@@ -12441,6 +12441,8 @@ def init_project(
         created.append(".gitignore")
     if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
+    if _ensure_managed_gitattributes(target_root):
+        created.append(".gitattributes")
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
@@ -12544,6 +12546,8 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         created.append(".gitignore")
     if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
+    if _ensure_managed_gitattributes(target_root):
+        created.append(".gitattributes")
     for artifact in _create_skill_artifacts(target_root, skill_selection.selected):
         if artifact not in created:
             created.append(artifact)
@@ -12927,6 +12931,16 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     if skills_dir.is_dir():
         warnings.extend(_unresolved_skill_reference_warnings(target_root))
 
+    attributes_state = _managed_gitattributes_state(target_root)
+    if (target_root / MEMORY_DIR_NAME).is_dir() and attributes_state != "current":
+        warnings.append(
+            f".gitattributes merge rules for session memory are {attributes_state}: Git can "
+            "silently splice concurrent session entries during a line-based merge. Run "
+            "`memory-seed update` to add them. They make a raw merge conflict instead of "
+            "corrupting; integrate with `memory-seed session merge-branch` (local) or "
+            "`memory-seed session open-pr` (pr mode)."
+        )
+
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
     # files must route into it (be ours, or a foreign file carrying our managed block).
     # A foreign entry-point file without the block leaves the runtime orphaned — no
@@ -13237,6 +13251,65 @@ def _ensure_telemetry_gitignore(target_root: Path) -> bool:
     for entry in missing:
         _ensure_gitignore_entry(target_root, entry)
     return bool(missing)
+
+
+# Session memory and active reflection ledgers are append-only records that
+# share line-identical scaffolding, so Git's line-based three-way merge can
+# splice one entry into another without a conflict. `-merge` makes concurrent
+# edits conflict wholesale, leaving the structural fuse (`session merge-branch`,
+# `session open-pr`) as the only way through. Projects never received this
+# protection before (Gagiste field issue MSI-003), only Memory Seed itself.
+MANAGED_GITATTRIBUTES_BEGIN = "# >>> memory-seed managed merge rules (do not edit inside this block) >>>"
+MANAGED_GITATTRIBUTES_END = "# <<< memory-seed managed merge rules <<<"
+MANAGED_GITATTRIBUTES_RULES = (
+    ".memory-seed/sessions/** -merge",
+    ".memory-seed/reflections/active/** -merge",
+)
+
+
+def _managed_gitattributes_block(newline: str) -> str:
+    lines = [MANAGED_GITATTRIBUTES_BEGIN, *MANAGED_GITATTRIBUTES_RULES, MANAGED_GITATTRIBUTES_END]
+    return newline.join(lines) + newline
+
+
+def _managed_gitattributes_state(target_root: Path) -> str:
+    """Return 'current', 'missing' or 'stale' for the managed block, judged on
+    the rules themselves so an unmanaged copy of them also counts as current."""
+    path = target_root / ".gitattributes"
+    if not path.is_file():
+        return "missing"
+    text = path.read_bytes().decode("utf-8", errors="replace")
+    lines = [line.strip() for line in text.splitlines()]
+    if all(rule in lines for rule in MANAGED_GITATTRIBUTES_RULES):
+        return "current"
+    return "stale" if MANAGED_GITATTRIBUTES_BEGIN in lines else "missing"
+
+
+def _ensure_managed_gitattributes(target_root: Path) -> bool:
+    """Add or refresh the managed merge rules, leaving every byte outside the
+    managed block (including its line endings) untouched."""
+    if _managed_gitattributes_state(target_root) == "current":
+        return False
+    path = target_root / ".gitattributes"
+    raw = path.read_bytes().decode("utf-8") if path.is_file() else ""
+    newline = "\r\n" if "\r\n" in raw else "\n"
+    block = _managed_gitattributes_block(newline)
+    start = raw.find(MANAGED_GITATTRIBUTES_BEGIN)
+    end = raw.find(MANAGED_GITATTRIBUTES_END, start + 1) if start >= 0 else -1
+    if start >= 0 and end >= 0:
+        stop = end + len(MANAGED_GITATTRIBUTES_END)
+        if raw.startswith(newline, stop):
+            stop += len(newline)
+        updated = raw[:start] + block + raw[stop:]
+    else:
+        prefix = raw
+        if prefix and not prefix.endswith(("\n", "\r\n")):
+            prefix += newline
+        if prefix:
+            prefix += newline
+        updated = prefix + block
+    path.write_bytes(updated.encode("utf-8"))
+    return True
 
 
 def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:

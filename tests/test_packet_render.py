@@ -52,6 +52,20 @@ class PacketRenderTests(unittest.TestCase):
         self.assertEqual(prompt.count("</evidence>"), len(packet["materialized_evidence"]))
         self.assertEqual(prompt, render_task_packet(packet, "out/packet.json", handoff="review"))
 
+    def test_prompt_names_the_canonical_integration_command(self):
+        # Gagiste field issue: every PR was opened and merged with raw `gh`
+        # because nothing at handoff named `memory-seed session open-pr`.
+        binding = runtime_binding(self.root)
+        prompt = render_task_packet(compile_task_packet(self.dispatch, binding, self.root), "p.json")
+        self.assertEqual(prompt.count("\n## Integration\n"), 1)
+        self.assertRegex(prompt, r"`memory-seed session merge-branch --branch [^`]+` from the base checkout")
+        self.assertIn("appends the delivery session entry on the task branch", prompt)
+
+        binding["integration_artifact"] = "pr"
+        pr_prompt = render_task_packet(compile_task_packet(self.dispatch, binding, self.root), "p.json")
+        self.assertIn("`memory-seed session open-pr` from the task branch", pr_prompt)
+        self.assertIn("Raw `gh pr create` / `gh pr merge` skip the fuse", pr_prompt)
+
     def test_tampered_packet_is_refused(self):
         packet = compile_task_packet(self.dispatch, runtime_binding(self.root), self.root)
         packet["dispatch"]["objective"] = "Something else."
