@@ -781,3 +781,7 @@ Discovery receipts: the `plan-dispatch` schema has no `design_discovery` field (
 - **2026-10-23, T2 to T3 (JNL):** the warning on raw `gh pr create` / `gh pr merge` becomes a new pre-command hook in T3, for Claude and Codex. It warns without blocking when the current branch changed `.memory-seed/sessions/**`, and names `memory-seed session open-pr`.
 - **2026-10-23, T2:** the managed `-merge` rules live in `core.py` (`MANAGED_GITATTRIBUTES_RULES`), not a new `seed/.gitattributes`, because `pyproject.toml` package data is outside T2 scope.
 - **Process (MSI-016):** the orchestrator appends each task's delivery entry on the task branch before `session merge-branch`.
+- **2026-10-23, T3 BLOCKED (JNL: keep scope, stop):**
+  - Removing the clean elapsed-time advisory breaks three tests outside T3's `allowed_files`: two in `tests/test_session_log_ordering_hook.py`, and the promotion gate in `experiments/session_checkpoint/scenario_matrix.py` (`candidate_emits_one_clean_stale_advisory`).
+  - The work so far is saved, unmerged, on `codex/fix/hook-runner` at `7c460062`: 104 in-scope tests pass.
+  - T3 needs a replan that decides those files before it can land. T4 to T7 wait on it, because each depends on its predecessor.
