@@ -355,6 +355,7 @@ class InitResult:
     created: list[str] = field(default_factory=list)
     backed_up: list[str] = field(default_factory=list)
     archived: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -10458,7 +10459,19 @@ CORE_SKILL_NAMES = (
     "memory_doctor.md",
     "memory_consolidation.md",
     "subproject_runtime.md",
+    # Task Packets keep delegated workers aligned with ADRs and decisions, so the
+    # collaboration skill that defines them ships with every runtime.
+    "agent_collaboration.md",
 )
+
+# Profiles that no longer exist. Project configs naming them are migrated by
+# `update`; asking for them explicitly gets this explanation instead.
+REMOVED_SKILL_PROFILES: dict[str, str] = {
+    "collaboration": (
+        "The 'collaboration' skill profile was removed: agent_collaboration.md "
+        "(Task Packets and handoffs) is now a core skill and is always installed."
+    ),
+}
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
@@ -10476,10 +10489,6 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
     "security": SkillProfile(
         "Security-sensitive review, secret handling, and permission-risk triage.",
         ("security_triage.md",),
-    ),
-    "collaboration": SkillProfile(
-        "Multi-agent, worktree, branch, and handoff coordination.",
-        ("agent_collaboration.md",),
     ),
     "planning": SkillProfile(
         "Proposal lifecycle management and evidence-backed consequential design discovery.",
@@ -11994,6 +12003,9 @@ def _normalise_profile_names(values: set[str] | Sequence[str] | None) -> set[str
     if not values:
         return set()
     profiles = {value.strip().lower() for value in values if value.strip()}
+    removed = sorted(profiles & set(REMOVED_SKILL_PROFILES))
+    if removed:
+        raise ValueError(" ".join(REMOVED_SKILL_PROFILES[name] for name in removed))
     unknown = sorted(profiles - set(SKILL_PROFILES))
     if unknown:
         raise ValueError(
@@ -12101,6 +12113,72 @@ def read_project_skill_selection(target_root: Path) -> SkillSelection:
         ignored=set(OPTIONAL_SKILL_NAMES) - installed,
         explicit=False,
     )
+
+
+def _legacy_skill_config_notes(target_root: Path) -> list[str]:
+    """Explain project.yaml skill entries that ``update`` will drop: removed
+    profiles, and core skills still listed as selected or ignored optionals."""
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return []
+    try:
+        block = _extract_yaml_block(read_text_file(path), "skills")
+    except OSError:
+        return []
+    if block is None:
+        return []
+    _saw, profiles = _read_top_level_list(block, "profiles")
+    _saw, selected = _read_top_level_list(block, "selected")
+    _saw, ignored = _read_top_level_list(block, "ignored")
+    notes = [
+        f"Removed profile '{name}' from skills.profiles. {REMOVED_SKILL_PROFILES[name]}"
+        for name in sorted(profiles & set(REMOVED_SKILL_PROFILES))
+    ]
+    for key, listed in (("selected", selected), ("ignored", ignored)):
+        for skill in sorted(listed & set(CORE_SKILL_NAMES)):
+            notes.append(
+                f"Removed {skill} from skills.{key}: it is now a core skill and is always installed."
+            )
+    return notes
+
+
+def _strip_legacy_skill_entries(target_root: Path) -> None:
+    """Delete only the list items `_legacy_skill_config_notes` reports, leaving
+    every other line of project.yaml, including unknown entries, untouched."""
+    path = _project_config_path(target_root)
+    text = read_text_file(path)
+    drop = {
+        "profiles": set(REMOVED_SKILL_PROFILES),
+        "selected": set(CORE_SKILL_NAMES),
+        "ignored": set(CORE_SKILL_NAMES),
+    }
+    out: list[str] = []
+    in_skills = False
+    current: str | None = None
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_-]*\s*:", bare):
+            in_skills = bare.split(":", 1)[0].strip() == "skills"
+            current = None
+        elif in_skills:
+            key = re.match(r"^(\s+)([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*\[(.*)\]\s*$", bare)
+            if key and key.group(2) in drop:
+                # Inline list: keep every token except the dropped ones.
+                tokens = [tok.strip() for tok in key.group(3).split(",") if tok.strip()]
+                kept = [tok for tok in tokens if tok.strip("'\"") not in drop[key.group(2)]]
+                line = f"{key.group(1)}{key.group(2)}: [{', '.join(kept)}]" + line[len(bare):]
+                current = None
+                out.append(line)
+                continue
+            key = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_-]*)\s*:", bare)
+            if key:
+                current = key.group(1)
+            else:
+                item = re.match(r"^\s*-\s*(.+?)\s*$", bare)
+                if item and current in drop and item.group(1).strip("'\"") in drop[current]:
+                    continue
+        out.append(line)
+    write_text_file(path, "".join(out))
 
 
 def _replace_top_level_block(text: str, key: str, block: str) -> str:
@@ -12363,6 +12441,8 @@ def init_project(
         created.append(".gitignore")
     if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
+    if _ensure_managed_gitattributes(target_root):
+        created.append(".gitattributes")
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
@@ -12402,9 +12482,13 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     planned = [seed_file.destination for seed_file in seed_files]
     if "proposal_lifecycle.md" in skill_selection.selected:
         planned.extend(PROPOSAL_LIFECYCLE_ARTIFACTS)
+    skill_config_notes = _legacy_skill_config_notes(target_root)
 
     if dry_run:
-        return InitResult(changed=False, planned=planned)
+        return InitResult(changed=False, planned=planned, notes=skill_config_notes)
+
+    if skill_config_notes:
+        _strip_legacy_skill_entries(target_root)
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     created: list[str] = []
@@ -12462,6 +12546,8 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         created.append(".gitignore")
     if _ensure_telemetry_gitignore(target_root) and ".gitignore" not in created:
         created.append(".gitignore")
+    if _ensure_managed_gitattributes(target_root):
+        created.append(".gitattributes")
     for artifact in _create_skill_artifacts(target_root, skill_selection.selected):
         if artifact not in created:
             created.append(artifact)
@@ -12480,11 +12566,12 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         pass
 
     return InitResult(
-        changed=bool(created or backed_up or archived),
+        changed=bool(created or backed_up or archived or skill_config_notes),
         planned=planned,
         created=created,
         backed_up=backed_up,
         archived=archived,
+        notes=skill_config_notes,
     )
 
 
@@ -12584,6 +12671,8 @@ def skill_status(cwd: str | Path = ".") -> SkillStatus:
 def add_skill(cwd: str | Path = ".", name: str = "") -> dict:
     target_root = Path(cwd).resolve()
     profile_name = name.strip().lower()
+    if profile_name in REMOVED_SKILL_PROFILES:
+        return {"changed": False, "message": REMOVED_SKILL_PROFILES[profile_name], "created": []}
     selection = read_project_skill_selection(target_root)
     profiles = set(selection.profiles)
     if profile_name in SKILL_PROFILES:
@@ -12681,6 +12770,44 @@ def remove_skill(cwd: str | Path = ".", skill: str = "") -> dict:
         "removed": removed,
         "backed_up": backed_up,
     }
+
+
+_SKILL_REFERENCE_RE = re.compile(r"[A-Za-z0-9_-]+\.md")
+
+
+def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
+    """Warn for each installed control-plane file that names an optional skill
+    which is not installed, so dangling routing is visible in doctor output."""
+    memory_dir = target_root / MEMORY_DIR_NAME
+    skills_dir = memory_dir / "skills"
+    sources = [memory_dir / "agent-rules.md"]
+    sources.extend(
+        path for path in sorted(skills_dir.glob("*.md")) if path.name != "index.md"
+    )
+    missing_by_skill: dict[str, list[str]] = {}
+    for source in sources:
+        if not source.is_file():
+            continue
+        try:
+            text = read_text_file(source)
+        except OSError:
+            continue
+        for skill in sorted(set(_SKILL_REFERENCE_RE.findall(text)) & set(OPTIONAL_SKILL_NAMES)):
+            if (skills_dir / skill).exists():
+                continue
+            rel = source.relative_to(target_root).as_posix()
+            missing_by_skill.setdefault(skill, []).append(rel)
+    warnings: list[str] = []
+    for skill, referrers in sorted(missing_by_skill.items()):
+        profiles = sorted(name for name, profile in SKILL_PROFILES.items() if skill in profile.skills)
+        warnings.append(
+            f"{', '.join(referrers)} reference{'s' if len(referrers) == 1 else ''} "
+            f".memory-seed/skills/{skill}, which is not installed. Agents told to load it "
+            f"will find nothing. Install it with `memory-seed skills add "
+            f"{profiles[0] if profiles else skill}`, or ignore this if the project "
+            "never needs that workflow."
+        )
+    return warnings
 
 
 def doctor(cwd: str | Path = ".") -> DoctorResult:
@@ -12796,6 +12923,28 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                     "in skills/index.md (orphan skill). Add a trigger entry referencing it, "
                     "or remove the file."
                 )
+
+    # Reference-closure check: installed rules and skills must not send agents to a
+    # skill file that isn't there. A missing core skill already fails through
+    # `missing`; a reference to an uninstalled optional skill is a warning naming
+    # the profile that provides it.
+    if skills_dir.is_dir():
+        warnings.extend(_unresolved_skill_reference_warnings(target_root))
+
+    attributes_state = _managed_gitattributes_state(target_root)
+    if (target_root / MEMORY_DIR_NAME).is_dir() and attributes_state != "current":
+        warnings.append(
+            f".gitattributes merge rules for session memory are {attributes_state}: Git can "
+            "silently splice concurrent session entries during a line-based merge. Run "
+            "`memory-seed update` to add them"
+            + (
+                " (a later rule or a nested .gitattributes re-enables merging; check "
+                "`git check-attr merge -- .memory-seed/sessions/x.md`)"
+                if attributes_state == "overridden" else ""
+            )
+            + ". They make a raw merge conflict instead of corrupting; integrate with "
+            "`memory-seed session merge-branch` (local) or `memory-seed session open-pr` (pr mode)."
+        )
 
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
     # files must route into it (be ours, or a foreign file carrying our managed block).
@@ -13107,6 +13256,110 @@ def _ensure_telemetry_gitignore(target_root: Path) -> bool:
     for entry in missing:
         _ensure_gitignore_entry(target_root, entry)
     return bool(missing)
+
+
+# Session memory and active reflection ledgers are append-only records that
+# share line-identical scaffolding, so Git's line-based three-way merge can
+# splice one entry into another without a conflict. `-merge` makes concurrent
+# edits conflict wholesale, leaving the structural fuse (`session merge-branch`,
+# `session open-pr`) as the only way through. Projects never received this
+# protection before (Gagiste field issue MSI-003), only Memory Seed itself.
+MANAGED_GITATTRIBUTES_BEGIN = "# >>> memory-seed managed merge rules (do not edit inside this block) >>>"
+MANAGED_GITATTRIBUTES_END = "# <<< memory-seed managed merge rules <<<"
+MANAGED_GITATTRIBUTES_RULES = (
+    ".memory-seed/sessions/** -merge",
+    ".memory-seed/reflections/active/** -merge",
+)
+
+
+def _managed_gitattributes_block(newline: str) -> str:
+    lines = [MANAGED_GITATTRIBUTES_BEGIN, *MANAGED_GITATTRIBUTES_RULES, MANAGED_GITATTRIBUTES_END]
+    return newline.join(lines) + newline
+
+
+# One representative path per protected tree, for asking Git which merge
+# attribute actually applies after every rule and nested file is weighed.
+_MANAGED_GITATTRIBUTES_PROBES = (
+    ".memory-seed/sessions/2000-01/2000-01-01.md",
+    ".memory-seed/reflections/active/probe.md",
+)
+
+
+def _effective_merge_unset(target_root: Path) -> bool | None:
+    """True when Git resolves `merge: unset` for every protected tree, False
+    when a later or nested rule overrides it, None outside a Git checkout."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(target_root), "check-attr", "merge", "--", *_MANAGED_GITATTRIBUTES_PROBES],
+            capture_output=True, text=True, timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    values = [line.rsplit(":", 1)[-1].strip() for line in proc.stdout.splitlines() if line.strip()]
+    return len(values) == len(_MANAGED_GITATTRIBUTES_PROBES) and all(value == "unset" for value in values)
+
+
+def _read_gitattributes(path: Path) -> str:
+    # surrogateescape round-trips any foreign bytes, valid UTF-8 or not.
+    return path.read_bytes().decode("utf-8", errors="surrogateescape") if path.is_file() else ""
+
+
+def _managed_gitattributes_state(target_root: Path) -> str:
+    """Return 'current', 'missing', 'stale' or 'overridden'. The rules count
+    wherever they appear, but only if Git still resolves them as effective."""
+    path = target_root / ".gitattributes"
+    if not path.is_file():
+        return "missing"
+    lines = [line.strip() for line in _read_gitattributes(path).splitlines()]
+    if not all(rule in lines for rule in MANAGED_GITATTRIBUTES_RULES):
+        return "stale" if MANAGED_GITATTRIBUTES_BEGIN in lines else "missing"
+    if _effective_merge_unset(target_root) is False:
+        return "overridden"
+    return "current"
+
+
+def _ensure_managed_gitattributes(target_root: Path) -> bool:
+    """Add or refresh the managed merge rules, leaving every byte outside the
+    managed block (including its line endings and any non-UTF-8 bytes)
+    untouched. An overridden block is moved to the end of the file, where it
+    outranks earlier rules in the same file."""
+    state = _managed_gitattributes_state(target_root)
+    if state == "current":
+        return False
+    path = target_root / ".gitattributes"
+    raw = _read_gitattributes(path)
+    newline = "\r\n" if "\r\n" in raw else "\n"
+    block = _managed_gitattributes_block(newline)
+    original = raw
+    start = raw.find(MANAGED_GITATTRIBUTES_BEGIN)
+    end = raw.find(MANAGED_GITATTRIBUTES_END, start + 1) if start >= 0 else -1
+    if start >= 0 and end >= 0:
+        stop = end + len(MANAGED_GITATTRIBUTES_END)
+        if raw.startswith(newline, stop):
+            stop += len(newline)
+        raw = raw[:start] + raw[stop:]
+        if state != "overridden":
+            # Refresh in place: same position, current rules. If a later rule
+            # still wins, the overridden pass below moves the block to the end.
+            updated = raw[:start] + block + raw[start:]
+            path.write_bytes(updated.encode("utf-8", errors="surrogateescape"))
+            if _managed_gitattributes_state(target_root) == "overridden":
+                _ensure_managed_gitattributes(target_root)
+            return True
+    prefix = raw
+    if prefix and not prefix.endswith(("\n", "\r\n")):
+        prefix += newline
+    if prefix and not prefix.endswith(newline * 2):
+        prefix += newline
+    updated = prefix + block
+    if updated == original:
+        # Already last in this file, so the override comes from a nested
+        # .gitattributes that only the project owner can change; doctor says so.
+        return False
+    path.write_bytes(updated.encode("utf-8", errors="surrogateescape"))
+    return True
 
 
 def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:

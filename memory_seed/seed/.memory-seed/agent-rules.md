@@ -135,7 +135,7 @@ Use the lowest orchestration level that can complete the work safely. Higher lev
 - Level 2: orchestrator, bounded workers, and validator for large, multi-file, ambiguous, risky, or parallelizable work.
 - Level 3: research and human checkpoints for architecture, security, release, destructive, or changing-best-practice decisions.
 
-Default to the least expensive level and smallest context set that can safely handle the task. Load `.memory-seed/skills/agent_collaboration.md` for the detailed workflow, including subagents, branch/worktree coordination, task packets, capability tiers, review loops, and merge handoffs. Load `.memory-seed/skills/risk_signaling.md` for STOP categories before ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.
+Default to the least expensive level and smallest context set that can safely handle the task. Load `.memory-seed/skills/agent_collaboration.md` for the detailed workflow, including subagents, branch/worktree coordination, task packets, capability tiers, review loops, and merge handoffs. Before spawning an implementation worker, an independent reviewer, or a session that continues a tranche, compile and render a Task Packet (`memory-seed task-packet render --handoff implementation|review|spawned-session`, or `memory_task_packet_render`) and spawn with its prompt: a prose brief is not a substitute at those handoffs. Load `.memory-seed/skills/risk_signaling.md` for STOP categories before ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.
 
 ## File Ownership
 

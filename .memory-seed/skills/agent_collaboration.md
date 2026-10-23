@@ -587,7 +587,12 @@ Before a branch can land, the orchestrator must:
 4. Preview session-memory fusion and surface every blocker.
 5. Present only integration choices allowed by `integration_mode` and `merge_trigger`.
 6. On a live user go-ahead, integrate through `session merge-branch`, `session integrate`, or
-   `session open-pr` as the configured mode permits — never a raw merge workaround.
+   `session open-pr` as the configured mode permits — never a raw merge workaround. In `pr` mode that
+   means `memory-seed session open-pr` from the task branch, not `gh pr create` / `gh pr merge`: the raw
+   commands skip the structural session fuse, and a hosted line-based merge can splice concurrent
+   session entries. Workers whose packet sets `memory_update_policy: orchestrator` cannot log, so the
+   orchestrator appends the delivery entry on the task branch before integrating; otherwise the merge
+   carries no `Memory-Entry` trailer.
 7. Validate the **integrated tree**, not just the branch head.
 8. Only after integrated validation passes, finish the worktree. A **home** is parked, never removed:
    `session merge-branch` detaches it at the merge commit and releases its lease (status `parked`), and a

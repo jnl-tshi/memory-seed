@@ -79,11 +79,10 @@ skills are not re-added by `memory-seed update`.
 
 For a new or unset project, `memory-seed init` may suggest an `integration_mode` from team signals, but the human confirms the value; failures and no signal default to `local-merge`. A declared mode is preserved by init and update, never silently changed.
 
-Available optional profiles:
+Available optional profiles (`agent_collaboration.md`, which defines Task Packets and handoffs, is a core skill and is always installed):
 
 - `coding`: `code_search.md`, `local_compilation.md`, `data_architecture.md`
 - `security`: `security_triage.md`
-- `collaboration`: `agent_collaboration.md`
 - `planning`: `proposal_lifecycle.md` plus `docs/inbox/.gitkeep`, `docs/todo/.gitkeep`, `docs/todo/completed/.gitkeep`, `docs/reference/.gitkeep`
 - `release`: `release_publishing.md`
 - `documents`: `document_ingestion.md`, `office_document_editing.md`, `docx_render_windows.md`

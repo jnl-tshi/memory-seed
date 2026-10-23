@@ -3892,9 +3892,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             for planned in result.planned:
                 print(f"Would update: {planned}")
+            for note in result.notes:
+                print(f"Would migrate: {note}")
             print("No files changed.")
             return 0
 
+        for note in result.notes:
+            print(f"Migrated: {note}")
         for created in result.created:
             print(f"Updated: {created}")
         for backup in result.backed_up:

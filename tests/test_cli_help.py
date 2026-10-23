@@ -130,6 +130,26 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("code_search.md", out)
         self.assertIn("proposal_lifecycle.md", out)
 
+    def test_update_prints_skill_config_migrations(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            self.assertEqual(self._run(["init", "--agents", "codex"])[0], 0)
+            config = project / ".memory-seed" / "project.yaml"
+            text = config.read_text(encoding="utf-8")
+            config.write_text(text.replace("  profiles:\n", "  profiles:\n    - collaboration\n", 1), encoding="utf-8")
+            preview_code, preview = self._run(["update", "--dry-run"])
+            code, out = self._run(["update"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual((preview_code, code), (0, 0))
+        self.assertIn("Would migrate: Removed profile 'collaboration'", preview)
+        self.assertIn("Migrated: Removed profile 'collaboration'", out)
+
     def test_skills_add_remove_and_ignored_cli(self):
         import os
 

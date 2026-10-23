@@ -2,6 +2,7 @@ import contextlib
 import io
 import os
 import shutil
+import subprocess
 import tempfile
 import tomllib
 import unittest
@@ -645,6 +646,256 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertFalse((cwd / ".memory-seed" / "skills" / "code_search.md").exists())
         self.assertNotIn(".memory-seed/skills/code_search.md", result.created)
         self.assertTrue(doctor(cwd=cwd).control_plane_ok)
+
+    def test_task_packet_skill_is_core_for_any_profile_set(self):
+        # Gagiste (2026-10-23) chose these profiles and never received the
+        # Task Packet skill that its installed rules pointed to (MSI-012).
+        cwd = self.make_project()
+
+        init_project(cwd=cwd, skill_profiles={"coding", "security", "planning", "diagramming"})
+
+        self.assertIn("agent_collaboration.md", CORE_SKILL_NAMES)
+        self.assertNotIn("agent_collaboration.md", OPTIONAL_SKILL_NAMES)
+        self.assertNotIn("collaboration", SKILL_PROFILES)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "agent_collaboration.md").exists())
+        project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("agent_collaboration.md", project_yaml)
+        self.assertTrue(doctor(cwd=cwd).control_plane_ok)
+
+    def test_removed_collaboration_profile_is_explained_not_aliased(self):
+        cwd = self.make_project()
+
+        with self.assertRaisesRegex(ValueError, "agent_collaboration.md .* is now a core skill"):
+            init_project(cwd=cwd, skill_profiles={"collaboration"})
+
+        init_project(cwd=cwd)
+        result = add_skill(cwd=cwd, name="collaboration")
+        self.assertFalse(result["changed"])
+        self.assertIn("now a core skill", result["message"])
+
+    def test_update_migrates_legacy_collaboration_entries(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        text = project_yaml.read_text(encoding="utf-8")
+        text = text.replace("  profiles:\n", "  profiles:\n    - collaboration\n", 1)
+        text = text.replace("  ignored:\n", "  ignored:\n    - agent_collaboration.md\n", 1)
+        project_yaml.write_text(text, encoding="utf-8")
+        (cwd / ".memory-seed" / "skills" / "agent_collaboration.md").unlink()
+
+        preview = update_project(cwd=cwd, dry_run=True)
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(preview.notes, result.notes)
+        self.assertEqual(len(result.notes), 2)
+        self.assertTrue(any("Removed profile 'collaboration'" in note for note in result.notes))
+        self.assertTrue(any("skills.ignored" in note for note in result.notes))
+        migrated = project_yaml.read_text(encoding="utf-8")
+        self.assertNotIn("collaboration", migrated.split("skills:", 1)[1].split("ignored:", 1)[0])
+        self.assertNotIn("agent_collaboration.md", migrated)
+        self.assertIn("- coding", migrated)
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "agent_collaboration.md").exists())
+        self.assertEqual(update_project(cwd=cwd).notes, [])
+
+    def test_update_migration_keeps_unrecognised_skill_entries(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        text = project_yaml.read_text(encoding="utf-8")
+        text = text.replace(
+            "  profiles:\n", "  profiles:\n    - collaboration\n    - team-local-profile\n", 1
+        )
+        text = text.replace("  ignored:\n", "  ignored:\n    - agent_collaboration.md\n    - house_style.md\n", 1)
+        text = text.replace("skills:\n", "skills:\n  note: kept by hand\n", 1)
+        project_yaml.write_text(text + "custom_key: untouched\n", encoding="utf-8")
+
+        update_project(cwd=cwd)
+
+        migrated = project_yaml.read_text(encoding="utf-8")
+        for kept in ("team-local-profile", "house_style.md", "note: kept by hand", "custom_key: untouched"):
+            self.assertIn(kept, migrated)
+        self.assertNotIn("- collaboration", migrated)
+        self.assertNotIn("agent_collaboration.md", migrated)
+
+    def test_update_migration_filters_inline_skill_lists(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        project_yaml.write_text(
+            "schema_version: 1\nskills:\n  profiles: [collaboration, coding]\n"
+            "  selected: []\n  ignored: [agent_collaboration.md, house_style.md]\n",
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        migrated = project_yaml.read_text(encoding="utf-8")
+        self.assertEqual(len(result.notes), 2)
+        self.assertIn("profiles: [coding]", migrated)
+        self.assertIn("ignored: [house_style.md]", migrated)
+
+    def test_bootstrap_guides_do_not_offer_the_removed_profile(self):
+        for path in (
+            Path(".memory-seed/project-bootstrap.md"),
+            PACKAGE_ROOT / "seed" / ".memory-seed" / "project-bootstrap.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("`collaboration`:", text, str(path))
+            self.assertIn("is a core skill and is always installed", text, str(path))
+
+    def test_init_installs_managed_session_merge_rules(self):
+        # MSI-003: projects never received the `-merge` protection that the
+        # Memory Seed repository itself relies on.
+        cwd = self.make_project()
+
+        result = init_project(cwd=cwd)
+
+        self.assertIn(".gitattributes", result.created)
+        text = (cwd / ".gitattributes").read_text(encoding="utf-8")
+        self.assertIn(".memory-seed/sessions/** -merge", text)
+        self.assertIn(".memory-seed/reflections/active/** -merge", text)
+        self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
+        self.assertNotIn(".gitattributes", update_project(cwd=cwd).created)
+
+    def test_managed_merge_rules_preserve_foreign_bytes(self):
+        cwd = self.make_project()
+        foreign = b"* text=auto\r\n*.png binary\r\n# project rule\r\ndocs/** linguist-documentation"
+        (cwd / ".gitattributes").write_bytes(foreign)
+
+        init_project(cwd=cwd)
+
+        written = (cwd / ".gitattributes").read_bytes()
+        self.assertTrue(written.startswith(foreign + b"\r\n"))
+        self.assertIn(b".memory-seed/sessions/** -merge\r\n", written)
+
+    def test_update_refreshes_a_stale_managed_block_only(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        path = cwd / ".gitattributes"
+        stale = path.read_text(encoding="utf-8").replace(".memory-seed/sessions/** -merge\n", "")
+        path.write_text("*.sh text eol=lf\n" + stale + "*.bat text eol=crlf\n", encoding="utf-8")
+        self.assertIn("stale", " ".join(doctor(cwd=cwd).warnings))
+
+        result = update_project(cwd=cwd)
+
+        refreshed = path.read_text(encoding="utf-8")
+        self.assertIn(".gitattributes", result.created)
+        self.assertTrue(refreshed.startswith("*.sh text eol=lf\n"))
+        self.assertTrue(refreshed.endswith("*.bat text eol=crlf\n"))
+        self.assertEqual(refreshed.count(".memory-seed/sessions/** -merge"), 1)
+
+    def test_doctor_warns_when_session_merge_rules_are_missing(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        (cwd / ".gitattributes").unlink()
+
+        warnings = " ".join(doctor(cwd=cwd).warnings)
+
+        self.assertIn("merge rules for session memory are missing", warnings)
+        self.assertIn("memory-seed session open-pr", warnings)
+
+    def test_session_files_are_unmergeable_by_git_after_init(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+
+        out = subprocess.run(
+            ["git", "-C", str(cwd), "check-attr", "merge", "--", ".memory-seed/sessions/2026-10/2026-10-23.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+
+        self.assertIn("merge: unset", out)
+
+    def test_managed_merge_rules_survive_non_utf8_foreign_bytes(self):
+        cwd = self.make_project()
+        foreign = b"# r\xe9gle h\xe9rit\xe9e (latin-1)\n*.png binary\n"
+        (cwd / ".gitattributes").write_bytes(foreign)
+
+        init_project(cwd=cwd)
+
+        written = (cwd / ".gitattributes").read_bytes()
+        self.assertTrue(written.startswith(foreign))
+        self.assertIn(b".memory-seed/sessions/** -merge\n", written)
+
+    def test_overridden_merge_rules_are_reported_and_moved_last(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        path = cwd / ".gitattributes"
+        path.write_text(path.read_text(encoding="utf-8") + ".memory-seed/sessions/** merge\n", encoding="utf-8")
+
+        self.assertIn("are overridden", " ".join(doctor(cwd=cwd).warnings))
+        result = update_project(cwd=cwd)
+
+        self.assertIn(".gitattributes", result.created)
+        out = subprocess.run(
+            ["git", "-C", str(cwd), "check-attr", "merge", "--", ".memory-seed/sessions/2026-10/x.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        self.assertIn("merge: unset", out)
+        self.assertTrue(path.read_text(encoding="utf-8").rstrip().endswith("memory-seed managed merge rules <<<"))
+        self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
+
+    def test_one_update_repairs_a_stale_and_overridden_block(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        path = cwd / ".gitattributes"
+        stale = path.read_text(encoding="utf-8").replace(".memory-seed/sessions/** -merge\n", "")
+        path.write_text(stale + ".memory-seed/sessions/** merge\n.memory-seed/reflections/active/** merge\n",
+                        encoding="utf-8")
+
+        update_project(cwd=cwd)
+
+        out = subprocess.run(
+            ["git", "-C", str(cwd), "check-attr", "merge", "--",
+             ".memory-seed/sessions/2026-10/x.md", ".memory-seed/reflections/active/x.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        self.assertEqual(out.count("merge: unset"), 2, out)
+        self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
+
+    def test_nested_override_is_reported_without_churn(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        (cwd / ".memory-seed" / "sessions").mkdir(parents=True, exist_ok=True)
+        (cwd / ".memory-seed" / "sessions" / ".gitattributes").write_text("* merge\n", encoding="utf-8")
+
+        self.assertIn("nested .gitattributes", " ".join(doctor(cwd=cwd).warnings))
+        self.assertNotIn(".gitattributes", update_project(cwd=cwd).created)
+
+    def test_doctor_reports_unresolved_skill_references(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        rules = cwd / ".memory-seed" / "agent-rules.md"
+        rules.write_text(
+            rules.read_text(encoding="utf-8")
+            + "\nLoad `.memory-seed/skills/release_publishing.md` before a release.\n",
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+
+        self.assertTrue(result.control_plane_ok)
+        matching = [w for w in result.warnings if "release_publishing.md" in w]
+        self.assertEqual(len(matching), 1)
+        self.assertIn(".memory-seed/agent-rules.md", matching[0])
+        self.assertIn("memory-seed skills add release", matching[0])
+        self.assertFalse(any("code_search.md, which is not installed" in w for w in result.warnings))
+
+        (cwd / ".memory-seed" / "skills" / "agent_collaboration.md").unlink()
+        broken = doctor(cwd=cwd)
+        self.assertFalse(broken.control_plane_ok)
+        self.assertIn(".memory-seed/skills/agent_collaboration.md", broken.missing)
 
     def test_legacy_project_without_skills_block_preserves_installed_optionals(self):
         cwd = self.make_project()
