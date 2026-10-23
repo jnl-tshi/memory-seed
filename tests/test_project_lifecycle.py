@@ -696,6 +696,52 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue((cwd / ".memory-seed" / "skills" / "agent_collaboration.md").exists())
         self.assertEqual(update_project(cwd=cwd).notes, [])
 
+    def test_update_migration_keeps_unrecognised_skill_entries(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        text = project_yaml.read_text(encoding="utf-8")
+        text = text.replace(
+            "  profiles:\n", "  profiles:\n    - collaboration\n    - team-local-profile\n", 1
+        )
+        text = text.replace("  ignored:\n", "  ignored:\n    - agent_collaboration.md\n    - house_style.md\n", 1)
+        text = text.replace("skills:\n", "skills:\n  note: kept by hand\n", 1)
+        project_yaml.write_text(text + "custom_key: untouched\n", encoding="utf-8")
+
+        update_project(cwd=cwd)
+
+        migrated = project_yaml.read_text(encoding="utf-8")
+        for kept in ("team-local-profile", "house_style.md", "note: kept by hand", "custom_key: untouched"):
+            self.assertIn(kept, migrated)
+        self.assertNotIn("- collaboration", migrated)
+        self.assertNotIn("agent_collaboration.md", migrated)
+
+    def test_update_migration_filters_inline_skill_lists(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        project_yaml.write_text(
+            "schema_version: 1\nskills:\n  profiles: [collaboration, coding]\n"
+            "  selected: []\n  ignored: [agent_collaboration.md, house_style.md]\n",
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        migrated = project_yaml.read_text(encoding="utf-8")
+        self.assertEqual(len(result.notes), 2)
+        self.assertIn("profiles: [coding]", migrated)
+        self.assertIn("ignored: [house_style.md]", migrated)
+
+    def test_bootstrap_guides_do_not_offer_the_removed_profile(self):
+        for path in (
+            Path(".memory-seed/project-bootstrap.md"),
+            PACKAGE_ROOT / "seed" / ".memory-seed" / "project-bootstrap.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("`collaboration`:", text, str(path))
+            self.assertIn("is a core skill and is always installed", text, str(path))
+
     def test_doctor_reports_unresolved_skill_references(self):
         cwd = self.make_project()
         init_project(cwd=cwd, skill_profiles={"coding"})

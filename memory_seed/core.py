@@ -12142,6 +12142,45 @@ def _legacy_skill_config_notes(target_root: Path) -> list[str]:
     return notes
 
 
+def _strip_legacy_skill_entries(target_root: Path) -> None:
+    """Delete only the list items `_legacy_skill_config_notes` reports, leaving
+    every other line of project.yaml, including unknown entries, untouched."""
+    path = _project_config_path(target_root)
+    text = read_text_file(path)
+    drop = {
+        "profiles": set(REMOVED_SKILL_PROFILES),
+        "selected": set(CORE_SKILL_NAMES),
+        "ignored": set(CORE_SKILL_NAMES),
+    }
+    out: list[str] = []
+    in_skills = False
+    current: str | None = None
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_-]*\s*:", bare):
+            in_skills = bare.split(":", 1)[0].strip() == "skills"
+            current = None
+        elif in_skills:
+            key = re.match(r"^(\s+)([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*\[(.*)\]\s*$", bare)
+            if key and key.group(2) in drop:
+                # Inline list: keep every token except the dropped ones.
+                tokens = [tok.strip() for tok in key.group(3).split(",") if tok.strip()]
+                kept = [tok for tok in tokens if tok.strip("'\"") not in drop[key.group(2)]]
+                line = f"{key.group(1)}{key.group(2)}: [{', '.join(kept)}]" + line[len(bare):]
+                current = None
+                out.append(line)
+                continue
+            key = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_-]*)\s*:", bare)
+            if key:
+                current = key.group(1)
+            else:
+                item = re.match(r"^\s*-\s*(.+?)\s*$", bare)
+                if item and current in drop and item.group(1).strip("'\"") in drop[current]:
+                    continue
+        out.append(line)
+    write_text_file(path, "".join(out))
+
+
 def _replace_top_level_block(text: str, key: str, block: str) -> str:
     lines = text.splitlines()
     out: list[str] = []
@@ -12447,14 +12486,7 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         return InitResult(changed=False, planned=planned, notes=skill_config_notes)
 
     if skill_config_notes:
-        # The reader already ignores removed profiles and core names, so
-        # rewriting from the parsed selection drops exactly those entries.
-        _write_project_skills(
-            target_root,
-            profiles=skill_selection.profiles,
-            selected=skill_selection.selected,
-            ignored=skill_selection.ignored,
-        )
+        _strip_legacy_skill_entries(target_root)
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     created: list[str] = []
