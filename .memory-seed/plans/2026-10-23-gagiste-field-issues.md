@@ -771,3 +771,13 @@ No approved option conflicts with assessed authority. Final fingerprints are `cd
 
 Discovery receipts: the `plan-dispatch` schema has no `design_discovery` field (MSI-013), so each task's rendered dispatch carries its cluster's receipt (T1: cluster 3 `99783067`; T2-T3: cluster 1 `cda0987d` and cluster 3; T4: cluster 2 `f349e356`; T5: cluster 4 `9ba4f9f8`; T6: cluster 5 `20de2bdf`). Pack fingerprints: `sha256:cda0987d2b914bf946c7043c77ba37afe76a22797c9044b95abca9e951ba988d`, `sha256:f349e3563dc1f3d807be623855baf88c83902bc2ae539b5a37257906dc11a3fe`, `sha256:99783067d69fc7b2b68731720aba362597473d81b8dcfdf9830bc4a02f4d1b6c`, `sha256:9ba4f9f84296f176f5a695c43d2f9044c130a689c7a7241b5c263d8a134930d8`, `sha256:20de2bdf4197d1686f20f344ae6fa352b5dfdea618d2fad6e6e71ac50e827981`.
 
+
+## Plan changes
+
+- **2026-10-23, T1 (JNL):**
+  - doctor warns, naming the providing profile, on references to uninstalled optional skills; a missing core skill still fails;
+  - T1 scope widened to `.memory-seed/project-bootstrap.md` and its seed twin.
+- **2026-10-23, T1 to T2:** printing `InitResult.notes` from `memory-seed update` moved to T2 (`cli.py`).
+- **2026-10-23, T2 to T3 (JNL):** the warning on raw `gh pr create` / `gh pr merge` becomes a new pre-command hook in T3, for Claude and Codex. It warns without blocking when the current branch changed `.memory-seed/sessions/**`, and names `memory-seed session open-pr`.
+- **2026-10-23, T2:** the managed `-merge` rules live in `core.py` (`MANAGED_GITATTRIBUTES_RULES`), not a new `seed/.gitattributes`, because `pyproject.toml` package data is outside T2 scope.
+- **Process (MSI-016):** the orchestrator appends each task's delivery entry on the task branch before `session merge-branch`.
