@@ -13341,9 +13341,12 @@ def _ensure_managed_gitattributes(target_root: Path) -> bool:
             stop += len(newline)
         raw = raw[:start] + raw[stop:]
         if state != "overridden":
-            # Refresh in place: same position, current rules.
+            # Refresh in place: same position, current rules. If a later rule
+            # still wins, the overridden pass below moves the block to the end.
             updated = raw[:start] + block + raw[start:]
             path.write_bytes(updated.encode("utf-8", errors="surrogateescape"))
+            if _managed_gitattributes_state(target_root) == "overridden":
+                _ensure_managed_gitattributes(target_root)
             return True
     prefix = raw
     if prefix and not prefix.endswith(("\n", "\r\n")):

@@ -840,6 +840,27 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertTrue(path.read_text(encoding="utf-8").rstrip().endswith("memory-seed managed merge rules <<<"))
         self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
 
+    def test_one_update_repairs_a_stale_and_overridden_block(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        cwd = self.make_project()
+        subprocess.run(["git", "init", "-q", str(cwd)], check=True)
+        init_project(cwd=cwd)
+        path = cwd / ".gitattributes"
+        stale = path.read_text(encoding="utf-8").replace(".memory-seed/sessions/** -merge\n", "")
+        path.write_text(stale + ".memory-seed/sessions/** merge\n.memory-seed/reflections/active/** merge\n",
+                        encoding="utf-8")
+
+        update_project(cwd=cwd)
+
+        out = subprocess.run(
+            ["git", "-C", str(cwd), "check-attr", "merge", "--",
+             ".memory-seed/sessions/2026-10/x.md", ".memory-seed/reflections/active/x.md"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        self.assertEqual(out.count("merge: unset"), 2, out)
+        self.assertNotIn("merge rules for session memory", " ".join(doctor(cwd=cwd).warnings))
+
     def test_nested_override_is_reported_without_churn(self):
         if shutil.which("git") is None:
             self.skipTest("git not available")
