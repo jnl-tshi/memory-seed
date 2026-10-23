@@ -124,6 +124,7 @@ def render_task_packet(packet: Mapping[str, Any], packet_path: str, *, handoff: 
         *_bullets(execution["output_contract"]),
         "",
         *_execution_section(packet["execution_defaults"]),
+        *_integration_section(binding),
         "## Evidence",
         "",
         "Supplied evidence is authoritative for this task; do not refetch it. Each item is quoted verbatim",
@@ -192,6 +193,28 @@ def _execution_section(defaults: Mapping[str, Any]) -> list[str]:
             *(session.get("prohibitions") or []),
         ])
     return [*lines, ""]
+
+
+def _integration_section(binding: Mapping[str, Any]) -> list[str]:
+    """Name the exact command that lands this work, so the orchestrator never
+    reaches for a raw `gh pr merge` that skips the structural session fuse."""
+    artifact = binding.get("integration_artifact")
+    branch = binding.get("working_branch") or "<task branch>"
+    if artifact in {"pr", "merge-request"}:
+        command = "`memory-seed session open-pr` from the task branch"
+        raw = "Raw `gh pr create` / `gh pr merge` skip the fuse and are not the canonical route."
+    else:
+        command = f"`memory-seed session merge-branch --branch {branch}` from the base checkout"
+        raw = "A plain `git merge` skips the fuse and is not the canonical route."
+    return [
+        "## Integration",
+        "",
+        f"Integration artifact: `{artifact}`. You do not integrate; the orchestrator does, with {command}.",
+        raw,
+        "Before integrating, the orchestrator appends the delivery session entry on the task branch so the "
+        "merge carries its Memory-Entry trailer.",
+        "",
+    ]
 
 
 def render_payload(packet: Mapping[str, Any], packet_path: str, *, handoff: str | None = None) -> dict[str, Any]:
