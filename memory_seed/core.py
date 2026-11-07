@@ -33,6 +33,21 @@ VERSION = "2.24"
 # and `update` write into agent configs; tests/test_mcp_merge.py guards the match.
 PACKAGE_VERSION = "2.24.0"
 MEMORY_DIR_NAME = ".memory-seed"
+MANAGED_SEED_MANIFEST_PATH = f"{MEMORY_DIR_NAME}/managed-seed.json"
+MANAGED_SEED_MANIFEST_SCHEMA = "memory-seed/managed-seed-digests"
+MANAGED_SEED_MANIFEST_VERSION = 1
+
+# Published v2.24.0 seed preimages that changed later on the 2.24 line. These
+# let a project without a manifest take the first safe refresh: an exact known
+# seed is replaceable, while any unrecognised bytes are preserved as local work.
+KNOWN_LEGACY_MANAGED_SEED_DIGESTS: dict[str, frozenset[str]] = {
+    f"{MEMORY_DIR_NAME}/skills/agent_collaboration.md": frozenset(
+        {"sha256:fe67600b6a427b3f09ac3cdde51957f2063c102bd01b9095e65fd8a14ee25f1e"}
+    ),
+    f"{MEMORY_DIR_NAME}/skills/orientation.md": frozenset(
+        {"sha256:4ac656c3302ee42ff90b9a877c7078f28fd05f1e98e622d1702a43e91bf1498b"}
+    ),
+}
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
 LOCAL_CONFIG_IGNORE_ENTRY = ".memory-seed/local.yaml"
@@ -356,6 +371,7 @@ class InitResult:
     backed_up: list[str] = field(default_factory=list)
     archived: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -12445,6 +12461,9 @@ def init_project(
         created.append(".gitattributes")
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
+    _write_managed_seed_manifest(target_root, _managed_seed_digests(seed_files))
+    if MANAGED_SEED_MANIFEST_PATH not in created:
+        created.append(MANAGED_SEED_MANIFEST_PATH)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
         if artifact not in created:
             created.append(artifact)
@@ -12494,9 +12513,54 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     created: list[str] = []
     backed_up: list[str] = []
     archived: list[str] = []
+    warnings: list[str] = []
+    managed_digests, manifest_warning = _read_managed_seed_manifest(target_root)
+    manifest_writable = manifest_warning is None
+    manifest_changed = False
+    if manifest_warning is not None:
+        warnings.append(manifest_warning)
 
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
+        managed_seed = _is_managed_seed_file(seed_file.destination)
+        seed_digest = _normalized_digest(seed_file.source) if managed_seed else None
+        if managed_seed and destination.exists():
+            destination_digest = _normalized_digest(destination)
+            if destination_digest == seed_digest:
+                # Legacy projects may have the current managed file but no
+                # manifest. Adopt it without rewriting or backing up the file.
+                if manifest_writable and managed_digests.get(seed_file.destination) != seed_digest:
+                    managed_digests[seed_file.destination] = seed_digest
+                    manifest_changed = True
+                continue
+
+            recorded_digest = managed_digests.get(seed_file.destination)
+            known_legacy = destination_digest in KNOWN_LEGACY_MANAGED_SEED_DIGESTS.get(
+                seed_file.destination, frozenset()
+            )
+            if manifest_writable and (recorded_digest == destination_digest or known_legacy):
+                backup_relative, archive_relative = _backup_and_archive_managed_seed(
+                    target_root,
+                    destination,
+                    seed_file.destination,
+                    timestamp,
+                )
+                backed_up.append(backup_relative)
+                archived.append(archive_relative)
+                _copy_text_file(seed_file.source, destination)
+                created.append(seed_file.destination)
+                managed_digests[seed_file.destination] = seed_digest
+                manifest_changed = True
+                continue
+
+            if manifest_writable:
+                warnings.append(
+                    f"Preserved locally modified managed seed file {seed_file.destination}; "
+                    "its digest does not match the recorded baseline or a known legacy seed. "
+                    "Move project-specific guidance to a project-owned file before replacing it."
+                )
+            continue
+
         if _is_runtime_local_file(seed_file.destination) and destination.exists():
             continue
 
@@ -12533,12 +12597,19 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         destination.parent.mkdir(parents=True, exist_ok=True)
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
+        if managed_seed and manifest_writable:
+            managed_digests[seed_file.destination] = seed_digest
+            manifest_changed = True
 
     for merge, destination in _agent_merges(selected):
         if merge(target_root) and destination not in created:
             created.append(destination)
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | skill_selection.selected)
+    if manifest_changed and manifest_writable:
+        _write_managed_seed_manifest(target_root, managed_digests)
+        if MANAGED_SEED_MANIFEST_PATH not in created:
+            created.append(MANAGED_SEED_MANIFEST_PATH)
     if (
         "superpowers_integration.md" in skill_selection.selected
         and _ensure_superpowers_sdd_gitignore(target_root)
@@ -12572,6 +12643,7 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         backed_up=backed_up,
         archived=archived,
         notes=skill_config_notes,
+        warnings=warnings,
     )
 
 
@@ -13167,6 +13239,93 @@ def _version_tuple(version: str | None) -> tuple[int, ...]:
 
 def _version_at_least(actual: str | None, minimum: str) -> bool:
     return _version_tuple(actual) >= _version_tuple(minimum)
+
+
+def _normalized_digest(path: Path) -> str:
+    """Return a line-ending-insensitive SHA-256 digest for one seed file."""
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _is_managed_seed_file(destination: str) -> bool:
+    """Files wholly owned by the reusable seed and safe to refresh by digest.
+
+    The skill registry is generated from the selected skill set and therefore
+    follows its existing rewrite path. Retrieval profiles are immutable and
+    version-addressed. Project state, topics, sessions, and personas remain
+    project-owned/deploy-once.
+    """
+    skills_prefix = f"{MEMORY_DIR_NAME}/skills/"
+    hooks_prefix = f"{MEMORY_DIR_NAME}/hooks/"
+    return (
+        destination.startswith(skills_prefix)
+        and Path(destination).name != "index.md"
+    ) or (
+        destination.startswith(hooks_prefix)
+        and destination.endswith(".py")
+    )
+
+
+def _read_managed_seed_manifest(target_root: Path) -> tuple[dict[str, str], str | None]:
+    path = target_root / MANAGED_SEED_MANIFEST_PATH
+    if not path.exists():
+        return {}, None
+    try:
+        data = read_json_file(path)
+        if not isinstance(data, dict):
+            raise ValueError("root must be an object")
+        if data.get("schema") != MANAGED_SEED_MANIFEST_SCHEMA:
+            raise ValueError("unknown schema")
+        if data.get("version") != MANAGED_SEED_MANIFEST_VERSION:
+            raise ValueError("unsupported version")
+        files = data.get("files")
+        if not isinstance(files, dict) or not all(
+            isinstance(destination, str) and isinstance(digest, str)
+            for destination, digest in files.items()
+        ):
+            raise ValueError("files must map paths to digests")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {}, (
+            f"Preserved managed seed files because {MANAGED_SEED_MANIFEST_PATH} "
+            f"is invalid ({exc}). Repair or remove the manifest, then rerun update."
+        )
+    return dict(files), None
+
+
+def _write_managed_seed_manifest(target_root: Path, files: Mapping[str, str]) -> None:
+    payload = {
+        "schema": MANAGED_SEED_MANIFEST_SCHEMA,
+        "version": MANAGED_SEED_MANIFEST_VERSION,
+        "files": {destination: files[destination] for destination in sorted(files)},
+    }
+    write_json_file(target_root / MANAGED_SEED_MANIFEST_PATH, payload)
+
+
+def _managed_seed_digests(seed_files: Sequence[SeedFile]) -> dict[str, str]:
+    return {
+        seed_file.destination: _normalized_digest(seed_file.source)
+        for seed_file in seed_files
+        if _is_managed_seed_file(seed_file.destination)
+    }
+
+
+def _backup_and_archive_managed_seed(
+    target_root: Path,
+    source: Path,
+    destination: str,
+    timestamp: str,
+) -> tuple[str, str]:
+    _ensure_backup_gitignore(target_root)
+    backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / destination
+    backup_path = target_root / backup_relative
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    _copy_text_file(source, backup_path)
+
+    archive_relative = Path(MEMORY_DIR_NAME) / "archive" / f"replaced-{timestamp}" / destination
+    archive_path = target_root / archive_relative
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    _copy_text_file(source, archive_path)
+    return backup_relative.as_posix(), archive_relative.as_posix()
 
 
 def _is_runtime_local_file(destination: str) -> bool:

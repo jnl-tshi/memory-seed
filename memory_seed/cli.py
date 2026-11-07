@@ -3899,6 +3899,8 @@ def main(argv: list[str] | None = None) -> int:
 
         for note in result.notes:
             print(f"Migrated: {note}")
+        for warning in result.warnings:
+            print(f"Warning: {warning}")
         for created in result.created:
             print(f"Updated: {created}")
         for backup in result.backed_up:
@@ -3908,7 +3910,7 @@ def main(argv: list[str] | None = None) -> int:
         if result.backed_up:
             print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
         if result.changed:
-            print("Updated missing or stale seed files. Existing .memory-seed runtime files were preserved.")
+            print("Updated missing or safely recognised stale seed files; unrecognised local edits were preserved.")
         else:
             print("Control-plane files are already current. No files changed.")
         return 0

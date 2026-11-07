@@ -1,5 +1,7 @@
 import contextlib
+import hashlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -7,10 +9,13 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from memory_seed.cli import main as cli_main
 from memory_seed.core import (
     CORE_RETRIEVAL_PROFILES,
+    KNOWN_LEGACY_MANAGED_SEED_DIGESTS,
+    MANAGED_SEED_MANIFEST_PATH,
     MEMORY_DIR_NAME,
     PACKAGE_ROOT,
     SEED_FILES,
@@ -1023,6 +1028,74 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(result.created, [])
         self.assertEqual(result.backed_up, [])
         self.assertFalse((cwd / ".memory-seed" / "backups").exists())
+
+    def test_update_adopts_identical_managed_seed_file_without_rewriting_it(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        manifest = cwd / MANAGED_SEED_MANIFEST_PATH
+        manifest.unlink()
+        skill_relative = ".memory-seed/skills/orientation.md"
+        skill = cwd / skill_relative
+        before = skill.read_bytes()
+
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(skill.read_bytes(), before)
+        self.assertNotIn(skill_relative, result.created)
+        self.assertEqual(result.backed_up, [])
+        self.assertEqual(result.archived, [])
+        self.assertIn(MANAGED_SEED_MANIFEST_PATH, result.created)
+        recorded = json.loads(manifest.read_text(encoding="utf-8"))
+        expected = "sha256:" + hashlib.sha256(before.replace(b"\r\n", b"\n")).hexdigest()
+        self.assertEqual(recorded["files"][skill_relative], expected)
+
+    def test_update_preserves_locally_edited_managed_seed_file_with_warning(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        skill_relative = ".memory-seed/skills/orientation.md"
+        skill = cwd / skill_relative
+        skill.write_text(
+            skill.read_text(encoding="utf-8") + "\n## Project-specific addition\nKeep this.\n",
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        self.assertIn("Project-specific addition", skill.read_text(encoding="utf-8"))
+        self.assertNotIn(skill_relative, result.created)
+        self.assertEqual(result.backed_up, [])
+        matching = [warning for warning in result.warnings if skill_relative in warning]
+        self.assertEqual(len(matching), 1)
+        self.assertIn("Preserved locally modified", matching[0])
+
+    def test_update_refreshes_file_matching_known_legacy_seed_digest(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        (cwd / MANAGED_SEED_MANIFEST_PATH).unlink()
+        skill_relative = ".memory-seed/skills/orientation.md"
+        skill = cwd / skill_relative
+        legacy = b"---\nmemory-system-version: 2.24\n---\n\nknown legacy orientation\n"
+        skill.write_bytes(legacy)
+        legacy_digest = "sha256:" + hashlib.sha256(legacy).hexdigest()
+
+        with mock.patch.dict(
+            KNOWN_LEGACY_MANAGED_SEED_DIGESTS,
+            {skill_relative: frozenset({legacy_digest})},
+        ):
+            result = update_project(cwd=cwd)
+
+        seed_skill = PACKAGE_ROOT / "seed" / skill_relative
+        self.assertEqual(skill.read_bytes(), seed_skill.read_bytes())
+        self.assertIn(skill_relative, result.created)
+        self.assertTrue(any(path.endswith(skill_relative) for path in result.backed_up))
+        self.assertTrue(any(path.endswith(skill_relative) for path in result.archived))
+        self.assertFalse(any(skill_relative in warning for warning in result.warnings))
+
+    def test_bundled_v224_legacy_skill_digests_are_pinned(self):
+        self.assertEqual(
+            KNOWN_LEGACY_MANAGED_SEED_DIGESTS[".memory-seed/skills/orientation.md"],
+            frozenset({"sha256:4ac656c3302ee42ff90b9a877c7078f28fd05f1e98e622d1702a43e91bf1498b"}),
+        )
 
     def test_update_uses_yaml_version_instead_of_full_file_comparison(self):
         cwd = self.make_project()
