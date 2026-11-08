@@ -297,6 +297,140 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertIn("control plane has issues", output.getvalue())
         self.assertIn("max_tokens", output.getvalue())
 
+    def test_doctor_warns_when_authority_map_omits_an_adr(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        memory_dir = cwd / MEMORY_DIR_NAME
+        decisions = memory_dir / "decisions"
+        decisions.mkdir()
+        (decisions / "adr_listed.md").write_text("# Listed\n", encoding="utf-8")
+        (decisions / "adr_missing.md").write_text("# Missing\n", encoding="utf-8")
+        (memory_dir / "index.md").write_text(
+            "# Project index\n\n## Authority Map\n\n"
+            "- Accepted ADRs:\n"
+            "- [Listed](decisions/adr_listed.md)\n",
+            encoding="utf-8",
+        )
+        (memory_dir / "policy.md").write_text("# Policy\n", encoding="utf-8")
+
+        warnings = doctor(cwd=cwd).warnings
+
+        warning = next(w for w in warnings if "Authority Map" in w)
+        self.assertIn("adr_missing.md", warning)
+        self.assertNotIn("adr_listed.md", warning)
+
+    def test_doctor_does_not_require_exhaustive_coverage_from_thin_authority_map(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        memory_dir = cwd / MEMORY_DIR_NAME
+        decisions = memory_dir / "decisions"
+        decisions.mkdir()
+        (decisions / "adr_routed.md").write_text("# Routed\n", encoding="utf-8")
+        (decisions / "adr_unrouted.md").write_text("# Unrouted\n", encoding="utf-8")
+        (memory_dir / "index.md").write_text(
+            "# Project index\n\n## Authority Map\n\n"
+            "- Release concern: [ADR](decisions/adr_routed.md)\n"
+            "- Full corpus: run `memory-seed adr list`.\n",
+            encoding="utf-8",
+        )
+        (memory_dir / "policy.md").write_text("# Policy\n", encoding="utf-8")
+
+        self.assertFalse(any("Authority Map" in w for w in doctor(cwd=cwd).warnings))
+
+    def test_doctor_warns_for_control_plane_and_stage_input_link_rot(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        memory_dir = cwd / MEMORY_DIR_NAME
+        (memory_dir / "index.md").write_text(
+            "# Project index\n\n[Missing policy](missing-policy.md)\n",
+            encoding="utf-8",
+        )
+        (memory_dir / "policy.md").write_text("# Policy\n", encoding="utf-8")
+        stage = cwd / "workflow" / "01_discovery" / "CONTEXT.md"
+        stage.parent.mkdir(parents=True)
+        stage.write_text(
+            "# Discovery\n\n## Inputs\n\n"
+            "- Working: `docs/missing-brief.md`\n"
+            "- Reference: `docs/`, `docs/reference.md:12`\n\n"
+            "## Process\n\nRun `missing-command`.\n",
+            encoding="utf-8",
+        )
+        (cwd / "docs").mkdir()
+        (cwd / "docs" / "reference.md").write_text("# Reference\n", encoding="utf-8")
+
+        warnings = "\n".join(doctor(cwd=cwd).warnings)
+
+        self.assertIn(".memory-seed/index.md", warnings)
+        self.assertIn("missing-policy.md", warnings)
+        self.assertIn("workflow/01_discovery/CONTEXT.md", warnings)
+        self.assertIn("docs/missing-brief.md", warnings)
+        self.assertNotIn("missing-command", warnings)
+        self.assertNotIn("docs/reference.md", warnings)
+
+    def test_doctor_warns_when_profile_ceiling_exceeds_declared_step_budget(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        warnings = doctor(cwd=cwd, step_budget_tokens=8_000).warnings
+
+        warning = next(
+            w for w in warnings
+            if "step budget" in w and "implementation:v1" in w
+        )
+        self.assertIn("implementation:v1", warning)
+        self.assertIn("12000", warning)
+        self.assertIn("8000", warning)
+
+    def test_doctor_warning_baseline_fails_only_for_new_warnings(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        (cwd / MEMORY_DIR_NAME / "index.md").write_text(
+            "# Project index\n\n## Authority Map\n",
+            encoding="utf-8",
+        )
+        (cwd / MEMORY_DIR_NAME / "policy.md").write_text(
+            "# Policy\n",
+            encoding="utf-8",
+        )
+        baseline = cwd / "doctor-warnings.json"
+
+        previous = Path.cwd()
+        try:
+            os.chdir(cwd)
+            with contextlib.redirect_stdout(io.StringIO()):
+                write_status = cli_main(
+                    ["doctor", "--write-warning-baseline", str(baseline)]
+                )
+            self.assertEqual(write_status, 0)
+            payload = json.loads(baseline.read_text(encoding="utf-8"))
+            self.assertEqual(payload["schema"], "memory-seed/doctor-warning-baseline")
+
+            clean_output = io.StringIO()
+            with contextlib.redirect_stdout(clean_output):
+                clean_status = cli_main(
+                    ["doctor", "--warning-baseline", str(baseline)]
+                )
+            self.assertEqual(clean_status, 0)
+            self.assertNotIn("New warning:", clean_output.getvalue())
+
+            index = cwd / MEMORY_DIR_NAME / "index.md"
+            index.write_text(
+                index.read_text(encoding="utf-8")
+                + "\n[New broken link](missing-after-baseline.md)\n",
+                encoding="utf-8",
+            )
+            changed_output = io.StringIO()
+            with contextlib.redirect_stdout(changed_output):
+                changed_status = cli_main(
+                    ["doctor", "--warning-baseline", str(baseline)]
+                )
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(changed_status, 1)
+        self.assertIn("New warning:", changed_output.getvalue())
+        self.assertIn("missing-after-baseline.md", changed_output.getvalue())
+
     def test_init_merges_into_foreign_routing_file_without_force(self):
         # A pre-existing foreign entry-point file (no frontmatter, e.g. a host's
         # own AGENTS.md) no longer blocks init: we inject our routing block and
