@@ -121,15 +121,16 @@ class SessionSchemaTests(unittest.TestCase):
 
         for phrase in (
             "Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry",
+            "then `.memory-seed/skills/index.local.md` when it exists",
             "Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task",
             "Sub-Project Runtime Creation",
             ".memory-seed/skills/subproject_runtime.md",
             "Detailed work logs belong in the nearest active runtime",
             "Do not mirror sub-project logs into root memory",
             "`index.md`: deterministic trigger registry",
-            "Evaluate registry rules in listed order",
-            "load every matching required skill",
-            "use the nearest runtime's registry first",
+            "Evaluate the base registry first and its optional local overlay second",
+            "Load every matching required skill",
+            "use the nearest runtime's merged registry first",
         ):
             self.assertIn(phrase, content)
 
@@ -147,7 +148,8 @@ class SessionSchemaTests(unittest.TestCase):
 
         for phrase in (
             "Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry",
-            "Load full files from `.memory-seed/skills/` only when the trigger registry matches the task",
+            "then `.memory-seed/skills/index.local.md` when it exists",
+            "Load full files from `.memory-seed/skills/` only when the merged trigger registry matches the task",
         ):
             self.assertIn(phrase, agents)
 
@@ -158,6 +160,10 @@ class SessionSchemaTests(unittest.TestCase):
             ".memory-seed/skills/index.md`: deterministic trigger registry",
             "Always include `skills/index.md` as the deterministic trigger registry",
             "Generated `index.md` should reference it in `Startup And On-Demand Read` and `Lazy Skills`",
+            "register its triggers in optional `.memory-seed/skills/index.local.md`",
+            "init and update never seed or replace it",
+            "Evaluate the universal `index.md` first and the local overlay second",
+            "project-owned `.memory-seed/skills/index.local.md`",
             ".memory-seed/skills/index.md` contains the deterministic skill trigger registry",
         ):
             self.assertIn(phrase, bootstrap)
@@ -243,6 +249,12 @@ class SessionSchemaTests(unittest.TestCase):
             "ambiguity_policy: ask_when_durable",
             "local_registry_precedence: nearest_runtime_first",
             "inherited_parent_skills: apply_when_not_disabled_or_overridden_locally",
+            "Optional Project Overlay",
+            "`.memory-seed/skills/index.local.md`",
+            "evaluate `index.md` first and `index.local.md` second",
+            "same `skill:` replaces the base entry",
+            "`disabled: true` suppresses that skill",
+            "new local entries append",
             "skill: code_search.md",
             "skill: data_architecture.md",
             "skill: local_compilation.md",

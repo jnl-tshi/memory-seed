@@ -48,14 +48,14 @@ routing step, not the destination: step 1 still has to happen, not just be reach
 2. Read `.memory-seed/skills/orientation.md` and apply the SessionStart hook's measured context route. If
    hook facts are absent, run `memory-seed situate`. Short latest-session files are read whole; long files
    are compressed by a read-only economy worker under the skill's source-linked summary contract.
-3. Once the user's intent is known: Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry and load only matching skills.
+3. Once the user's intent is known: Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry, then `.memory-seed/skills/index.local.md` when it exists, and load only matching skills from the merged registry.
 4. Read the active `.memory-seed/index.md` sections when the task depends on topology, authority,
    inheritance, active state, or project-wide priorities.
 5. Read inherited and active `.memory-seed/policy.md` before writes or when behavioral constraints matter.
 6. Read a declared ratified Constitution before consequential design, governance, or control-plane work.
 
 Do not read skills preemptively. Skills are lazy-loaded execution runbooks.
-Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
+Load full files from `.memory-seed/skills/` only when the merged trigger registry matches the task.
 
 ## Bootstrap Mode
 

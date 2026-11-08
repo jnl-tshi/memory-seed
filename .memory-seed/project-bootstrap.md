@@ -362,7 +362,7 @@ For sub-projects, inherit parent skills by default and create local skill files 
 
 Always include `skills/index.md` as the deterministic trigger registry for universal skills. Generated `index.md` should reference it in `Startup And On-Demand Read` and `Lazy Skills` so agents can decide which full skill runbooks to load without preloading all skills.
 
-For project-specific execution patterns, create a local skill instead of expanding `agent-rules.md` or `policy.md`.
+For project-specific execution patterns, create a local skill instead of expanding `agent-rules.md` or `policy.md`, and register its triggers in optional `.memory-seed/skills/index.local.md`. The overlay is project-owned: bootstrap may create or extend it, but init and update never seed or replace it. Evaluate the universal `index.md` first and the local overlay second under the merge rules documented in `skills/index.md`.
 
 ## Step 9: Activate Agent Personas
 
@@ -454,7 +454,7 @@ After mapping existing skills, ask: "Does [entity_name] need any workflows that 
 2. Show the draft to the user for approval. Do not write until approved.
 3. On approval:
    - Write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`
-   - Add a trigger entry to the `skills:` list in `.memory-seed/skills/index.md`:
+   - Add a trigger entry to the `skills:` list in project-owned `.memory-seed/skills/index.local.md`:
      ```yaml
      - skill: <persona-slug>-<skill-name>.md
        required: false
@@ -466,7 +466,7 @@ After mapping existing skills, ask: "Does [entity_name] need any workflows that 
      ```
    - Add the filename to the `### Role-Specific Skills` section of the persona file
 
-The `persona:` field in `skills/index.md` entries signals that the skill only loads when that persona is active.
+The `persona:` field in `skills/index.local.md` entries signals that the skill only loads when that persona is active.
 
 ### 9d. Write `_registry.yaml`
 

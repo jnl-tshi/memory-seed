@@ -294,7 +294,7 @@ skills:
     required: true
     load_when:
       - adding, removing, renaming, splitting, or refactoring Memory Seed skills
-      - editing .memory-seed/skills/index.md trigger entries
+      - editing .memory-seed/skills/index.md or index.local.md trigger entries
       - changing core skill names, optional profiles, or skill selection behavior
       - moving procedural guidance from agent-rules.md into a lazy-loaded skill
       - deciding whether behavior belongs in agent-rules.md, policy.md, a skill, or a profile
@@ -383,6 +383,25 @@ skills:
       - correcting the topics of one or two entries by hand
       - the task is vocabulary maintenance in topics.yaml rather than attribution
 ```
+
+## Optional Project Overlay
+
+A project may add `.memory-seed/skills/index.local.md` for project-specific trigger rules. The file is project-owned: Memory Seed does not seed it or replace it during update. Use this minimal shape:
+
+```yaml
+trigger_registry_overlay_version: 1
+skills:
+  - {skill: project_workflow.md, required: true, load_when: [running the project's release-candidate workflow]}
+```
+
+Within one runtime, evaluate `index.md` first and `index.local.md` second:
+
+- a local entry with the same `skill:` replaces the base entry as a whole;
+- `disabled: true` suppresses that skill in the merged registry;
+- new local entries append in their listed order;
+- every local entry must name a skill file installed in that runtime.
+
+After this merge, evaluate the nearest runtime's merged registry first. Then apply inherited parent runtimes from nearest to farthest only where the local runtime has not disabled or overridden that skill. Doctor treats `index.md` and `index.local.md` as one registration set when checking for orphan skills.
 
 ## Deterministic Use
 
