@@ -38,6 +38,10 @@ The complete four-way ownership mechanism was designed as an integrated system h
 - `constitution:v1#ownership` (governing)
 - `constitution:v1#single-source` (supporting)
 
+### Awaiting review
+
+- `mse_23by8eqr7a3xvytj:d1` - The four routing destinations keep the accepted four-way ownership branch.
+
 <!-- memory-seed-derived-current-view:end -->
 
 ## Event ledger
@@ -218,3 +222,33 @@ Reason was not recorded in the schema-v1 event.
 #### Impact
 
 ms-7c2f1d90:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### revision-proposed - 2026-11-08T13:18:00
+
+```json
+{
+  "decision_ref": "mse_23by8eqr7a3xvytj:d1",
+  "event_id": "adre_cfbb87565442c41bb89b",
+  "impact_provenance": "preserved",
+  "predecessors": [
+    {
+      "decision": "ms-7c2f1d90:d1",
+      "relation_assertion": "link:mse_23by8eqr7a3xvytj:d1:evolves:ms-7c2f1d90:d1"
+    }
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_23by8eqr7a3xvytj"
+}
+```
+
+#### Decision
+
+The four routing destinations keep the accepted four-way ownership branch. For Memory Seed-owned AGENTS.md and CLAUDE.md, version-gated archive-and-replace preserves the body of one well-formed project-owned marker block; missing markers gain the seed block, while malformed or duplicate markers preserve the whole file and warn. Foreign-file behavior remains unchanged.
+
+#### Reason
+
+Owned routing files now have an explicit project-owned region, so whole-file replacement would discard supported local guidance even though Memory Seed still owns the surrounding reusable text.
+
+#### Impact
+
+Updates can refresh managed AGENTS.md and CLAUDE.md instructions without losing project guidance. Archive-before-replace remains intact, and the existing non-destructive foreign routing paths are unchanged.

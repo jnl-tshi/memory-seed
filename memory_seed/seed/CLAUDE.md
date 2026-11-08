@@ -16,3 +16,7 @@ Before planning, editing, reviewing, or running commands:
 3. If tool-specific behavior is needed, adapt only the tooling, not the policy.
 
 Do not treat this file as a replacement for `AGENTS.md`.
+
+<!-- BEGIN project (preserved by memory-seed update) -->
+<!-- Add project-specific Claude instructions here. -->
+<!-- END project -->

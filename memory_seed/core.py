@@ -74,9 +74,15 @@ ROUTING_DESTINATIONS = {
     "GEMINI.md",
     ".github/copilot-instructions.md",
 }
+PROJECT_BLOCK_ROUTING_DESTINATIONS = frozenset({"AGENTS.md", "CLAUDE.md"})
 _ROUTING_BLOCK_RE = re.compile(
     r"<!-- BEGIN memory-seed.*?<!-- END memory-seed -->", re.DOTALL
 )
+_PROJECT_BLOCK_RE = re.compile(
+    r"<!-- BEGIN project[^\n]*-->(?P<body>.*?)<!-- END project -->", re.DOTALL
+)
+_PROJECT_BLOCK_BEGIN = "<!-- BEGIN project"
+_PROJECT_BLOCK_END = "<!-- END project -->"
 # The block carries no version stamp: a foreign file is host-owned and not
 # version-tracked (doctor likewise skips it from version-mismatch), so the
 # block is re-synced only when its *body* changes, never on a bare version bump.
@@ -12578,6 +12584,16 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         ):
             continue
 
+        replacement_text: str | None = None
+        if destination.exists() and seed_file.destination in PROJECT_BLOCK_ROUTING_DESTINATIONS:
+            replacement_text, project_block_warning = _seed_text_with_preserved_project_block(
+                seed_file,
+                destination,
+            )
+            if project_block_warning is not None:
+                warnings.append(project_block_warning)
+                continue
+
         if destination.exists():
             _ensure_backup_gitignore(target_root)
             backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / seed_file.destination
@@ -12595,7 +12611,10 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
                 archived.append(archive_relative)
 
         destination.parent.mkdir(parents=True, exist_ok=True)
-        _copy_text_file(seed_file.source, destination)
+        if replacement_text is None:
+            _copy_text_file(seed_file.source, destination)
+        else:
+            write_text_file(destination, replacement_text)
         created.append(seed_file.destination)
         if managed_seed and manifest_writable:
             managed_digests[seed_file.destination] = seed_digest
@@ -13417,6 +13436,49 @@ def _maybe_merge_foreign_routing(target_root: Path, seed_file: SeedFile) -> bool
     if not _is_foreign_routing_file(target_root, seed_file):
         return None
     return _merge_routing_stanza(target_root / seed_file.destination)
+
+
+def _seed_text_with_preserved_project_block(
+    seed_file: SeedFile,
+    destination: Path,
+) -> tuple[str | None, str | None]:
+    """Render an owned routing seed while retaining its project-owned body.
+
+    A legacy owned routing file without markers receives the seed's empty
+    project block. Once either marker exists, malformed or duplicate markers
+    fail safe: update leaves the whole destination untouched and reports why.
+    """
+    seed_text = read_text_file(seed_file.source)
+    existing_text = read_text_file(destination)
+    begin_count = existing_text.count(_PROJECT_BLOCK_BEGIN)
+    end_count = existing_text.count(_PROJECT_BLOCK_END)
+    if begin_count == 0 and end_count == 0:
+        return seed_text, None
+
+    existing_match = _PROJECT_BLOCK_RE.search(existing_text)
+    if begin_count != 1 or end_count != 1 or existing_match is None:
+        return None, (
+            f"Preserved {seed_file.destination} because its malformed project-owned block "
+            f"must contain exactly one {_PROJECT_BLOCK_BEGIN!r} marker and one "
+            f"{_PROJECT_BLOCK_END!r} marker. Repair the markers, then rerun update."
+        )
+
+    seed_match = _PROJECT_BLOCK_RE.search(seed_text)
+    if (
+        seed_text.count(_PROJECT_BLOCK_BEGIN) != 1
+        or seed_text.count(_PROJECT_BLOCK_END) != 1
+        or seed_match is None
+    ):
+        raise RuntimeError(
+            f"Seed routing file {seed_file.destination} has an invalid project-owned block"
+        )
+
+    rendered = (
+        seed_text[: seed_match.start("body")]
+        + existing_match.group("body")
+        + seed_text[seed_match.end("body") :]
+    )
+    return rendered, None
 
 
 def _copy_text_file(source: Path, destination: Path) -> None:

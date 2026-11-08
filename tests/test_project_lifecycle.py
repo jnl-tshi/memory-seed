@@ -602,6 +602,69 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(agents.read_text(encoding="utf-8"), before)
         self.assertNotIn("AGENTS.md", result.created)
 
+    def test_init_adds_project_owned_blocks_to_managed_routing_files(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd)
+
+        for relative in ("AGENTS.md", "CLAUDE.md"):
+            with self.subTest(relative=relative):
+                text = (cwd / relative).read_text(encoding="utf-8")
+                self.assertEqual(text.count("<!-- BEGIN project"), 1)
+                self.assertEqual(text.count("<!-- END project -->"), 1)
+
+    def test_update_preserves_project_owned_blocks_in_managed_routing_files(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        for relative in ("AGENTS.md", "CLAUDE.md"):
+            path = cwd / relative
+            text = path.read_text(encoding="utf-8").replace(
+                f"memory-system-version: {get_version()}",
+                "memory-system-version: 1.4",
+            )
+            begin = text.index("<!-- BEGIN project")
+            end = text.index("<!-- END project -->", begin) + len("<!-- END project -->")
+            project_block = (
+                "<!-- BEGIN project (preserved by memory-seed update) -->\n"
+                f"Project guidance for {relative}.\n"
+                "<!-- END project -->"
+            )
+            path.write_text(text[:begin] + project_block + text[end:], encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        for relative in ("AGENTS.md", "CLAUDE.md"):
+            with self.subTest(relative=relative):
+                text = (cwd / relative).read_text(encoding="utf-8")
+                self.assertIn(f"memory-system-version: {get_version()}", text)
+                self.assertIn(f"Project guidance for {relative}.", text)
+                self.assertEqual(text.count("<!-- BEGIN project"), 1)
+                self.assertEqual(text.count("<!-- END project -->"), 1)
+                self.assertIn(relative, result.created)
+                self.assertTrue(any(path.endswith(relative) for path in result.backed_up))
+                self.assertTrue(any(path.endswith(relative) for path in result.archived))
+
+    def test_update_preserves_malformed_project_block_with_warning(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        malformed = agents.read_text(encoding="utf-8").replace(
+            f"memory-system-version: {get_version()}",
+            "memory-system-version: 1.4",
+        ).replace("<!-- END project -->", "<!-- missing project end -->")
+        agents.write_text(malformed, encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(agents.read_text(encoding="utf-8"), malformed)
+        self.assertNotIn("AGENTS.md", result.created)
+        self.assertFalse(any(path.endswith("AGENTS.md") for path in result.backed_up))
+        self.assertFalse(any(path.endswith("AGENTS.md") for path in result.archived))
+        matching = [warning for warning in result.warnings if "AGENTS.md" in warning]
+        self.assertEqual(len(matching), 1)
+        self.assertIn("malformed project-owned block", matching[0])
+
     def test_update_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
         (cwd / "AGENTS.md").write_text("old agent entry", encoding="utf-8")
@@ -1152,6 +1215,18 @@ class ProjectLifecycleTests(unittest.TestCase):
             live = repo_root / seed_file.destination
             self.assertTrue(live.exists(), f"missing live control-plane file: {seed_file.destination}")
             self.assertIn(expected, live.read_text(encoding="utf-8"), seed_file.destination)
+
+    def test_repo_root_local_routing_instructions_are_inside_project_blocks(self):
+        repo_root = Path(__file__).resolve().parent.parent
+        for relative, local_heading in (
+            ("AGENTS.md", "## Context Mode Routing"),
+            ("CLAUDE.md", "## Working Style"),
+        ):
+            with self.subTest(relative=relative):
+                text = (repo_root / relative).read_text(encoding="utf-8")
+                begin = text.index("<!-- BEGIN project")
+                end = text.index("<!-- END project -->", begin)
+                self.assertIn(local_heading, text[begin:end])
 
     def test_seed_files_use_memory_seed_runtime(self):
         destinations = sorted(seed_file.destination for seed_file in SEED_FILES)

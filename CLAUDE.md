@@ -17,6 +17,8 @@ Before planning, editing, reviewing, or running commands:
 
 Do not treat this file as a replacement for `AGENTS.md`.
 
+<!-- BEGIN project (preserved by memory-seed update) -->
+
 ## Working Style
 
 ### Response Length
@@ -29,3 +31,5 @@ This section is Claude-specific because it governs assistant turn shape. Vendor-
 **Orientation** (verify state against live sources, never a worktree snapshot) and **Merge And Branch
 Safety** (prove the changeset landed; never check out over uncommitted edits) — live in
 `.memory-seed/policy.md`, which every agent reads and which `update` never replaces.
+
+<!-- END project -->

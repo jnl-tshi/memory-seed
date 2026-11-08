@@ -76,3 +76,7 @@ GEMINI.md
 Bootstrap mode then generates `.memory-seed/index.md`, `.memory-seed/policy.md`, and the first dated session log after inspecting the project and asking any needed questions.
 
 Sub-projects may define their own `.memory-seed/` directories inside their project folders. A sub-project runtime should keep active state local, use local skills by default, and inherit parent policy unless its `index.md` explicitly says otherwise.
+
+<!-- BEGIN project (preserved by memory-seed update) -->
+<!-- Add project-specific agent instructions here. -->
+<!-- END project -->
