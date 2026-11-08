@@ -167,3 +167,30 @@ Reason was not recorded in the schema-v1 event.
 #### Impact
 
 mse_542z3qn0azma9mmx:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### reviewed-no-change - 2026-11-08T14:21:00
+
+```json
+{
+  "decision_ref": "mse_vgz0z3tknm5mwz1k:d1",
+  "event_id": "adre_67b489ab0875df3823f5",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_542z3qn0azma9mmx:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_vgz0z3tknm5mwz1k"
+}
+```
+
+#### Decision
+
+Retain mse_vgz0z3tknm5mwz1k:d1 as the governing decision.
+
+#### Reason
+
+The accepted ADR already governs project-local registry entries that are not exported to the seed; MSI-027 defines concrete overlay and precedence mechanics without changing that principle.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

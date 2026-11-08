@@ -51,6 +51,17 @@ Create a new skill only when the procedure is reusable, cross-project, and does 
 - Include `do_not_load_when` only when it prevents likely over-loading.
 - Register only installed skills in generated project registries.
 
+### Project-owned trigger overlays
+
+Use `.memory-seed/skills/index.local.md` when a project needs trigger rules that do not belong in the reusable seed registry. Do not edit the universal `index.md` for project-only wording.
+
+- The overlay is optional and project-owned; init and update do not create or replace it.
+- Evaluate `index.md` first, then `index.local.md`.
+- A local entry for the same `skill:` replaces the base entry as a whole.
+- `disabled: true` suppresses that skill; a new local skill appends in listed order.
+- Keep the skill file installed in the same runtime and let doctor validate the combined registration set.
+- Apply the merged nearest-runtime registry before inherited parent registries.
+
 ## Core, Optional, And Profiles
 
 - Core skills are installed in every project because they protect runtime safety or universal memory hygiene.
@@ -64,7 +75,7 @@ When a reusable skill changes in this repository:
 
 1. Update the live `.memory-seed/skills/<name>.md`.
 2. Update the seed twin under `memory_seed/seed/.memory-seed/skills/<name>.md`.
-3. Update live and seed `skills/index.md` when trigger behavior changes.
+3. Update live and seed `skills/index.md` when universal trigger behavior changes; keep project-only rules in unseeded `index.local.md`.
 4. Update `.memory-seed/index.md` when this dogfood runtime should advertise the skill.
 5. Run parity, registry, doctor, links, encoding, and unit-test checks appropriate to the change.
 

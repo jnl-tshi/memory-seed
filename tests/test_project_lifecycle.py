@@ -484,6 +484,14 @@ class ProjectLifecycleTests(unittest.TestCase):
             "project facts",
             encoding="utf-8",
         )
+        overlay = cwd / ".memory-seed" / "skills" / "index.local.md"
+        overlay_text = (
+            "trigger_registry_overlay_version: 1\n"
+            "skills:\n"
+            "  - skill: project_workflow.md\n"
+            "    disabled: true\n"
+        )
+        overlay.write_text(overlay_text, encoding="utf-8")
 
         result = update_project(cwd=cwd)
 
@@ -501,6 +509,11 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(
             (cwd / ".memory-seed" / "index.md").read_text(encoding="utf-8"),
             "project facts",
+        )
+        self.assertEqual(overlay.read_text(encoding="utf-8"), overlay_text)
+        self.assertNotIn(".memory-seed/skills/index.local.md", result.created)
+        self.assertFalse(
+            any(path.endswith("/skills/index.local.md") for path in result.backed_up)
         )
         self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
 

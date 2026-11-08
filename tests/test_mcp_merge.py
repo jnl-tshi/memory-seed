@@ -411,16 +411,24 @@ class McpMergeTests(unittest.TestCase):
         )
         self.assertTrue(result.control_plane_ok)  # warning is non-fatal
 
-        # Registering it in the trigger registry clears the warning.
-        registry = cwd / ".memory-seed" / "skills" / "index.md"
+        # Registering it in the project-owned overlay clears the warning
+        # without editing the universal registry.
+        registry = cwd / ".memory-seed" / "skills" / "index.local.md"
         registry.write_text(
-            registry.read_text(encoding="utf-8")
-            + "\n  - skill: ghost_skill.md\n    required: false\n",
+            "# Project Skill Trigger Overlay\n\n"
+            "```yaml\n"
+            "trigger_registry_overlay_version: 1\n"
+            "skills:\n"
+            "  - skill: ghost_skill.md\n"
+            "    required: false\n"
+            "    load_when:\n"
+            "      - handling ghost fixtures\n"
+            "```\n",
             encoding="utf-8",
         )
-        self.assertFalse(
-            any("ghost_skill.md" in w for w in doctor(cwd=cwd).warnings)
-        )
+        warnings = doctor(cwd=cwd).warnings
+        self.assertFalse(any("ghost_skill.md" in w for w in warnings))
+        self.assertFalse(any("index.local.md" in w and "orphan skill" in w for w in warnings))
 
     @pytest.mark.integration
     def test_doctor_warns_on_local_user_with_no_matching_participant(self):

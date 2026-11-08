@@ -13039,16 +13039,21 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     # `- skill: <filename>`; match that token (not a bare filename) so one skill
     # name being a substring of another (search.md vs code_search.md) can't mask an orphan.
     skills_dir = target_root / ".memory-seed" / "skills"
-    registry_path = skills_dir / "index.md"
-    if registry_path.exists():
-        registry_text = registry_path.read_text(encoding="utf-8")
+    registry_paths = [skills_dir / "index.md", skills_dir / "index.local.md"]
+    registry_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in registry_paths
+        if path.exists()
+    )
+    if registry_text:
         for skill_path in sorted(skills_dir.glob("*.md")):
-            if skill_path.name == "index.md":
+            if skill_path.name in {"index.md", "index.local.md"}:
                 continue
             if f"skill: {skill_path.name}" not in registry_text:
                 warnings.append(
                     f"Skill file .memory-seed/skills/{skill_path.name} is not registered "
-                    "in skills/index.md (orphan skill). Add a trigger entry referencing it, "
+                    "in skills/index.md or skills/index.local.md (orphan skill). "
+                    "Add a trigger entry referencing it, "
                     "or remove the file."
                 )
 

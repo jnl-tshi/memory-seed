@@ -77,7 +77,8 @@ At the start of work:
    above that boundary, use the skill's read-only economy-worker compression contract. Never use
    `memory_search` to determine what is latest. On the **first substantive message**, once intent is
    known, run the skill's operating-mode gate.
-6. Once intent is known: Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry and load only matching runbooks.
+6. Once intent is known: Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry,
+   then `.memory-seed/skills/index.local.md` when it exists, and load only matching runbooks from the merged registry.
 7. Read `.memory-seed/index.md` sections when the task depends on topology, authority, inheritance,
    active state, or project-wide priorities.
 8. Read inherited and active `.memory-seed/policy.md` before writes or when behavioral constraints matter.
@@ -147,7 +148,7 @@ Default to the least expensive level and smallest context set that can safely ha
 - `.memory-seed/decisions/*.md`: append-only durable concern decisions, rationale, and evolution.
 - A Constitution, only when its path and ratified status are declared by the active index: the
   normative ceiling for lower control-plane documents.
-- `.memory-seed/skills/*.md`: task-specific runbooks, loaded on demand.
+- `.memory-seed/skills/*.md`: task-specific runbooks, loaded on demand; optional `index.local.md` is the project-owned trigger overlay.
 - `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` or `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`: append-only chronological work history.
 - `.memory-seed/archive/`: archived prior control-plane states.
 
@@ -222,9 +223,9 @@ These triggers require review, not automatic edits. Promote stable conclusions, 
 
 ## Skill Loading
 
-Skills are lazy-loaded runbooks. `index.md`: deterministic trigger registry — read `.memory-seed/skills/index.md` first, the authoritative `load_when`/`do_not_load_when` map for every skill; this section is a pointer to it, not a second copy. Two are worth knowing by name because nearly every turn needs them: `session_logging.md` (session entry shape, DRAFTS labels, `related_entries`) and `end_of_turn.md` (the closeout obligation below, full ESR checklist). Every other skill routes through the registry as normal — load only what a `load_when` rule actually matches.
+Skills are lazy-loaded runbooks. `index.md`: deterministic trigger registry — read `.memory-seed/skills/index.md` first and the project-owned `.memory-seed/skills/index.local.md` second when it exists; this section is a pointer to that merged registry, not a second copy. Two are worth knowing by name because nearly every turn needs them: `session_logging.md` (session entry shape, DRAFTS labels, `related_entries`) and `end_of_turn.md` (the closeout obligation below, full ESR checklist). Every other skill routes through the registry as normal — load only what a `load_when` rule actually matches.
 
-Evaluate registry rules in listed order, load every matching required skill, and keep the loaded set as small as the task safely allows. For sub-projects, use the nearest runtime's registry first; inherited parent registries apply only when enabled and not locally overridden or disabled.
+Evaluate the base registry first and its optional local overlay second, using the overlay merge rules documented in `skills/index.md`. Load every matching required skill and keep the loaded set as small as the task safely allows. For sub-projects, use the nearest runtime's merged registry first; inherited parent registries apply only when enabled and not locally overridden or disabled.
 
 ### Code Search Trigger
 
