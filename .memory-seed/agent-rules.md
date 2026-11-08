@@ -140,7 +140,8 @@ Default to the least expensive level and smallest context set that can safely ha
 
 ## File Ownership
 
-- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`: routing files.
+- `AGENTS.md` and installed selected-agent routing files (`CLAUDE.md`, `GEMINI.md`,
+  `.github/copilot-instructions.md`): routing files.
 - `.memory-seed/agent-rules.md`: operating workflow and memory ownership rules.
 - `.memory-seed/project-bootstrap.md`: bootstrap and repair procedure.
 - `.memory-seed/index.md`: rich project orientation, current state, topology, inheritance, and skill pointers.
@@ -157,8 +158,8 @@ Default to the least expensive level and smallest context set that can safely ha
 Locked unless the user asks for memory workflow, bootstrap, routing, versioning, or control-plane changes:
 
 - `AGENTS.md`
-- `CLAUDE.md`
-- `GEMINI.md`
+- Installed selected-agent routing files (`CLAUDE.md`, `GEMINI.md`,
+  `.github/copilot-instructions.md`)
 - `.memory-seed/agent-rules.md`
 - `.memory-seed/project-bootstrap.md`
 - `.memory-seed/policy.md`

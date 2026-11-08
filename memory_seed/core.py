@@ -12931,6 +12931,8 @@ def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
     which is not installed, so dangling routing is visible in doctor output."""
     memory_dir = target_root / MEMORY_DIR_NAME
     skills_dir = memory_dir / "skills"
+    selection = read_project_skill_selection(target_root)
+    explicitly_ignored = selection.ignored if selection.explicit else set()
     sources = [memory_dir / "agent-rules.md"]
     sources.extend(
         path for path in sorted(skills_dir.glob("*.md")) if path.name != "index.md"
@@ -12944,7 +12946,7 @@ def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
         except OSError:
             continue
         for skill in sorted(set(_SKILL_REFERENCE_RE.findall(text)) & set(OPTIONAL_SKILL_NAMES)):
-            if (skills_dir / skill).exists():
+            if (skills_dir / skill).exists() or skill in explicitly_ignored:
                 continue
             rel = source.relative_to(target_root).as_posix()
             missing_by_skill.setdefault(skill, []).append(rel)

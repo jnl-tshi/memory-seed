@@ -63,8 +63,10 @@ When initializing or repairing a project, the seed installs the reusable control
 
 ```text
 AGENTS.md
-CLAUDE.md
-GEMINI.md
+Selected-agent routing files (when installed):
+  CLAUDE.md
+  GEMINI.md
+  .github/copilot-instructions.md
 .memory-seed/
   agent-rules.md
   project-bootstrap.md

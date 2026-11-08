@@ -1,6 +1,6 @@
 """PostToolUse hook: surface recorded decisions whose F: refs name the file just edited.
 
-The trigger half of docs/2_Todo/file-touch-decision-surfacing-proposal.md, built after field
+The trigger half of docs/7_Replaced/file-touch-decision-surfacing-proposal.md, built after field
 evidence E8 showed the record-side alone cannot carry reversals: agents that reversed a recorded
 decision on instruction recorded nothing, and end-of-turn reminders cannot reach a single-turn
 headless session at all. This fires MID-turn, at the moment the decision's subject is being
