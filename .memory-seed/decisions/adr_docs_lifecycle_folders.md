@@ -216,3 +216,30 @@ Reason was not recorded in the schema-v1 event.
 #### Impact
 
 mse_yfsrahvq87hxkcv9:d1 becomes the authoritative decision; later contrary evidence requires a successor revision.
+
+### reviewed-no-change - 2026-11-08T14:51:44Z
+
+```json
+{
+  "decision_ref": "mse_yfsrahvq87hxkcv9:d1",
+  "event_id": "adre_070bb6e43a711c7c7943",
+  "impact_provenance": "preserved",
+  "matched_decisions": [
+    "mse_yfsrahvq87hxkcv9:d1"
+  ],
+  "source": "write-time",
+  "update_entry_id": "mse_8843ff9yk7w20ew5"
+}
+```
+
+#### Decision
+
+Retain mse_yfsrahvq87hxkcv9:d1 as the governing decision.
+
+#### Reason
+
+MSI-028 makes lane paths project-local while preserving the accepted folder-is-state rule and this repository's explicit numbered taxonomy; the accepted head remains sufficient.
+
+#### Impact
+
+The reviewed evidence supports retaining the current decision; no successor revision is required.

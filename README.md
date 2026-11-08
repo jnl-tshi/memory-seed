@@ -260,7 +260,9 @@ The selection is stored in `.memory-seed/project.yaml` under `skills.profiles`,
 `skills.selected`, and `skills.ignored`. `memory-seed update` respects that state
 and does not re-add ignored optional skills. The `planning` profile also creates
 `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`, and `docs/reference/`
-`.gitkeep` anchors for the proposal workflow and its source/reference material.
+`.gitkeep` anchors for the proposal workflow and its source/reference material. It also records the
+ordered lanes and allowed nested folders under `docs:` in `.memory-seed/project.yaml`; both
+`memory-seed docs check` and `memory-seed docs index` use that project-local configuration.
 The `governance` profile installs `skill_architecture.md` for projects that maintain
 Memory Seed skills, trigger registries, profile boundaries, or seed/live control-plane parity.
 
