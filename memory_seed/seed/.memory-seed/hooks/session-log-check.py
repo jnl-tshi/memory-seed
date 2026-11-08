@@ -8,6 +8,7 @@ from pathlib import Path
 
 agent = "claude"
 explicit_user = None
+IMPORT_WARNING_STAMP = Path(".memory-seed/.session-log-import-warning-stamp")
 args = sys.argv[1:]
 for index, arg in enumerate(args):
     if arg.startswith("--user="):
@@ -45,7 +46,39 @@ for ancestor in Path(__file__).resolve().parents:
 try:
     from memory_seed.session_checkpoint import inspect_checkpoint
 except (ImportError, ModuleNotFoundError):
-    # Hooks must fail open when the package is unavailable or mid-upgrade.
+    # A refreshed hook can briefly outrun the installed package during an
+    # upgrade. Surface that mismatch once, then keep failing open so a broken
+    # import cannot create a stop loop on every turn.
+    try:
+        IMPORT_WARNING_STAMP.touch(exist_ok=False)
+    except (FileExistsError, OSError):
+        sys.exit(0)
+    message = (
+        "MEMORY SEED HOOK IMPORT WARNING: session-log-check could not import "
+        "memory_seed.session_checkpoint, so session checkpoint enforcement is unavailable. "
+        "Upgrade or reinstall Memory Seed, then restart the host. This warning is shown once "
+        "for this project; the hook otherwise fails open."
+    )
+    if agent in {"copilot", "claude"}:
+        print(
+            json.dumps(
+                {
+                    "decision": "block",
+                    "reason": message,
+                    "hookSpecificOutput": {
+                        "hookEventName": "Stop",
+                        "decision": "block",
+                        "reason": message,
+                    },
+                }
+            )
+        )
+    elif agent == "codex":
+        print(json.dumps({"systemMessage": message, "continue": True}))
+    elif agent == "cursor":
+        print(json.dumps({"agentMessage": message}))
+    elif agent == "gemini":
+        print(json.dumps({"hookSpecificOutput": {"additionalContext": message}}))
     sys.exit(0)
 
 result = inspect_checkpoint(

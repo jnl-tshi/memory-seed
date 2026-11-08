@@ -12,6 +12,7 @@ build/
 .memory-seed/.retrieval-reminder-stamp
 .memory-seed/.identity-offer-stamp
 .memory-seed/.session-log-check-state
+.memory-seed/.session-log-import-warning-stamp
 .memory-seed/.file-touch-stamp
 .memory-seed/.project-process-health-state.json
 .memory-seed/.retrieval-log.jsonl
