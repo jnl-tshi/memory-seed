@@ -768,6 +768,37 @@ class ProjectLifecycleTests(unittest.TestCase):
                 self.assertEqual(text.count("<!-- BEGIN project"), 1)
                 self.assertEqual(text.count("<!-- END project -->"), 1)
 
+    def test_version_bump_adds_missing_project_blocks_to_managed_routing_files(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        for relative in ("AGENTS.md", "CLAUDE.md"):
+            path = cwd / relative
+            text = path.read_text(encoding="utf-8")
+            begin = text.index("<!-- BEGIN project")
+            end = text.index("<!-- END project -->", begin) + len("<!-- END project -->")
+            legacy = (text[:begin] + text[end:]).replace(
+                f"memory-system-version: {get_version()}",
+                "memory-system-version: 2.23",
+            )
+            path.write_text(legacy, encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        for relative in ("AGENTS.md", "CLAUDE.md"):
+            with self.subTest(relative=relative):
+                text = (cwd / relative).read_text(encoding="utf-8")
+                self.assertIn(f"memory-system-version: {get_version()}", text)
+                self.assertEqual(text.count("<!-- BEGIN project"), 1)
+                self.assertEqual(text.count("<!-- END project -->"), 1)
+                self.assertIn(relative, result.created)
+                self.assertTrue(any(path.endswith(relative) for path in result.backed_up))
+                self.assertTrue(any(path.endswith(relative) for path in result.archived))
+
+        second = update_project(cwd=cwd)
+        self.assertNotIn("AGENTS.md", second.created)
+        self.assertNotIn("CLAUDE.md", second.created)
+
     def test_update_preserves_project_owned_blocks_in_managed_routing_files(self):
         cwd = self.make_project()
         init_project(cwd=cwd)

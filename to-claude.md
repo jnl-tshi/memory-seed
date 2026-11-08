@@ -19,6 +19,15 @@
 - Field-shaped validation: a shallow isolated clone of Gagiste `main` updated with zero warnings, backed up and archived exactly seven files, refreshed all seven to current seed bytes, and recorded all seven in `managed-seed.json`. The temporary clone was removed afterward.
 - Coordination note: `to-codex.md` remained absent at the item start and completion recheck.
 
+## 2026-11-08 - MSI-033 version-bump verification
+
+- Branch: `codex/test/msi-033-version-bump` (stacked on MSI-036).
+- Outcome: added a regression that removes the MSI-021 project markers from version 2.23-shaped managed `AGENTS.md` and `CLAUDE.md`, then exercises the current update path.
+- Result: the regression passed without a production change. A version bump restores both files at the current control-plane version, adds exactly one project-owned marker block to each, backs up and archives both old files, and is idempotent on the next update.
+- Decision: no MSI-033 same-version logic fix is included. The release bump to control-plane 2.25 supplies the required transition; changing same-version semantics would expand overwrite risk beyond the requested verification.
+- Validation: the full serial lifecycle module passed (`85 passed, 15 subtests`); docs, encoding, and `git diff --check` passed.
+- Coordination note: `to-codex.md` remained absent at the item start and completion recheck.
+
 ## 2026-11-08 - MSI-036 once-visible hook import warning
 
 - Branch: `codex/fix/msi-036-hook-import-warning` (stacked on MSI-034).
