@@ -12885,6 +12885,11 @@ def remove_skill(cwd: str | Path = ".", skill: str = "") -> dict:
 
 
 _SKILL_REFERENCE_RE = re.compile(r"[A-Za-z0-9_-]+\.md")
+_MARKDOWN_RELATIVE_LINK_RE = re.compile(
+    r"!?\[[^\]]*\]\((?P<target>[^)\s]+)(?:\s+['\"][^)]*['\"])?\)"
+)
+_INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
 
 def _constitution_task_packet_warning(target_root: Path) -> str | None:
@@ -12956,8 +12961,163 @@ def _unresolved_skill_reference_warnings(target_root: Path) -> list[str]:
     return warnings
 
 
-def doctor(cwd: str | Path = ".") -> DoctorResult:
+def _relative_path_target(raw_target: str) -> str | None:
+    """Return a local path token, or ``None`` for non-path references."""
+    target = raw_target.strip().strip("<>")
+    if (
+        not target
+        or target.startswith(("#", "/", "\\"))
+        or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target)
+        or any(marker in target for marker in ("*", "?", "{", "}", "<", ">"))
+    ):
+        return None
+    target = target.split("#", 1)[0].split("?", 1)[0]
+    target = re.sub(r":\d+(?:-\d+)?$", "", target)
+    return target.replace("\\", "/") or None
+
+
+def _target_exists(target_root: Path, source: Path, target: str, *, root_fallback: bool) -> bool:
+    authored = Path(target)
+    candidates = [source.parent / authored]
+    if root_fallback:
+        candidates.append(target_root / authored)
+    return any(candidate.exists() for candidate in candidates)
+
+
+def _control_plane_relative_link_warnings(target_root: Path) -> list[str]:
+    """Find broken relative Markdown links and stage ``Inputs`` path tokens."""
+    memory_dir = target_root / MEMORY_DIR_NAME
+    sources = [target_root / path for path in sorted(ROUTING_DESTINATIONS)]
+    sources.extend(
+        memory_dir / name
+        for name in ("agent-rules.md", "project-bootstrap.md", "index.md", "policy.md")
+    )
+    skills_dir = memory_dir / "skills"
+    if skills_dir.is_dir():
+        sources.extend(sorted(skills_dir.glob("*.md")))
+
+    warnings: list[str] = []
+    seen: set[tuple[str, str]] = set()
+
+    def report(source: Path, raw_target: str, *, root_fallback: bool, label: str) -> None:
+        target = _relative_path_target(raw_target)
+        if target is None or _target_exists(
+            target_root, source, target, root_fallback=root_fallback
+        ):
+            return
+        rel = source.relative_to(target_root).as_posix()
+        identity = (rel, target)
+        if identity in seen:
+            return
+        seen.add(identity)
+        warnings.append(
+            f"{rel} has a broken relative {label} '{target}'. "
+            "Update the reference or restore its target."
+        )
+
+    for source in sources:
+        if not source.is_file():
+            continue
+        try:
+            text = read_text_file(source)
+        except (OSError, UnicodeError):
+            continue
+        for match in _MARKDOWN_RELATIVE_LINK_RE.finditer(text):
+            report(source, match.group("target"), root_fallback=False, label="link")
+
+    ignored_context_parts = {".git", MEMORY_DIR_NAME, "_archive", "_tools"}
+    for source in sorted(target_root.rglob("CONTEXT.md")):
+        try:
+            relative = source.relative_to(target_root)
+        except ValueError:
+            continue
+        if any(part in ignored_context_parts or part.startswith(".") for part in relative.parts[:-1]):
+            continue
+        try:
+            lines = read_text_file(source).splitlines()
+        except (OSError, UnicodeError):
+            continue
+        in_inputs = False
+        inputs_level = 0
+        for line in lines:
+            heading = _HEADING_RE.match(line)
+            if heading:
+                level = len(heading.group(1))
+                title = heading.group(2).strip().casefold()
+                if title == "inputs":
+                    in_inputs = True
+                    inputs_level = level
+                    continue
+                if in_inputs and level <= inputs_level:
+                    in_inputs = False
+            if not in_inputs:
+                continue
+            for match in _MARKDOWN_RELATIVE_LINK_RE.finditer(line):
+                report(source, match.group("target"), root_fallback=True, label="Inputs link")
+            for raw_target in _INLINE_CODE_RE.findall(line):
+                if " " in raw_target or not ("/" in raw_target or "." in Path(raw_target).name):
+                    continue
+                report(source, raw_target, root_fallback=True, label="Inputs path")
+    return warnings
+
+
+def _authority_map_warnings(target_root: Path) -> list[str]:
+    """Warn when live ADR files are absent from the index Authority Map."""
+    memory_dir = target_root / MEMORY_DIR_NAME
+    index_path = memory_dir / "index.md"
+    decisions_dir = memory_dir / "decisions"
+    if not index_path.is_file() or not decisions_dir.is_dir():
+        return []
+    adr_paths = sorted(decisions_dir.glob("*.md"))
+    if not adr_paths:
+        return []
+    try:
+        lines = read_text_file(index_path).splitlines()
+    except (OSError, UnicodeError):
+        return []
+    authority_lines: list[str] = []
+    in_authority = False
+    for line in lines:
+        heading = _HEADING_RE.match(line)
+        if heading and len(heading.group(1)) == 2:
+            if heading.group(2).strip().casefold() == "authority map":
+                in_authority = True
+                continue
+            if in_authority:
+                break
+        if in_authority:
+            authority_lines.append(line)
+    authority_text = "\n".join(authority_lines)
+    # Some projects use Authority Map as a deliberately thin concern router
+    # and point to ``adr list`` for the corpus.  Only maps that declare an
+    # Accepted ADRs inventory promise exhaustive file coverage.
+    if "accepted adrs" not in authority_text.casefold():
+        return []
+    linked: set[Path] = set()
+    for match in _MARKDOWN_RELATIVE_LINK_RE.finditer(authority_text):
+        target = _relative_path_target(match.group("target"))
+        if target is None:
+            continue
+        candidate = (index_path.parent / target).resolve()
+        try:
+            candidate.relative_to(decisions_dir.resolve())
+        except ValueError:
+            continue
+        linked.add(candidate)
+    missing = [path.name for path in adr_paths if path.resolve() not in linked]
+    if not missing:
+        return []
+    return [
+        ".memory-seed/index.md Authority Map does not cover ADR file(s): "
+        + ", ".join(missing)
+        + ". Add links for every live .memory-seed/decisions/*.md file."
+    ]
+
+
+def doctor(cwd: str | Path = ".", *, step_budget_tokens: int | None = None) -> DoctorResult:
     target_root = Path(cwd).resolve()
+    if step_budget_tokens is not None and step_budget_tokens <= 0:
+        raise ValueError("step_budget_tokens must be a positive integer")
     missing: list[str] = []
     version_mismatches: list[dict[str, str]] = []
 
@@ -13002,6 +13162,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     from .retrieval_spec import RetrievalSpecValidationError
 
     profile_warnings: list[str] = []
+    profile_budget_warnings: list[str] = []
+    valid_profile_specs: dict[tuple[str, int], dict[str, Any]] = {}
     for profile_id, profile_version in CORE_RETRIEVAL_PROFILES:
         profile_path = target_root / _core_retrieval_profile_destination(
             profile_id, profile_version
@@ -13009,13 +13171,37 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
         if not profile_path.is_file():
             continue  # already reported through DoctorResult.missing above
         try:
-            load_retrieval_profile(profile_id, profile_version, target_root)
+            valid_profile_specs[(profile_id, profile_version)] = load_retrieval_profile(
+                profile_id, profile_version, target_root
+            )
         except (RetrievalProfileValidationError, RetrievalSpecValidationError) as exc:
             profile_warnings.append(
                 f"Managed retrieval profile {profile_id}:v{profile_version} is invalid: "
                 f"{exc}. Existing profile versions are immutable; repair this file "
                 "explicitly or add a new version rather than relying on update to overwrite it."
             )
+
+    if step_budget_tokens is not None:
+        profile_root = target_root / MEMORY_DIR_NAME / "retrieval-profiles"
+        for profile_path in sorted(profile_root.glob("*/v*.yaml")):
+            version_match = re.fullmatch(r"v([1-9][0-9]*)\.yaml", profile_path.name)
+            if version_match is None:
+                continue
+            identity = (profile_path.parent.name, int(version_match.group(1)))
+            spec = valid_profile_specs.get(identity)
+            if spec is None:
+                try:
+                    spec = load_retrieval_profile(*identity, target_root)
+                except (RetrievalProfileValidationError, RetrievalSpecValidationError):
+                    continue
+            max_tokens = spec["limits"]["max_tokens"]
+            if max_tokens > step_budget_tokens:
+                profile_budget_warnings.append(
+                    f"Retrieval profile {identity[0]}:v{identity[1]} allows max_tokens "
+                    f"{max_tokens}, above the declared step budget {step_budget_tokens}. "
+                    "Lower the profile ceiling, use a bounded dispatch override, or increase "
+                    "the measured step budget."
+                )
 
     bootstrap_missing = [
         path
@@ -13027,6 +13213,9 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     bootstrap_complete = not bootstrap_missing
 
     warnings: list[str] = list(profile_warnings)
+    warnings.extend(profile_budget_warnings)
+    warnings.extend(_authority_map_warnings(target_root))
+    warnings.extend(_control_plane_relative_link_warnings(target_root))
     constitution_warning = _constitution_task_packet_warning(target_root)
     if constitution_warning is not None:
         warnings.append(constitution_warning)

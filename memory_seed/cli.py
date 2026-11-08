@@ -71,6 +71,45 @@ def _read_json_object(path_text: str, *, label: str) -> dict:
     return value
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+_DOCTOR_WARNING_BASELINE_SCHEMA = "memory-seed/doctor-warning-baseline"
+
+
+def _doctor_warning_baseline_payload(warnings: list[str]) -> dict[str, Any]:
+    return {
+        "schema": _DOCTOR_WARNING_BASELINE_SCHEMA,
+        "version": 1,
+        "warnings": sorted(set(warnings)),
+    }
+
+
+def _read_doctor_warning_baseline(path: Path) -> list[str]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("baseline must be a JSON object")
+    if payload.get("schema") != _DOCTOR_WARNING_BASELINE_SCHEMA or payload.get("version") != 1:
+        raise ValueError(
+            "baseline must use schema memory-seed/doctor-warning-baseline version 1"
+        )
+    warnings = payload.get("warnings")
+    if not isinstance(warnings, list) or any(
+        not isinstance(warning, str) or not warning for warning in warnings
+    ):
+        raise ValueError("baseline warnings must be a list of non-empty strings")
+    if warnings != sorted(set(warnings)):
+        raise ValueError("baseline warnings must be sorted and unique")
+    return warnings
+
+
 def _run_discovery(args: argparse.Namespace) -> int:
     """`memory-seed discovery evidence|assess` - the MCP discovery tools' twin."""
     from .discovery import DiscoveryError, discovery_assess, discovery_evidence
@@ -1641,7 +1680,26 @@ def main(argv: list[str] | None = None) -> int:
         help="workflow handoff this worker serves (recorded in usage telemetry)",
     )
 
-    subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="check Memory Seed control-plane files"
+    )
+    doctor_parser.add_argument(
+        "--step-budget",
+        type=_positive_int,
+        metavar="TOKENS",
+        help="warn when an installed Retrieval Profile max_tokens exceeds this step budget",
+    )
+    warning_baseline = doctor_parser.add_mutually_exclusive_group()
+    warning_baseline.add_argument(
+        "--warning-baseline",
+        metavar="PATH",
+        help="fail when doctor reports a warning not recorded in this JSON baseline",
+    )
+    warning_baseline.add_argument(
+        "--write-warning-baseline",
+        metavar="PATH",
+        help="write the current sorted warning set as a JSON baseline",
+    )
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
     args = parser.parse_args(argv)
@@ -3555,7 +3613,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "doctor":
-        result = doctor()
+        result = doctor(step_budget_tokens=args.step_budget)
         if result.control_plane_ok:
             print("Memory Seed reusable control plane looks healthy.")
         else:
@@ -3564,9 +3622,42 @@ def main(argv: list[str] | None = None) -> int:
             print("Memory Seed bootstrap is complete.")
         else:
             print("Memory Seed bootstrap is incomplete.")
-        for warning in result.warnings:
-            print(f"Warning: {warning}")
-        if result.ok:
+        new_warnings: list[str] = []
+        if args.write_warning_baseline:
+            baseline_path = Path(args.write_warning_baseline)
+            write_text_file(
+                baseline_path,
+                json.dumps(
+                    _doctor_warning_baseline_payload(result.warnings),
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n",
+            )
+            print(f"Doctor warning baseline written to {baseline_path.as_posix()}.")
+            for warning in result.warnings:
+                print(f"Warning: {warning}")
+        elif args.warning_baseline:
+            baseline_path = Path(args.warning_baseline)
+            try:
+                baseline_warnings = set(_read_doctor_warning_baseline(baseline_path))
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+                print(
+                    f"Doctor warning baseline is invalid: {baseline_path.as_posix()}: {exc}"
+                )
+                return 2
+            current_warnings = set(result.warnings)
+            for warning in sorted(current_warnings & baseline_warnings):
+                print(f"Baseline warning: {warning}")
+            for warning in sorted(baseline_warnings - current_warnings):
+                print(f"Resolved baseline warning: {warning}")
+            new_warnings = sorted(current_warnings - baseline_warnings)
+            for warning in new_warnings:
+                print(f"New warning: {warning}")
+        else:
+            for warning in result.warnings:
+                print(f"Warning: {warning}")
+        if result.ok and not new_warnings:
             return 0
         for missing in result.missing:
             print(f"Missing: {missing}")
