@@ -865,6 +865,54 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaisesRegex(TaskPacketValidationError, "100-250"):
             normalize_task_dispatch(too_short)
 
+    def test_dispatch_v2_declares_read_scope_and_v1_remains_compatible(self):
+        legacy = normalize_task_dispatch(self.dispatch())
+        self.assertEqual(legacy["version"], 1)
+        self.assertNotIn("read_inputs", legacy["execution"])
+        self.assertNotIn("do_not_load", legacy["execution"])
+
+        dispatch = self.dispatch()
+        dispatch["version"] = 2
+        dispatch["execution"].update(
+            read_inputs={
+                "working": [r"memory_seed\task_packet.py", "tests/test_task_packet.py"],
+                "reference": ["docs/CONSTITUTION.md"],
+            },
+            do_not_load=[".memory-seed/sessions/2026-08/2026-08-31.md"],
+        )
+        normalized = normalize_task_dispatch(dispatch)
+        self.assertEqual(normalized["version"], 2)
+        self.assertEqual(
+            normalized["execution"]["read_inputs"],
+            {
+                "working": ["memory_seed/task_packet.py", "tests/test_task_packet.py"],
+                "reference": ["docs/CONSTITUTION.md"],
+            },
+        )
+        self.assertEqual(
+            normalized["execution"]["do_not_load"],
+            [".memory-seed/sessions/2026-08/2026-08-31.md"],
+        )
+
+        for missing in ("read_inputs", "do_not_load"):
+            incomplete = copy.deepcopy(dispatch)
+            del incomplete["execution"][missing]
+            with self.subTest(missing=missing), self.assertRaisesRegex(
+                TaskPacketValidationError, "missing required fields"
+            ):
+                normalize_task_dispatch(incomplete)
+
+        overlap = copy.deepcopy(dispatch)
+        overlap["execution"]["do_not_load"] = ["MEMORY_SEED/task_packet.py"]
+        with self.assertRaisesRegex(TaskPacketValidationError, "must not overlap"):
+            normalize_task_dispatch(overlap)
+
+        legacy_with_v2_scope = self.dispatch()
+        legacy_with_v2_scope["execution"]["read_inputs"] = {"working": [], "reference": []}
+        legacy_with_v2_scope["execution"]["do_not_load"] = []
+        with self.assertRaisesRegex(TaskPacketValidationError, "unknown fields"):
+            normalize_task_dispatch(legacy_with_v2_scope)
+
     def test_worker_checkpoint_requires_named_guarded_branch_local_scope(self):
         dispatch = self.dispatch(write_intent="writing")
         dispatch["memory_update_policy"] = "worker_checkpoint"
@@ -1484,6 +1532,31 @@ class TaskPacketTests(unittest.TestCase):
             binding_update_reason="Expanded packet scope for the evidence fixture.",
         )
         self.assertTrue(scoped["binding_updated"])
+
+        changed_read_scope = self.dispatch(write_intent="writing")
+        changed_read_scope["execution"]["allowed_files"].append("docs/evidence.md")
+        changed_read_scope["version"] = 2
+        changed_read_scope["execution"].update(
+            read_inputs={
+                "working": ["memory_seed/task_packet.py"],
+                "reference": ["docs/evidence.md"],
+            },
+            do_not_load=[".memory-seed/policy.md"],
+        )
+        read_scoped_packet = compile_task_packet(
+            changed_read_scope, self.binding(root, writing=True), root
+        )
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            activate_task_packet(read_scoped_packet, root)
+        self.assertEqual(caught.exception.code, "binding_update_required")
+        read_scoped = activate_task_packet(
+            read_scoped_packet,
+            root,
+            binding_update_reason="Declared explicit working and reference read inputs.",
+        )
+        self.assertTrue(read_scoped["binding_updated"])
+        receipt = json.loads(Path(read_scoped["activation_history"]).read_text().splitlines()[-1])
+        self.assertIn("scope", receipt["changed"])
 
     def test_activation_rejects_unvalidated_runtime_binding_fields(self):
         root = self.make_project()

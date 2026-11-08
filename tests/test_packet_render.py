@@ -52,6 +52,28 @@ class PacketRenderTests(unittest.TestCase):
         self.assertEqual(prompt.count("</evidence>"), len(packet["materialized_evidence"]))
         self.assertEqual(prompt, render_task_packet(packet, "out/packet.json", handoff="review"))
 
+    def test_prompt_renders_v2_dispatch_read_scope_and_keeps_v1_packets_renderable(self):
+        legacy_packet = compile_task_packet(self.dispatch, runtime_binding(self.root), self.root)
+        legacy_prompt = render_task_packet(legacy_packet, "legacy.json")
+        self.assertIn("Read inputs: unspecified by legacy dispatch schema v1", legacy_prompt)
+
+        dispatch = copy.deepcopy(self.dispatch)
+        dispatch["version"] = 2
+        dispatch["execution"].update(
+            read_inputs={
+                "working": ["memory_seed/task_packet.py"],
+                "reference": ["docs/evidence.md"],
+            },
+            do_not_load=[".memory-seed/policy.md"],
+        )
+        prompt = render_task_packet(
+            compile_task_packet(dispatch, runtime_binding(self.root), self.root),
+            "scoped.json",
+        )
+        self.assertIn("Working inputs:\n- memory_seed/task_packet.py", prompt)
+        self.assertIn("Reference inputs:\n- docs/evidence.md", prompt)
+        self.assertIn("Do not load:\n- .memory-seed/policy.md", prompt)
+
     def test_prompt_names_the_canonical_integration_command(self):
         # Gagiste field issue: every PR was opened and merged with raw `gh`
         # because nothing at handoff named `memory-seed session open-pr`.

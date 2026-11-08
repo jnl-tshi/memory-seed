@@ -271,6 +271,14 @@ class TaskPacketSurfaceTests(unittest.TestCase):
     def test_task_packet_cli_mcp_preview_compile_parity_and_read_only(self) -> None:
         root = self.make_project()
         dispatch, binding = self.dispatch(), self.binding(root)
+        dispatch["version"] = 2
+        dispatch["execution"].update(
+            read_inputs={
+                "working": ["docs/evidence.md"],
+                "reference": [".memory-seed/agent-rules.md"],
+            },
+            do_not_load=[".memory-seed/policy.md"],
+        )
         environment = {"fixed_instructions": ["Use canonical sources."], "tool_schemas": []}
         pricing = {
             "currency": "USD", "effective_date": "2026-09-01",
@@ -278,6 +286,7 @@ class TaskPacketSurfaceTests(unittest.TestCase):
             "per_million_output": 5, "tool_cost": 0,
         }
         dispatch_file, binding_file = self.write_inputs(root)
+        dispatch_file.write_text(json.dumps(dispatch), encoding="utf-8")
         environment_file, pricing_file = root / "environment.json", root / "pricing.json"
         environment_file.write_text(json.dumps(environment), encoding="utf-8")
         pricing_file.write_text(json.dumps(pricing), encoding="utf-8")
@@ -306,6 +315,14 @@ class TaskPacketSurfaceTests(unittest.TestCase):
                 self.assertTrue(payload["ok"])
                 artifact = payload["preview" if command == "preview" else "packet"]
                 self.assertEqual(canonical_task_packet_json(artifact), expected)
+                self.assertEqual(
+                    artifact["dispatch"]["execution"]["read_inputs"],
+                    dispatch["execution"]["read_inputs"],
+                )
+                self.assertEqual(
+                    artifact["dispatch"]["execution"]["do_not_load"],
+                    dispatch["execution"]["do_not_load"],
+                )
                 self.assertEqual(response["result"]["content"][0]["text"], canonical_retrieval_json(payload))
         self.assertEqual(self.snapshot(root), before)
 

@@ -1,7 +1,7 @@
 """Deterministic Task Dispatch and Task Packet compilation.
 
 This module is the core, adapter-free M2 service.  It validates a semantic
-``memory-seed/task-dispatch`` v1 object, measures an already-existing Git
+``memory-seed/task-dispatch`` v1 or v2 object, measures an already-existing Git
 checkout from a separate runtime binding, expands one exact project-local
 retrieval profile, resolves and validates an Evidence Pack v2, and materializes
 the pack's canonical Markdown slices exactly once.
@@ -48,7 +48,9 @@ from .topics import load_topic_index
 
 
 TASK_DISPATCH_SCHEMA = "memory-seed/task-dispatch"
-TASK_DISPATCH_VERSION = 1
+TASK_DISPATCH_LEGACY_VERSION = 1
+TASK_DISPATCH_VERSION = 2
+TASK_DISPATCH_VERSIONS = frozenset({TASK_DISPATCH_LEGACY_VERSION, TASK_DISPATCH_VERSION})
 TASK_PACKET_SCHEMA = "memory-seed/task-packet"
 TASK_PACKET_VERSION = 1
 # v2 replaces the embedded full worker baselines with the digest-pinned
@@ -98,7 +100,7 @@ _PROJECT_CONTEXT_KEYS = frozenset(
         "non_goals",
     }
 )
-_EXECUTION_KEYS = frozenset(
+_EXECUTION_V1_KEYS = frozenset(
     {
         "role",
         "persona",
@@ -113,6 +115,8 @@ _EXECUTION_KEYS = frozenset(
         "implements",
     }
 )
+_READ_INPUT_KEYS = frozenset({"working", "reference"})
+_EXECUTION_KEYS = _EXECUTION_V1_KEYS | {"read_inputs", "do_not_load"}
 _RETRIEVAL_KEYS = frozenset({"profile", "profile_version", "overrides"})
 _BUDGET_KEYS = frozenset(
     {
@@ -294,8 +298,8 @@ def _nonnegative_int(value: Any, path: str) -> int:
 def _path_string(value: Any, path: str) -> str:
     """Return one exact runtime-relative file identity.
 
-    Dispatch edit scopes and checkpoint scopes are file authorities, not glob
-    or pathspec selectors.  Normalize separators once, then reject every form
+    Dispatch read/edit scopes and checkpoint scopes name exact files, not glob
+    or pathspec selectors. Normalize separators once, then reject every form
     that could escape the measured runtime or alias another Windows path.
     """
     text = _string(value, path)
@@ -376,8 +380,9 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     )
     if dispatch["schema"] != TASK_DISPATCH_SCHEMA:
         _fail("schema", f"must equal {TASK_DISPATCH_SCHEMA!r}")
-    if type(dispatch["version"]) is not int or dispatch["version"] != TASK_DISPATCH_VERSION:
-        _fail("version", f"must equal integer {TASK_DISPATCH_VERSION}")
+    dispatch_version = dispatch["version"]
+    if type(dispatch_version) is not int or dispatch_version not in TASK_DISPATCH_VERSIONS:
+        _fail("version", "must equal integer 1 or 2")
     objective = _string(dispatch["objective"], "objective")
     constitution_refs = _string_list(
         dispatch.get("constitution_refs", []), "constitution_refs"
@@ -429,25 +434,21 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         )
 
     execution_in = _mapping(dispatch["execution"], "execution")
+    execution_keys = (
+        _EXECUTION_KEYS
+        if dispatch_version == TASK_DISPATCH_VERSION
+        else _EXECUTION_V1_KEYS
+    )
+    execution_required = _EXECUTION_V1_KEYS | (
+        {"read_inputs", "do_not_load"}
+        if dispatch_version == TASK_DISPATCH_VERSION
+        else set()
+    )
     _exact_keys(
         execution_in,
         "execution",
-        _EXECUTION_KEYS,
-        required=frozenset(
-            {
-                "role",
-                "persona",
-                "capability_tier",
-                "write_intent",
-                "allowed_files",
-                "forbidden_files",
-                "validation",
-                "output_contract",
-                "expected_absent",
-                "acceptance_observables",
-                "implements",
-            }
-        ),
+        execution_keys,
+        required=frozenset(execution_required),
     )
     role = _string(execution_in["role"], "execution.role")
     if role not in {"worker", "validator", "researcher"}:
@@ -476,6 +477,46 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         )
     if write_intent == "writing" and not allowed_files:
         _fail("execution.allowed_files", "writing dispatches require at least one allowed file")
+    read_inputs: dict[str, list[str]] | None = None
+    do_not_load: list[str] | None = None
+    if dispatch_version == TASK_DISPATCH_VERSION:
+        read_inputs_in = _mapping(execution_in["read_inputs"], "execution.read_inputs")
+        _exact_keys(
+            read_inputs_in,
+            "execution.read_inputs",
+            _READ_INPUT_KEYS,
+            required=_READ_INPUT_KEYS,
+        )
+        read_inputs = {
+            "working": _scope_list(
+                read_inputs_in["working"], "execution.read_inputs.working"
+            ),
+            "reference": _scope_list(
+                read_inputs_in["reference"], "execution.read_inputs.reference"
+            ),
+        }
+        do_not_load = _scope_list(execution_in["do_not_load"], "execution.do_not_load")
+        read_identities = {
+            name: {_canonical_scope_identity(item) for item in items}
+            for name, items in read_inputs.items()
+        }
+        do_not_load_identities = {
+            _canonical_scope_identity(item) for item in do_not_load
+        }
+        read_overlap = sorted(read_identities["working"] & read_identities["reference"])
+        blocked_overlap = sorted(
+            (read_identities["working"] | read_identities["reference"])
+            & do_not_load_identities
+        )
+        if read_overlap or blocked_overlap:
+            _fail(
+                "execution",
+                "read_inputs working/reference and do_not_load must not overlap",
+                details={
+                    "working_reference_overlap": read_overlap,
+                    "read_do_not_load_overlap": blocked_overlap,
+                },
+            )
     expected_absent = _scope_list(
         execution_in["expected_absent"], "execution.expected_absent"
     )
@@ -541,6 +582,9 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "acceptance_observables": observables,
         "implements": implements,
     }
+    if read_inputs is not None and do_not_load is not None:
+        execution["read_inputs"] = read_inputs
+        execution["do_not_load"] = do_not_load
     retrieval_in = _mapping(dispatch["retrieval"], "retrieval")
     _exact_keys(
         retrieval_in,
@@ -664,7 +708,7 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
 
     normalized = {
         "schema": TASK_DISPATCH_SCHEMA,
-        "version": TASK_DISPATCH_VERSION,
+        "version": dispatch_version,
         "objective": objective,
         "constitution_refs": constitution_refs,
         "project_context": context,
@@ -2664,6 +2708,8 @@ def activate_task_packet(
             "allowed_files": dispatch["execution"]["allowed_files"],
             "forbidden_files": dispatch["execution"]["forbidden_files"],
             "expected_absent": dispatch["execution"]["expected_absent"],
+            "read_inputs": dispatch["execution"].get("read_inputs"),
+            "do_not_load": dispatch["execution"].get("do_not_load"),
         }
     )
     binding_identity = canonical_json(
@@ -2694,6 +2740,8 @@ def activate_task_packet(
         "allowed_files": previous_dispatch["execution"]["allowed_files"],
         "forbidden_files": previous_dispatch["execution"]["forbidden_files"],
         "expected_absent": previous_dispatch["execution"]["expected_absent"],
+        "read_inputs": previous_dispatch["execution"].get("read_inputs"),
+        "do_not_load": previous_dispatch["execution"].get("do_not_load"),
     }) if previous_dispatch is not None else None
     previous_binding = canonical_json({
         key: previous_packet["runtime_binding"].get(key)

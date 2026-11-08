@@ -81,13 +81,14 @@ class CommitHookTests(unittest.TestCase):
         return self.git("log", "-1", "--format=%B").stdout
 
     def activate_compiled_packet(
-        self, *, allowed_files: list[str], implements: list[str], packet_version: int = 1
+        self, *, allowed_files: list[str], implements: list[str], packet_version: int = 1,
+        dispatch_version: int = 1,
     ) -> dict:
         base = self.git("rev-parse", "HEAD").stdout.strip()
         context = " ".join(["grounded"] * 15)
         dispatch = {
             "schema": "memory-seed/task-dispatch",
-            "version": 1,
+            "version": dispatch_version,
             "objective": "Create a hook activation test packet.",
             "constitution_refs": [],
             "project_context": {
@@ -120,6 +121,11 @@ class CommitHookTests(unittest.TestCase):
                 "over_soft_cap_reason": None,
             },
         }
+        if dispatch_version == 2:
+            dispatch["execution"].update(
+                read_inputs={"working": list(allowed_files), "reference": []},
+                do_not_load=[".memory-seed/policy.md"],
+            )
         binding = {
             "owner": "hook-test",
             "agent_type": "codex",
@@ -175,6 +181,17 @@ class CommitHookTests(unittest.TestCase):
         (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
         self.git("add", "change.txt")
         self.git("commit", "-m", "feat: packet v2 implementation")
+
+        self.assertIn(f"Memory-Implements: {reference}", self.last_message())
+
+    def test_dispatch_v2_activation_stamps_exact_implements(self) -> None:
+        reference = "mse_aaaaaaaaaaaaaaaa:d1"
+        self.activate_compiled_packet(
+            allowed_files=["change.txt"], implements=[reference], dispatch_version=2
+        )
+        (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "feat: dispatch v2 implementation")
 
         self.assertIn(f"Memory-Implements: {reference}", self.last_message())
 

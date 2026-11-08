@@ -20,7 +20,12 @@ from typing import Any
 
 from .core import resolve_runtime
 from .planning import PlanningValidationError, parse_delivery_quality, validate_implementation_plan
-from .task_packet import TASK_DISPATCH_SCHEMA, TASK_DISPATCH_VERSION, TaskPacketValidationError, normalize_task_dispatch
+from .task_packet import (
+    TASK_DISPATCH_LEGACY_VERSION,
+    TASK_DISPATCH_SCHEMA,
+    TaskPacketValidationError,
+    normalize_task_dispatch,
+)
 
 PLAN_DISPATCH_SCHEMA = "memory-seed/plan-dispatch"
 PLAN_DISPATCH_VERSION = 1
@@ -156,7 +161,9 @@ def plan_dispatches(markdown: str, cwd: str | Path = ".", *, source: str | None 
         retrieval["overrides"] = overrides
         dispatch: dict[str, Any] = {
             "schema": TASK_DISPATCH_SCHEMA,
-            "version": TASK_DISPATCH_VERSION,
+            # Plan-dispatch v1 has no read-scope fields. Keep its generated
+            # dispatch on schema v1 rather than inventing read authority.
+            "version": TASK_DISPATCH_LEGACY_VERSION,
             "objective": objective,
             "constitution_refs": list(defaults.get("constitution_refs") or []),
             "project_context": copy.deepcopy(dict(defaults["project_context"])),

@@ -93,6 +93,7 @@ def render_task_packet(packet: Mapping[str, Any], packet_path: str, *, handoff: 
         "Forbidden files:",
         *_bullets(execution["forbidden_files"]),
         "",
+        *_read_scope_lines(dispatch),
         "Files you are expected to create:",
         *_bullets(execution["expected_absent"]),
         "",
@@ -169,6 +170,28 @@ def render_task_packet(packet: Mapping[str, Any], packet_path: str, *, handoff: 
         *_bullets(handoff_fields),
     ]
     return "\n".join(lines) + "\n"
+
+
+def _read_scope_lines(dispatch: Mapping[str, Any]) -> list[str]:
+    """Render explicit v2 read scope without inventing authority for v1."""
+    execution = dispatch["execution"]
+    read_inputs = execution.get("read_inputs")
+    if not isinstance(read_inputs, Mapping):
+        return [
+            f"Read inputs: unspecified by legacy dispatch schema v{dispatch['version']}",
+            "",
+        ]
+    return [
+        "Working inputs:",
+        *_bullets(read_inputs.get("working") or []),
+        "",
+        "Reference inputs:",
+        *_bullets(read_inputs.get("reference") or []),
+        "",
+        "Do not load:",
+        *_bullets(execution.get("do_not_load") or []),
+        "",
+    ]
 
 
 def _execution_section(defaults: Mapping[str, Any]) -> list[str]:

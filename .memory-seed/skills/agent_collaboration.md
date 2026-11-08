@@ -276,11 +276,12 @@ Keep packets narrow. Do not hand a worker the whole repository history when a pa
 ### Clean-session, high-signal packet convention
 
 The frontier-authored artifact is the **semantic dispatch**: a minimal
-`memory-seed/task-dispatch` v1 object that states the objective, grounded project frame, execution
+`memory-seed/task-dispatch` v2 object that states the objective, grounded project frame, execution
 contract, exact Retrieval Profile identity plus bounded overrides, budget, and memory-update policy.
 Frontier judgment chooses meaning and scope; it does not hand-author the expanded packet. Deterministic
 tooling combines that dispatch with the immutable profile version, measured runtime binding, and
-pinned corpus revision to reconstruct the complete `memory-seed/task-packet` v1 artifact.
+pinned corpus revision to reconstruct the complete versioned `memory-seed/task-packet` artifact. Dispatch
+v1 remains readable for existing packets; new dispatches use v2's explicit read scope.
 
 This compiler boundary is local and non-expansive. It adds no packet registry, worker dispatch,
 worktree creation, authority, provider lookup, pricing lookup, or network access. Profiles and Markdown
@@ -288,7 +289,7 @@ remain readable project-local inputs; Evidence Packs and compiled Task Packets a
 
 ```yaml
 schema: memory-seed/task-dispatch
-version: 1
+version: 2
 objective: "<one concrete outcome>"
 project_context:
   project_type_and_purpose: "<what this project is for>"
@@ -304,6 +305,10 @@ execution:
   write_intent: "read-only|writing"
   allowed_files: []
   forbidden_files: []
+  read_inputs:
+    working: []
+    reference: []
+  do_not_load: []
   validation: []
   output_contract: []
 retrieval:

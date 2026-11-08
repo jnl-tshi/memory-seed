@@ -61,11 +61,12 @@ _DISPATCH_KEYS = {
 }
 # Keys the compiler writes only when used; a dispatch may carry any of them.
 _OPTIONAL_DISPATCH_KEYS = {"planning_evidence", "packet_version"}
-_EXECUTION_KEYS = {
+_EXECUTION_V1_KEYS = {
     "role", "persona", "capability_tier", "write_intent", "allowed_files",
     "forbidden_files", "validation", "output_contract", "expected_absent",
     "acceptance_observables", "implements",
 }
+_EXECUTION_V2_KEYS = _EXECUTION_V1_KEYS | {"read_inputs", "do_not_load"}
 _BINDING_KEYS = {
     "owner", "agent_type", "base_branch", "base_sha", "working_branch",
     "worktree", "expected_directory", "integration_artifact",
@@ -296,7 +297,7 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
             return None
     elif not _valid_worker_baseline(packet.get("worker_baseline"), dispatch):
         return None
-    if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") != 1:
+    if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") not in {1, 2}:
         return None
     if not isinstance(dispatch.get("objective"), str) or not dispatch["objective"].strip():
         return None
@@ -304,8 +305,21 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     if dispatch_fingerprint is None or not secrets.compare_digest(packet.get("dispatch_fingerprint", ""), dispatch_fingerprint):
         return None
     execution = dispatch.get("execution")
-    if not isinstance(execution, dict) or set(execution) != _EXECUTION_KEYS:
+    execution_keys = _EXECUTION_V2_KEYS if dispatch["version"] == 2 else _EXECUTION_V1_KEYS
+    if not isinstance(execution, dict) or set(execution) != execution_keys:
         return None
+    if dispatch["version"] == 2:
+        read_inputs = execution.get("read_inputs")
+        do_not_load = execution.get("do_not_load")
+        if (
+            not isinstance(read_inputs, dict)
+            or set(read_inputs) != {"working", "reference"}
+            or not all(isinstance(items, list) and all(isinstance(path, str) for path in items)
+                       for items in read_inputs.values())
+            or not isinstance(do_not_load, list)
+            or not all(isinstance(path, str) for path in do_not_load)
+        ):
+            return None
     if execution.get("write_intent") != "writing" or execution.get("role") not in {"worker", "validator", "researcher"}:
         return None
     implements = execution.get("implements")
