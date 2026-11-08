@@ -38,3 +38,14 @@
 - Validation: the combined serial hook/lifecycle/text/git-hook suite passed (`132 passed, 14 subtests`); docs, encoding, parity, and `git diff --check` passed.
 - Coordination note: `to-codex.md` remained absent at the item start and completion recheck.
 
+## 2026-11-08 - Memory Seed 2.25.0 local release preparation
+
+- Branch: `codex/release/2.25.0-prep` (stacked on MSI-033).
+- Outcome: prepared package version `2.25.0` and control-plane version `2.25`, archived the exact 2.24 `agent-rules.md` and `project-bootstrap.md` preimages, refreshed live and seeded version frontmatter, dated the changelog, refreshed the functionality audit and generated docs indexes, and built both distribution artifacts. Nothing was published, tagged, pushed, or merged.
+- Artifact inspection: the wheel and sdist both report version `2.25.0`; the wheel contains the packaged agent entry point and control-plane skills. SHA-256: wheel `C0247B561C2108A21E5459184AB1C03276272ADB117806D20B26C490062FF3EB`; sdist `6F675C00C6A63D79B95AAD042EDB4B9FFDF40664950DFC10375A97C3CFB55E12`.
+- Package smoke: an isolated no-dependency wheel install reported CLI/control-plane versions `2.25.0`/`2.25`, imported `memory_seed.core`, and initialized a 2.25 seed successfully. Its doctor correctly reported the fresh project as seeded-but-not-bootstrapped because generated `index.md` and `policy.md` do not exist until bootstrap.
+- Passing gates: focused version tests; doctor; links integrity (pre-existing warnings only); docs lifecycle and generated-index checks; encoding; archive byte comparisons; build; artifact content/version inspection; installed-wheel smoke; and `git diff --check`.
+- Full serial suite: `2365 passed, 2 skipped, 307 subtests passed`; the only two failures are MSI-031's scheduled inventory work in `tests/hosted/test_import_inventory.py`, where `project.docs`, `project.docs.allowlist`, and `project.docs.lanes` are absent from the crosswalk/snapshot. They were deliberately not folded into this release-boundary commit because the approved order keeps MSI-031 post-release-track.
+- Promotion state: local release candidate prepared, but final full-suite promotion remains pending MSI-031's separate repair and final rerun.
+- Coordination note: `to-codex.md` remained absent throughout release preparation.
+

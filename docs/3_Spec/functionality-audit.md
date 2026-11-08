@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 tags:
   - memory-seed
   - audit
@@ -8,12 +8,13 @@ tags:
 
 # Memory Seed - Functionality Audit
 
-> **Current reconciliation — 2026-10-19.** This revision supersedes the audit's former July/August
-> current-state claims. It covers the released local OSS surface through `2.24.0` and the separately
+> **Current reconciliation — 2026-11-08.** This revision supersedes the audit's former July/August
+> current-state claims. It covers the prepared local OSS `2.25.0` candidate and the separately
 > scoped hosted team-edition programme. Historical roadmap material remains in Appendix A for
 > provenance only.
 
-**As of:** 2026-10-19 — control plane `2.24`; checkout package and latest published package `2.24.0`.
+**As of:** 2026-11-08 — control plane `2.25`; checkout package `2.25.0`; latest published package
+`2.24.0`. The `2.25.0` candidate is prepared locally but is not tagged or published.
 
 **Scope:** current local OSS and hosted-edition functionality, subsystem relationships, data flows,
 verification surfaces, known debt, and the active roadmap. Source/config files remain implementation
@@ -177,7 +178,7 @@ graph TD
 ## 3. Feature inventory (current)
 
 Unless a bullet explicitly says **Unreleased** or **Planned**, this section describes behaviour present in
-the `2.24.0` checkout. Versioned historical qualifiers are retained only where they explain when a contract
+the `2.25.0` checkout. Versioned historical qualifiers are retained only where they explain when a contract
 entered the product; they are not release-status labels.
 
 ### A. Distribution & packaging

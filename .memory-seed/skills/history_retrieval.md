@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 governing_adr: adr_semantic_provider
 tags:
   - memory-seed

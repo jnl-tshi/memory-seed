@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 governing_adr: adr_draft_format
 tags:
   - memory-seed
