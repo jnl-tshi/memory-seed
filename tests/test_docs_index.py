@@ -19,6 +19,11 @@ class DocsIndexTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def configure(self, root, text):
+        memory = root / ".memory-seed"
+        memory.mkdir(exist_ok=True)
+        (memory / "project.yaml").write_text(text, encoding="utf-8")
+
     def test_creates_readme_with_table_when_absent(self):
         root = self.make_docs()
         self.write(root, "2_Todo/a.md", "---\npriority: P1\nnext_action: build it\n---\n\n# A\n")
@@ -134,6 +139,43 @@ class DocsIndexTests(unittest.TestCase):
 
         text = (root / "docs" / "2_Todo" / "README.md").read_text(encoding="utf-8")
         self.assertIn("do x \\| then y", text)
+
+    def test_default_lanes_match_planning_profile_artifacts(self):
+        root = self.make_docs()
+        self.write(root, "inbox/new.md", "# New\n")
+        self.write(root, "todo/a.md", "---\npriority: P1\nnext_action: build it\n---\n\n# A\n")
+        self.write(root, "reference/source.md", "# Source\n")
+
+        apply_docs_index(root)
+
+        self.assertTrue((root / "docs" / "inbox" / "README.md").exists())
+        self.assertTrue((root / "docs" / "todo" / "README.md").exists())
+        self.assertTrue((root / "docs" / "reference" / "README.md").exists())
+        front = (root / "docs" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("inbox 1", front)
+        self.assertIn("todo 1", front)
+        self.assertIn("reference 1", front)
+        self.assertIn("build it", front)
+
+    def test_project_yaml_configures_indexed_lane_order(self):
+        root = self.make_docs()
+        self.configure(
+            root,
+            "docs:\n"
+            "  lanes: [incoming, active, shipped]\n"
+            "  allowlist: [shipped/templates]\n",
+        )
+        self.write(root, "incoming/new.md", "# New\n")
+        self.write(root, "active/plan.md", "# Plan\n")
+        self.write(root, "shipped/done.md", "# Done\n")
+
+        apply_docs_index(root)
+
+        front = (root / "docs" / "README.md").read_text(encoding="utf-8")
+        self.assertLess(front.index("incoming 1"), front.index("active 1"))
+        self.assertLess(front.index("active 1"), front.index("shipped 1"))
+        for lane in ("incoming", "active", "shipped"):
+            self.assertTrue((root / "docs" / lane / "README.md").exists())
 
 
 if __name__ == "__main__":

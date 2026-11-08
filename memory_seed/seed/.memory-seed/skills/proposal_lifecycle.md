@@ -33,8 +33,20 @@ Path conventions are project-local:
 - This repository uses the numbered taxonomy with promoted terminal lanes: `docs/1_Inbox/`,
   `docs/2_Todo/`, `docs/3_Spec/` (+ `draft/`, `deprecated/`), `docs/4_Reference/` (+ `archived/`),
   `docs/5_Completed/`, `docs/6_Rejected/`, `docs/7_Replaced/`, `docs/8_Deferred/`.
-- Fresh projects created by the planning profile may use the generic bootstrap taxonomy: `docs/inbox/`,
-  `docs/todo/`, `docs/completed/`, `docs/reference/` (adding the disposition lanes when adopted).
+- Fresh projects created by the planning profile use the generic bootstrap taxonomy: `docs/inbox/`,
+  `docs/todo/`, `docs/todo/completed/`, and `docs/reference/` (adding disposition lanes when adopted).
+
+The ordered lane paths and legitimate nested folders are configured in `.memory-seed/project.yaml`:
+
+```yaml
+docs:
+  lanes: [inbox, todo, reference]
+  allowlist: [todo/completed]
+```
+
+`memory-seed docs check` and `memory-seed docs index` consume the same setting. Projects without it
+use the planning-profile defaults; pre-configuration numbered projects remain readable through the
+legacy layout fallback until they make their taxonomy explicit.
 
 In either taxonomy: inbox = unassessed source; todo = refined active plans (blocked items stay here,
 flagged in YAML); each terminal lane names one **outcome** (completed=shipped, rejected=declined,
@@ -135,8 +147,9 @@ After lifecycle edits, run the smallest useful checks:
 ```text
 rg "<old-path-or-filename>" docs .memory-seed memory_seed tests   # catch broken links after a move
 python -m memory_seed.cli links check
+python -m memory_seed.cli docs check
+python -m memory_seed.cli docs index --check
 python -m memory_seed.cli doctor
 ```
 
-(A `memory-seed docs check` that validates lane membership and required per-lane metadata is planned.)
 For seed or registry changes, also run the unit tests that cover seed inventory and live/seed parity.

@@ -12228,6 +12228,25 @@ def _replace_top_level_block(text: str, key: str, block: str) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+def _ensure_project_docs_config(target_root: Path) -> bool:
+    """Add the planning profile's lane defaults without replacing local config."""
+    from .docs_config import SEED_DOC_ALLOWLIST, SEED_DOC_LANES
+
+    path = _project_config_path(target_root)
+    try:
+        text = read_text_file(path) if path.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        return False
+    if re.search(r"^docs\s*:", text, re.MULTILINE):
+        return False
+    block_lines = ["docs:", "  lanes:"]
+    block_lines.extend(f"    - {lane}" for lane in SEED_DOC_LANES)
+    block_lines.append("  allowlist:")
+    block_lines.extend(f"    - {path}" for path in sorted(SEED_DOC_ALLOWLIST))
+    write_text_file(path, _replace_top_level_block(text, "docs", "\n".join(block_lines)))
+    return True
+
+
 def _write_project_skills(
     target_root: Path,
     *,
@@ -12338,6 +12357,8 @@ def _create_skill_artifacts(target_root: Path, selected_optional: set[str]) -> l
     created: list[str] = []
     if "proposal_lifecycle.md" not in selected_optional:
         return created
+    if _ensure_project_docs_config(target_root):
+        created.append(f"{MEMORY_DIR_NAME}/project.yaml")
     for rel in PROPOSAL_LIFECYCLE_ARTIFACTS:
         path = target_root / rel
         if not path.exists():

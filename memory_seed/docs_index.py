@@ -26,20 +26,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .docs_config import docs_lane_role, load_docs_layout
+
 BEGIN = "<!-- docs-index:begin -->"
 END = "<!-- docs-index:end -->"
-
-# Flow lanes get a table; type lanes too. Order fixes the front-door roll-up.
-LANES = (
-    "1_Inbox",
-    "2_Todo",
-    "3_Spec",
-    "4_Reference",
-    "5_Completed",
-    "6_Rejected",
-    "7_Replaced",
-    "8_Deferred",
-)
 
 _PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
@@ -101,7 +91,7 @@ def _lane_table(lane: str, docs: list[Path]) -> str:
                 front.get("next_action") or front.get("replaced_by") or front.get("status", ""),
             )
         )
-    if lane == "2_Todo":
+    if docs_lane_role(lane) == "todo":
         rows.sort(key=lambda r: (_PRIORITY_ORDER.get(r[1], 9), r[0].lower()))
 
     lines = [
@@ -118,16 +108,18 @@ def _lane_table(lane: str, docs: list[Path]) -> str:
     return "\n".join(lines)
 
 
-def _front_door_block(docs_root: Path) -> str:
+def _front_door_block(docs_root: Path, lanes: tuple[str, ...]) -> str:
     counts: list[str] = []
     total_open: list[tuple[str, str, str]] = []
-    for lane in LANES:
+    todo_lane: str | None = None
+    for lane in lanes:
         lane_dir = docs_root / lane
         if not lane_dir.is_dir():
             continue
         docs = _lane_docs(lane_dir)
         counts.append(f"{lane} {len(docs)}")
-        if lane == "2_Todo":
+        if docs_lane_role(lane) == "todo":
+            todo_lane = lane
             for doc in docs:
                 front = _frontmatter(doc)
                 if front.get("priority") in ("P0", "P1"):
@@ -142,9 +134,12 @@ def _front_door_block(docs_root: Path) -> str:
     if total_open:
         total_open.sort()
         lines.append("")
-        lines.append("Top open items (P0/P1 in `2_Todo/`):")
+        lines.append(f"Top open items (P0/P1 in `{todo_lane}/`):")
         for priority, name, action in total_open:
-            lines.append(f"- **{priority}** [{name}](2_Todo/{name.replace(' ', '%20')}) — {_cell(action, 140)}")
+            lines.append(
+                f"- **{priority}** [{name}]({todo_lane}/{name.replace(' ', '%20')}) "
+                f"— {_cell(action, 140)}"
+            )
     lines.append(END)
     return "\n".join(lines)
 
@@ -175,13 +170,15 @@ def apply_docs_index(cwd: str | Path = ".", *, check: bool = False) -> DocsIndex
     if not docs_root.is_dir():
         return result
 
+    layout = load_docs_layout(root)
+
     targets: list[tuple[Path, str]] = []
-    for lane in LANES:
+    for lane in layout.lanes:
         lane_dir = docs_root / lane
         if not lane_dir.is_dir():
             continue
         targets.append((lane_dir / "README.md", _lane_table(lane, _lane_docs(lane_dir))))
-    targets.append((docs_root / "README.md", _front_door_block(docs_root)))
+    targets.append((docs_root / "README.md", _front_door_block(docs_root, layout.lanes)))
 
     for readme, block in targets:
         existing = read_text_file(readme) if readme.exists() else f"# {readme.parent.name}\n"

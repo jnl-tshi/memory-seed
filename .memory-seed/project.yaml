@@ -11,6 +11,27 @@ merge_trigger: automatic
 # Failure warns and leaves the merge committed; no LLM or network service is used.
 graphify_merge_refresh: true
 
+# Docs lifecycle paths are project-local. The ordered lanes drive both
+# `memory-seed docs check` and `memory-seed docs index`; nested folders must be
+# explicitly allowlisted.
+docs:
+  lanes:
+    - 1_Inbox
+    - 2_Todo
+    - 3_Spec
+    - 4_Reference
+    - 5_Completed
+    - 6_Rejected
+    - 7_Replaced
+    - 8_Deferred
+  allowlist:
+    - 3_Spec/deprecated
+    - 3_Spec/draft
+    - 4_Reference/archived
+    - 4_Reference/memory-trace-phase0-baseline
+    - 4_Reference/trace-humanised-dashboard-references
+    - 5_Completed/agent-templates
+
 # Shared planning policy. Local/task settings may tighten these values only.
 delivery_quality:
   schema_version: 1

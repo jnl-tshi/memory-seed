@@ -28,37 +28,10 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote
 
+from .docs_config import DocsLayout, docs_lane_role, load_docs_layout
+
 _LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
-
-# Non-lane folders that are legitimate, mirroring docs/README.md's allowlist.
-# Anything else under docs/ is either a lane or a mistake.
-SIDE_FOLDER_ALLOWLIST: frozenset[str] = frozenset(
-    {
-        "5_Completed/agent-templates",
-        "4_Reference/memory-trace-phase0-baseline",
-        "4_Reference/archived",
-        "4_Reference/trace-humanised-dashboard-references",
-        "3_Spec/draft",
-        "3_Spec/deprecated",
-    }
-)
-
-LANES: frozenset[str] = frozenset(
-    {
-        "1_Inbox",
-        "2_Todo",
-        "3_Spec",
-        "4_Reference",
-        "5_Completed",
-        "6_Rejected",
-        "7_Replaced",
-        # Legacy lane spelling (renamed 2026-07-24); external <=2.19 repos
-        # still have the folder, so it stays a valid lane forever.
-        "7_Superseded",
-        "8_Deferred",
-    }
-)
 
 Severity = Literal["error", "warning"]
 
@@ -98,9 +71,9 @@ def _frontmatter(text: str) -> dict[str, str]:
     return _parse_frontmatter_scalars(match.group(1))
 
 
-def _lane_of(rel: Path) -> str | None:
+def _lane_of(rel: Path, layout: DocsLayout) -> str | None:
     parts = rel.parts
-    return parts[0] if parts and parts[0] in LANES else None
+    return parts[0] if parts and parts[0] in layout.lanes else None
 
 
 def _check_links(md: Path, docs_root: Path, text: str, rel: str) -> list[DocIssue]:
@@ -140,6 +113,8 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
     if not docs_root.is_dir():
         return DocsCheckResult(issues=(), files_checked=0)
 
+    layout = load_docs_layout(root)
+
     issues: list[DocIssue] = []
     checked = 0
     seen_dirs: set[str] = set()
@@ -156,7 +131,7 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
 
         issues.extend(_check_links(md, docs_root, text, rel))
 
-        lane = _lane_of(rel_path)
+        lane = _lane_of(rel_path, layout)
         if lane is None:
             # A top-level doc (CONSTITUTION.md, README.md) is not lane-managed.
             if len(rel_path.parts) > 1:
@@ -173,7 +148,7 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
         # Nested folders inside a lane must be on the allowlist.
         if len(rel_path.parts) > 2:
             folder = rel_path.parent.as_posix()
-            if folder not in SIDE_FOLDER_ALLOWLIST and folder not in seen_dirs:
+            if folder not in layout.allowlist and folder not in seen_dirs:
                 seen_dirs.add(folder)
                 issues.append(
                     DocIssue(rel, "off-allowlist-folder", f"{folder} is not on the side-folder allowlist")
@@ -184,7 +159,9 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
 
         front = _frontmatter(text)
 
-        if lane == "2_Todo" and rel_path.name != "0_NEXT_STEPS.md":
+        role = docs_lane_role(lane)
+
+        if role == "todo" and len(rel_path.parts) == 2 and rel_path.name != "0_NEXT_STEPS.md":
             missing = [k for k in ("priority", "next_action") if k not in front]
             if missing:
                 issues.append(
@@ -199,7 +176,7 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
         # "7_Superseded" and "superseded_by:" are the legacy spellings (renamed
         # 2026-07-24); external repos initialised by <=2.19 still carry them, so
         # both lanes and both frontmatter keys validate identically forever.
-        if lane in ("7_Replaced", "7_Superseded"):
+        if role == "replaced":
             pointer_key = "replaced_by" if "replaced_by" in front else "superseded_by"
             if pointer_key not in front:
                 issues.append(
@@ -212,10 +189,10 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
                 )
             issues.extend(_check_pointer(md, docs_root, front, pointer_key, rel))
 
-        if lane == "4_Reference" and rel_path.parent.name == "archived":
+        if role == "reference" and rel_path.parent.name.casefold() == "archived":
             issues.extend(_check_pointer(md, docs_root, front, "extracted_into", rel))
 
-        if lane == "3_Spec":
+        if role == "spec":
             binding = front.get("spec_binding")
             sub = rel_path.parts[1] if len(rel_path.parts) > 2 else None
             expected = {"draft": {"draft", "candidate"}, "deprecated": {"deprecated"}}.get(
@@ -227,7 +204,7 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
                         rel,
                         "spec-binding-mismatch",
                         f"spec_binding: {binding} contradicts its folder "
-                        f"({sub or '3_Spec'} expects one of {sorted(expected)})",
+                        f"({sub or lane} expects one of {sorted(expected)})",
                     )
                 )
 

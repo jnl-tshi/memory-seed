@@ -740,6 +740,8 @@ class ProjectLifecycleTests(unittest.TestCase):
         project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
         self.assertIn("coding", project_yaml)
         self.assertIn("planning", project_yaml)
+        self.assertIn("docs:\n  lanes:\n    - inbox\n    - todo\n    - reference", project_yaml)
+        self.assertIn("  allowlist:\n    - todo/completed", project_yaml)
 
     def test_delivery_quality_skills_are_registered_with_their_profiles(self):
         cwd = self.make_project()
@@ -760,6 +762,34 @@ class ProjectLifecycleTests(unittest.TestCase):
         registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
         self.assertIn("skill: design_discovery.md", registry)
         self.assertIn("skill: systematic_debugging.md", registry)
+
+    def test_update_migrates_legacy_planning_profile_to_docs_defaults(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"planning"})
+        project = cwd / ".memory-seed" / "project.yaml"
+        text = project.read_text(encoding="utf-8")
+        text = text[: text.index("\ndocs:\n")].rstrip() + "\n"
+        project.write_text(text, encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        updated = project.read_text(encoding="utf-8")
+        self.assertTrue(result.changed)
+        self.assertIn(".memory-seed/project.yaml", result.created)
+        self.assertIn("docs:\n  lanes:\n    - inbox\n    - todo\n    - reference", updated)
+
+    def test_adding_planning_preserves_existing_docs_configuration(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        project = cwd / ".memory-seed" / "project.yaml"
+        custom = "docs:\n  lanes: [incoming, active, shipped]\n  allowlist: [shipped/templates]\n"
+        project.write_text(project.read_text(encoding="utf-8") + "\n" + custom, encoding="utf-8")
+
+        add_skill(cwd=cwd, name="planning")
+
+        updated = project.read_text(encoding="utf-8")
+        self.assertIn(custom, updated)
+        self.assertNotIn("    - inbox", updated)
 
     def test_update_respects_ignored_optional_skills(self):
         cwd = self.make_project()

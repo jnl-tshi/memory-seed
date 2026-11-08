@@ -19,6 +19,11 @@ class DocsCheckTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def configure(self, root, text):
+        memory = root / ".memory-seed"
+        memory.mkdir(exist_ok=True)
+        (memory / "project.yaml").write_text(text, encoding="utf-8")
+
     def kinds(self, result):
         return {i.kind for i in result.issues}
 
@@ -161,6 +166,47 @@ class DocsCheckTests(unittest.TestCase):
         self.write(root, "4_Reference/trace-humanised-dashboard-references/README.md", "# References\n")
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
+
+    def test_default_layout_matches_planning_profile_artifacts(self):
+        root = self.make_docs()
+        self.write(root, "inbox/new.md", "# New\n")
+        self.write(root, "todo/active.md", "---\npriority: P1\nnext_action: ship\n---\n\n# Active\n")
+        self.write(root, "todo/completed/done.md", "# Done\n")
+        self.write(root, "reference/source.md", "# Source\n")
+
+        result = check_docs(root)
+
+        self.assertTrue(result.ok)
+        self.assertNotIn("off-lane-folder", self.kinds(result))
+        self.assertNotIn("off-allowlist-folder", self.kinds(result))
+        self.assertFalse(
+            any(issue.kind == "missing-todo-yaml" and issue.file == "todo/completed/done.md"
+                for issue in result.issues)
+        )
+
+    def test_project_yaml_configures_lanes_and_allowlist(self):
+        root = self.make_docs()
+        self.configure(
+            root,
+            "docs:\n"
+            "  lanes:\n"
+            "    - incoming\n"
+            "    - active\n"
+            "    - shipped\n"
+            "  allowlist:\n"
+            "    - shipped/templates\n",
+        )
+        self.write(root, "incoming/new.md", "# New\n")
+        self.write(root, "active/plan.md", "# Plan\n")
+        self.write(root, "shipped/templates/example.md", "# Template\n")
+        self.write(root, "unmanaged/stray.md", "# Stray\n")
+
+        result = check_docs(root)
+
+        self.assertEqual(
+            [(issue.kind, issue.file) for issue in result.errors],
+            [("off-lane-folder", "unmanaged/stray.md")],
+        )
 
     def test_lane_readme_is_not_a_lifecycle_document(self):
         root = self.make_docs()
