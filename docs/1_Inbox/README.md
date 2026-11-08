@@ -128,4 +128,5 @@ were themselves reference material, not undecided captures — moved the same da
 | [semantic-compression-benchmark-proposal.md](semantic-compression-benchmark-proposal.md) | — | — | — |
 | [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
 | [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
+| [task-packet-budget-and-skill-layering-proposal.md](task-packet-budget-and-skill-layering-proposal.md) | — | — | — |
 <!-- docs-index:end -->

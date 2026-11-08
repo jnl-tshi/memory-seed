@@ -78,3 +78,16 @@
 - Decision: fixed serializability at the subtest-label boundary; no module exclusions, serial-only markers, or suite-wide xdist workaround were added.
 - Coordination note: `to-codex.md` remained absent at item start and completion.
 
+## 2026-11-08 - MSI-025/MSI-026 budget and skill-layering design
+
+- Branch: `codex/docs/msi-025-026-budget-skill-layering` (stacked on MSI-032).
+- Outcome: added `docs/1_Inbox/task-packet-budget-and-skill-layering-proposal.md` as a proposal only; no Task Dispatch, Task Packet, registry, skill, seed, CLI, MCP, or hook behavior changed.
+- Budget recommendation: retain one canonical context envelope, add a distinct planned skill/persona reserve beside the existing supplemental evidence reserve, expose embedded manifests as serialized-packet subsets, and keep digest-pinned governance loads outside both reserves.
+- Layering recommendation: preserve Packet + at most one persona + objective-triggered skills; resolve through the existing universal/local/nearest/inherited registry order; treat Dispatch v2 read scope as authorization rather than eager preload; let `do_not_load` win over every task or skill-derived request.
+- Runtime recommendation: digest-addressed idempotent debits, structured skill-budget failures, and bounded late skill loads only when compile-time pins, registry trigger, remaining skill reserve, read scope, and unchanged task authority all agree.
+- Compatibility: v1 remains byte/behavior compatible and receives no synthetic read or skill guarantees; current v2 retains its existing ledger and supplemental-reserve meaning until JNL chooses an optional extension versus a new schema version.
+- Discovery: authority review completed with no conflicts and no ADR outcome required. Evidence Pack fingerprint `sha256:1bccecbf15febbcb310416f2f6cf86ec07d329408e527141442a50c0178adb1e`.
+- Approval gate: JNL must decide schema versioning, late-load pin breadth, persona sub-allocation, and runtime telemetry scope before implementation planning.
+- Validation: final full serial suite passed (`2371 passed, 2 skipped, 307 subtests passed` in 2242.43 seconds); hosted inventory passed all 5 focused tests after the final session refresh; doctor, links/session integrity, docs lifecycle, generated docs indexes, encoding, and `git diff --check` all passed. Link checking retained only the repository's pre-existing warnings. The earlier full parallel gate remains clean (`2371 passed, 2 skipped, 307 subtests passed`).
+- Coordination note: `to-codex.md` remained absent at item start and pre-report recheck.
+
