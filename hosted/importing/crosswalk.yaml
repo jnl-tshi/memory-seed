@@ -537,6 +537,24 @@
       "rationale": "Dated sidecar wrapper metadata is retained without becoming relationship authority."
     },
     {
+      "source": "project.docs",
+      "classification": "structural_container",
+      "target": null,
+      "rationale": "Documentation lifecycle configuration is represented by its lane and allowlist values."
+    },
+    {
+      "source": "project.docs.allowlist",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
+      "source": "project.docs.lanes",
+      "classification": "control_plane_config",
+      "target": "project_artifacts.metadata_json",
+      "rationale": "Repository operating configuration is preserved but is not hosted memory authority."
+    },
+    {
       "source": "project.delivery_quality",
       "classification": "control_plane_config",
       "target": "project_artifacts.metadata_json",
