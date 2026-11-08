@@ -263,6 +263,10 @@ and does not re-add ignored optional skills. The `planning` profile also creates
 `.gitkeep` anchors for the proposal workflow and its source/reference material. It also records the
 ordered lanes and allowed nested folders under `docs:` in `.memory-seed/project.yaml`; both
 `memory-seed docs check` and `memory-seed docs index` use that project-local configuration.
+An allowlist entry names a folder subtree, so `runbooks` covers every folder below
+`docs/runbooks/`. Entries may also use POSIX glob segments (`*`, `?`, character classes, and `**`);
+the directory matched by a glob and its descendants are covered. Allowlisted trees may sit inside a
+lane or outside the lane registry when a project deliberately keeps non-lifecycle documentation.
 The `governance` profile installs `skill_architecture.md` for projects that maintain
 Memory Seed skills, trigger registries, profile boundaries, or seed/live control-plane parity.
 

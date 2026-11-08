@@ -73,8 +73,11 @@ retention, and export now follow the [hosted MVP programme](2_Todo/hosted-memory
 
 Non-lane folders that are legitimate, with a reason:
 
-This table must stay in sync with `SIDE_FOLDER_ALLOWLIST` in `memory_seed/docs_check.py` — the code is
-what enforces it; anything here that the code does not list is a hard `off-allowlist-folder` error.
+This table must stay in sync with `docs.allowlist` in `.memory-seed/project.yaml` — that project-local
+configuration is what `memory-seed docs check` enforces. A literal entry covers its whole subtree; a
+glob entry covers the directory it matches and that directory's descendants. The same mechanism can
+exempt an intentional non-lane documentation tree, although this repository currently keeps every
+listed exception inside a lane.
 
 | Path | Reason | Action |
 |---|---|---|

@@ -4,6 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Fixed
+
+- [2026-11-08] **Documentation allowlists cover real folder trees.**
+  - Literal entries apply to the named folder and all descendants; POSIX glob entries cover the
+    directory they match and that directory's subtree.
+  - Projects can explicitly exempt intentional non-lane documentation trees without disabling lane
+    validation for unrelated folders.
+
 ## 2.25.0 - 2026-11-08
 
 ### Added

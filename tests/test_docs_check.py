@@ -161,6 +161,59 @@ class DocsCheckTests(unittest.TestCase):
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
 
+    def test_allowlisted_folder_is_a_prefix_for_its_descendants(self):
+        root = self.make_docs()
+        self.write(root, "5_Completed/agent-templates/backend/python/dev.md", "# Dev\n")
+
+        self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
+
+    def test_allowlist_glob_exempts_matching_lane_folder_subtrees(self):
+        root = self.make_docs()
+        self.configure(
+            root,
+            "docs:\n"
+            "  lanes: [incoming, active, shipped]\n"
+            "  allowlist:\n"
+            "    - active/*-research\n",
+        )
+        self.write(root, "active/product-research/raw/interviews.md", "# Interviews\n")
+
+        self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
+
+    def test_allowlisted_non_lane_folder_is_exempt(self):
+        root = self.make_docs()
+        self.configure(
+            root,
+            "docs:\n"
+            "  lanes: [incoming, active, shipped]\n"
+            "  allowlist: [runbooks]\n",
+        )
+        self.write(root, "runbooks/operations/windows/recovery.md", "# Recovery\n")
+
+        self.assertNotIn("off-lane-folder", self.kinds(check_docs(root)))
+
+    def test_allowlist_glob_exempts_matching_non_lane_folder_subtrees(self):
+        root = self.make_docs()
+        self.configure(
+            root,
+            "docs:\n"
+            "  lanes: [incoming, active, shipped]\n"
+            "  allowlist: [handbook/**]\n",
+        )
+        self.write(root, "handbook/engineering/on-call/guide.md", "# Guide\n")
+        self.write(root, "unmanaged/stray.md", "# Stray\n")
+
+        result = check_docs(root)
+
+        self.assertNotIn(
+            ("off-lane-folder", "handbook/engineering/on-call/guide.md"),
+            [(issue.kind, issue.file) for issue in result.errors],
+        )
+        self.assertIn(
+            ("off-lane-folder", "unmanaged/stray.md"),
+            [(issue.kind, issue.file) for issue in result.errors],
+        )
+
     def test_allowlisted_reference_design_group_is_not_flagged(self):
         root = self.make_docs()
         self.write(root, "4_Reference/trace-humanised-dashboard-references/README.md", "# References\n")

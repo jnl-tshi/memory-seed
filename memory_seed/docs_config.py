@@ -44,6 +44,33 @@ class DocsLayout:
     allowlist: frozenset[str]
 
 
+_GLOB_MAGIC = re.compile(r"[*?[]")
+
+
+def docs_folder_is_allowlisted(folder: str, allowlist: frozenset[str]) -> bool:
+    """Return whether *folder* is covered by a configured directory rule.
+
+    Literal entries own their complete subtree.  Glob entries are matched
+    against the folder and each of its ancestors, so a rule such as
+    ``handbook/*`` allows the matched directory and everything below it.
+    Matching always uses docs-root-relative POSIX paths.
+    """
+
+    normalised = _normalise_path(folder, lane=False)
+    if normalised is None:
+        return False
+    path = PurePosixPath(normalised)
+    for pattern in allowlist:
+        if not _GLOB_MAGIC.search(pattern):
+            if normalised == pattern or normalised.startswith(f"{pattern}/"):
+                return True
+            continue
+        candidates = (path, *path.parents)
+        if any(candidate.as_posix() != "." and candidate.match(pattern) for candidate in candidates):
+            return True
+    return False
+
+
 def _normalise_path(value: str, *, lane: bool) -> str | None:
     value = value.strip().strip("'\"").replace("\\", "/")
     if value.startswith("/"):

@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote
 
-from .docs_config import DocsLayout, docs_lane_role, load_docs_layout
+from .docs_config import DocsLayout, docs_folder_is_allowlisted, docs_lane_role, load_docs_layout
 
 _LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
@@ -136,7 +136,10 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
             # A top-level doc (CONSTITUTION.md, README.md) is not lane-managed.
             if len(rel_path.parts) > 1:
                 folder = rel_path.parent.as_posix()
-                if folder not in seen_dirs:
+                if (
+                    not docs_folder_is_allowlisted(folder, layout.allowlist)
+                    and folder not in seen_dirs
+                ):
                     seen_dirs.add(folder)
                     issues.append(
                         DocIssue(
@@ -148,7 +151,10 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
         # Nested folders inside a lane must be on the allowlist.
         if len(rel_path.parts) > 2:
             folder = rel_path.parent.as_posix()
-            if folder not in layout.allowlist and folder not in seen_dirs:
+            if (
+                not docs_folder_is_allowlisted(folder, layout.allowlist)
+                and folder not in seen_dirs
+            ):
                 seen_dirs.add(folder)
                 issues.append(
                     DocIssue(rel, "off-allowlist-folder", f"{folder} is not on the side-folder allowlist")

@@ -49,3 +49,13 @@
 - Promotion state: local release candidate prepared, but final full-suite promotion remains pending MSI-031's separate repair and final rerun.
 - Coordination note: `to-codex.md` remained absent throughout release preparation.
 
+## 2026-11-08 - MSI-035 documentation allowlist coverage
+
+- Branch: `codex/feat/msi-035-docs-allowlist` (stacked on the 2.25.0 release-preparation commit).
+- Outcome: documentation allowlist entries now cover directory subtrees. Literal entries act as path prefixes; POSIX glob entries (`*`, `?`, character classes, and `**`) cover a matched directory and its descendants.
+- Non-lane behavior: an allowlisted tree outside `docs.lanes` is now an explicit exemption, while unrelated non-lane folders continue to raise `off-lane-folder`.
+- Tests-first evidence: four new regressions failed before implementation—literal descendant coverage, lane glob coverage, literal non-lane exemption, and globbed non-lane exemption—then all passed.
+- Validation: the serial docs check/index/lifecycle suite passed (`119 passed, 15 subtests`); live docs lifecycle checked 275 files; generated indexes were current; encoding and `git diff --check` passed.
+- Documentation: README, the project configuration comment, repository docs front door, and Unreleased changelog now describe prefix/glob/non-lane semantics. The stale `SIDE_FOLDER_ALLOWLIST` reference was corrected to `.memory-seed/project.yaml`.
+- Coordination note: `to-codex.md` remained absent at item start and completion.
+
