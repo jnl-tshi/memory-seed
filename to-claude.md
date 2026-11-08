@@ -68,3 +68,13 @@
 - Validation: crosswalk uniqueness, explicit classification/target rules, live totality, actor coverage, frozen fixture hashes, unknown-field negative control, and snapshot vocabulary parity all pass.
 - Coordination note: `to-codex.md` remained absent at item start and completion.
 
+## 2026-11-08 - MSI-032 Windows xdist subtest serialization
+
+- Branch: `codex/fix/msi-032-xdist` (stacked on MSI-031).
+- Outcome: converted the three remaining `pathlib.WindowsPath` unittest subtest labels in handoff-wiring and subagent-orientation tests to POSIX strings. Assertions still operate on the original `Path` objects; only cross-worker diagnostic metadata changes.
+- Reproduction: the exact two-module xdist run failed before implementation with 3 `execnet.gateway_base.DumpError` failures (`can't serialize <class 'pathlib.WindowsPath'>`) and passed serially.
+- Focused validation: the same modules pass under xdist and serial execution (`9 passed, 37 subtests` in each mode).
+- Full parallel validation: default pytest/xdist completed cleanly with `2371 passed, 2 skipped, 307 subtests passed` in 406.40 seconds. A transient Git-for-Windows signal-pipe permission message did not produce a pytest failure.
+- Decision: fixed serializability at the subtest-label boundary; no module exclusions, serial-only markers, or suite-wide xdist workaround were added.
+- Coordination note: `to-codex.md` remained absent at item start and completion.
+
