@@ -1366,6 +1366,28 @@ class ProjectLifecycleTests(unittest.TestCase):
             frozenset({"sha256:4ac656c3302ee42ff90b9a877c7078f28fd05f1e98e622d1702a43e91bf1498b"}),
         )
 
+    def test_bundled_v224_gagiste_legacy_managed_digests_are_pinned(self):
+        expected = {
+            ".memory-seed/skills/agent_collaboration.md":
+                "sha256:f72018fab132734ec3a9230a6ef86f29bc2807de7c1a8173bd6b807aecd982d0",
+            ".memory-seed/skills/memory_doctor.md":
+                "sha256:937822ba25ff9a318d5dd292ccd88bca6ccd38265a7b0432da2f7591f0174d98",
+            ".memory-seed/skills/proposal_lifecycle.md":
+                "sha256:a0e72e1ab4d9d9684061fa68e5961a8e96d7f374289d7c841834a8d982507866",
+            ".memory-seed/hooks/file-touch-decisions.py":
+                "sha256:112743cba739d8fbfefbcec407f90e43131db7e3dfcce0c17f31ea0104887882",
+            ".memory-seed/hooks/prepare-commit-msg.py":
+                "sha256:7a2252cbecf190fca5013ac049d088bb2568aa9179b3421cd6405d487e2eed7f",
+            ".memory-seed/hooks/session-log-check.py":
+                "sha256:de61e1f884ef951aaee457129dc07d9816cfa135e15a9afd56c280d617e970dc",
+            ".memory-seed/hooks/session-start-context.py":
+                "sha256:2089edad8c38638846e4f7b1078a0507b12a0071d4f2dda9b8370f2fc245ed3d",
+        }
+
+        for path, digest in expected.items():
+            with self.subTest(path=path):
+                self.assertIn(digest, KNOWN_LEGACY_MANAGED_SEED_DIGESTS[path])
+
     def test_update_uses_yaml_version_instead_of_full_file_comparison(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
