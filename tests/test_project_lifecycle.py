@@ -1028,7 +1028,7 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertIn("nested .gitattributes", " ".join(doctor(cwd=cwd).warnings))
         self.assertNotIn(".gitattributes", update_project(cwd=cwd).created)
 
-    def test_doctor_reports_unresolved_skill_references(self):
+    def test_doctor_suppresses_explicit_ignores_but_reports_legacy_unresolved_skill_references(self):
         cwd = self.make_project()
         init_project(cwd=cwd, skill_profiles={"coding"})
         rules = cwd / ".memory-seed" / "agent-rules.md"
@@ -1041,16 +1041,45 @@ class ProjectLifecycleTests(unittest.TestCase):
         result = doctor(cwd=cwd)
 
         self.assertTrue(result.control_plane_ok)
-        matching = [w for w in result.warnings if "release_publishing.md" in w]
+        self.assertFalse(any("release_publishing.md" in w for w in result.warnings))
+        self.assertFalse(any("code_search.md, which is not installed" in w for w in result.warnings))
+
+        # A legacy project with no explicit skills block has not opted out, so
+        # the same unresolved control-plane route must remain visible.
+        (cwd / ".memory-seed" / "project.yaml").write_text(
+            "agents:\n  - codex\n",
+            encoding="utf-8",
+        )
+        legacy = doctor(cwd=cwd)
+        matching = [w for w in legacy.warnings if "release_publishing.md" in w]
         self.assertEqual(len(matching), 1)
         self.assertIn(".memory-seed/agent-rules.md", matching[0])
         self.assertIn("memory-seed skills add release", matching[0])
-        self.assertFalse(any("code_search.md, which is not installed" in w for w in result.warnings))
 
         (cwd / ".memory-seed" / "skills" / "agent_collaboration.md").unlink()
         broken = doctor(cwd=cwd)
         self.assertFalse(broken.control_plane_ok)
         self.assertIn(".memory-seed/skills/agent_collaboration.md", broken.missing)
+
+    def test_seed_hygiene_uses_current_provenance_and_conditional_routing_files(self):
+        roots = (Path("."), Path("memory_seed/seed"))
+        for root in roots:
+            hook = (root / ".memory-seed/hooks/file-touch-decisions.py").read_text(
+                encoding="utf-8"
+            )
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            rules = (root / ".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+            self.assertIn(
+                "docs/7_Replaced/file-touch-decision-surfacing-proposal.md",
+                hook,
+            )
+            self.assertNotIn(
+                "docs/2_Todo/file-touch-decision-surfacing-proposal.md",
+                hook,
+            )
+            self.assertIn("Selected-agent routing files (when installed)", agents)
+            self.assertIn("installed selected-agent routing files", rules)
 
     def test_legacy_project_without_skills_block_preserves_installed_optionals(self):
         cwd = self.make_project()
