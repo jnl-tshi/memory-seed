@@ -19,28 +19,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `ms-7c2f1d90:d1`
+Authoritative decision: `mse_23by8eqr7a3xvytj:d1`
 
 ### Decision
 
-The four routing destinations (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md) follow a single four-way ownership branch applied by both init and update. Absent files trigger a full seed write. Files carrying our memory-system-version frontmatter are archived before version-gated replacement. Foreign files bearing our marker delimiters have their managed block re-synced in place. Foreign files without markers receive an injected marker-delimited block at the end. Under all circumstances, foreign files are never overwritten, even under --force.
+The four routing destinations keep the accepted four-way ownership branch. For Memory Seed-owned AGENTS.md and CLAUDE.md, version-gated archive-and-replace preserves the body of one well-formed project-owned marker block; missing markers gain the seed block, while malformed or duplicate markers preserve the whole file and warn. Foreign-file behavior remains unchanged.
 
 ### Reason
 
-Ownership is determined by frontmatter presence, a fail-safe marker requiring no guessing. When ownership cannot be proven, appending a block is non-destructive, whereas overwriting is the bug being removed. This preserves the host file's content while enabling the routing system to maintain its state across init and update operations without forcing re-writes of uncontrolled user content.
+Owned routing files now have an explicit project-owned region, so whole-file replacement would discard supported local guidance even though Memory Seed still owns the surrounding reusable text.
 
 ### Impact
 
-The complete four-way ownership mechanism was designed as an integrated system handling the full lifecycle of foreign file routing across both init and update operations, replacing the earlier practice of archiving and clobbering unknown files.
-
-### Constitution
-
-- `constitution:v1#ownership` (governing)
-- `constitution:v1#single-source` (supporting)
-
-### Awaiting review
-
-- `mse_23by8eqr7a3xvytj:d1` - The four routing destinations keep the accepted four-way ownership branch.
+Updates can refresh managed AGENTS.md and CLAUDE.md instructions without losing project guidance. Archive-before-replace remains intact, and the existing non-destructive foreign routing paths are unchanged.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -252,3 +243,28 @@ Owned routing files now have an explicit project-owned region, so whole-file rep
 #### Impact
 
 Updates can refresh managed AGENTS.md and CLAUDE.md instructions without losing project guidance. Archive-before-replace remains intact, and the existing non-destructive foreign routing paths are unchanged.
+
+### revision-accepted - 2026-11-08T13:51:00Z
+
+```json
+{
+  "decision_ref": "mse_23by8eqr7a3xvytj:d1",
+  "event_id": "adre_2afe11961353bca4819c",
+  "expected_authoritative_decision": "ms-7c2f1d90:d1",
+  "impact_provenance": "preserved",
+  "source": "write-time",
+  "update_entry_id": "mse_cygt2gt6by6r1b5r"
+}
+```
+
+#### Decision
+
+Accept mse_23by8eqr7a3xvytj:d1.
+
+#### Reason
+
+JNL accepted the owned-routing project-block revision
+
+#### Impact
+
+mse_23by8eqr7a3xvytj:d1 becomes the authoritative decision; later contrary evidence must create a successor revision.
