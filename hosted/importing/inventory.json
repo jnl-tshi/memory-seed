@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "counts": {
-    "adr_events": 290,
+    "adr_events": 294,
     "adrs": 67,
-    "archive_files": 115,
+    "archive_files": 117,
     "constitution_clauses": 30,
     "diagram_assertions": 117,
     "diagram_sidecar_files": 30,
-    "link_assertions": 1490,
-    "link_sidecar_files": 94,
+    "link_assertions": 1505,
+    "link_sidecar_files": 97,
     "project_manifests": 1,
-    "session_entries": 1291,
-    "session_files": 108,
-    "topic_assertions": 1184,
+    "session_entries": 1312,
+    "session_files": 112,
+    "topic_assertions": 1204,
     "topic_catalogs": 1,
-    "topic_sidecar_files": 99
+    "topic_sidecar_files": 103
   },
   "families": [
     "archive-snapshots",
@@ -99,6 +99,9 @@
     "project.delivery_quality.individual_decision_conflict",
     "project.delivery_quality.schema_version",
     "project.delivery_quality.tests_before_behavior_change",
+    "project.docs",
+    "project.docs.allowlist",
+    "project.docs.lanes",
     "project.graphify_merge_refresh",
     "project.merge_trigger",
     "project.participants",
@@ -227,14 +230,14 @@
   },
   "observed_actor_counts": {
     "agent_types": {
-      "claude": 756,
+      "claude": 762,
       "claude-opus-4-8": 25,
       "claude-sonnet-4-6": 20,
-      "codex": 548
+      "codex": 563
     },
     "decision_origins": {
-      "agent": 78,
-      "user": 107
+      "agent": 87,
+      "user": 120
     },
     "legacy_agent_names": {
       "<null>": 252,
@@ -259,14 +262,11 @@
       "derived": 926,
       "human-amendment": 4,
       "reconstructed": 2,
-      "write-time": 751
+      "write-time": 790
     },
     "user_initials": {
-      "JNL": 1345,
+      "JNL": 1366,
       "USER": 4
     }
-  },
-  "captured_at": "2026-10-19",
-  "captured_from": "full live Markdown corpus at the 2.24.0 release checkpoint",
-  "classification_status": "zero_unknowns"
+  }
 }

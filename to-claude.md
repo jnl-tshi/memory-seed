@@ -59,3 +59,12 @@
 - Documentation: README, the project configuration comment, repository docs front door, and Unreleased changelog now describe prefix/glob/non-lane semantics. The stale `SIDE_FOLDER_ALLOWLIST` reference was corrected to `.memory-seed/project.yaml`.
 - Coordination note: `to-codex.md` remained absent at item start and completion.
 
+## 2026-11-08 - MSI-031 hosted import inventory refresh
+
+- Branch: `codex/fix/msi-031-inventory` (stacked on MSI-035).
+- Outcome: classified `project.docs` as a structural container and `project.docs.allowlist` / `project.docs.lanes` as preserved, non-authoritative `control_plane_config` metadata targeting `project_artifacts.metadata_json`.
+- Snapshot: regenerated `hosted/importing/inventory.json` from the canonical live scanner and updated the checkpoint census documentation to the 2.25.0 local release state.
+- Tests-first evidence: the release/full-suite reproduction failed only the two inventory tests before implementation, naming the three `project.docs*` fields; the focused module then passed all 5 tests.
+- Validation: crosswalk uniqueness, explicit classification/target rules, live totality, actor coverage, frozen fixture hashes, unknown-field negative control, and snapshot vocabulary parity all pass.
+- Coordination note: `to-codex.md` remained absent at item start and completion.
+
