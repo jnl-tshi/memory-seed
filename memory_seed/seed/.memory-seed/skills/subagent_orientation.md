@@ -63,8 +63,13 @@ End with exactly this shape:
 
 ## Load on demand
 
-Load a full rules file only when its trigger applies. When your Task Packet pins it (packet v2), load it with
+Load a full rules file only when its trigger applies. When your Task Packet pins it (packet v2 or v3), load it with
 the `memory_task_packet_governance_load` MCP tool or `task-packet governance-load`; both refuse changed bytes.
+
+Packet v3 also lists the at-most-one persona plus selected and eligible late-load skills. Load only those
+digest-pinned records with `memory_task_packet_context_load` or `task-packet context-load`. Pass the prior
+deterministic debits and already loaded digests from your handoff so one shared skill/persona reserve is enforced
+without charging the same bytes twice. These estimates are context accounting, not provider-observed usage.
 
 | Trigger | Load |
 |---|---|

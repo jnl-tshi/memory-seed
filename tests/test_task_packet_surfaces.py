@@ -141,6 +141,51 @@ class TaskPacketSurfaceTests(unittest.TestCase):
         self.assertFalse(stale["ok"])
         self.assertEqual(stale["error"]["code"], "stale_governance")
 
+    def test_v3_context_load_has_cli_mcp_parity_and_is_read_only(self):
+        root = self.make_project()
+        skills = root / ".memory-seed" / "skills"
+        (skills / "subagent_orientation.md").write_text("# Orientation Lite\n", encoding="utf-8")
+        (skills / "index.md").write_text(
+            "# Registry\n\n```yaml\ntrigger_registry_version: 1\nskills:\n"
+            "  - skill: data_architecture.md\n    required: true\n    load_when:\n"
+            "      - changing schemas, persistence, cache format, or retrieval contracts\n```\n",
+            encoding="utf-8",
+        )
+        (skills / "data_architecture.md").write_text("# Data Architecture\n", encoding="utf-8")
+        dispatch = self.dispatch()
+        dispatch["version"] = 3
+        dispatch["packet_version"] = 3
+        dispatch["execution"].update(
+            read_inputs={"working": ["docs/evidence.md"], "reference": []},
+            do_not_load=[".memory-seed/policy.md"],
+            skill_selection={
+                "selected": [{
+                    "skill": "data_architecture.md",
+                    "trigger": "changing schemas, persistence, cache format, or retrieval contracts",
+                }],
+                "late_load": [],
+            },
+        )
+        dispatch["budget"]["skill_input_tokens"] = 100
+        packet = compile_task_packet(dispatch, self.binding(root), root)
+        packet_file = root / "packet.json"
+        packet_file.write_text(json.dumps(packet), encoding="utf-8")
+        before = self.snapshot(root)
+
+        code, stdout, stderr = self.cli([
+            "task-packet", "context-load", "--packet-file", str(packet_file),
+            "--kind", "skill", "--name", "data_architecture.md", "--cwd", str(root),
+        ])
+        self.assertEqual((code, stderr), (0, ""))
+        response = call_tool("memory_task_packet_context_load", {
+            "packet": packet, "kind": "skill", "name": "data_architecture.md", "cwd": str(root),
+        })
+        self.assertTrue(response["ok"], response)
+        self.assertEqual(json.loads(stdout), response)
+        self.assertEqual(response["context"]["accounting_basis"], "deterministic_estimate")
+        self.assertEqual(self.snapshot(root), before)
+        self.assertNotIn("memory_task_packet_context_load", MUTATING_TOOL_NAMES)
+
     def make_project(self) -> Path:
         root = Path(tempfile.mkdtemp(prefix="memory-seed-task-packet-surfaces-"))
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))

@@ -432,6 +432,206 @@ class TaskPacketTests(unittest.TestCase):
         self.git(root, "commit", "-m", "orientation lite")
         return root
 
+    def v3_project(self):
+        root = self.v2_project()
+        skills = root / ".memory-seed" / "skills"
+        (skills / "index.md").write_text(
+            "# Skill Trigger Registry\n\n```yaml\n"
+            "trigger_registry_version: 1\nskills:\n"
+            "  - skill: data_architecture.md\n"
+            "    required: true\n"
+            "    load_when:\n"
+            "      - changing schemas, persistence, cache format, or retrieval contracts\n"
+            "    do_not_load_when:\n"
+            "      - documentation-only wording change\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        (skills / "index.local.md").write_text(
+            "# Local Skill Trigger Overlay\n\n```yaml\n"
+            "trigger_registry_overlay_version: 1\nskills:\n"
+            "  - skill: systematic_debugging.md\n"
+            "    required: true\n"
+            "    load_when:\n"
+            "      - diagnosing an unexpected failure, regression, or unexplained behaviour\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        (skills / "data_architecture.md").write_text(
+            "# Data Architecture\n\nDefine compatibility before migration.\n", encoding="utf-8"
+        )
+        (skills / "systematic_debugging.md").write_text(
+            "# Systematic Debugging\n\nTrace the cause before editing.\n", encoding="utf-8"
+        )
+        personas = root / ".memory-seed" / "personas"
+        personas.mkdir()
+        (personas / "developer.md").write_text(
+            "# Developer Persona\n\nPrefer small, tested changes.\n", encoding="utf-8"
+        )
+        self.git(root, "add", ".")
+        self.git(root, "commit", "-m", "v3 skill registry")
+        return root
+
+    def v3_dispatch(self):
+        dispatch = self.dispatch()
+        dispatch["version"] = 3
+        dispatch["packet_version"] = 3
+        dispatch["execution"].update({
+            "persona": "developer",
+            "read_inputs": {"working": ["memory_seed/task_packet.py"], "reference": []},
+            "do_not_load": [".memory-seed/policy.md"],
+            "skill_selection": {
+                "selected": [{
+                    "skill": "data_architecture.md",
+                    "trigger": "changing schemas, persistence, cache format, or retrieval contracts",
+                }],
+                "late_load": [{
+                    "skill": "systematic_debugging.md",
+                    "trigger": "diagnosing an unexpected failure, regression, or unexplained behaviour",
+                }],
+            },
+        })
+        dispatch["budget"]["skill_input_tokens"] = 1000
+        return dispatch
+
+    def test_packet_v3_pins_budgeted_persona_selected_and_late_skills(self):
+        from memory_seed.task_packet import load_task_packet_context
+
+        root = self.v3_project()
+        packet = compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+
+        self.assertEqual(packet["packet_version"], 3)
+        self.assertEqual(packet["dispatch"]["version"], 3)
+        self.assertEqual(packet["dispatch"]["packet_version"], 3)
+        self.assertNotIn("worker_baseline", packet)
+        manifest = packet["skill_manifest"]
+        self.assertEqual(manifest["schema"], "memory-seed/task-packet-skill-manifest")
+        self.assertEqual(manifest["persona"]["slug"], "developer")
+        self.assertEqual([item["skill"] for item in manifest["selected"]], ["data_architecture.md"])
+        self.assertEqual([item["skill"] for item in manifest["late_load"]], ["systematic_debugging.md"])
+        self.assertEqual(manifest["selected"][0]["trigger"],
+                         self.v3_dispatch()["execution"]["skill_selection"]["selected"][0]["trigger"])
+        self.assertNotIn("content", manifest["selected"][0])
+        self.assertEqual(packet["input_ledger"]["skill_input_reserve_tokens"], 1000)
+        self.assertEqual(packet["input_ledger"]["persona_content_tokens"],
+                         manifest["persona"]["token_estimate"])
+        self.assertEqual(packet["input_ledger"]["selected_skill_content_tokens"],
+                         manifest["selected"][0]["token_estimate"])
+        self.assertEqual(packet["input_ledger"]["late_load_skill_content_tokens"],
+                         manifest["late_load"][0]["token_estimate"])
+        self.assertEqual(packet["input_ledger"]["component_measurements"]["persona_content_tokens"][
+            "accounting_scope"], "subset_of_skill_input_reserve_tokens")
+        self.assertEqual(packet["input_ledger"]["serialized_packet_input_tokens"],
+                         estimate_tokens(canonical_task_packet_json(packet)))
+
+        selected = load_task_packet_context(packet, "skill", "data_architecture.md", root)
+        self.assertIn("Define compatibility", selected["content"])
+        self.assertEqual(selected["token_debit"], manifest["selected"][0]["token_estimate"])
+        self.assertEqual(selected["accounting_basis"], "deterministic_estimate")
+        repeated = load_task_packet_context(
+            packet, "skill", "data_architecture.md", root,
+            prior_debits=selected["total_debits"],
+            loaded_content_digests=[selected["content_digest"]],
+        )
+        self.assertTrue(repeated["already_loaded"])
+        self.assertEqual(repeated["token_debit"], 0)
+        self.assertEqual(repeated["total_debits"], selected["total_debits"])
+        persona = load_task_packet_context(
+            packet, "persona", "developer", root, prior_debits=selected["total_debits"]
+        )
+        self.assertIn("Developer Persona", persona["content"])
+        governance = __import__("memory_seed.task_packet", fromlist=["load_task_packet_governance"])
+        loaded_rules = governance.load_task_packet_governance(packet, "agent_rules", root)
+        self.assertEqual(loaded_rules["supplemental_debit"], 0)
+
+    def test_packet_v3_fails_closed_on_trigger_budget_scope_and_stale_bytes(self):
+        from memory_seed.task_packet import (
+            _packet_fingerprint,
+            _skill_manifest_fingerprint,
+            load_task_packet_context,
+        )
+
+        root = self.v3_project()
+        for mutation, code in (
+            ("trigger", "skill_trigger_mismatch"),
+            ("missing", "unregistered_skill"),
+            ("budget", "skill_budget_exceeded"),
+            ("blocked", "skill_do_not_load"),
+        ):
+            dispatch = self.v3_dispatch()
+            if mutation == "trigger":
+                dispatch["execution"]["skill_selection"]["selected"][0]["trigger"] = "invented trigger"
+            elif mutation == "missing":
+                dispatch["execution"]["skill_selection"]["selected"][0]["skill"] = "missing.md"
+            elif mutation == "budget":
+                dispatch["budget"]["skill_input_tokens"] = 0
+            else:
+                dispatch["execution"]["do_not_load"].append(
+                    ".memory-seed/skills/data_architecture.md"
+                )
+            with self.subTest(mutation=mutation), self.assertRaises(TaskPacketValidationError) as caught:
+                compile_task_packet(dispatch, self.binding(root), root)
+            self.assertEqual(caught.exception.code, code)
+
+        packet = compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+        with self.assertRaises(TaskPacketValidationError) as unselected:
+            load_task_packet_context(packet, "skill", "not-selected.md", root)
+        self.assertEqual(unselected.exception.code, "unselected_skill")
+        (root / ".memory-seed" / "skills" / "data_architecture.md").write_text(
+            "# Changed after compile\n", encoding="utf-8"
+        )
+        with self.assertRaises(TaskPacketValidationError) as stale:
+            load_task_packet_context(packet, "skill", "data_architecture.md", root)
+        self.assertEqual(stale.exception.code, "stale_skill_context")
+
+        root = self.v3_project()
+        packet = compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+        packet["skill_manifest"]["selected"][0]["trigger"] = "invented trigger"
+        packet["skill_manifest"]["fingerprint"] = _skill_manifest_fingerprint(packet["skill_manifest"])
+        packet["fingerprint"] = _packet_fingerprint(packet)
+        with self.assertRaises(TaskPacketValidationError) as mismatched:
+            load_task_packet_context(packet, "skill", "data_architecture.md", root)
+        self.assertEqual(mismatched.exception.code, "invalid_skill_manifest")
+
+        packet = compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+        index = root / ".memory-seed" / "skills" / "index.md"
+        index.write_text(index.read_text(encoding="utf-8").replace(
+            "changing schemas, persistence, cache format, or retrieval contracts",
+            "changing only a different contract",
+        ), encoding="utf-8")
+        with self.assertRaises(TaskPacketValidationError) as stale_registry:
+            load_task_packet_context(packet, "skill", "data_architecture.md", root)
+        self.assertEqual(stale_registry.exception.code, "stale_skill_context")
+
+    def test_packet_v3_overlay_disable_and_persona_scope_are_enforced(self):
+        root = self.v3_project()
+        overlay = root / ".memory-seed" / "skills" / "index.local.md"
+        overlay.write_text(
+            overlay.read_text(encoding="utf-8").replace(
+                "  - skill: systematic_debugging.md\n    required: true",
+                "  - skill: data_architecture.md\n    disabled: true\n\n"
+                "  - skill: systematic_debugging.md\n    required: true",
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaises(TaskPacketValidationError) as disabled:
+            compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+        self.assertEqual(disabled.exception.code, "unregistered_skill")
+
+        root = self.v3_project()
+        index = root / ".memory-seed" / "skills" / "index.md"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                "    required: true\n    load_when:",
+                "    required: true\n    persona: copywriter\n    load_when:",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaises(TaskPacketValidationError) as persona:
+            compile_task_packet(self.v3_dispatch(), self.binding(root), root)
+        self.assertEqual(persona.exception.code, "skill_persona_mismatch")
+
     def test_packet_v2_embeds_lite_and_pins_full_rules_by_digest(self):
         from memory_seed.task_packet import load_task_packet_governance, validate_task_packet_supplemental_fetch
         root = self.v2_project()
@@ -495,11 +695,16 @@ class TaskPacketTests(unittest.TestCase):
         with self.assertRaises(TaskPacketValidationError):
             activate_task_packet(tampered, root)
 
-    def test_packet_version_must_be_one_or_two(self):
+    def test_packet_version_must_match_supported_dispatch_generation(self):
         dispatch = self.dispatch()
-        dispatch["packet_version"] = 3
+        dispatch["packet_version"] = 4
         with self.assertRaisesRegex(TaskPacketValidationError, "packet_version"):
             normalize_task_dispatch(dispatch)
+        dispatch = self.v3_dispatch()
+        dispatch["packet_version"] = 2
+        with self.assertRaises(TaskPacketValidationError) as caught:
+            normalize_task_dispatch(dispatch)
+        self.assertEqual(caught.exception.code, "packet_version_mismatch")
 
     def test_planning_rejects_duplicated_materialized_evidence(self):
         root = self.make_project()

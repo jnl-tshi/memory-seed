@@ -112,7 +112,7 @@ exceptions. The counts below are generated — hand-edits inside the markers are
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 18 · 2_Todo 11 · 3_Spec 10 · 4_Reference 30 · 5_Completed 90 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 17
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 17 · 2_Todo 11 · 3_Spec 10 · 4_Reference 30 · 5_Completed 91 · 6_Rejected 3 · 7_Replaced 55 · 8_Deferred 17
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P0** [codex-capture-feasibility-plan.md](2_Todo/codex-capture-feasibility-plan.md) — Complete the bounded offline post-write advisory trial, then separately design authenticated submission and approval delivery before any si…

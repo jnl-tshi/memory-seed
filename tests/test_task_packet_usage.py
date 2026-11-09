@@ -21,7 +21,12 @@ from memory_seed.attention import (
 )
 from memory_seed.cli import main as cli_main
 from memory_seed.mcp_server import MUTATING_TOOL_NAMES, TOOLS, call_tool
-from memory_seed.task_packet import activate_task_packet, compile_task_packet, load_task_packet_governance
+from memory_seed.task_packet import (
+    activate_task_packet,
+    compile_task_packet,
+    load_task_packet_context,
+    load_task_packet_governance,
+)
 from tests.pilot_task_packet_fixture import build_fixture_runtime, runtime_binding, semantic_dispatch
 
 REPO = Path(__file__).resolve().parents[1]
@@ -156,6 +161,43 @@ class TaskPacketUsageTests(unittest.TestCase):
         self.assertEqual(code, 0)
         loads = [event["handoff"] for event in self.events(root) if event["tool"] == "task_packet_governance_load"]
         self.assertEqual(loads, ["review", "sdd"])
+
+    def test_context_load_records_estimated_debits_without_claiming_provider_usage(self):
+        root = self.make_runtime()
+        skills = root / ".memory-seed" / "skills"
+        (skills / "index.md").write_text(
+            "# Registry\n\n```yaml\ntrigger_registry_version: 1\nskills:\n"
+            "  - skill: data_architecture.md\n    required: true\n    load_when:\n"
+            "      - changing schemas, persistence, cache format, or retrieval contracts\n```\n",
+            encoding="utf-8",
+        )
+        (skills / "data_architecture.md").write_text("# Data Architecture\n", encoding="utf-8")
+        dispatch = copy.deepcopy(semantic_dispatch())
+        dispatch["version"] = 3
+        dispatch["packet_version"] = 3
+        dispatch["execution"].update(
+            read_inputs={"working": ["docs/pilot-support.md"], "reference": []},
+            do_not_load=[".memory-seed/policy.md"],
+            skill_selection={
+                "selected": [{
+                    "skill": "data_architecture.md",
+                    "trigger": "changing schemas, persistence, cache format, or retrieval contracts",
+                }],
+                "late_load": [],
+            },
+        )
+        dispatch["budget"]["skill_input_tokens"] = 100
+        packet = compile_task_packet(dispatch, runtime_binding(root), root)
+        loaded = load_task_packet_context(
+            packet, "skill", "data_architecture.md", root, handoff="implementation"
+        )
+        event = self.events(root)[-1]
+        self.assertEqual(event["tool"], "task_packet_context_load")
+        self.assertEqual(event["handoff"], "implementation")
+        self.assertEqual(event["context_load"]["token_debit"], loaded["token_debit"])
+        self.assertEqual(event["context_load"]["accounting_basis"], "deterministic_estimate")
+        self.assertNotIn("provider_tokens", event)
+        self.assertNotIn("actual_tokens", event)
 
     def test_logged_compiles_stay_identical(self):
         root = self.make_runtime()

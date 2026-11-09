@@ -2,10 +2,14 @@
 
 ## Status
 
-This is the MSI-025/MSI-026 design record. It is a proposal, not an implementation plan or an
-accepted contract. It changes no Task Dispatch or Task Packet schema, compiler, registry, skill,
-seed, CLI, MCP, or hook behavior. Implementation requires JNL approval and a separately reviewed
-plan.
+Implemented for Memory Seed 2.25.0 on 2026-11-09 after JNL approved the proposal and the implementation
+defaults. Task Dispatch/Packet v3 now provides the budgeted skill/persona manifest while v1 and v2 remain
+compatible.
+
+The accepted implementation decisions were: use a new v3 schema; share one skill/persona reserve with
+separate ledger measurements; permit only compile-time-declared, digest-pinned late loads; record
+deterministic debit estimates in existing packet telemetry; and keep governance independently loadable at
+zero debit. The original proposal and rejected alternatives remain below as the design record.
 
 ## Recommendation
 
@@ -289,4 +293,5 @@ A future implementation is acceptable only when tests-first fixtures prove all o
 - live/seed twins, docs, doctor, encoding, package smoke, serial tests, and parallel tests pass; and
 - telemetry calls estimates estimates and never claims provider-observed usage without provider evidence.
 
-Until JNL approves this design and an implementation plan, MSI-025/MSI-026 remain proposal-only.
+MSI-025/MSI-026 shipped through the v3 compiler, CLI, MCP, renderer, telemetry, hook, and live/seed skill
+surfaces described above.

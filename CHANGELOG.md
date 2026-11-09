@@ -4,20 +4,18 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
-### Fixed
-
-- [2026-11-08] **Documentation allowlists cover real folder trees.**
-  - Literal entries apply to the named folder and all descendants; POSIX glob entries cover the
-    directory they match and that directory's subtree.
-  - Projects can explicitly exempt intentional non-lane documentation trees without disabling lane
-    validation for unrelated folders.
-- [2026-11-08] **Windows parallel tests no longer fail while reporting passing subtests.**
-  - Handoff and subagent-orientation tests use string diagnostic labels instead of sending
-    unserializable `WindowsPath` objects through pytest-xdist's execnet channel.
-
-## 2.25.0 - 2026-11-08
+## 2.25.0 - 2026-11-09
 
 ### Added
+
+- [2026-11-09] **Task Packet v3 budgets personas and skills as an explicit context layer.**
+  - Dispatch v3 declares exact merged-registry triggers for selected and eligible late-load skills;
+    the compiler preserves registry order and pins each installed file plus the optional persona by
+    digest without embedding their content.
+  - One shared `skill_input_tokens` reserve is distinct from supplemental evidence. Runtime CLI/MCP
+    loads are digest-verified, idempotently debited, and logged as deterministic estimates rather
+    than provider-observed usage; governance remains zero-debit.
+  - Dispatch/Packet v1 and v2 retain their prior canonical shape and behavior.
 
 - [2026-11-08] **Task Dispatch v2 gives workers an explicit read boundary.**
   - `execution.read_inputs` separates exact working inputs from reference-only inputs, while
@@ -57,6 +55,15 @@ All notable changes to Memory Seed are summarized here.
     session-aware integration command.
 
 ### Fixed
+
+- [2026-11-08] **Documentation allowlists cover real folder trees.**
+  - Literal entries apply to the named folder and all descendants; POSIX glob entries cover the
+    directory they match and that directory's subtree.
+  - Projects can explicitly exempt intentional non-lane documentation trees without disabling lane
+    validation for unrelated folders.
+- [2026-11-08] **Windows parallel tests no longer fail while reporting passing subtests.**
+  - Handoff and subagent-orientation tests use string diagnostic labels instead of sending
+    unserializable `WindowsPath` objects through pytest-xdist's execnet channel.
 
 - [2026-11-08] **Seven verified v2.24 managed-file preimages now refresh safely.**
   - The exact three skill and four hook digests observed in Gagiste are recognized by the existing

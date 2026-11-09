@@ -91,3 +91,19 @@
 - Validation: final full serial suite passed (`2371 passed, 2 skipped, 307 subtests passed` in 2242.43 seconds); hosted inventory passed all 5 focused tests after the final session refresh; doctor, links/session integrity, docs lifecycle, generated docs indexes, encoding, and `git diff --check` all passed. Link checking retained only the repository's pre-existing warnings. The earlier full parallel gate remains clean (`2371 passed, 2 skipped, 307 subtests passed`).
 - Coordination note: `to-codex.md` remained absent at item start and pre-report recheck.
 
+## 2026-11-09 - MSI-025/MSI-026 budgeted skill delivery implementation
+
+- Branch: `codex/feat/msi-025-026-budgeted-skills` (stacked on the approved MSI-025/MSI-026 design).
+- Approved choices: new Dispatch/Packet v3; one shared persona/skill reserve with separate ledger subsets; compile-time declared and digest-pinned late loads only; deterministic telemetry estimates kept distinct from provider usage; include the validated stack in 2.25.0.
+- Outcome: v3 adds `execution.skill_selection`, `budget.skill_input_tokens`, a digest-pinned persona/skill manifest, registry-order resolution, strict budget/manifest validation, and a stateless idempotent context loader. Dispatch/Packet v1 and v2 remain unchanged.
+- Surfaces: CLI `task-packet context-load`, MCP `memory_task_packet_context_load`, packet rendering, attention telemetry, and the prepare-commit hook share the v3 contract. Live and seeded hooks/skills remain synchronized.
+- Safety: runtime loads revalidate the current merged registry, exact trigger, digest, read scope, prior debits, loaded digests, and `do_not_load`; governance remains zero-debit and deterministic estimates are never reported as provider-observed usage.
+- Tests-first evidence: new core, surface, renderer, telemetry, hook, stale-registry, tampered-manifest, and budget negative controls failed before their implementation paths and passed afterward.
+- Focused validation: `113 passed, 120 subtests passed`; docs lifecycle/index, doctor, links integrity, encoding, and `git diff --check` passed with only the known outdated local Codex config warning.
+- Lifecycle: the approved proposal moved from `docs/1_Inbox/` to `docs/5_Completed/`; the implementation entry `mse_ssrdx1zyrjwhdzsb` refines both proposal decisions.
+- Final validation: full serial `2378 passed, 2 skipped` in 2227.20s; full parallel/xdist `2378 passed, 2 skipped` in 352.09s; final hosted inventory `5 passed`; doctor, links, docs lifecycle/index, encoding, and diff hygiene passed.
+- Package checks: fresh wheel/sdist reported version 2.25.0 and contained the v3 Task Packet module plus updated seeded hook/skill files. Wheel SHA-256 `8D3A9788A3EBB4A89C6A90B77BF1034AABD8AB67DC942B5D032E16884AED109F`; sdist SHA-256 `2AE390598E503C0D4F2EFF6E8E671A83AEB3CAD5F511883D03FDFE4131436BA8`.
+- Package smoke: isolated no-dependency wheel install reported package/control-plane versions `2.25.0`/`2.25`, exposed Dispatch/Packet v3 constants, initialized a fresh seed, and returned the expected pre-bootstrap doctor state.
+- Promotion state: implementation and local release candidate are validated; branch commit, stacked integration, integrated-main verification, push, GitHub Release creation, and protected PyPI workflow verification remain pending.
+- Coordination note: `to-codex.md` remained absent at implementation start and report time.
+

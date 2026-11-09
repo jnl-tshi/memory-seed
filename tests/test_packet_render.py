@@ -74,6 +74,43 @@ class PacketRenderTests(unittest.TestCase):
         self.assertIn("Reference inputs:\n- docs/evidence.md", prompt)
         self.assertIn("Do not load:\n- .memory-seed/policy.md", prompt)
 
+    def test_v3_prompt_names_pinned_selected_and_late_load_skills(self):
+        skills = self.root / ".memory-seed" / "skills"
+        (skills / "index.md").write_text(
+            "# Registry\n\n```yaml\ntrigger_registry_version: 1\nskills:\n"
+            "  - skill: data_architecture.md\n    required: true\n    load_when:\n"
+            "      - changing schemas, persistence, cache format, or retrieval contracts\n"
+            "  - skill: systematic_debugging.md\n    required: true\n    load_when:\n"
+            "      - diagnosing an unexpected failure, regression, or unexplained behaviour\n```\n",
+            encoding="utf-8",
+        )
+        (skills / "data_architecture.md").write_text("# Data Architecture\n", encoding="utf-8")
+        (skills / "systematic_debugging.md").write_text("# Debugging\n", encoding="utf-8")
+        dispatch = copy.deepcopy(self.dispatch)
+        dispatch["version"] = 3
+        dispatch["packet_version"] = 3
+        dispatch["execution"].update(
+            read_inputs={"working": ["docs/pilot-support.md"], "reference": []},
+            do_not_load=[".memory-seed/policy.md"],
+            skill_selection={
+                "selected": [{
+                    "skill": "data_architecture.md",
+                    "trigger": "changing schemas, persistence, cache format, or retrieval contracts",
+                }],
+                "late_load": [{
+                    "skill": "systematic_debugging.md",
+                    "trigger": "diagnosing an unexpected failure, regression, or unexplained behaviour",
+                }],
+            },
+        )
+        dispatch["budget"]["skill_input_tokens"] = 100
+        packet = compile_task_packet(dispatch, runtime_binding(self.root), self.root)
+        prompt = render_task_packet(packet, "p.json")
+        self.assertIn("## Persona and skills loaded on demand", prompt)
+        self.assertIn("Selected skills:\n- data_architecture.md", prompt)
+        self.assertIn("Eligible late-load skills:\n- systematic_debugging.md", prompt)
+        self.assertIn("memory_task_packet_context_load", prompt)
+
     def test_prompt_names_the_canonical_integration_command(self):
         # Gagiste field issue: every PR was opened and merged with raw `gh`
         # because nothing at handoff named `memory-seed session open-pr`.

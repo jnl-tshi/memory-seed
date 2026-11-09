@@ -121,11 +121,14 @@ class CommitHookTests(unittest.TestCase):
                 "over_soft_cap_reason": None,
             },
         }
-        if dispatch_version == 2:
+        if dispatch_version >= 2:
             dispatch["execution"].update(
                 read_inputs={"working": list(allowed_files), "reference": []},
                 do_not_load=[".memory-seed/policy.md"],
             )
+        if dispatch_version == 3:
+            dispatch["execution"]["skill_selection"] = {"selected": [], "late_load": []}
+            dispatch["budget"]["skill_input_tokens"] = 0
         binding = {
             "owner": "hook-test",
             "agent_type": "codex",
@@ -136,11 +139,16 @@ class CommitHookTests(unittest.TestCase):
             "expected_directory": str(self.root),
             "integration_artifact": "branch",
         }
-        if packet_version == 2:
-            dispatch["packet_version"] = 2
+        if packet_version in {2, 3}:
+            dispatch["packet_version"] = packet_version
             orientation = self.root / MEMORY_DIR_NAME / "skills" / "subagent_orientation.md"
             orientation.parent.mkdir(parents=True, exist_ok=True)
             orientation.write_text("# Subagent Orientation (Lite)\n\nVerify scope.\n", encoding="utf-8")
+        if packet_version == 3:
+            (orientation.parent / "index.md").write_text(
+                "# Registry\n\n```yaml\ntrigger_registry_version: 1\nskills:\n```\n",
+                encoding="utf-8",
+            )
         packet = compile_task_packet(dispatch, binding, self.root)
         return activate_task_packet(packet, self.root)
 
@@ -181,6 +189,18 @@ class CommitHookTests(unittest.TestCase):
         (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
         self.git("add", "change.txt")
         self.git("commit", "-m", "feat: packet v2 implementation")
+
+        self.assertIn(f"Memory-Implements: {reference}", self.last_message())
+
+    def test_packet_v3_activation_stamps_exact_implements(self) -> None:
+        reference = "mse_aaaaaaaaaaaaaaaa:d1"
+        self.activate_compiled_packet(
+            allowed_files=["change.txt"], implements=[reference],
+            packet_version=3, dispatch_version=3,
+        )
+        (self.root / "change.txt").write_text("implementation\n", encoding="utf-8")
+        self.git("add", "change.txt")
+        self.git("commit", "-m", "feat: packet v3 implementation")
 
         self.assertIn(f"Memory-Implements: {reference}", self.last_message())
 

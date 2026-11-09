@@ -55,6 +55,7 @@ _TASK_PACKET_KEYS = {
 _TASK_PACKET_V2_KEYS = (_TASK_PACKET_KEYS - {"worker_baseline"}) | {
     "worker_orientation", "governance_references",
 }
+_TASK_PACKET_V3_KEYS = _TASK_PACKET_V2_KEYS | {"skill_manifest"}
 _DISPATCH_KEYS = {
     "schema", "version", "objective", "constitution_refs", "project_context",
     "execution", "retrieval", "budget", "memory_update_policy", "memory_checkpoints",
@@ -67,6 +68,7 @@ _EXECUTION_V1_KEYS = {
     "acceptance_observables", "implements",
 }
 _EXECUTION_V2_KEYS = _EXECUTION_V1_KEYS | {"read_inputs", "do_not_load"}
+_EXECUTION_V3_KEYS = _EXECUTION_V2_KEYS | {"skill_selection"}
 _BINDING_KEYS = {
     "owner", "agent_type", "base_branch", "base_sha", "working_branch",
     "worktree", "expected_directory", "integration_artifact",
@@ -256,6 +258,88 @@ def _valid_worker_orientation(orientation: object, references: object, dispatch:
     return True
 
 
+def _valid_skill_manifest(manifest: object, dispatch: object, ledger: object) -> bool:
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "schema", "version", "persona", "selected", "late_load", "fingerprint"
+    }:
+        return False
+    if manifest.get("schema") != "memory-seed/task-packet-skill-manifest" or manifest.get("version") != 1:
+        return False
+    identity = dict(manifest)
+    identity.pop("fingerprint", None)
+    expected = _fingerprint(identity)
+    if not isinstance(expected, str) or not secrets.compare_digest(str(manifest.get("fingerprint", "")), expected):
+        return False
+
+    def valid_pin(item: object, fields: set[str]) -> bool:
+        return (
+            isinstance(item, dict)
+            and set(item) == fields
+            and isinstance(item.get("source"), str)
+            and isinstance(item.get("runtime_root"), str)
+            and os.path.isabs(item["runtime_root"])
+            and isinstance(item.get("byte_count"), int)
+            and item["byte_count"] >= 0
+            and isinstance(item.get("token_estimate"), int)
+            and item["token_estimate"] >= 0
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", str(item.get("content_digest"))) is not None
+        )
+
+    persona_fields = {"slug", "source", "runtime_root", "byte_count", "token_estimate", "content_digest"}
+    persona = manifest.get("persona")
+    if persona is not None and (not valid_pin(persona, persona_fields) or not isinstance(persona.get("slug"), str)):
+        return False
+    skill_fields = {
+        "skill", "source", "runtime_root", "byte_count", "token_estimate", "content_digest",
+        "trigger", "required", "persona",
+    }
+    seen: set[str] = set()
+    for group in (manifest.get("selected"), manifest.get("late_load")):
+        if not isinstance(group, list):
+            return False
+        for item in group:
+            if (
+                not valid_pin(item, skill_fields)
+                or not isinstance(item.get("skill"), str)
+                or not isinstance(item.get("trigger"), str)
+                or not isinstance(item.get("required"), bool)
+                or (item.get("persona") is not None and not isinstance(item.get("persona"), str))
+                or item["skill"].casefold() in seen
+            ):
+                return False
+            seen.add(item["skill"].casefold())
+    if not isinstance(dispatch, dict) or not isinstance(dispatch.get("execution"), dict):
+        return False
+    execution = dispatch["execution"]
+    selection = execution.get("skill_selection")
+    if not isinstance(selection, dict) or set(selection) != {"selected", "late_load"}:
+        return False
+    persona_slug = persona.get("slug") if isinstance(persona, dict) else None
+    if persona_slug != execution.get("persona"):
+        return False
+    for kind in ("selected", "late_load"):
+        expected = sorted(
+            (item.get("skill"), item.get("trigger"))
+            for item in selection[kind] if isinstance(item, dict)
+        )
+        observed = sorted((item["skill"], item["trigger"]) for item in manifest[kind])
+        if observed != expected:
+            return False
+    budget = dispatch.get("budget")
+    if not isinstance(budget, dict) or not isinstance(ledger, dict):
+        return False
+    planned = {
+        "persona_content_tokens": persona.get("token_estimate", 0) if isinstance(persona, dict) else 0,
+        "selected_skill_content_tokens": sum(item["token_estimate"] for item in manifest["selected"]),
+        "late_load_skill_content_tokens": sum(item["token_estimate"] for item in manifest["late_load"]),
+    }
+    return (
+        ledger.get("skill_input_reserve_tokens") == budget.get("skill_input_tokens")
+        and all(ledger.get(name) == value for name, value in planned.items())
+        and sum(planned.values()) <= budget.get("skill_input_tokens", -1)
+    )
+
+
 def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str], list[str]] | None:
     """Return packet refs/scope only for a full compiler activation receipt.
 
@@ -267,7 +351,12 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     if not isinstance(packet, dict) or packet.get("packet_schema") != "memory-seed/task-packet":
         return None
     packet_version = packet.get("packet_version")
-    if packet_version not in (1, 2) or set(packet) != (_TASK_PACKET_V2_KEYS if packet_version == 2 else _TASK_PACKET_KEYS):
+    packet_keys = (
+        _TASK_PACKET_V3_KEYS if packet_version == 3
+        else _TASK_PACKET_V2_KEYS if packet_version == 2
+        else _TASK_PACKET_KEYS
+    )
+    if packet_version not in (1, 2, 3) or set(packet) != packet_keys:
         return None
     fingerprint = packet.get("fingerprint")
     identity = dict(packet)
@@ -282,9 +371,9 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     if (
         not isinstance(dispatch, dict)
         or not _DISPATCH_KEYS <= set(dispatch) <= _DISPATCH_KEYS | _OPTIONAL_DISPATCH_KEYS
-        # The compiler writes packet_version only for v2; an explicit 1 is
+        # The compiler writes packet_version only for v2/v3; an explicit 1 is
         # not compiler output, so it is refused exactly as activation would.
-        or ("packet_version" in dispatch) != (packet_version == 2)
+        or ("packet_version" in dispatch) != (packet_version in {2, 3})
         or dispatch.get("packet_version", 1) != packet_version
         or not isinstance(binding, dict)
         or set(binding) != _BINDING_KEYS
@@ -292,12 +381,16 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
         or not isinstance(evidence, list)
     ):
         return None
-    if packet_version == 2:
+    if packet_version in {2, 3}:
         if not _valid_worker_orientation(packet.get("worker_orientation"), packet.get("governance_references"), dispatch):
+            return None
+        if packet_version == 3 and not _valid_skill_manifest(
+            packet.get("skill_manifest"), dispatch, packet.get("input_ledger")
+        ):
             return None
     elif not _valid_worker_baseline(packet.get("worker_baseline"), dispatch):
         return None
-    if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") not in {1, 2}:
+    if dispatch.get("schema") != "memory-seed/task-dispatch" or dispatch.get("version") not in {1, 2, 3}:
         return None
     if not isinstance(dispatch.get("objective"), str) or not dispatch["objective"].strip():
         return None
@@ -305,10 +398,14 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
     if dispatch_fingerprint is None or not secrets.compare_digest(packet.get("dispatch_fingerprint", ""), dispatch_fingerprint):
         return None
     execution = dispatch.get("execution")
-    execution_keys = _EXECUTION_V2_KEYS if dispatch["version"] == 2 else _EXECUTION_V1_KEYS
+    execution_keys = (
+        _EXECUTION_V3_KEYS if dispatch["version"] == 3
+        else _EXECUTION_V2_KEYS if dispatch["version"] == 2
+        else _EXECUTION_V1_KEYS
+    )
     if not isinstance(execution, dict) or set(execution) != execution_keys:
         return None
-    if dispatch["version"] == 2:
+    if dispatch["version"] >= 2:
         read_inputs = execution.get("read_inputs")
         do_not_load = execution.get("do_not_load")
         if (
@@ -320,6 +417,18 @@ def _verified_receipt(packet: object, root: Path, branch: str) -> tuple[list[str
             or not all(isinstance(path, str) for path in do_not_load)
         ):
             return None
+    if dispatch["version"] == 3:
+        selection = execution.get("skill_selection")
+        if not isinstance(selection, dict) or set(selection) != {"selected", "late_load"}:
+            return None
+        for group in selection.values():
+            if (
+                not isinstance(group, list)
+                or not all(isinstance(item, dict) and set(item) == {"skill", "trigger"}
+                           and isinstance(item["skill"], str) and isinstance(item["trigger"], str)
+                           for item in group)
+            ):
+                return None
     if execution.get("write_intent") != "writing" or execution.get("role") not in {"worker", "validator", "researcher"}:
         return None
     implements = execution.get("implements")
