@@ -4,6 +4,60 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.25.0 - 2026-11-08
+
+### Added
+
+- [2026-11-08] **Task Dispatch v2 gives workers an explicit read boundary.**
+  - `execution.read_inputs` separates exact working inputs from reference-only inputs, while
+    `do_not_load` records explicit exclusions.
+  - Canonicalization rejects aliases, duplicates, and load/exclusion overlap. Existing Dispatch v1
+    packets remain compatible and do not gain invented read authority.
+- [2026-11-08] **Projects can extend the skill trigger registry without editing managed files.**
+  - Optional `.memory-seed/skills/index.local.md` entries are evaluated after the base registry.
+  - A same-name local entry replaces its base entry, `disabled: true` suppresses it, and new local
+    entries append deterministically. The overlay remains project-owned and is never seeded or updated.
+- [2026-11-08] **Doctor can gate only newly introduced warnings.**
+  - `--write-warning-baseline` captures the current sorted warning set; `--warning-baseline` fails only
+    when later runs add warnings.
+  - Doctor also checks Authority Map ADR coverage, relative links in control-plane and stage-contract
+    inputs, and Retrieval Profile token ceilings against a declared step budget.
+- [2026-10-23] **Bootstrap offers a Constitution path when none exists.**
+  - The guided bootstrap can draft an explicitly unratified Constitution for review.
+  - Doctor explains that Task Packets remain unavailable until a Constitution is ratified.
+
+### Changed
+
+- [2026-11-08] **Managed skills and hooks update through recorded provenance.**
+  - `init` writes `.memory-seed/managed-seed.json`; `update` refreshes only a recorded baseline, an
+    identical current seed, or an exact known legacy preimage.
+  - Replaced files are backed up and archived first. Unrecognised local bytes are preserved with an
+    actionable warning.
+- [2026-11-08] **Managed `AGENTS.md` and `CLAUDE.md` preserve one project-owned region.**
+  - Version-gated updates carry forward one well-formed `BEGIN project` / `END project` block.
+  - Legacy files gain the empty block; malformed or duplicate markers preserve the whole file and warn.
+- [2026-11-08] **Documentation lanes are project-configurable.**
+  - `docs:` in `.memory-seed/project.yaml` can declare project lanes and exact allowlisted folders while
+    preserving the legacy and seeded defaults for projects without explicit configuration.
+- [2026-10-23] **Task Packets are part of the core collaboration path.**
+  - The obsolete optional collaboration profile is removed, dangling skill references are diagnosed,
+    and legacy unrecognised skill selections survive migration.
+  - Session files receive managed Git merge attributes, and branch landing guidance names the
+    session-aware integration command.
+
+### Fixed
+
+- [2026-11-08] **Seven verified v2.24 managed-file preimages now refresh safely.**
+  - The exact three skill and four hook digests observed in Gagiste are recognized by the existing
+    provenance gate instead of being preserved forever as unknown local edits.
+  - A Gagiste-shaped isolated update replaces, backs up, archives, and manifests all seven files.
+- [2026-11-08] **A refreshed session hook no longer loses enforcement invisibly when its package is old.**
+  - Failure to import `memory_seed.session_checkpoint` produces one host-shaped upgrade/reinstall
+    warning, then remains silent and fail-open behind a gitignored project stamp.
+- [2026-11-08] **Seed and routing diagnostics describe only selected, installed surfaces.**
+  - Explicit optional-skill ignores stop repeated warnings, selected-agent routing files are described
+    conditionally, and stale hook provenance points to the proposal's current lifecycle home.
+
 ## 2.24.0 - 2026-10-19
 
 ### Added

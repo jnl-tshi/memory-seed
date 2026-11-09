@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 description: Re-orient in this repo — run `memory-seed situate` and brief from ground truth
 ---
 

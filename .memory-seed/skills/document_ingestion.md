@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 governing_adr: adr_foreign_file_routing
 tags:
   - memory-seed

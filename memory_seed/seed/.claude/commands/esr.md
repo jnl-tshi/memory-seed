@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.24
+memory-system-version: 2.25
 description: Run the Memory Seed end-of-session routine
 ---
 
