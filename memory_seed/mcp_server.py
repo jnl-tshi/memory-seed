@@ -401,6 +401,23 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_task_packet_context_load",
+        "description": "Return one digest-verified persona or skill pinned by a packet-v3 Task Packet and report deterministic shared-reserve debits. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "packet": {"type": "object"},
+                "kind": {"type": "string", "enum": ["persona", "skill"]},
+                "name": {"type": "string"},
+                "prior_debits": {"type": "integer", "minimum": 0, "default": 0},
+                "loaded_content_digests": {"type": "array", "items": {"type": "string"}},
+                "handoff": {"type": "string", "enum": ["implementation", "sdd", "review", "spawned-session", "other"]},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["packet", "kind", "name"], "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_search",
         "description": "Search local Memory Seed session logs and return ranked, source-linked context chunks.",
         "inputSchema": {
@@ -1250,6 +1267,45 @@ def call_tool(
         except TaskPacketValidationError as exc:
             return {"ok": False, "error": exc.to_dict()}
 
+    if name == "memory_task_packet_context_load":
+        from .task_packet import TaskPacketValidationError, load_task_packet_context
+
+        allowed = {
+            "packet", "kind", "name", "prior_debits", "loaded_content_digests", "cwd", "handoff"
+        }
+        if (
+            not isinstance(args, dict)
+            or not isinstance(args.get("packet"), dict)
+            or not isinstance(args.get("kind"), str)
+            or not isinstance(args.get("name"), str)
+            or set(args) - allowed
+        ):
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_arguments",
+                    "message": "context-load needs packet, kind, name, and known arguments",
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {"unsupported_arguments": sorted(set(args or {}) - allowed)},
+                },
+            }
+        try:
+            return {
+                "ok": True,
+                "context": load_task_packet_context(
+                    args["packet"],
+                    args["kind"],
+                    args["name"],
+                    args.get("cwd", "."),
+                    prior_debits=args.get("prior_debits", 0),
+                    loaded_content_digests=args.get("loaded_content_digests", ()),
+                    handoff=args.get("handoff"),
+                ),
+            }
+        except TaskPacketValidationError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+
     if name in {"memory_discovery_evidence", "memory_discovery_assess"}:
         from .discovery import DiscoveryError, discovery_assess, discovery_evidence
         from .retrieval import RetrievalSpecResolutionError as DiscoveryResolutionError
@@ -2045,6 +2101,7 @@ def handle_jsonrpc_message(
                     "memory_task_packet_preview",
                     "memory_task_packet_compile",
                     "memory_task_packet_governance_load",
+                    "memory_task_packet_context_load",
                     "memory_task_packet_from_plan",
                     "memory_task_packet_render",
                 }

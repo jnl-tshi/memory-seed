@@ -61,6 +61,7 @@ TASK_PACKET_EVENT_KINDS = frozenset(
         "task_packet_render",
         "task_packet_activate",
         "task_packet_governance_load",
+        "task_packet_context_load",
     }
 )
 DISCOVERY_EVENT_KINDS = frozenset({"discovery_evidence", "discovery_assess"})
@@ -192,6 +193,7 @@ def record_task_packet_event(
     packet: Any,
     *,
     handoff: str | None = None,
+    details: Mapping[str, Any] | None = None,
     ts: datetime | None = None,
 ) -> None:
     """Append one Task Packet usage event. Fail-open by contract.
@@ -228,6 +230,22 @@ def record_task_packet_event(
                 "discovery_required": discovery.get("required"),
                 "discovery_pack_fingerprint": discovery_receipt.get("pack_fingerprint"),
                 "discovery_bypass": bool(discovery) and discovery.get("required") is False,
+            }
+        if kind == "task_packet_context_load" and isinstance(details, Mapping):
+            allowed_detail_keys = (
+                "context_kind",
+                "context_name",
+                "source",
+                "content_digest",
+                "byte_count",
+                "token_estimate",
+                "token_debit",
+                "total_debits",
+                "accounting_basis",
+                "already_loaded",
+            )
+            event["context_load"] = {
+                key: details[key] for key in allowed_detail_keys if key in details
             }
         if _append_common_event(memory_dir, event):
             return

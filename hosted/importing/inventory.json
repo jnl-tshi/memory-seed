@@ -7,14 +7,14 @@
     "constitution_clauses": 30,
     "diagram_assertions": 117,
     "diagram_sidecar_files": 30,
-    "link_assertions": 1507,
-    "link_sidecar_files": 97,
+    "link_assertions": 1509,
+    "link_sidecar_files": 98,
     "project_manifests": 1,
-    "session_entries": 1314,
-    "session_files": 112,
-    "topic_assertions": 1206,
+    "session_entries": 1316,
+    "session_files": 113,
+    "topic_assertions": 1208,
     "topic_catalogs": 1,
-    "topic_sidecar_files": 103
+    "topic_sidecar_files": 104
   },
   "families": [
     "archive-snapshots",
@@ -233,11 +233,11 @@
       "claude": 762,
       "claude-opus-4-8": 25,
       "claude-sonnet-4-6": 20,
-      "codex": 565
+      "codex": 567
     },
     "decision_origins": {
-      "agent": 89,
-      "user": 121
+      "agent": 90,
+      "user": 123
     },
     "legacy_agent_names": {
       "<null>": 252,
@@ -262,10 +262,10 @@
       "derived": 926,
       "human-amendment": 4,
       "reconstructed": 2,
-      "write-time": 794
+      "write-time": 798
     },
     "user_initials": {
-      "JNL": 1368,
+      "JNL": 1370,
       "USER": 4
     }
   }

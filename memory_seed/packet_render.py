@@ -15,7 +15,13 @@ import html
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .task_packet import GOVERNANCE_LOAD_CLI, GOVERNANCE_LOAD_MCP_TOOL, canonical_task_packet_json
+from .task_packet import (
+    CONTEXT_LOAD_CLI,
+    CONTEXT_LOAD_MCP_TOOL,
+    GOVERNANCE_LOAD_CLI,
+    GOVERNANCE_LOAD_MCP_TOOL,
+    canonical_task_packet_json,
+)
 
 RENDER_SCHEMA = "memory-seed/task-packet-render"
 RENDER_VERSION = 1
@@ -159,6 +165,49 @@ def render_task_packet(packet: Mapping[str, Any], packet_path: str, *, handoff: 
                 f"{name}: `{reference['source']}` ({reference['token_estimate']} tokens, {reference['content_digest']})"
                 for name, reference in sorted(references.items())
             ]),
+            "",
+        ]
+    manifest = packet.get("skill_manifest")
+    if isinstance(manifest, Mapping):
+        persona = manifest.get("persona")
+        selected = manifest.get("selected") or []
+        late_load = manifest.get("late_load") or []
+        lines += [
+            "## Persona and skills loaded on demand",
+            "",
+            f"Load only these digest-pinned records with the `{CONTEXT_LOAD_MCP_TOOL}` MCP tool or",
+            f"`{CONTEXT_LOAD_CLI}`. Report prior debits and loaded digests so repeated bytes are not charged twice.",
+            "",
+            "Persona:",
+            *_bullets(
+                [
+                    f"{persona['slug']} (`{persona['source']}`, {persona['token_estimate']} tokens, "
+                    f"{persona['content_digest']})"
+                ]
+                if isinstance(persona, Mapping)
+                else []
+            ),
+            "",
+            "Selected skills:",
+            *_bullets(
+                [
+                    f"{item['skill']} (`{item['source']}`, trigger: {item['trigger']}, "
+                    f"{item['token_estimate']} tokens, {item['content_digest']})"
+                    for item in selected
+                ]
+            ),
+            "",
+            "Eligible late-load skills:",
+            *_bullets(
+                [
+                    f"{item['skill']} (`{item['source']}`, trigger: {item['trigger']}, "
+                    f"{item['token_estimate']} tokens, {item['content_digest']})"
+                    for item in late_load
+                ]
+            ),
+            "",
+            f"Shared skill/persona reserve: {packet['input_ledger']['skill_input_reserve_tokens']} "
+            f"deterministically estimated tokens ({packet['input_ledger']['estimator']}).",
             "",
         ]
     handoff_fields = list(packet["execution_defaults"].get("handoff") or [])

@@ -1,7 +1,7 @@
 """Deterministic Task Dispatch and Task Packet compilation.
 
 This module is the core, adapter-free M2 service.  It validates a semantic
-``memory-seed/task-dispatch`` v1 or v2 object, measures an already-existing Git
+``memory-seed/task-dispatch`` v1, v2, or v3 object, measures an already-existing Git
 checkout from a separate runtime binding, expands one exact project-local
 retrieval profile, resolves and validates an Evidence Pack v2, and materializes
 the pack's canonical Markdown slices exactly once.
@@ -50,13 +50,19 @@ from .topics import load_topic_index
 TASK_DISPATCH_SCHEMA = "memory-seed/task-dispatch"
 TASK_DISPATCH_LEGACY_VERSION = 1
 TASK_DISPATCH_VERSION = 2
-TASK_DISPATCH_VERSIONS = frozenset({TASK_DISPATCH_LEGACY_VERSION, TASK_DISPATCH_VERSION})
+TASK_DISPATCH_V3 = 3
+TASK_DISPATCH_VERSIONS = frozenset(
+    {TASK_DISPATCH_LEGACY_VERSION, TASK_DISPATCH_VERSION, TASK_DISPATCH_V3}
+)
 TASK_PACKET_SCHEMA = "memory-seed/task-packet"
 TASK_PACKET_VERSION = 1
 # v2 replaces the embedded full worker baselines with the digest-pinned
 # orientation-lite skill plus lazily loaded, digest-referenced full rules.
 TASK_PACKET_V2 = 2
-TASK_PACKET_VERSIONS = frozenset({TASK_PACKET_VERSION, TASK_PACKET_V2})
+# v3 retains v2 governance loading and adds a digest-pinned, budgeted
+# persona/skill manifest plus runtime context-load debits.
+TASK_PACKET_V3 = 3
+TASK_PACKET_VERSIONS = frozenset({TASK_PACKET_VERSION, TASK_PACKET_V2, TASK_PACKET_V3})
 TASK_PACKET_ACTIVATION_SCHEMA = "memory-seed/task-packet-activation"
 TASK_PACKET_ACTIVATION_VERSION = 1
 TASK_PACKET_ACTIVATION_RECEIPT_SCHEMA = "memory-seed/task-packet-activation-receipt"
@@ -117,6 +123,9 @@ _EXECUTION_V1_KEYS = frozenset(
 )
 _READ_INPUT_KEYS = frozenset({"working", "reference"})
 _EXECUTION_KEYS = _EXECUTION_V1_KEYS | {"read_inputs", "do_not_load"}
+_SKILL_REQUEST_KEYS = frozenset({"skill", "trigger"})
+_SKILL_SELECTION_KEYS = frozenset({"selected", "late_load"})
+_EXECUTION_V3_KEYS = _EXECUTION_KEYS | {"skill_selection"}
 _RETRIEVAL_KEYS = frozenset({"profile", "profile_version", "overrides"})
 _BUDGET_KEYS = frozenset(
     {
@@ -126,12 +135,35 @@ _BUDGET_KEYS = frozenset(
         "over_soft_cap_reason",
     }
 )
+_BUDGET_V3_KEYS = _BUDGET_KEYS | {"skill_input_tokens"}
 _CHECKPOINT_KEYS = frozenset(
     {"names", "session_paths", "branch_local_only", "guarded_append"}
 )
 _WORKER_BASELINE_AGENT_RULES = ".memory-seed/agent-rules.md"
 _WORKER_BASELINE_SESSION_LOGGING = ".memory-seed/skills/session_logging.md"
 _WORKER_ORIENTATION = ".memory-seed/skills/subagent_orientation.md"
+_PERSONA_DIRECTORIES = (".agents", ".memory-seed/personas")
+_SKILL_MANIFEST_SCHEMA = "memory-seed/task-packet-skill-manifest"
+_SKILL_MANIFEST_VERSION = 1
+_SKILL_PIN_FIELDS = frozenset(
+    {
+        "skill",
+        "source",
+        "runtime_root",
+        "byte_count",
+        "token_estimate",
+        "content_digest",
+        "trigger",
+        "required",
+        "persona",
+    }
+)
+_PERSONA_PIN_FIELDS = frozenset(
+    {"slug", "source", "runtime_root", "byte_count", "token_estimate", "content_digest"}
+)
+_SKILL_MANIFEST_FIELDS = frozenset(
+    {"schema", "version", "persona", "selected", "late_load", "fingerprint"}
+)
 _BINDING_KEYS = frozenset(
     {
         "owner",
@@ -166,6 +198,7 @@ _COMPILED_PACKET_V2_KEYS = (_COMPILED_PACKET_KEYS - {"worker_baseline"}) | {
     "worker_orientation",
     "governance_references",
 }
+_COMPILED_PACKET_V3_KEYS = _COMPILED_PACKET_V2_KEYS | {"skill_manifest"}
 _ENVIRONMENT_KEYS = frozenset(
     {"fixed_instructions", "tool_schemas", "cached_input_tokens"}
 )
@@ -347,6 +380,28 @@ def _scope_list(value: Any, path: str) -> list[str]:
     return result
 
 
+def _normalize_skill_requests(value: Any, path: str) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        _fail(path, "must be a list")
+    result: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(value):
+        item_path = f"{path}[{index}]"
+        item = _mapping(raw, item_path)
+        _exact_keys(item, item_path, _SKILL_REQUEST_KEYS, required=_SKILL_REQUEST_KEYS)
+        skill = _string(item["skill"], f"{item_path}.skill")
+        trigger = _string(item["trigger"], f"{item_path}.trigger")
+        assert skill is not None and trigger is not None
+        if PurePosixPath(skill).name != skill or not skill.endswith(".md"):
+            _fail(f"{item_path}.skill", "must be one installed Markdown skill filename")
+        identity = skill.casefold()
+        if identity in seen:
+            _fail(path, "must not name one skill more than once")
+        seen.add(identity)
+        result.append({"skill": skill, "trigger": trigger})
+    return result
+
+
 def estimate_tokens(value: str | bytes | Mapping[str, Any] | Sequence[Any]) -> int:
     """Return the shared deterministic offline estimate (UTF-8 bytes / 4)."""
     if isinstance(value, bytes):
@@ -382,7 +437,7 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         _fail("schema", f"must equal {TASK_DISPATCH_SCHEMA!r}")
     dispatch_version = dispatch["version"]
     if type(dispatch_version) is not int or dispatch_version not in TASK_DISPATCH_VERSIONS:
-        _fail("version", "must equal integer 1 or 2")
+        _fail("version", "must equal integer 1, 2, or 3")
     objective = _string(dispatch["objective"], "objective")
     constitution_refs = _string_list(
         dispatch.get("constitution_refs", []), "constitution_refs"
@@ -435,15 +490,17 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
 
     execution_in = _mapping(dispatch["execution"], "execution")
     execution_keys = (
-        _EXECUTION_KEYS
+        _EXECUTION_V3_KEYS
+        if dispatch_version == TASK_DISPATCH_V3
+        else _EXECUTION_KEYS
         if dispatch_version == TASK_DISPATCH_VERSION
         else _EXECUTION_V1_KEYS
     )
     execution_required = _EXECUTION_V1_KEYS | (
         {"read_inputs", "do_not_load"}
-        if dispatch_version == TASK_DISPATCH_VERSION
+        if dispatch_version >= TASK_DISPATCH_VERSION
         else set()
-    )
+    ) | ({"skill_selection"} if dispatch_version == TASK_DISPATCH_V3 else set())
     _exact_keys(
         execution_in,
         "execution",
@@ -479,7 +536,7 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         _fail("execution.allowed_files", "writing dispatches require at least one allowed file")
     read_inputs: dict[str, list[str]] | None = None
     do_not_load: list[str] | None = None
-    if dispatch_version == TASK_DISPATCH_VERSION:
+    if dispatch_version >= TASK_DISPATCH_VERSION:
         read_inputs_in = _mapping(execution_in["read_inputs"], "execution.read_inputs")
         _exact_keys(
             read_inputs_in,
@@ -585,6 +642,31 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     if read_inputs is not None and do_not_load is not None:
         execution["read_inputs"] = read_inputs
         execution["do_not_load"] = do_not_load
+    if dispatch_version == TASK_DISPATCH_V3:
+        selection_in = _mapping(execution_in["skill_selection"], "execution.skill_selection")
+        _exact_keys(
+            selection_in,
+            "execution.skill_selection",
+            _SKILL_SELECTION_KEYS,
+            required=_SKILL_SELECTION_KEYS,
+        )
+        selected = _normalize_skill_requests(
+            selection_in["selected"], "execution.skill_selection.selected"
+        )
+        late_load = _normalize_skill_requests(
+            selection_in["late_load"], "execution.skill_selection.late_load"
+        )
+        overlap = sorted(
+            {item["skill"].casefold() for item in selected}
+            & {item["skill"].casefold() for item in late_load}
+        )
+        if overlap:
+            _fail(
+                "execution.skill_selection",
+                "selected and late_load must not overlap",
+                details={"overlap": overlap},
+            )
+        execution["skill_selection"] = {"selected": selected, "late_load": late_load}
     retrieval_in = _mapping(dispatch["retrieval"], "retrieval")
     _exact_keys(
         retrieval_in,
@@ -608,11 +690,15 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     }
 
     budget_in = _mapping(dispatch["budget"], "budget")
+    budget_keys = _BUDGET_V3_KEYS if dispatch_version == TASK_DISPATCH_V3 else _BUDGET_KEYS
+    budget_required = {"supplemental_input_tokens", "output_tokens", "over_soft_cap"}
+    if dispatch_version == TASK_DISPATCH_V3:
+        budget_required.add("skill_input_tokens")
     _exact_keys(
         budget_in,
         "budget",
-        _BUDGET_KEYS,
-        required=frozenset({"supplemental_input_tokens", "output_tokens", "over_soft_cap"}),
+        budget_keys,
+        required=frozenset(budget_required),
     )
     over_soft_cap = _string(budget_in["over_soft_cap"], "budget.over_soft_cap")
     if over_soft_cap not in {"fail", "allow"}:
@@ -640,6 +726,10 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         "over_soft_cap": over_soft_cap,
         "over_soft_cap_reason": reason,
     }
+    if dispatch_version == TASK_DISPATCH_V3:
+        budget["skill_input_tokens"] = _nonnegative_int(
+            budget_in["skill_input_tokens"], "budget.skill_input_tokens"
+        )
 
     memory_policy = dispatch.get("memory_update_policy", "orchestrator")
     memory_policy = _string(memory_policy, "memory_update_policy")
@@ -722,12 +812,21 @@ def normalize_task_dispatch(dispatch: Mapping[str, Any]) -> dict[str, Any]:
         normalized["planning_evidence"] = _normalize_planning_evidence(dispatch["planning_evidence"])
     if "design_discovery" in dispatch:
         normalized["design_discovery"] = _normalize_design_discovery(dispatch["design_discovery"])
-    packet_version = dispatch.get("packet_version", TASK_PACKET_VERSION)
+    packet_version = dispatch.get(
+        "packet_version",
+        TASK_PACKET_V3 if dispatch_version == TASK_DISPATCH_V3 else TASK_PACKET_VERSION,
+    )
     if type(packet_version) is not int or packet_version not in TASK_PACKET_VERSIONS:
-        _fail("packet_version", "must be integer 1 or 2")
-    # Written only for v2 so every existing dispatch keeps its exact bytes.
-    if packet_version == TASK_PACKET_V2:
-        normalized["packet_version"] = TASK_PACKET_V2
+        _fail("packet_version", "must be integer 1, 2, or 3")
+    if ((dispatch_version == TASK_DISPATCH_V3) != (packet_version == TASK_PACKET_V3)):
+        _fail(
+            "packet_version",
+            "Task Dispatch v3 and Task Packet v3 must be selected together",
+            code="packet_version_mismatch",
+        )
+    # Written only for v2/v3 so every existing packet-v1 dispatch keeps its exact bytes.
+    if packet_version in {TASK_PACKET_V2, TASK_PACKET_V3}:
+        normalized["packet_version"] = packet_version
     return normalized
 
 
@@ -1142,10 +1241,310 @@ def governance_reference(memory_dir: Path, relative_source: str) -> dict[str, An
     return {key: record[key] for key in ("source", "byte_count", "content_digest", "token_estimate")}
 
 
+def _registry_yaml(text: str, path: str) -> str:
+    match = re.search(r"```ya?ml\s*\n(.*?)\n```", text, flags=re.DOTALL | re.IGNORECASE)
+    if match is None:
+        _fail(path, "must contain one fenced YAML trigger registry", code="invalid_skill_registry")
+    return match.group(1)
+
+
+def _registry_scalar(raw: str) -> str:
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
+
+
+def _parse_skill_registry(path: Path) -> list[dict[str, Any]]:
+    """Parse the deliberately small registry grammar without a YAML dependency."""
+    try:
+        body = _registry_yaml(path.read_text(encoding="utf-8"), path.as_posix())
+    except (OSError, UnicodeDecodeError) as exc:
+        _fail(
+            path.as_posix(),
+            "skill registry is missing or unreadable",
+            code="invalid_skill_registry",
+            details={"error": exc.__class__.__name__},
+        )
+    entries: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    list_field: str | None = None
+    for line_number, raw_line in enumerate(body.splitlines(), start=1):
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        skill_match = re.fullmatch(r"\s{2}-\s+skill:\s*(.+?)\s*", raw_line)
+        if skill_match:
+            if current is not None:
+                entries.append(current)
+            current = {
+                "skill": _registry_scalar(skill_match.group(1)),
+                "required": False,
+                "persona": None,
+                "disabled": False,
+                "load_when": [],
+                "do_not_load_when": [],
+            }
+            list_field = None
+            continue
+        if current is None:
+            continue
+        field_match = re.fullmatch(
+            r"\s{4}(required|persona|disabled|load_when|do_not_load_when):(?:\s*(.*?))?\s*",
+            raw_line,
+        )
+        if field_match:
+            key, raw_value = field_match.groups()
+            if key in {"load_when", "do_not_load_when"}:
+                list_field = key
+                if raw_value and raw_value.strip() not in {"[]"}:
+                    _fail(
+                        f"{path.as_posix()}:{line_number}",
+                        f"{key} must use one indented list item per trigger",
+                        code="invalid_skill_registry",
+                    )
+            elif key in {"required", "disabled"}:
+                value = (raw_value or "").strip().casefold()
+                if value not in {"true", "false"}:
+                    _fail(
+                        f"{path.as_posix()}:{line_number}",
+                        f"{key} must be true or false",
+                        code="invalid_skill_registry",
+                    )
+                current[key] = value == "true"
+                list_field = None
+            else:
+                current[key] = _registry_scalar(raw_value or "") or None
+                list_field = None
+            continue
+        item_match = re.fullmatch(r"\s{6}-\s+(.+?)\s*", raw_line)
+        if item_match and list_field is not None:
+            current[list_field].append(_registry_scalar(item_match.group(1)))
+            continue
+        # The registry may grow unrelated top-level metadata, but an unknown
+        # field inside a skill entry is unsafe to ignore because it can change
+        # selection semantics.
+        if raw_line.startswith("    "):
+            _fail(
+                f"{path.as_posix()}:{line_number}",
+                "contains unsupported skill registry syntax",
+                code="invalid_skill_registry",
+            )
+    if current is not None:
+        entries.append(current)
+    seen: set[str] = set()
+    for index, entry in enumerate(entries):
+        skill = str(entry["skill"])
+        if PurePosixPath(skill).name != skill or not skill.endswith(".md"):
+            _fail(
+                f"{path.as_posix()}.skills[{index}].skill",
+                "must be one Markdown filename",
+                code="invalid_skill_registry",
+            )
+        identity = skill.casefold()
+        if identity in seen:
+            _fail(
+                path.as_posix(),
+                "must not define one skill more than once",
+                code="invalid_skill_registry",
+                details={"skill": skill},
+            )
+        seen.add(identity)
+    return entries
+
+
+def _merge_runtime_skill_registry(memory_dir: Path) -> list[dict[str, Any]]:
+    skills_dir = memory_dir / "skills"
+    base = skills_dir / "index.md"
+    if not base.is_file():
+        _fail(base.as_posix(), "skill trigger registry is missing", code="invalid_skill_registry")
+    order: list[str] = []
+    merged: dict[str, dict[str, Any]] = {}
+    for entry in _parse_skill_registry(base):
+        identity = str(entry["skill"]).casefold()
+        order.append(identity)
+        merged[identity] = entry
+    overlay = skills_dir / "index.local.md"
+    if overlay.is_file():
+        for entry in _parse_skill_registry(overlay):
+            identity = str(entry["skill"]).casefold()
+            if identity not in merged:
+                order.append(identity)
+            merged[identity] = entry
+    runtime_root = memory_dir.parent.resolve()
+    result: list[dict[str, Any]] = []
+    for identity in order:
+        entry = dict(merged[identity])
+        entry["runtime_root"] = str(runtime_root)
+        result.append(entry)
+    return result
+
+
+def _skill_registry_chain(cwd: str | Path) -> list[dict[str, Any]]:
+    """Merge nearest runtime first, then inherited ancestors without overrides."""
+    runtime = resolve_runtime(cwd)
+    memory_dirs = [runtime.memory_dir.resolve()]
+    for parent in runtime.workspace_root.resolve().parents:
+        candidate = parent / ".memory-seed"
+        if candidate.is_dir() and candidate.resolve() not in memory_dirs:
+            memory_dirs.append(candidate.resolve())
+    result: list[dict[str, Any]] = []
+    claimed: set[str] = set()
+    for memory_dir in memory_dirs:
+        for entry in _merge_runtime_skill_registry(memory_dir):
+            identity = str(entry["skill"]).casefold()
+            if identity in claimed:
+                continue
+            claimed.add(identity)
+            if not entry["disabled"]:
+                result.append(entry)
+    return result
+
+
+def _pinned_file(runtime_root: Path, source: str) -> dict[str, Any]:
+    root = runtime_root.resolve()
+    path = (root / source).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        _fail(source, "resolved outside its source runtime", code="invalid_skill_context")
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        _fail(
+            source,
+            "selected context is missing or unreadable",
+            code="unregistered_skill",
+            details={"error": exc.__class__.__name__},
+        )
+    return {
+        "source": PurePosixPath(source).as_posix(),
+        "runtime_root": str(root),
+        "byte_count": len(payload),
+        "token_estimate": estimate_tokens(payload),
+        "content_digest": "sha256:" + hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _persona_pin(slug: str | None, workspace_root: Path) -> dict[str, Any] | None:
+    if slug is None:
+        return None
+    if _SLUG_RE.fullmatch(slug) is None:
+        _fail("execution.persona", "must be a lowercase persona slug", code="unregistered_persona")
+    for directory in _PERSONA_DIRECTORIES:
+        source = f"{directory}/{slug}.md"
+        if (workspace_root / source).is_file():
+            return {"slug": slug, **_pinned_file(workspace_root, source)}
+    _fail(
+        "execution.persona",
+        "must name one installed persona file",
+        code="unregistered_persona",
+        details={"persona": slug},
+    )
+
+
+def _skill_manifest_fingerprint(manifest: Mapping[str, Any]) -> str:
+    identity = copy.deepcopy(dict(manifest))
+    identity.pop("fingerprint", None)
+    return "sha256:" + hashlib.sha256(canonical_json(identity).encode("utf-8")).hexdigest()
+
+
+def materialize_skill_manifest(dispatch: Mapping[str, Any], cwd: str | Path) -> dict[str, Any]:
+    """Resolve v3's bounded skill/persona requests into digest-pinned records."""
+    registry = _skill_registry_chain(cwd)
+    by_name = {str(entry["skill"]).casefold(): entry for entry in registry}
+    requests = dispatch["execution"]["skill_selection"]
+    requested_by_kind = {
+        kind: {str(item["skill"]).casefold(): item for item in requests[kind]}
+        for kind in ("selected", "late_load")
+    }
+    blocked = {
+        _canonical_scope_identity(path) for path in dispatch["execution"].get("do_not_load", [])
+    }
+
+    def pin(kind: str, request: Mapping[str, str], entry: Mapping[str, Any]) -> dict[str, Any]:
+        skill = request["skill"]
+        if request["trigger"] not in entry["load_when"]:
+            _fail(
+                f"execution.skill_selection.{kind}",
+                "trigger must exactly match the merged registry",
+                code="skill_trigger_mismatch",
+                details={"skill": skill, "trigger": request["trigger"]},
+            )
+        selected_persona = dispatch["execution"]["persona"]
+        if entry["persona"] is not None and entry["persona"] != selected_persona:
+            _fail(
+                f"execution.skill_selection.{kind}",
+                "skill is scoped to a different persona",
+                code="skill_persona_mismatch",
+                details={"skill": skill, "required_persona": entry["persona"]},
+            )
+        runtime_root = Path(str(entry["runtime_root"]))
+        source = f".memory-seed/skills/{skill}"
+        if _canonical_scope_identity(source) in blocked:
+            _fail(
+                f"execution.skill_selection.{kind}",
+                "selected skill conflicts with execution.do_not_load",
+                code="skill_do_not_load",
+                details={"skill": skill, "source": source},
+            )
+        return {
+            "skill": skill,
+            **_pinned_file(runtime_root, source),
+            "trigger": request["trigger"],
+            "required": bool(entry["required"]),
+            "persona": entry["persona"],
+        }
+
+    missing = sorted(
+        item["skill"]
+        for kind in ("selected", "late_load")
+        for item in requests[kind]
+        if item["skill"].casefold() not in by_name
+    )
+    if missing:
+        _fail(
+            "execution.skill_selection",
+            "must name installed skills in the merged registry",
+            code="unregistered_skill",
+            details={"skills": missing},
+        )
+    pins = {"selected": [], "late_load": []}
+    for entry in registry:
+        identity = str(entry["skill"]).casefold()
+        for kind in ("selected", "late_load"):
+            request = requested_by_kind[kind].get(identity)
+            if request is not None:
+                pins[kind].append(pin(kind, request, entry))
+    workspace_root = resolve_runtime(cwd).workspace_root.resolve()
+    persona = _persona_pin(dispatch["execution"]["persona"], workspace_root)
+    if persona is not None and _canonical_scope_identity(persona["source"]) in blocked:
+        _fail(
+            "execution.persona",
+            "selected persona conflicts with execution.do_not_load",
+            code="skill_do_not_load",
+            details={"source": persona["source"]},
+        )
+    manifest: dict[str, Any] = {
+        "schema": _SKILL_MANIFEST_SCHEMA,
+        "version": _SKILL_MANIFEST_VERSION,
+        "persona": persona,
+        "selected": pins["selected"],
+        "late_load": pins["late_load"],
+        "fingerprint": "sha256:" + "0" * 64,
+    }
+    manifest["fingerprint"] = _skill_manifest_fingerprint(manifest)
+    return manifest
+
+
 GOVERNANCE_LOAD_MCP_TOOL = "memory_task_packet_governance_load"
 GOVERNANCE_LOAD_CLI = (
     "python -X utf8 -m memory_seed.cli task-packet governance-load "
     "--packet-file <packet.json> --name <agent_rules|session_logging>"
+)
+CONTEXT_LOAD_MCP_TOOL = "memory_task_packet_context_load"
+CONTEXT_LOAD_CLI = (
+    "python -X utf8 -m memory_seed.cli task-packet context-load "
+    "--packet-file <packet.json> --kind <persona|skill> --name <name>"
 )
 _GOVERNANCE_SOURCES = {
     "agent_rules": _WORKER_BASELINE_AGENT_RULES,
@@ -1171,7 +1570,7 @@ def load_task_packet_governance(
     """
     packet = _mapping(packet, "packet")
     canonical_task_packet_json(packet)
-    if packet.get("packet_version") != TASK_PACKET_V2:
+    if packet.get("packet_version") not in {TASK_PACKET_V2, TASK_PACKET_V3}:
         _fail("governance", "this packet embeds its governance in worker_baseline; read it there",
               code="governance_embedded", stage="governance_load")
     _validate_worker_orientation(packet)
@@ -1210,6 +1609,319 @@ def load_task_packet_governance(
         "content_digest": digest,
         "token_estimate": reference["token_estimate"],
         "supplemental_debit": 0,
+    }
+
+
+def _validate_skill_manifest(packet: Mapping[str, Any], *, stage: str) -> Mapping[str, Any]:
+    manifest = _mapping(packet.get("skill_manifest"), "packet.skill_manifest")
+    _exact_keys(
+        manifest,
+        "packet.skill_manifest",
+        _SKILL_MANIFEST_FIELDS,
+        required=_SKILL_MANIFEST_FIELDS,
+    )
+    if (
+        manifest.get("schema") != _SKILL_MANIFEST_SCHEMA
+        or manifest.get("version") != _SKILL_MANIFEST_VERSION
+    ):
+        _fail(
+            "packet.skill_manifest",
+            "has an unsupported identity",
+            code="invalid_skill_manifest",
+            stage=stage,
+        )
+    if manifest.get("fingerprint") != _skill_manifest_fingerprint(manifest):
+        _fail(
+            "packet.skill_manifest.fingerprint",
+            "does not match the canonical manifest",
+            code="fingerprint_mismatch",
+            stage=stage,
+        )
+
+    def validate_pin(item: Any, path: str, fields: frozenset[str]) -> Mapping[str, Any]:
+        pin = _mapping(item, path)
+        _exact_keys(pin, path, fields, required=fields)
+        if (
+            type(pin.get("byte_count")) is not int
+            or pin["byte_count"] < 0
+            or type(pin.get("token_estimate")) is not int
+            or pin["token_estimate"] < 0
+            or re.fullmatch(r"sha256:[0-9a-f]{64}", str(pin.get("content_digest"))) is None
+            or not isinstance(pin.get("source"), str)
+            or not isinstance(pin.get("runtime_root"), str)
+            or not Path(pin["runtime_root"]).is_absolute()
+        ):
+            _fail(path, "is not a well-formed context pin", code="invalid_skill_manifest", stage=stage)
+        return pin
+
+    persona = manifest.get("persona")
+    if persona is not None:
+        pin = validate_pin(persona, "packet.skill_manifest.persona", _PERSONA_PIN_FIELDS)
+        if not isinstance(pin.get("slug"), str):
+            _fail(
+                "packet.skill_manifest.persona.slug",
+                "must be a persona slug",
+                code="invalid_skill_manifest",
+                stage=stage,
+            )
+    seen: set[str] = set()
+    for kind in ("selected", "late_load"):
+        items = manifest.get(kind)
+        if not isinstance(items, list):
+            _fail(
+                f"packet.skill_manifest.{kind}",
+                "must be a list",
+                code="invalid_skill_manifest",
+                stage=stage,
+            )
+        for index, item in enumerate(items):
+            path = f"packet.skill_manifest.{kind}[{index}]"
+            pin = validate_pin(item, path, _SKILL_PIN_FIELDS)
+            if (
+                not isinstance(pin.get("skill"), str)
+                or not isinstance(pin.get("trigger"), str)
+                or type(pin.get("required")) is not bool
+                or (pin.get("persona") is not None and not isinstance(pin.get("persona"), str))
+            ):
+                _fail(path, "is not a well-formed skill pin", code="invalid_skill_manifest", stage=stage)
+            identity = str(pin["skill"]).casefold()
+            if identity in seen:
+                _fail(
+                    "packet.skill_manifest",
+                    "must not pin one skill twice",
+                    code="invalid_skill_manifest",
+                    stage=stage,
+                )
+            seen.add(identity)
+    dispatch = _mapping(packet.get("dispatch"), "packet.dispatch")
+    execution = _mapping(dispatch.get("execution"), "packet.dispatch.execution")
+    selection = _mapping(
+        execution.get("skill_selection"), "packet.dispatch.execution.skill_selection"
+    )
+    persona_slug = manifest["persona"].get("slug") if isinstance(manifest["persona"], Mapping) else None
+    if persona_slug != execution.get("persona"):
+        _fail(
+            "packet.skill_manifest.persona",
+            "does not match the dispatch persona",
+            code="invalid_skill_manifest",
+            stage=stage,
+        )
+    for kind in ("selected", "late_load"):
+        expected = sorted(
+            (item.get("skill"), item.get("trigger"))
+            for item in selection.get(kind, [])
+            if isinstance(item, Mapping)
+        )
+        observed = sorted((item["skill"], item["trigger"]) for item in manifest[kind])
+        if observed != expected:
+            _fail(
+                f"packet.skill_manifest.{kind}",
+                "does not match the dispatch selection",
+                code="invalid_skill_manifest",
+                stage=stage,
+            )
+    ledger = _mapping(packet.get("input_ledger"), "packet.input_ledger")
+    budget = _mapping(dispatch.get("budget"), "packet.dispatch.budget")
+    planned = {
+        "persona_content_tokens": (
+            int(manifest["persona"]["token_estimate"])
+            if isinstance(manifest["persona"], Mapping)
+            else 0
+        ),
+        "selected_skill_content_tokens": sum(
+            int(item["token_estimate"]) for item in manifest["selected"]
+        ),
+        "late_load_skill_content_tokens": sum(
+            int(item["token_estimate"]) for item in manifest["late_load"]
+        ),
+    }
+    if (
+        ledger.get("skill_input_reserve_tokens") != budget.get("skill_input_tokens")
+        or any(ledger.get(name) != value for name, value in planned.items())
+        or sum(planned.values()) > int(budget.get("skill_input_tokens", -1))
+    ):
+        _fail(
+            "packet.input_ledger",
+            "does not account for the pinned skill manifest",
+            code="invalid_skill_manifest",
+            stage=stage,
+        )
+    return manifest
+
+
+def load_task_packet_context(
+    packet: Mapping[str, Any],
+    kind: str,
+    name: str,
+    cwd: str | Path,
+    *,
+    prior_debits: int = 0,
+    loaded_content_digests: Sequence[str] = (),
+    handoff: str | None = None,
+) -> dict[str, Any]:
+    """Load one v3 persona/skill pin and debit the shared deterministic reserve."""
+    packet = _mapping(packet, "packet")
+    canonical_task_packet_json(packet)
+    if packet.get("packet_version") != TASK_PACKET_V3:
+        _fail(
+            "context",
+            "runtime persona/skill loading requires Task Packet v3",
+            code="unsupported_context_load",
+            stage="context_load",
+        )
+    if kind not in {"persona", "skill"}:
+        _fail("context.kind", "must be 'persona' or 'skill'", code="invalid_context_load", stage="context_load")
+    name = _string(name, "context.name") or ""
+    prior_debits = _nonnegative_int(prior_debits, "context.prior_debits")
+    if not isinstance(loaded_content_digests, Sequence) or isinstance(loaded_content_digests, (str, bytes)):
+        _fail(
+            "context.loaded_content_digests",
+            "must be a list of digest strings",
+            code="invalid_context_load",
+            stage="context_load",
+        )
+    loaded = set(_string_list(list(loaded_content_digests), "context.loaded_content_digests"))
+    manifest = _validate_skill_manifest(packet, stage="context_load")
+    if kind == "persona":
+        record = manifest["persona"]
+        if not isinstance(record, Mapping) or record.get("slug") != name:
+            _fail(
+                "context.name",
+                "packet does not select this persona",
+                code="unselected_persona",
+                stage="context_load",
+                details={"selected": record.get("slug") if isinstance(record, Mapping) else None},
+            )
+    else:
+        record = next(
+            (
+                item
+                for group in (manifest["selected"], manifest["late_load"])
+                for item in group
+                if item["skill"] == name
+            ),
+            None,
+        )
+        if record is None:
+            _fail(
+                "context.name",
+                "packet does not pin this skill",
+                code="unselected_skill",
+                stage="context_load",
+                details={
+                    "selected": [item["skill"] for item in manifest["selected"]],
+                    "late_load": [item["skill"] for item in manifest["late_load"]],
+                },
+            )
+        current = next(
+            (
+                entry
+                for entry in _skill_registry_chain(cwd)
+                if str(entry["skill"]).casefold() == name.casefold()
+                and Path(str(entry["runtime_root"])).resolve()
+                == Path(str(record["runtime_root"])).resolve()
+            ),
+            None,
+        )
+        if (
+            current is None
+            or record["trigger"] not in current["load_when"]
+            or bool(record["required"]) != bool(current["required"])
+            or record["persona"] != current["persona"]
+        ):
+            _fail(
+                "context.name",
+                "merged registry changed since packet compilation",
+                code="stale_skill_context",
+                stage="context_load",
+                details={"skill": name, "source": record["source"]},
+            )
+    runtime_root = Path(str(record["runtime_root"])).resolve()
+    source = (runtime_root / str(record["source"])).resolve()
+    try:
+        source.relative_to(runtime_root)
+    except ValueError:
+        _fail(
+            "context.source",
+            "pinned context resolves outside its source runtime",
+            code="invalid_skill_context",
+            stage="context_load",
+        )
+    try:
+        payload = source.read_bytes()
+    except OSError as exc:
+        _fail(
+            "context.source",
+            "pinned context is missing or unreadable",
+            code="stale_skill_context",
+            stage="context_load",
+            details={"source": record["source"], "error": exc.__class__.__name__},
+        )
+    digest = "sha256:" + hashlib.sha256(payload).hexdigest()
+    if digest != record["content_digest"] or len(payload) != record["byte_count"]:
+        _fail(
+            "context.source",
+            "pinned context changed since packet compilation",
+            code="stale_skill_context",
+            stage="context_load",
+            details={
+                "source": record["source"],
+                "expected": record["content_digest"],
+                "actual": digest,
+            },
+        )
+    estimate = estimate_tokens(payload)
+    if estimate != record["token_estimate"]:
+        _fail(
+            "context.source",
+            "pinned context estimate no longer matches its bytes",
+            code="stale_skill_context",
+            stage="context_load",
+        )
+    reserve = int(packet["input_ledger"]["skill_input_reserve_tokens"])
+    already_loaded = digest in loaded
+    debit = 0 if already_loaded else estimate
+    total = prior_debits + debit
+    if total > reserve:
+        _fail(
+            "context.prior_debits",
+            "skill/persona content exceeds the shared skill reserve",
+            code="skill_budget_exceeded",
+            stage="context_load",
+            details={
+                "required": debit,
+                "remaining": max(0, reserve - prior_debits),
+                "estimator": TOKEN_ESTIMATOR,
+                "source": record["source"],
+                "digest": digest,
+            },
+        )
+    details = {
+        "context_kind": kind,
+        "context_name": name,
+        "source": record["source"],
+        "content_digest": digest,
+        "byte_count": len(payload),
+        "token_estimate": estimate,
+        "token_debit": debit,
+        "total_debits": total,
+        "accounting_basis": "deterministic_estimate",
+        "already_loaded": already_loaded,
+    }
+    _log_packet_usage(cwd, "task_packet_context_load", packet, handoff, details=details)
+    return {
+        "kind": kind,
+        "name": name,
+        "source": record["source"],
+        "content": payload.decode("utf-8"),
+        "content_digest": digest,
+        "byte_count": len(payload),
+        "token_estimate": estimate,
+        "token_debit": debit,
+        "total_debits": total,
+        "remaining_tokens": reserve - total,
+        "already_loaded": already_loaded,
+        "accounting_basis": "deterministic_estimate",
     }
 
 
@@ -1513,16 +2225,20 @@ def assess_context_budget(
     fixed_instruction_tokens: int,
     tool_schema_tokens: int,
     supplemental_input_tokens: int,
+    skill_input_tokens: int | None = None,
     output_tokens: int,
     over_soft_cap: str,
     over_soft_cap_reason: str | None,
     materialized_agent_rules_tokens: int = 0,
     materialized_session_logging_tokens: int = 0,
+    persona_content_tokens: int = 0,
+    selected_skill_content_tokens: int = 0,
+    late_load_skill_content_tokens: int = 0,
     _enforce: bool = True,
 ) -> dict[str, Any]:
     if tier not in TIER_BANDS:
         _fail("execution.capability_tier", "is unsupported", code="invalid_budget", stage="budget")
-    components = {
+    components: dict[str, int] = {
         "serialized_packet_input_tokens": serialized_packet_tokens,
         "fixed_instruction_tokens": fixed_instruction_tokens,
         "tool_schema_input_tokens": tool_schema_tokens,
@@ -1534,12 +2250,22 @@ def assess_context_budget(
         "materialized_agent_rules_tokens": materialized_agent_rules_tokens,
         "materialized_session_logging_tokens": materialized_session_logging_tokens,
     }
+    if skill_input_tokens is not None:
+        components.update(
+            {
+                "skill_input_reserve_tokens": skill_input_tokens,
+                "persona_content_tokens": persona_content_tokens,
+                "selected_skill_content_tokens": selected_skill_content_tokens,
+                "late_load_skill_content_tokens": late_load_skill_content_tokens,
+            }
+        )
     for name, value in components.items():
         _nonnegative_int(value, f"input_ledger.{name}")
     total_input = (
         serialized_packet_tokens
         + fixed_instruction_tokens
         + tool_schema_tokens
+        + (skill_input_tokens or 0)
         + supplemental_input_tokens
     )
     total = total_input + output_tokens
@@ -1593,6 +2319,15 @@ def assess_context_budget(
         component_measurements[name]["accounting_scope"] = (
             "subset_of_serialized_packet_input_tokens"
         )
+    if skill_input_tokens is not None:
+        for name in (
+            "persona_content_tokens",
+            "selected_skill_content_tokens",
+            "late_load_skill_content_tokens",
+        ):
+            component_measurements[name]["accounting_scope"] = (
+                "subset_of_skill_input_reserve_tokens"
+            )
     return {
         "estimator": TOKEN_ESTIMATOR,
         "tier": tier,
@@ -2271,11 +3006,27 @@ def _execution_defaults(dispatch: Mapping[str, Any], binding: Mapping[str, Any])
                 ),
             }
         }
-        if dispatch.get("packet_version") == TASK_PACKET_V2
+        if dispatch.get("packet_version") in {TASK_PACKET_V2, TASK_PACKET_V3}
+        else {}
+    )
+    context_loading = (
+        {
+            "context_load": {
+                "mcp_tool": CONTEXT_LOAD_MCP_TOOL,
+                "cli": CONTEXT_LOAD_CLI,
+                "rule": (
+                    "Load only the digest-pinned selected persona or selected/late-load skills. "
+                    "Pass prior deterministic debits and loaded digests so the shared skill reserve "
+                    "is enforced idempotently."
+                ),
+            }
+        }
+        if dispatch.get("packet_version") == TASK_PACKET_V3
         else {}
     )
     return {
         **governance,
+        **context_loading,
         "safety": {
             # Execution/write authority only. Retrieval scope is governed by
             # the Retrieval Specification and resolver's runtime-local bounds;
@@ -2628,7 +3379,14 @@ def _activation_receipt(
 def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Return fully checked dispatch, binding, and receipt for artifact use."""
     packet = _mapping(packet, "packet")
-    packet_keys = _COMPILED_PACKET_V2_KEYS if packet.get("packet_version") == TASK_PACKET_V2 else _COMPILED_PACKET_KEYS
+    packet_version = packet.get("packet_version")
+    packet_keys = (
+        _COMPILED_PACKET_V3_KEYS
+        if packet_version == TASK_PACKET_V3
+        else _COMPILED_PACKET_V2_KEYS
+        if packet_version == TASK_PACKET_V2
+        else _COMPILED_PACKET_KEYS
+    )
     _exact_keys(packet, "packet", packet_keys, required=packet_keys)
     canonical_task_packet_json(packet)
     dispatch = normalize_task_dispatch(_mapping(packet.get("dispatch"), "packet.dispatch"))
@@ -2647,8 +3405,10 @@ def _validate_activation_packet(packet: Mapping[str, Any], cwd: str | Path) -> t
     if dispatch.get("packet_version", TASK_PACKET_VERSION) != packet["packet_version"]:
         _fail("packet.packet_version", "does not match the dispatch's requested packet version",
               code="invalid_packet", stage="activation")
-    if packet["packet_version"] == TASK_PACKET_V2:
+    if packet["packet_version"] in {TASK_PACKET_V2, TASK_PACKET_V3}:
         _validate_worker_orientation(packet)
+        if packet["packet_version"] == TASK_PACKET_V3:
+            _validate_skill_manifest(packet, stage="activation")
     else:
         _validate_worker_baseline(packet)
     selected_decisions = {
@@ -2808,12 +3568,25 @@ def activate_task_packet(
     }
 
 
-def _log_packet_usage(cwd: str | Path, kind: str, packet: Mapping[str, Any], handoff: str | None) -> None:
+def _log_packet_usage(
+    cwd: str | Path,
+    kind: str,
+    packet: Mapping[str, Any],
+    handoff: str | None,
+    *,
+    details: Mapping[str, Any] | None = None,
+) -> None:
     """Record one usage event for the ESR coverage report. Never raises."""
     try:
         from .attention import record_task_packet_event
 
-        record_task_packet_event(resolve_runtime(cwd).memory_dir, kind, dict(packet), handoff=handoff)
+        record_task_packet_event(
+            resolve_runtime(cwd).memory_dir,
+            kind,
+            dict(packet),
+            handoff=handoff,
+            details=dict(details) if details is not None else None,
+        )
     except Exception:
         return
 
@@ -2950,7 +3723,7 @@ def _compile_task_packet(
         item for item in materialized_all if item.get("kind") != "constitution"
     ]
     packet_version = normalized_dispatch.get("packet_version", TASK_PACKET_VERSION)
-    if packet_version == TASK_PACKET_V2:
+    if packet_version in {TASK_PACKET_V2, TASK_PACKET_V3}:
         # Full rules are referenced, not embedded: nothing is materialized for
         # them, and the lite skill is counted within the serialized packet.
         worker_orientation, governance_references = materialize_worker_orientation(
@@ -2966,6 +3739,33 @@ def _compile_task_packet(
             if baseline_sources["session_logging"] is not None
             else 0
         )
+
+    skill_manifest: dict[str, Any] | None = None
+    persona_tokens = selected_skill_tokens = late_load_skill_tokens = 0
+    if packet_version == TASK_PACKET_V3:
+        skill_manifest = materialize_skill_manifest(normalized_dispatch, cwd)
+        persona = skill_manifest["persona"]
+        persona_tokens = int(persona["token_estimate"]) if persona is not None else 0
+        selected_skill_tokens = sum(
+            int(item["token_estimate"]) for item in skill_manifest["selected"]
+        )
+        late_load_skill_tokens = sum(
+            int(item["token_estimate"]) for item in skill_manifest["late_load"]
+        )
+        required_skill_tokens = persona_tokens + selected_skill_tokens + late_load_skill_tokens
+        skill_ceiling = int(normalized_dispatch["budget"]["skill_input_tokens"])
+        if required_skill_tokens > skill_ceiling:
+            _fail(
+                "budget.skill_input_tokens",
+                "is smaller than the pinned persona and skill content",
+                code="skill_budget_exceeded",
+                stage="budget",
+                details={
+                    "required": required_skill_tokens,
+                    "remaining": skill_ceiling,
+                    "estimator": TOKEN_ESTIMATOR,
+                },
+            )
 
     fixed_tokens = estimate_tokens("\n".join(normalized_environment["fixed_instructions"]))
     tool_tokens = estimate_tokens(normalized_environment["tool_schemas"])
@@ -2985,8 +3785,12 @@ def _compile_task_packet(
         "evidence_pack": evidence_pack,
         "materialized_evidence": materialized,
         **(
-            {"worker_orientation": worker_orientation, "governance_references": governance_references}
-            if packet_version == TASK_PACKET_V2
+            {
+                "worker_orientation": worker_orientation,
+                "governance_references": governance_references,
+                **({"skill_manifest": skill_manifest} if skill_manifest is not None else {}),
+            }
+            if packet_version in {TASK_PACKET_V2, TASK_PACKET_V3}
             else {"worker_baseline": worker_baseline}
         ),
         "constitution_projection": constitution_projection,
@@ -3020,11 +3824,15 @@ def _compile_task_packet(
             fixed_instruction_tokens=fixed_tokens,
             tool_schema_tokens=tool_tokens,
             supplemental_input_tokens=budget["supplemental_input_tokens"],
+            skill_input_tokens=budget.get("skill_input_tokens"),
             output_tokens=budget["output_tokens"],
             over_soft_cap=budget["over_soft_cap"],
             over_soft_cap_reason=budget["over_soft_cap_reason"],
             materialized_agent_rules_tokens=agent_rules_tokens,
             materialized_session_logging_tokens=session_logging_tokens,
+            persona_content_tokens=persona_tokens,
+            selected_skill_content_tokens=selected_skill_tokens,
+            late_load_skill_content_tokens=late_load_skill_tokens,
             _enforce=False,
         )
         packet["input_ledger"] = ledger

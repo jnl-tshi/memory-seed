@@ -91,10 +91,12 @@ and any policy, Constitution, or ADR context its objective actually requires.
 writer-only session entries, STOP categories, and the return contract), with triggers for loading the full
 rules on demand. Deliver it one of two ways:
 
-- **With a Task Packet:** compile with `"packet_version": 2`. The packet embeds the lite skill, pins
+- **With a Task Packet:** packet v2 embeds the lite skill and pins
   `agent-rules.md` (plus `session_logging.md` when session writes are delegated) by digest, and the worker
   loads a pinned file only through `load_task_packet_governance`, which refuses changed bytes and never
-  spends the supplemental reserve. Version 1 packets still embed the full rules.
+  spends the supplemental reserve. Packet v3 preserves that contract and additionally pins an at-most-one
+  persona plus explicitly selected and eligible late-load skills behind one deterministic skill reserve.
+  Use v3 only when that budgeted skill selection is declared; v1 and v2 remain byte-compatible.
 - **Without a packet** (only where the table below allows it): start the spawn prompt with
   "Read `.memory-seed/skills/subagent_orientation.md` first and follow it." This matters most for
   clients whose subagents never receive the SessionStart hook.
@@ -328,6 +330,15 @@ The compiled packet is the worker's `context_load: packet` context. Give it a so
 toward input: the serialized packet itself, fixed instructions, tool/schema descriptions, materialized
 evidence, and any later supplemental fetch. Tool availability never grants additional write, merge,
 integration, network, or memory authority.
+
+For budgeted persona and skill delivery, author Task Dispatch v3 with `packet_version: 3`, an explicit
+`execution.skill_selection` containing `selected` and `late_load` request lists, and
+`budget.skill_input_tokens`. Every request names one installed skill plus an exact `load_when` trigger from
+the merged registry. The compiler preserves registry order, applies the local overlay before inherited
+registries, pins content digests, and refuses a persona/skill set larger than the declared ceiling. Workers
+load only manifest records through `task-packet context-load` / `memory_task_packet_context_load`, passing
+prior debits and loaded digests for idempotent accounting. Governance remains zero-debit, and deterministic
+estimates are never provider-observed usage.
 
 Task Dispatch `allowed_files` and `forbidden_files` are execution/edit boundaries. They do not filter
 Retrieval Specification memory reads, and a path in `forbidden_files` may still be materialized as

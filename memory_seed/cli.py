@@ -1680,6 +1680,24 @@ def main(argv: list[str] | None = None) -> int:
         help="workflow handoff this worker serves (recorded in usage telemetry)",
     )
 
+    context_load = task_packet_sub.add_parser(
+        "context-load",
+        help="print one digest-verified persona or skill pinned by a packet-v3 Task Packet",
+    )
+    context_load.add_argument("--packet-file", required=True, help="UTF-8 JSON compiled Task Packet; use - for stdin")
+    context_load.add_argument("--kind", required=True, choices=("persona", "skill"))
+    context_load.add_argument("--name", required=True, help="persona slug or skill filename")
+    context_load.add_argument("--prior-debits", type=int, default=0, help="skill-reserve debits already spent")
+    context_load.add_argument(
+        "--loaded-content-digest", action="append", default=[],
+        help="already loaded digest; repeat for idempotent zero-debit replay",
+    )
+    context_load.add_argument("--cwd", default=".", help="project path used for runtime discovery")
+    context_load.add_argument(
+        "--handoff", choices=("implementation", "sdd", "review", "spawned-session", "other"),
+        help="workflow handoff this worker serves (recorded in usage telemetry)",
+    )
+
     doctor_parser = subparsers.add_parser(
         "doctor", help="check Memory Seed control-plane files"
     )
@@ -1852,6 +1870,7 @@ def main(argv: list[str] | None = None) -> int:
             TaskPacketValidationError,
             canonical_task_packet_json,
             compile_task_packet,
+            load_task_packet_context,
             load_task_packet_governance,
         )
 
@@ -1914,6 +1933,29 @@ def main(argv: list[str] | None = None) -> int:
                 packet = _read_json_object(args.packet_file, label="packet")
                 loaded = load_task_packet_governance(packet, args.name, args.cwd, handoff=args.handoff)
                 sys.stdout.write(canonical_retrieval_json({"ok": True, "governance": loaded}))
+                return 0
+            except TaskPacketValidationError as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
+                return 1
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                sys.stderr.write(canonical_retrieval_json({"ok": False, "error": {
+                    "code": "invalid_input", "message": str(exc), "stage": "input", "details": {},
+                }}))
+                return 1
+
+        if args.task_packet_command == "context-load":
+            try:
+                packet = _read_json_object(args.packet_file, label="packet")
+                loaded = load_task_packet_context(
+                    packet,
+                    args.kind,
+                    args.name,
+                    args.cwd,
+                    prior_debits=args.prior_debits,
+                    loaded_content_digests=args.loaded_content_digest,
+                    handoff=args.handoff,
+                )
+                sys.stdout.write(canonical_retrieval_json({"ok": True, "context": loaded}))
                 return 0
             except TaskPacketValidationError as exc:
                 sys.stderr.write(canonical_retrieval_json({"ok": False, "error": exc.to_dict()}))
