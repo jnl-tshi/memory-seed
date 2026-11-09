@@ -494,6 +494,14 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertIn("dist/\n", gitignore)
         self.assertEqual(gitignore.count(".memory-seed/backups/"), 1)
 
+    def test_init_ignores_session_hook_import_warning_stamp(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd)
+
+        gitignore = (cwd / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn(".memory-seed/.session-log-import-warning-stamp", gitignore)
+
     def test_doctor_reports_missing_and_version_mismatched_control_plane_files(self):
         cwd = self.make_project()
         init_project(cwd=cwd)

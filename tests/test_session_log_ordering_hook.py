@@ -87,6 +87,20 @@ class SessionLogOrderingHookTests(unittest.TestCase):
     def _run(self, cwd, *args):
         return self._run_payload(cwd, {}, *args)
 
+    def _run_without_package(self, cwd, *args):
+        hook = cwd / ".memory-seed" / "hooks" / "session-log-check.py"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(self.SCRIPT, hook)
+        completed = subprocess.run(
+            [os.sys.executable, "-S", str(hook), *args],
+            cwd=cwd,
+            input="{}",
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return completed.stdout
+
     def _establish_debt(self, cwd):
         self._write_entry(cwd)
         self._run(cwd)
@@ -128,6 +142,30 @@ class SessionLogOrderingHookTests(unittest.TestCase):
     def test_no_session_file_does_not_manufacture_debt(self):
         cwd = self.make_git_project()
         self.assertEqual(self._run(cwd).strip(), "")
+
+    def test_missing_package_warns_codex_once_then_fails_open(self):
+        cwd = self.make_project()
+
+        first = json.loads(self._run_without_package(cwd, "--codex"))
+        second = self._run_without_package(cwd, "--codex")
+
+        self.assertTrue(first["continue"])
+        self.assertIn("HOOK IMPORT WARNING", first["systemMessage"])
+        self.assertIn("memory_seed.session_checkpoint", first["systemMessage"])
+        self.assertIn("upgrade or reinstall", first["systemMessage"].lower())
+        self.assertTrue((cwd / ".memory-seed" / ".session-log-import-warning-stamp").exists())
+        self.assertEqual(second.strip(), "")
+
+    def test_missing_package_warning_is_visible_once_to_claude(self):
+        cwd = self.make_project()
+
+        first = json.loads(self._run_without_package(cwd))
+        second = self._run_without_package(cwd)
+
+        self.assertEqual(first["decision"], "block")
+        self.assertIn("HOOK IMPORT WARNING", first["reason"])
+        self.assertEqual(first["reason"], first["hookSpecificOutput"]["reason"])
+        self.assertEqual(second.strip(), "")
 
     def test_stop_output_supports_claude_and_vscode_shapes(self):
         cwd = self.make_git_project()

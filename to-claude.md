@@ -19,3 +19,13 @@
 - Field-shaped validation: a shallow isolated clone of Gagiste `main` updated with zero warnings, backed up and archived exactly seven files, refreshed all seven to current seed bytes, and recorded all seven in `managed-seed.json`. The temporary clone was removed afterward.
 - Coordination note: `to-codex.md` remained absent at the item start and completion recheck.
 
+## 2026-11-08 - MSI-036 once-visible hook import warning
+
+- Branch: `codex/fix/msi-036-hook-import-warning` (stacked on MSI-034).
+- Outcome: `session-log-check.py` no longer disappears silently when a refreshed hook outruns the installed package and cannot import `memory_seed.session_checkpoint`.
+- Once-visible behavior: the hook atomically creates `.memory-seed/.session-log-import-warning-stamp`, emits one host-shaped upgrade/reinstall warning, then stays silent and fail-open on later invocations. Codex receives `systemMessage` with `continue: true`; Claude/VS Code receives the one blocking shape required to make a Stop-hook reason model-visible. Cursor, Gemini, and Copilot retain their native output shapes.
+- Hygiene: init/update add the stamp to `.gitignore`, and the live and seeded hook copies are byte-identical.
+- Tests-first evidence: two missing-package regressions failed before implementation; the gitignore regression also failed before the operational ignore was added.
+- Validation: the combined serial hook/lifecycle/text/git-hook suite passed (`132 passed, 14 subtests`); docs, encoding, parity, and `git diff --check` passed.
+- Coordination note: `to-codex.md` remained absent at the item start and completion recheck.
+
