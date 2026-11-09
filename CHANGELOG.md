@@ -11,6 +11,9 @@ All notable changes to Memory Seed are summarized here.
     directory they match and that directory's subtree.
   - Projects can explicitly exempt intentional non-lane documentation trees without disabling lane
     validation for unrelated folders.
+- [2026-11-08] **Windows parallel tests no longer fail while reporting passing subtests.**
+  - Handoff and subagent-orientation tests use string diagnostic labels instead of sending
+    unserializable `WindowsPath` objects through pytest-xdist's execnet channel.
 
 ## 2.25.0 - 2026-11-08
 

@@ -27,7 +27,9 @@ class HandoffWiringTests(unittest.TestCase):
             text = skill(base, "agent_collaboration.md")
             self.assertIn("### Handoff points", text)
             for label in HANDOFF_LABELS - {"other"}:
-                with self.subTest(base=base, label=label):
+                # pytest-xdist serializes subTest parameters across the worker
+                # boundary; pathlib.WindowsPath is not supported by execnet.
+                with self.subTest(base=base.as_posix(), label=label):
                     self.assertIn(f"`{label}`", text)
             for name in ("memory_task_packet_render",):
                 self.assertIn(name, text)

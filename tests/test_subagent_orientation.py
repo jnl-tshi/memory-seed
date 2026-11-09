@@ -25,7 +25,7 @@ class SubagentOrientationLiteTests(unittest.TestCase):
 
     def test_live_and_seed_are_byte_identical(self):
         for root in (ROOT, ROOT / "memory_seed" / "seed"):
-            with self.subTest(root=root):
+            with self.subTest(root=root.as_posix()):
                 self.assertTrue((root / SKILL).is_file())
         self.assertEqual(LIVE.read_bytes(), SEED.read_bytes())
 
@@ -39,7 +39,9 @@ class SubagentOrientationLiteTests(unittest.TestCase):
             categories = re.findall(r"^- \*\*(.+?)\*\*", section, flags=re.MULTILINE)
             self.assertGreaterEqual(len(categories), 8, base)
             for category in categories:
-                with self.subTest(base=base, category=category):
+                # Keep diagnostic labels as plain values that execnet can send
+                # from pytest-xdist workers on Windows.
+                with self.subTest(base=base.as_posix(), category=category):
                     self.assertIn(category, self.text)
 
     def test_session_writer_matches_agent_rules(self):
