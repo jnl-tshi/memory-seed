@@ -107,3 +107,11 @@
 - Promotion state: implementation and local release candidate are validated; branch commit, stacked integration, integrated-main verification, push, GitHub Release creation, and protected PyPI workflow verification remain pending.
 - Coordination note: `to-codex.md` remained absent at implementation start and report time.
 
+## 2026-11-09 - Memory Seed 2.25.0 publication
+
+- Integration: all validated MSI-022/024, MSI-034, MSI-036, MSI-033, release-preparation, MSI-035, MSI-031, MSI-032, and MSI-025/026 branches were integrated into `main`; the final integrated tree passed `2378 passed, 2 skipped` under xdist and was pushed at `d893b3caed5806aa553f1f185d7abda64aefbf58`.
+- GitHub Release: published `v2.25.0` from the exact validated commit at `https://github.com/jnl-tshi/memory-seed/releases/tag/v2.25.0`; the tag resolves directly to `d893b3caed5806aa553f1f185d7abda64aefbf58`.
+- Protected workflow: release-triggered run `42628568520` passed React, Python/Memory Trace, build, and the human-approved `pypi` environment deployment.
+- PyPI: `memory-seed==2.25.0` is public with wheel SHA-256 `299dfd6049ae508db8a4049ec8bc29a4c7e966895c4fdd0d1f3c95af8df4ca51` and sdist SHA-256 `7619e96fad0bf10bce5385137ec8aa1da91568d2e70888e374edf0abeb04fc0a`.
+- Public-package smoke: a clean no-dependency install from PyPI, executed outside the repository, reported distribution/package/control-plane versions `2.25.0`/`2.25.0`/`2.25` and exposed Dispatch/Packet v3 constants as `3`/`3`.
+
