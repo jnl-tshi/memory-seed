@@ -12,8 +12,9 @@ merge_trigger: automatic
 graphify_merge_refresh: true
 
 # Docs lifecycle paths are project-local. The ordered lanes drive both
-# `memory-seed docs check` and `memory-seed docs index`; nested folders must be
-# explicitly allowlisted.
+# `memory-seed docs check` and `memory-seed docs index`. Allowlist entries cover
+# folder subtrees, may use POSIX glob segments, and may exempt intentional
+# non-lane documentation trees.
 docs:
   lanes:
     - 1_Inbox
